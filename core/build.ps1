@@ -83,7 +83,10 @@ $common = @(
     "-I$(Join-Path (Join-Path $srcRoot 'imgui') 'helper')"
 )
 
-$sources = Get-ChildItem $srcRoot -Recurse -Filter '*.cpp' | Where-Object { $_.Name -notmatch '\.hold$' } | Sort-Object FullName
+# 源文件：*.cpp 之外还有 *.S（graphics/GuardedCall.S 的受保护调用 trampoline，走集成汇编器）。
+$cppSources = Get-ChildItem $srcRoot -Recurse -Filter '*.cpp' | Where-Object { $_.Name -notmatch '\.hold$' }
+$asmSources = Get-ChildItem $srcRoot -Recurse -Filter '*.S' | Where-Object { $_.Name -notmatch '\.hold$' }
+$sources = @($cppSources + $asmSources) | Sort-Object FullName
 if ($sources.Count -eq 0) { throw "没有找到任何源文件：$srcRoot" }
 
 Write-Host "[pylon] NDK      : $ndkRoot"
@@ -93,7 +96,8 @@ Write-Host "[pylon] 源文件    : $($sources.Count) 个"
 $objects = @()
 foreach ($source in $sources) {
     $relative = $source.FullName.Substring($srcRoot.Length + 1) -replace '[\\/]', '_'
-    $object = Join-Path $buildDir ($relative -replace '\.cpp$', '.o')
+    # 对象名带原扩展：GuardedCall.cpp 与 GuardedCall.S 不能同名（否则互相覆盖）。
+    $object = Join-Path $buildDir ($relative -replace '\.(cpp|S)$', '_$1.o')
     $objects += $object
     $log = "$object.log"
     # 用 PowerShell 的重定向（写成文件），**不用管道**——管道正是卡住的原因。
@@ -128,14 +132,16 @@ if ($LASTEXITCODE -ne 0) {
 $so = Get-Item $outSo
 Write-Host "[pylon] 产物      : $($so.FullName)（$([int]($so.Length / 1024)) KB）"
 
-# 导出自检：Mod ABI 必须可见，libc++ 符号必须不可见。这两条都曾经悄悄不成立过。
+# 导出自检：Mod ABI 与 Fx ABI 必须可见，libc++ 符号必须不可见。这两条都曾经悄悄不成立过。
 $readelf = Join-Path $toolchainBin "llvm-readelf$exe"
 if (Test-Path $readelf) {
     $dyn = & $readelf --dyn-syms --wide $outSo | Select-String 'FUNC.*DEFAULT.*[0-9]+ '
-    $exported = $dyn | ForEach-Object { ($_.Line -split '\s+')[-1] } | Where-Object { $_ -match '^_?Z|^PylonMod_|^Java_' }
+    $exported = $dyn | ForEach-Object { ($_.Line -split '\s+')[-1] } | Where-Object { $_ -match '^_?Z|^PylonMod_|^PylonFx_|^Java_' }
     $modCount = ($exported | Where-Object { $_ -like 'PylonMod_*' }).Count
-    $cxxCount = ($exported | Where-Object { $_ -notlike 'PylonMod_*' -and $_ -notlike 'Java_*' }).Count
-    Write-Host "[pylon] 导出检查  : PylonMod_* = $modCount，JNI = $(($exported | Where-Object { $_ -like 'Java_*' }).Count)，libc++ 残留 = $cxxCount"
+    $fxCount = ($exported | Where-Object { $_ -like 'PylonFx_*' }).Count
+    $cxxCount = ($exported | Where-Object { $_ -notlike 'PylonMod_*' -and $_ -notlike 'PylonFx_*' -and $_ -notlike 'Java_*' }).Count
+    Write-Host "[pylon] 导出检查  : PylonMod_* = $modCount，PylonFx_* = $fxCount，JNI = $(($exported | Where-Object { $_ -like 'Java_*' }).Count)，libc++ 残留 = $cxxCount"
     if ($modCount -lt 25) { throw "Mod ABI 导出不足（$modCount 个），检查 PYLON_MOD_EXPORT 与 -fvisibility" }
+    if ($fxCount -lt 12) { throw "Fx ABI 导出不足（$fxCount 个），检查 PYLON_FX_EXPORT 与 -fvisibility" }
     if ($cxxCount -gt 0) { throw "仍有 $cxxCount 个 libc++ 符号被导出，检查 -Wl,--exclude-libs,ALL" }
 }

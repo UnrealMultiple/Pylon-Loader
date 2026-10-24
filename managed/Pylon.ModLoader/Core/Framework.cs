@@ -42,6 +42,7 @@ namespace Pylon.ModLoader
             try
             {
                 UI.ModUI.EnsureInitialized(_context.Harmony, _logger);
+                Effects.ScreenGraphics.Install();
                 _logger.Info("框架 UI 已就绪（游戏配置屏 / ImGui 悬浮窗）");
             }
             catch (Exception e)

@@ -15,6 +15,7 @@ Mod 是普通 .NET 10 C# 类库，按一套参照 tModLoader 使用习惯的 API
 - **内核**：`libpylon.so` 绑定 `il2cpp_*`、按名字解析、引用校验、Dobby detour、起 CoreCLR、ImGui 覆盖层。已跑通。
 - **Mod 框架**：`Pylon.ModLoader` 提供 `Mod` / `ModItem` / `ModProjectile` / `ModNPC` / `ModBuff` / `ModMount` / `ModPrefix` / `ModRarity` / `ModRecipe` / `ModTile` / `ModWall` / `ModPlayer` / `ModConfig` / `Global*` 等，已接入物品、弹幕、NPC、Buff、坐骑、前缀、稀有度、配方、方块、墙壁、玩家生命周期与侧车存档、世界生命周期与侧车存档、网络包与实体附加数据、城镇 NPC/商店、音乐与音效、配置、工具提示与触屏按钮；世界/每帧时机直接写在 `Mod` 的覆写上（不再有单独的 `ModSystem`）。
 - **UI**：游戏原生配置屏（暂停菜单 / 主菜单设置）、ImGui 覆盖层（`Pylon Mod` 窗口，Mod 可注册 Tab）、原生 SpriteBatch 面板；外部启动器是单页深色界面，含已安装游戏选择、运行时状态、导入进度、逐文件校验详情、崩溃日志入口与一键启动；`Mod 管理` 是独立页面，支持导入 `.dll` / `.zip` / `.pmod` / 文件夹、单文件打包、启停与删除，并显示 Mod 自己的图标。
+- **屏幕效果**：屏幕效果着色器管线已迁移进内核（与 Bunny Loader 同源：dlsym GLES3 + GLSL ES 3.00，片元着色器可 `#include <bl/screen|math|noise|color|shapes|mask>`，编译延迟到渲染线程首次绘制、报错带 Mod 文件行号）。C# 侧 `Pylon.ModLoader.Effects` 暴露 `ScreenShader`（FromSource/FromFile/Reload）、`ScreenTexture`、`ScreenEffect`、`ScreenFrame`、`ScreenGraphics`（Shader/Texture/Submit/SaveNeutralLut/Stats）；效果可选画在世界层（界面之下）或屏幕层（盖一切），支持离屏目标、History（上一帧世界）、自定义 uniform 与 sampler2D。ImGui 覆盖层保持独立 Vulkan 渲染，两者互不影响（评估见 [`docs/评估-ImGui后端-GLES化.md`](docs/评估-ImGui后端-GLES化.md)）。
 - **未接**：Tile 的 `PreDraw/PostDraw/SpecialDraw` 自定义绘制 pass、地图颜色/图例、门/坐睡/锁箱；战斗命中/受伤管线、自然生成、菜单主题等，逐项进度见 [`docs/migration-map.md`](docs/migration-map.md)。
 
 ## 优势

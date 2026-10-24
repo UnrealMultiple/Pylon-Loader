@@ -71,7 +71,7 @@ Write-Host ("[部署] BCL：{0} 个文件 / {1:N1} MB -> app/src/debug/assets/py
 # ③ 托管入口 → 构建 + assets/pylon-managed
 $managedProj = Join-Path $RepoRoot 'managed\Pylon.Managed\Pylon.Managed.csproj'
 $log = Join-Path $env:TEMP 'pylon-managed-build.log'
-dotnet build $managedProj -c Release -v minimal  --nologo -m:1 -p:RestoreUseStaticGraphEvaluation=true > $log 2>&1
+dotnet build $managedProj -c Release -v minimal --nologo -m:1 -p:MSBUILDNOINPROCNODE=1 -p:RestoreUseStaticGraphEvaluation=true > $log 2>&1
 if ($LASTEXITCODE -ne 0) { Get-Content $log | Select-Object -Last 15; throw "托管入口编译失败" }
 
 $built = Join-Path $RepoRoot 'managed\Pylon.Managed\bin\Release\net10.0\Pylon.Managed.dll'
@@ -149,7 +149,7 @@ $hsProj = Join-Path $RepoRoot 'interop\harmonysupport\Il2CppInterop.HarmonySuppo
 $hsDll = Join-Path $RepoRoot 'interop\harmonysupport\bin\Release\net10.0\Il2CppInterop.HarmonySupport.dll'
 if (-not (Test-Path $hsDll)) {
     $hsLog = Join-Path $env:TEMP 'pylon-harmonysupport-build.log'
-    dotnet build $hsProj -c Release --nologo -v q -m:1 > $hsLog 2>&1
+    dotnet build $hsProj -c Release --nologo -v q -m:1 -p:MSBUILDNOINPROCNODE=1 > $hsLog 2>&1
     if ($LASTEXITCODE -ne 0) { Get-Content $hsLog | Select-Object -Last 10; throw "HarmonySupport 编译失败" }
 }
 if (-not (Test-Path $hsDll)) { throw "找不到 $hsDll" }

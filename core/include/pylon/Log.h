@@ -13,7 +13,8 @@
 #define PYLON_LOG(level, stage, fmt, ...)                                     \
     __android_log_print(level, PYLON_TAG, "[%s] " fmt, stage, ##__VA_ARGS__)
 
-// stage 用来区分模块：[core] / [boot] / [refs] / [il2cpp]
+// stage 用来区分模块：[core] / [boot] / [refs] / [il2cpp] / [fx]
+#define LOGD(stage, fmt, ...) PYLON_LOG(ANDROID_LOG_DEBUG, stage, fmt, ##__VA_ARGS__)
 #define LOGI(stage, fmt, ...) PYLON_LOG(ANDROID_LOG_INFO, stage, fmt, ##__VA_ARGS__)
 #define LOGW(stage, fmt, ...) PYLON_LOG(ANDROID_LOG_WARN, stage, fmt, ##__VA_ARGS__)
 #define LOGE(stage, fmt, ...) PYLON_LOG(ANDROID_LOG_ERROR, stage, fmt, ##__VA_ARGS__)
