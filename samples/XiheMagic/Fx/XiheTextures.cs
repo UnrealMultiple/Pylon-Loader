@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Reflection;
@@ -40,10 +39,6 @@ namespace XiheMagic
 
             return (ScreenTexture)_ctor.Invoke(new object[] { id, ow, oh });
         }
-
-        /// <summary>解 MEAC 的 PNG（给需要读像素的调用方）。</summary>
-        internal static byte[] DecodePng(byte[] data, out int width, out int height) =>
-            Decode(data, out width, out height);
 
         // ---------------- 最小 PNG 解码 ----------------
 

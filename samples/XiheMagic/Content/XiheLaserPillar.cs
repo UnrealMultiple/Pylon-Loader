@@ -86,6 +86,7 @@ namespace XiheMagic
                     }
                     else
                     {
+                        // 控制器没了 → 立刻进入收尾。
                         proj.timeLeft = 20;
                     }
                 }
@@ -173,4 +174,3 @@ namespace XiheMagic
         }
     }
 }
-

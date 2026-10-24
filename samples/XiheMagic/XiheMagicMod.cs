@@ -2,7 +2,6 @@ using System;
 using System.Linq;
 using System.Reflection;
 using HarmonyLib;
-using Il2CppMicrosoft.Xna.Framework;
 using Pylon.ModLoader;
 using Pylon.ModLoader.Effects;
 using Terraria;

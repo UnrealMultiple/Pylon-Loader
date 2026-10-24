@@ -1,29 +1,32 @@
 // 羲和魔杖 —— 激光柱屏幕效果（Pylon ScreenShader，GLSL ES 3.00）。
 //
 // 素材全部来自本机 MEAC 文件夹：
-//   uBeamTex      = MEAC/Images/tex3.png             EoLBigLaser 外层柱
-//   uCoreTex      = MEAC/Images/tex0.png             内层柱
-//   uArcTex       = MEAC/Items/ModWeapons/Arc        XiheMagicControler.PreDraw 的耀斑
-//   uStarTex      = MEAC/Images/Extra_89.png         十字辉光
-//   uRingTex      = MEAC/Projectiles/Circle          落点柔光
-//   uRingStripTex = MEAC/Images/MagicCircle/tex1     MagicRing 的文字环带
+//   uBeamTex    = MEAC/Images/tex3.png              EoLBigLaser 外层柱
+//   uCoreTex    = MEAC/Images/tex0.png              内层柱
+//   uArcTex     = MEAC/Items/ModWeapons/Arc         XiheMagicControler.PreDraw 的耀斑
+//   uStarTex    = MEAC/Images/Extra_89.png          十字辉光
+//   uRingStrip  = MEAC/Images/MagicCircle/tex1.png  MagicRing 的环带条（600x70，sX=3）
 //
-// 圆环：按 MEAC.Entities.MagicRing.Draw 的 3D 顶点公式逐像素反解：
-//   顶点 = Projection(center + (R cosθ, ±width, R sinθ), screenCenter, viewZ=1000)
-//   R = 110*scale*ai0, width = 10*scale*ai0；投影是 k=1000/(1000-z) 的透视缩放。
-//   → 近侧环带窄、远侧宽，真正有立体感，而不是平面椭圆。
+// 圆环：逐像素反解 MEAC.Entities.MagicRing.Draw 的顶点投影（不是屏幕空间椭圆近似）：
+//   rot    = RotY(UnitX, θ) * 110 * scale * ai0            = (R cosθ, 0, R sinθ)
+//            （Helper.Vec3RotBy 的 Y 矩阵是 XNA 行向量口径：new Matrix(c,0,s, 0,1,0, -s,0,c)）
+//   vertex = center + RotZ(rot + (0, ∓width), ai1)          ai1 = 0，width = 10*scale*ai0
+//   screen = Projection(vertex, scCenter, viewZ = 1000)     p = S + k*(D + q.xy)
+//   其中 k = 1000/(1000 - q.z)，S = 屏幕中心（世界坐标），D = 环心 - S。
+// 所以固定 θ 时环带在屏幕上就是一条竖线：x = k(Dx + R cosθ)，y = k(Dy ± w)。
+// 逐像素把 θ 解出来（最多两个解，前后两段），再按 k 取环带的 v 去采样 tex1。
+// 近侧 k>1 环带被放大、远侧 k<1 被压窄，环心离屏幕中心越远"椭圆"越高——原版的立体感全在这里。
+//
 // 彩虹：按 XiheMagicControler.PreDraw 的 Arc.png 上下各 3 片（±90+j*3，红/绿/蓝）+
 //   彩虹色按左右铺在 Arc 的翅膀形状里（不再是几何圆弧）。
 #include <bl/screen>
 #include <bl/noise>
-#include <bl/color>
-#include <bl/shapes>
 
 uniform sampler2D uBeamTex;
 uniform sampler2D uCoreTex;
 uniform sampler2D uArcTex;
 uniform sampler2D uStarTex;
-uniform sampler2D uRingAnnulus;
+uniform sampler2D uRingStrip;
 
 uniform float uTexOn;
 uniform float uCharge;
@@ -32,18 +35,16 @@ uniform float uFlash;
 uniform float uSky;
 uniform float uShake;
 uniform float uImpact;
-uniform float uHalfWidth;
 uniform float uBeamWidth;
 uniform float uBeamX;
-uniform float uBeamCenterV;
-uniform float uBeamAge;
-uniform float uRingEarlyX;
-uniform float uRingEarlyV;
-uniform float uRingLateX;
-uniform float uRingLateV;
+
+// 环：每个 vec4 = (屏幕 uv 中心 x, 屏幕 uv 中心 y, R, 半宽)，都以屏幕高度为单位。
+uniform vec4 uRings[8];
+uniform float uRingCount;
+uniform float uRingViewZ;   // 1000 / screenHeight（MEAC 的 viewZ = 1000 世界 px）
+uniform float uRingHalo;    // bloom 半径（屏幕高度分数）
 
 const float TAU = 6.28318530718;
-const float VIEW_Z = 1000.0;
 
 // MEAC Colorize.fx 的同款。
 vec3 colorize(vec3 base, vec3 col, float saturation, float offset) {
@@ -53,34 +54,97 @@ vec3 colorize(vec3 base, vec3 col, float saturation, float offset) {
                      : mix(mid, vec3(1.0), (lum - 0.5) * 2.0);
 }
 
-// MEAC MagicRing 的环带已按 tex1（sX=3，V 0..1）卷成环形图，这里只做透视压扁后采样。
-vec3 magicRing(vec2 uv, float ringX, float ringV, float R, float halfW, float alpha, float spin) {
+// MEAC.Entities.MagicRing.Draw 的投影反解。pix = (x, y)，单位屏幕高度，y 向下，原点屏幕中心。
+vec3 magicRing(vec2 pix, vec4 ring) {
     if (uTexOn < 0.5) return vec3(0.0);
 
-    vec2 p = (uv - vec2(ringX, ringV)) * uResolution;
-    float squash = clamp(abs(ringV - 0.5) * 1.7 + 0.10, 0.10, 0.55);
-    p.y /= squash;
+    float Dx = (ring.x - 0.5) * uAspect;
+    float Dy = 0.5 - ring.y;
+    float R = ring.z;
+    float w = ring.w;
+    float vz = uRingViewZ;
 
-    // MEAC MagicRing 的 t（-timeForVisualEffects*0.01）让环上的文字绕圈转。
-    float a = uTime * 0.35 + spin;
-    float ca = cos(a), sa = sin(a);
-    p = vec2(p.x * ca - p.y * sa, p.x * sa + p.y * ca);
+    if (R < 1e-5 || w < 1e-7 || R > vz * 0.98) return vec3(0.0);
 
-    vec2 tuv = p / (2.0 * max(R, 1.0)) + 0.5;
-    if (tuv.x < 0.0 || tuv.x > 1.0 || tuv.y < 0.0 || tuv.y > 1.0) return vec3(0.0);
+    float kMin = vz / (vz + R);      // sinθ = -1（远侧）
+    float kMax = vz / (vz - R);      // sinθ = +1（近侧）
+    float margin = uRingHalo * 4.0;
 
-    vec4 t = texture(uRingAnnulus, tuv);
-    vec3 c = t.rgb * vec3(1.0, 0.92, 0.78);   // 贴近光柱的金白
-    return c * alpha * 2.2;
+    // 包围盒剔除：环带的 x/y 一定落在这里面。
+    float px0 = min(Dx - R, Dx + R);
+    float px1 = max(Dx - R, Dx + R);
+    float py0 = min(Dy - w, Dy + w);
+    float py1 = max(Dy - w, Dy + w);
+    if (pix.x < min(px0 * kMin, px0 * kMax) - margin ||
+        pix.x > max(px1 * kMin, px1 * kMax) + margin) return vec3(0.0);
+    if (pix.y < min(py0 * kMin, py0 * kMax) - margin ||
+        pix.y > max(py1 * kMin, py1 * kMax) + margin) return vec3(0.0);
+
+    // R cosθ + (X R / vz) sinθ = X - Dx   →   φ ± acos(c/m)
+    float b = pix.x * R / vz;
+    float c = pix.x - Dx;
+    float m = sqrt(R * R + b * b);
+    if (m < 1e-6 || abs(c) > m) return vec3(0.0);
+
+    float phi = atan(b, R);
+    float dth = acos(clamp(c / m, -1.0, 1.0));
+
+    vec3 acc = vec3(0.0);
+    for (int s = 0; s < 2; s++) {
+        float th = phi + (s == 0 ? dth : -dth);
+        float k = vz / (vz - R * sin(th));       // 透视缩放（MEAC 的 Projection 的 k）
+        float y0 = k * (Dy - w);                 // 上边（V=0）
+        float y1 = k * (Dy + w);                 // 下边（V=1）
+        float lo = min(y0, y1);
+        float hi = max(y0, y1);
+
+        float v;        // 0 = 上边，1 = 下边
+        float halo;     // bloom 权重
+        bool inside = (pix.y >= lo && pix.y <= hi);
+        float sigma = max(uRingHalo, 1e-4);
+        if (inside) {
+            v = (pix.y - y0) / max(y1 - y0, 1e-6);
+            halo = 0.05;                     // 环带内只留一点暖光，黑底保持透明
+        } else {
+            float dist = (pix.y < lo) ? (lo - pix.y) : (pix.y - hi);
+            // 环带外只做一小圈金色辉光（MEAC 的 bloom 是 1/3 分辨率的小模糊）。
+            halo = 0.12 * exp(-(dist * dist) / (2.0 * sigma * sigma));
+            if (halo < 0.02) continue;
+            v = (pix.y < lo) ? 0.0 : 1.0;
+        }
+
+        v = clamp(v, 0.0, 1.0);
+        // 顶点色 = 白 * k（上边第一个顶点原版再 +0.05）；XNA 的 Color 会截到 1。
+        float kc = clamp(mix(k + 0.05, k, v), 0.0, 1.0);
+        // sX = 3，t = -timeForVisualEffects * 0.01（每 tick 0.01 → 每秒 0.6）。
+        float u = fract(3.0 * th / TAU - uTime * 0.6);
+        // Pylon 的纹理 v=0 在图像底部，原版 DX 的 v=0 在顶部，所以这里翻一下。
+        vec4 t = texture(uRingStrip, vec2(u, 1.0 - v));
+
+        // 原版是加色混合：src.rgb * src.a = tex.rgb * tex.a * kc²。
+        vec3 base = t.rgb * t.a * kc * kc;
+        // MagicRing.useBloom = true，bloomColor = HsvToRgb(50) = (1, 0.833, 0)。
+        vec3 gold = vec3(1.0, 0.833, 0.0);
+        if (inside) {
+            acc += base;                 // 环带本体：纹理的 4px 白描边 + 符文
+            acc += base * gold * halo;   // 环带内一点点暖光
+        } else {
+            acc += base * gold * halo;   // 环带外只有金色辉光，不能再刷一遍白色描边
+        }
+    }
+    return acc;
 }
+
 void main() {
-    vec2 uv = vUV;
+    // 震屏：MEAC 的 EffectPlayer 每 tick 给 Main.screenPosition 加一个「随机方向 * screenShake」，
+    // 也就是整个画面（世界 + 光柱 + 环）一起抖，而且每 tick 换一次方向。
+    float tick = floor(uTime * 60.0);
+    float ang = blHash(vec2(tick, 3.7)) * TAU;
+    vec2 shake = vec2(cos(ang) / uAspect, sin(ang)) * uShake;
+    vec2 uv = vUV + shake;
     float sh = uResolution.y;
 
-    // 震屏
-    vec2 shake = vec2(blNoise(vec2(uTime * 13.0, 3.1)) - 0.5,
-                      blNoise(vec2(uTime * 11.0, 7.7)) - 0.5) * uShake * 2.0;
-    vec3 col = blScreen(clamp(uv + shake, vec2(0.002), vec2(0.998))).rgb;
+    vec3 col = blScreen(clamp(uv, vec2(0.002), vec2(0.998))).rgb;
 
     // 天幕（紫金，无星点）
     if (uSky > 0.001) {
@@ -173,50 +237,15 @@ void main() {
         col += vec3(1.0, 0.86, 0.50) * (exp(-ir * 0.010) * 0.40 + exp(-ir * 0.0035) * 0.18) * uBeam;
     }
 
-    // ---------------- 环（在柱之后，带真 3D 投影）----------------
-    if (uBeamAge > 0.0) {
-        // 柱生成时三环：依次展开（timeLeft 360/340/320），ai0 = 0.7 / 0.4 / 0.9。
-        for (int i = 0; i < 3; i++) {
-            float start = float(i) * 20.0;
-            float t = (uBeamAge - start) / 90.0;
-            if (t <= 0.0 || t >= 1.0) continue;
-
-            float expand = smoothstep(0.0, 0.22, t);
-            float rs = expand * 4.0;                       // MagicRing.scale 0 → 4
-            float ai0 = i == 0 ? 0.70 : (i == 1 ? 0.40 : 0.90);
-            float R = 110.0 * rs * ai0;
-            float hw = max(10.0 * rs * ai0, 8.0);
-            float alpha = (1.0 - smoothstep(0.55, 1.0, t)) * 0.75;
-            float centerV = uBeamCenterV - (80.0 + float(i) * 260.0) / sh;
-            col += magicRing(uv, uBeamX, centerV, R, hw, alpha, float(i) * 0.2);
-        }
-
-        // 点火后三环：常驻，ai0 = 0.85 / 0.6 / 1.1，scale 4 → 5。
-        float lit = clamp((uBeamAge - 110.0) / 25.0, 0.0, 1.0);
-        if (lit > 0.0) {
-            float persist = smoothstep(0.0, 0.35, uBeam);
-            for (int i = 0; i < 3; i++) {
-                float rs = 4.0 + 0.5 * smoothstep(0.8, 1.0, lit);
-                float ai0 = i == 0 ? 0.85 : (i == 1 ? 0.60 : 1.10);
-                float R = 110.0 * rs * ai0;
-                float hw = max(10.0 * rs * ai0, 10.0);
-                float centerV = uBeamCenterV - (80.0 + float(i) * 260.0) / sh;
-                col += magicRing(uv, uBeamX, centerV, R, hw, 0.95 * persist, 0.4 + float(i) * 0.2);
-            }
+    // ---------------- MagicRing（在柱之后；真 3D 投影，逐像素反解）----------------
+    if (uTexOn > 0.5 && uRingCount > 0.5) {
+        vec2 pix = vec2((uv.x - 0.5) * uAspect, 0.5 - uv.y);
+        for (int i = 0; i < 8; i++) {
+            if (float(i) >= uRingCount) break;
+            col += magicRing(pix, uRings[i]);
         }
     }
 
     col += vec3(1.0, 0.96, 0.86) * uFlash * 1.15;
     fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }
-
-
-
-
-
-
-
-
-
-
-

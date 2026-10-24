@@ -24,7 +24,8 @@ namespace XiheMagic
             if (ImGuiApi.Button("添加到背包"))
                 Give(1);
 
-            ImGuiApi.SameLine();
+            if (!string.IsNullOrEmpty(_status))
+                ImGuiApi.Text(_status);
         }
 
 

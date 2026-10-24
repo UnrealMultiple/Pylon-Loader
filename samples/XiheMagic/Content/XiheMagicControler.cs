@@ -96,12 +96,16 @@ namespace XiheMagic
             }
 
             // 免费引导 310 tick；之后每 tick 扣 10 魔力续命。
+            // 原版 CheckMana(10, true, false) 的口径：实际消耗 = 10 * player.manaCost，扣不动就断。
+            // （CheckMana 在 IL2CPP 这边调过去 pay 没生效，只扣过一次，所以这里自己扣。）
             if (proj.timeLeft < 190)
             {
-                if (player.controlUseItem && player.statMana >= 10)
+                var cost = (int)(10f * player.manaCost);
+                if (cost < 1) cost = 1;
+
+                if (player.controlUseItem && player.statMana >= cost)
                 {
-                    player.statMana -= 10;
-                    player.ManaEffect(-10);
+                    player.statMana -= cost;
                     proj.timeLeft++;
                 }
                 else
