@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    示例 Mod（框架式）：派生 Pylon.ModLoader.Mod，用 ModItem 声明两件自定义物品。
+    自研项目之间统一 ProjectReference（构建脚本带 -m:1 -p:RestoreUseStaticGraphEvaluation=true，
+    规避本机 SDK 缺 Workload 定位目录导致的多工程还原静默失败）。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>FrameMod</AssemblyName>
+    <RootNamespace>FrameMod</RootNamespace>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <NoWarn>CS0436</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\managed\Pylon.ModLoader\Pylon.ModLoader.csproj" />
+    <ProjectReference Include="..\..\managed\Pylon.ImGui\Pylon.ImGui.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="0Harmony">
+      <HintPath>..\..\runtime\bepinex-android\bepinex\core\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>..\..\interop\generated\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2Cppmscorlib">
+      <HintPath>..\..\interop\generated\Il2Cppmscorlib.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2CppInterop.Runtime">
+      <HintPath>..\..\interop\runtime\net10.0\Il2CppInterop.Runtime.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>

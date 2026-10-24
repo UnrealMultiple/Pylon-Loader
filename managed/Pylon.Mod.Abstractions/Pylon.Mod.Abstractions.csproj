@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Mod 契约（给 Mod 作者引用的最小程序集）。
+    随宿主一起进 TPA：这样所有 Mod 的加载上下文都会共享同一份契约类型，
+    `typeof(IPylonMod).IsAssignableFrom(modType)` 才判得成立（各加载一份就会分裂）。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Pylon.Mod.Abstractions</AssemblyName>
+    <RootNamespace>Pylon.Mod</RootNamespace>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 只用到 Harmony 类型本身；运行时不复制（宿主已提供，见 HostAssemblies 规则） -->
+    <Reference Include="0Harmony">
+      <HintPath>..\..\runtime\bepinex-android\bepinex\core\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>

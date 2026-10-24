@@ -1,0 +1,79 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    层：互操作层 / Harmony 的 IL2CPP 支持（本项目自己编译，不进 NuGet）
+
+    上游：Il2CppInterop 81a6f78 的 Il2CppInterop.HarmonySupport，**打了两个补丁**：
+      ① IDetourProvider.Create(3 参)：对齐本机 Runtime 的接口（上游是别的签名）；
+      ② 值类型参数包装：ARM64 上 Nullable<T> 等结构体按值走寄存器，trampoline 拿到的是
+         结构体原始字节而不是指针。上游把它们当指针解引用 → GUIPanel.Draw(..., Nullable<Color>×3)
+         这类被 Harmony 挂钩的方法一调用就 AccessViolationException 把进程 abort。
+         现在值类型一律给空包装（Nullable 用 ctor() → hasValue=false，语义就是"不覆盖"）。
+
+    为什么放在仓库里：这份 DLL 必须和 Pylon 一起发。之前它只存在于 .diag 的临时构建里，
+    部署脚本仍从 BepInEx 原包里拷 → 设备上跑的是没打补丁的版本，设置界面一点就闪退。
+
+    产物：bin/Release/net10.0/Il2CppInterop.HarmonySupport.dll
+    Gradle 的 :app:assembleDebug 会先跑 buildHarmonySupport，再把它拷进
+    app/src/debug/assets/pylon-interop/（见 app/build.gradle.kts）。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Il2CppInterop.HarmonySupport</AssemblyName>
+    <RootNamespace>Il2CppInterop.HarmonySupport</RootNamespace>
+    <Description>Module to allow using Harmony with Il2CppInterop assemblies (patched by Pylon)</Description>
+    <Version>1.5.3</Version>
+    <AssemblyVersion>1.5.3.0</AssemblyVersion>
+    <FileVersion>1.5.3.0</FileVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 引用的是随 APK 部署的那些 DLL：版本必须与 pylon-interop 里的一致。 -->
+    <Reference Include="0Harmony">
+      <HintPath>..\..\app\src\debug\assets\pylon-interop\0Harmony.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2CppInterop.Runtime">
+      <HintPath>..\..\app\src\debug\assets\pylon-interop\Il2CppInterop.Runtime.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2CppInterop.Common">
+      <HintPath>..\..\app\src\debug\assets\pylon-interop\Il2CppInterop.Common.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2Cppmscorlib">
+      <HintPath>..\..\interop\generated\Il2Cppmscorlib.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Microsoft.Extensions.Logging.Abstractions">
+      <HintPath>..\..\app\src\debug\assets\pylon-interop\Microsoft.Extensions.Logging.Abstractions.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="MonoMod.Core">
+      <HintPath>..\..\app\src\debug\assets\pylon-interop\MonoMod.Core.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="MonoMod.Utils">
+      <HintPath>..\..\app\src\debug\assets\pylon-interop\MonoMod.Utils.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="MonoMod.Backports">
+      <HintPath>..\..\app\src\debug\assets\pylon-interop\MonoMod.Backports.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="MonoMod.RuntimeDetour">
+      <HintPath>..\..\app\src\debug\assets\pylon-interop\MonoMod.RuntimeDetour.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="MonoMod.ILHelpers">
+      <HintPath>..\..\app\src\debug\assets\pylon-interop\MonoMod.ILHelpers.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Mono.Cecil">
+      <HintPath>..\..\app\src\debug\assets\pylon-interop\Mono.Cecil.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>

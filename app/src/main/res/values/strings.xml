@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 层：启动器层（:app）的资源：应用名、宿主主题，以及宿主必须补齐的 Unity 字符串资源。 -->
+<resources>
+    <string name="app_name">Pylon Loader</string>
+
+    <!--
+      宿主必须补齐的 Unity 资源（docs/01「宿主时必须补齐的 Java 类」同类问题，这里是资源侧）。
+
+      依据是游戏里 UnityPlayer 的字节码（refs/classes.dex 反查），它这样取：
+        int id = context.getResources().getIdentifier("game_view_content_description", "string", context.getPackageName());
+        return context.getResources().getString(id);
+      查不到时 getIdentifier 返回 0 → Resources$NotFoundException，UnityPlayer.<init> 直接抛。
+
+      注意游戏自己的 APK 里**没有**这个字符串，所以它期望的是宿主提供。
+      值本身是给无障碍朗读用的视图描述，不影响渲染与逻辑。
+    -->
+    <string name="game_view_content_description">Terraria game view</string>
+</resources>

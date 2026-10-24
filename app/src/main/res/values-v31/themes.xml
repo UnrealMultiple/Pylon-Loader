@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  层：启动器层（:app）的主题 / Android 12+ 启动屏
+
+  系统启动屏用与图标同源的 Pylon 塔形标记，背景就是窗口背景色，
+  这样从点图标到首帧之间不会有"白底 + 默认图标"的跳变。
+-->
+<resources>
+    <style name="PylonTheme" parent="PylonTheme.Base">
+        <item name="android:windowSplashScreenBackground">@color/pylon_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@android:color/transparent</item>
+    </style>
+</resources>

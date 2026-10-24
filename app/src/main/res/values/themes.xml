@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  层：启动器层（:app）的主题
+
+  仍然用平台主题而不是 Material/AppCompat：启动器不引入任何 UI 依赖库，
+  少一个依赖就少一个"离线构建失败"和"版本冲突"的来源。
+  UI 的视觉由 ui/Palette 与自绘控件负责，主题只保证：
+    · 冷启动窗口是深色，避免白屏闪一下；
+    · 系统栏透明、图标为浅色（配合 edge-to-edge 的 insets 处理）；
+    · 对话框/强调色沿用同一套色板。
+
+  PylonTheme.Base 单独一层，是为了让 values-v31 只在 Android 12+ 叠加上
+  splash screen 的三个属性，而不用把基础属性复制一遍。
+-->
+<resources>
+    <style name="PylonTheme.Base" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/pylon_background</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowActionModeOverlay">true</item>
+
+        <item name="android:windowDrawsSystemBarBackgrounds">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+
+        <item name="android:colorAccent">@color/pylon_accent</item>
+    </style>
+
+    <style name="PylonTheme" parent="PylonTheme.Base" />
+</resources>

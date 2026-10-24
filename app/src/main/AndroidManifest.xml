@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  层：启动器层（:app）的清单
+
+  职责：
+   1. 声明 <queries>，否则 API 30+ 上 PackageManager 看不见游戏包，
+      表现为"未找到 com.and.games505.Terraria"，会把排查方向带偏（RuntimeImport 里对这点有日志）。
+   2. 声明外部 UI 入口 MainActivity。
+   3. 声明宿主层入口 GameActivity，并把它放进 :game 进程。
+   4. 与游戏对齐的属性 + **Unity 会从宿主包读取的 meta-data**。后者曾经漏掉，是 M1
+      卡住的原因之一（见 docs/07）。
+
+  属性取值（launchMode / screenOrientation / configChanges / hardwareAccelerated /
+  resizeableActivity）取自设备上游戏 AndroidManifest 的 aapt2 解码结果，原文备份在
+  refs/AndroidManifest.xml。meta-data 取值同样是照抄游戏（Unity 从**宿主**包读它们，
+  所以必须在我们这边存在）：
+
+    unity.splash-mode            splash 模式
+    unity.splash-enable          splash 开关
+    unity.launch-fullscreen      启动即全屏
+    unity.auto-report-fully-drawn
+    notch.config                 刘海策略
+    android.notch_support        （activity 级）
+    unityplayer.UnityActivity    （activity 级）标记"这是 Unity 的 Activity"
+
+  权限：游戏跑在**我们的**权限下，游戏自己声明的这几个必须由宿主提供，否则
+  联网/震动/内购校验会以"权限被拒"的形式失败。
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- API 30+ 的包可见性：目标包 + 可启动应用（启动器里的"选择已安装游戏"要用）。 -->
+    <queries>
+        <package android:name="com.and.games505.Terraria" />
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
+    <!-- 照抄游戏声明的权限（游戏进程 = 我们的进程，权限归宿主）。 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="com.android.vending.CHECK_LICENSE" />
+
+    <!-- 设备实测为 arm64-v8a only；显式声明，避免被判定为支持其他 ABI。 -->
+    <uses-feature android:name="android.hardware.touchscreen" android:required="true" />
+    <uses-feature android:glEsVersion="0x00030000" android:required="true" />
+
+    <!-- appCategory=game：让系统按"游戏"来调度（游戏模式、性能策略）。
+         largeHeap：Terraria 的资源和 il2cpp 堆远超普通 app 的默认堆上限。
+         图标是自绘的塔形标记（矢量自适应图标），不含游戏美术。 -->
+    <application
+        android:allowBackup="false"
+        android:appCategory="game"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:largeHeap="true"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:theme="@style/PylonTheme">
+
+        <!-- Unity 从宿主包读这些（PackageManager），见文件头。 -->
+        <meta-data android:name="unity.splash-mode" android:value="1" />
+        <meta-data android:name="unity.splash-enable" android:value="true" />
+        <meta-data android:name="unity.launch-fullscreen" android:value="true" />
+        <meta-data android:name="unity.auto-report-fully-drawn" android:value="true" />
+        <meta-data android:name="notch.config" android:value="portrait|landscape" />
+
+        <!-- 外部 UI：跑在默认进程，故意用 portrait，避免把启动器也变成横屏。 -->
+        <activity
+            android:name="dev.pylon.loader.MainActivity"
+            android:exported="true"
+            android:screenOrientation="portrait">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- 独立 Mod 管理页：导入/启停/删除；只由启动器打开。 -->
+        <activity
+            android:name="dev.pylon.loader.ModsActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+
+        <!--
+          宿主层入口。属性对齐游戏（见文件头注释）；android:process=":game" 是本项目的核心约定：
+          docs/02 要求"把游戏运行时加载进我们自己的 :game 进程"。
+          exported=false：只由我们自己的 MainActivity 显式启动，不对外开放。
+
+          theme 用平台的无标题全屏主题：宿主窗口必须和游戏一样是"无标题栏 + 全屏"，
+          否则 Unity 的 SurfaceView 尺寸/Insets 与游戏内预期不一致。
+
+          configChanges 说明：游戏原始值是裸 hex 0x40003fff。其中 0x40000000 是历史位
+          （老 assetsPaths），当前 aapt2 不认它、会直接报 "incompatible with attribute"，
+          而 Unity 2021.3 的 Java 侧依赖的是剩余 14 个位。这里用语义化标志名保留这 14 位，
+          结果掩码仍为 0x3fff（已用 aapt2 复核合并产物），对齐语义不变。
+        -->
+        <activity
+            android:name="dev.pylon.loader.game.GameActivity"
+            android:exported="false"
+            android:process=":game"
+            android:launchMode="singleTask"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize|density|layoutDirection"
+            android:hardwareAccelerated="false"
+            android:resizeableActivity="false"
+            android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
+
+            <meta-data android:name="unityplayer.UnityActivity" android:value="true" />
+            <meta-data android:name="android.notch_support" android:value="true" />
+        </activity>
+
+    </application>
+
+</manifest>

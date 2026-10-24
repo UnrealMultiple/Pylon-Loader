@@ -1,0 +1,161 @@
+package com.andhook;
+
+import android.app.Activity;
+import android.view.MotionEvent;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.ViewParent;
+
+public final class TouchBridgeInstaller implements Runnable {
+    private final Activity activity;
+    private final boolean install;
+
+    public TouchBridgeInstaller(Activity activity, boolean install) {
+        this.activity = activity;
+        this.install = install;
+    }
+
+    @Override
+    public void run() {
+        if (install) {
+            TouchBridgeView.install(activity);
+        } else {
+            TouchBridgeView.uninstall();
+        }
+    }
+
+    static native void nativeOnTouch(int action, int pointerIndex,
+                                     int[] pointerIds, float[] pointerXs,
+                                     float[] pointerYs, int[] pointerToolTypes,
+                                     int pointerCount);
+
+    static native boolean nativeShouldCapture(float x, float y);
+
+    static native void nativeInstalled(boolean installed);
+}
+
+final class TouchBridgeView extends View {
+    private static TouchBridgeView instance;
+    private ViewGroup root;
+    private int[] pointerIds = new int[2];
+    private int[] pointerTools = new int[2];
+    private float[] pointerXs = new float[2];
+    private float[] pointerYs = new float[2];
+    private boolean capturedByImGui = false;  // 当前触摸序列是否被 ImGui 捕获（防止穿透到游戏）
+
+    private TouchBridgeView(Activity activity, ViewGroup root) {
+        super(activity);
+        this.root = root;
+        setClickable(true);
+        setFocusable(false);
+        setWillNotDraw(true);
+    }
+
+    static void install(Activity activity) {
+        if (activity == null || activity.isFinishing() || activity.isDestroyed()) {
+            TouchBridgeInstaller.nativeInstalled(false);
+            return;
+        }
+
+        View content = activity.findViewById(android.R.id.content);
+        if (!(content instanceof ViewGroup)) {
+            TouchBridgeInstaller.nativeInstalled(false);
+            return;
+        }
+
+        ViewGroup nextRoot = (ViewGroup) content;
+        if (instance != null && instance.getParent() == nextRoot) {
+            instance.bringToFront();
+            TouchBridgeInstaller.nativeInstalled(true);
+            return;
+        }
+
+        uninstall();
+        instance = new TouchBridgeView(activity, nextRoot);
+        nextRoot.addView(instance, new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT));
+        instance.bringToFront();
+        TouchBridgeInstaller.nativeInstalled(true);
+    }
+
+    static void uninstall() {
+        if (instance != null) {
+            ViewParent parent = instance.getParent();
+            if (parent instanceof ViewGroup)
+                ((ViewGroup) parent).removeView(instance);
+            instance.root = null;
+            instance = null;
+        }
+        TouchBridgeInstaller.nativeInstalled(false);
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        if (instance == this)
+            TouchBridgeInstaller.nativeInstalled(false);
+    }
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        if (event == null)
+            return true;
+
+        int action = event.getActionMasked();
+        if (action == MotionEvent.ACTION_DOWN)
+            capturedByImGui = TouchBridgeInstaller.nativeShouldCapture(event.getX(), event.getY());
+        else if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL)
+            capturedByImGui = false;
+
+        forwardToNative(event);
+        // 触摸落在 ImGui 窗口上时不再转发给游戏，避免点击穿透到游戏界面
+        if (!capturedByImGui)
+            forwardToGame(event);
+        return true;
+    }
+
+    private void forwardToNative(MotionEvent event) {
+        int count = event.getPointerCount();
+        if (count <= 0)
+            return;
+
+        ensurePointerCapacity(count);
+        for (int i = 0; i < count; ++i) {
+            pointerIds[i] = event.getPointerId(i);
+            pointerTools[i] = event.getToolType(i);
+            pointerXs[i] = event.getX(i);
+            pointerYs[i] = event.getY(i);
+        }
+        TouchBridgeInstaller.nativeOnTouch(
+                event.getActionMasked(), event.getActionIndex(),
+                pointerIds, pointerXs, pointerYs, pointerTools, count);
+    }
+
+    private void ensurePointerCapacity(int count) {
+        if (pointerIds.length >= count)
+            return;
+        pointerIds = new int[count];
+        pointerTools = new int[count];
+        pointerXs = new float[count];
+        pointerYs = new float[count];
+    }
+
+    private void forwardToGame(MotionEvent event) {
+        if (root == null)
+            return;
+
+        for (int i = root.getChildCount() - 1; i >= 0; --i) {
+            View child = root.getChildAt(i);
+            if (child == this || child.getVisibility() != View.VISIBLE)
+                continue;
+
+            MotionEvent copy = MotionEvent.obtain(event);
+            copy.offsetLocation(-child.getLeft(), -child.getTop());
+            boolean handled = child.dispatchTouchEvent(copy);
+            copy.recycle();
+            if (handled)
+                break;
+        }
+    }
+}

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 层：启动器层（:app）的颜色资源。与 Kotlin 侧的 Palette 保持同一套基调。 -->
+<resources>
+    <color name="pylon_background">#FF05070C</color>
+    <color name="pylon_accent">#FF38BDF8</color>
+</resources>

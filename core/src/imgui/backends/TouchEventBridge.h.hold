@@ -1,0 +1,15 @@
+#pragma once
+
+namespace TouchEventBridge
+{
+
+void Start();
+void Stop();
+bool IsActive();
+
+// 由渲染线程（ImGuiHost::Tick，每帧渲染完成后）调用：把当前帧所有活动 ImGui 窗口的
+// 屏幕矩形发布到锁保护的共享快照，供 UI 线程的 NativeShouldCapture 做无竞争的坐标命中
+// 判断（UI 线程不再直接遍历渲染线程正在增删/移动的 ctx->Windows，消除数据竞争）。
+void PublishCaptureRects();
+
+} // namespace TouchEventBridge

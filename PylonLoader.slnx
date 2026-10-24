@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/managed/">
+    <Project Path="managed/Pylon.ImGui/Pylon.ImGui.csproj" />
+    <Project Path="managed/Pylon.Managed/Pylon.Managed.csproj" />
+    <Project Path="managed/Pylon.Mod.Abstractions/Pylon.Mod.Abstractions.csproj" />
+    <Project Path="managed/Pylon.ModLoader/Pylon.ModLoader.csproj" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/FrameMod/FrameMod.csproj" />
+  </Folder>
+</Solution>

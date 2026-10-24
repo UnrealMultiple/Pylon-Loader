@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 13+ 主题图标（单色）：系统只取 alpha，颜色由桌面决定。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path
+        android:pathData="M54,29 L40,84 M54,29 L68,84 M45.5,56 L62.5,56 M42.5,70 L65.5,70"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:strokeColor="#FFFFFFFF"
+        android:fillColor="@android:color/transparent" />
+
+    <path
+        android:pathData="M49.4,25 A4.6,4.6 0 1 1 58.6,25 A4.6,4.6 0 1 1 49.4,25 Z"
+        android:fillColor="#FFFFFFFF" />
+</vector>

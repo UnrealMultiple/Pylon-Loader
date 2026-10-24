@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 启动器图标的前景：与 ic_pylon_mark 同一塔形，按 108dp 自适应图标画布重排。
+     几何都落在中心 72dp 的可见区内，圆角遮罩裁不到主体。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path
+        android:pathData="M54,29 L40,84"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="40"
+                android:startY="29"
+                android:endX="68"
+                android:endY="84">
+                <item android:offset="0" android:color="#FF7DE7FF" />
+                <item android:offset="1" android:color="#FF9A8CFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <path
+        android:pathData="M54,29 L68,84"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="40"
+                android:startY="29"
+                android:endX="68"
+                android:endY="84">
+                <item android:offset="0" android:color="#FF7DE7FF" />
+                <item android:offset="1" android:color="#FF9A8CFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <path
+        android:pathData="M45.5,56 L62.5,56 M42.5,70 L65.5,70"
+        android:strokeWidth="6"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="42"
+                android:startY="56"
+                android:endX="66"
+                android:endY="70">
+                <item android:offset="0" android:color="#FF7DE7FF" />
+                <item android:offset="1" android:color="#FF9A8CFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <path
+        android:pathData="M49.4,25 A4.6,4.6 0 1 1 58.6,25 A4.6,4.6 0 1 1 49.4,25 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="49.4"
+                android:startY="20.4"
+                android:endX="58.6"
+                android:endY="29.6">
+                <item android:offset="0" android:color="#FFCCF7FF" />
+                <item android:offset="1" android:color="#FFA5B4FC" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>
