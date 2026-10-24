@@ -7,5 +7,6 @@
   </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/FrameMod/FrameMod.csproj" />
+    <Project Path="samples/XiheMagic/XiheMagic.csproj" />
   </Folder>
 </Solution>
