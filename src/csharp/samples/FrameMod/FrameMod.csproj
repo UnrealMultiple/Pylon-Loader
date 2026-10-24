@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    最小示例 Mod：只挂一页 ImGui 界面（一张游戏纹理 + 一个输入框）。
+    构建带 -m:1 -p:RestoreUseStaticGraphEvaluation=true，规避本机 SDK 缺 Workload 定位目录
+    导致的多工程还原静默失败。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>FrameMod</AssemblyName>
+    <RootNamespace>FrameMod</RootNamespace>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <NoWarn>CS0436</NoWarn>
+    <!-- 单引用 Mod：游戏代理 + ImGui + Abstractions + Il2CppInterop 全部由这一个引用带入 -->
+    <PylonModProject>true</PylonModProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 唯一引用：框架 + ImGui + Abstractions + Il2CppInterop 由 ProjectReference 传递引用带入，
+         游戏代理（Assembly-CSharp/Il2Cppmscorlib/UnityEngine.*）由仓库根 Directory.Build.targets 注入 -->
+    <ProjectReference Include="..\..\managed\Pylon.ModLoader\Pylon.ModLoader.csproj" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Il2CppInterop.RuntimeDetour —— the single hook engine (MonoMod-shaped).
+    · The engine itself never touches a native detour implementation: the host (Pylon)
+      implements DetourBackend on top of the kernel's ShadowHook.
+    · On.* hooks are emitted straight into the proxy assemblies as IL by
+      Il2CppInterop.RuntimeDetour.HookGen.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Il2CppInterop.RuntimeDetour</AssemblyName>
+    <RootNamespace>Il2CppInterop.RuntimeDetour</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>false</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Il2CppInterop.Runtime\Il2CppInterop.Runtime.csproj" />
+    <ProjectReference Include="..\Il2CppInterop.Common\Il2CppInterop.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>hookprobe</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+</Project>

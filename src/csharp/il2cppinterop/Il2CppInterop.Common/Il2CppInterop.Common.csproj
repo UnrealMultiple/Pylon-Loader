@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Authors>BepInEx, knah et al.</Authors>
+    <PackageId>Il2CppInterop.Common</PackageId>
+    <Version>1.5.3</Version>
+    <Description>Common API for Il2CppInterop packages</Description>
+    <RootNamespace>Il2CppInterop.Common</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Disarm" Version="2022.1.0-master.99" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="6.0.1" />
+  </ItemGroup>
+
+</Project>

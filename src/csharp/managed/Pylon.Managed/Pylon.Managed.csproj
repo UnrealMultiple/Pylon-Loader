@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    托管入口（最小宿主层）。
+    CoreCLR 由 core/src/dotnet/CoreClrHost.cpp 用
+    coreclr_create_delegate(..., "Pylon.Managed", "Pylon.Managed.Entrypoint", "Start") 解析并调用。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Pylon.Managed</AssemblyName>
+    <RootNamespace>Pylon.Managed</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <!-- LibraryImport 生成的封送代码需要 -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- 进 TPA 后由 CoreCLR 直接加载，不打成单文件、不裁 BCL -->
+    <PublishTrimmed>false</PublishTrimmed>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- 本工程已零警告：任何新警告都当作错误，防止回潮 -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Mod 契约：随宿主一起进 TPA，所有 Mod 共享同一份类型（隔离加载的前提） -->
+    <ProjectReference Include="..\Pylon.Mod.Abstractions\Pylon.Mod.Abstractions.csproj" />
+
+    <!-- 框架：宿主必须能在 0 个 Mod 时也起 UI / ImGui，所以这里直接依赖它。 -->
+    <ProjectReference Include="..\Pylon.ModLoader\Pylon.ModLoader.csproj" />
+
+    <!-- 内核导出面（hook / 日志的 P/Invoke 都在这里，宿主自己也要用） -->
+    <ProjectReference Include="..\Pylon.NaviteAPI\Pylon.NaviteAPI.csproj" />
+
+    <!-- Hook 引擎（宿主实现 DetourBackend，把 detour 接到内核 ShadowHook）。 -->
+    <ProjectReference Include="..\..\il2cppinterop\Il2CppInterop.RuntimeDetour\Il2CppInterop.RuntimeDetour.csproj" />
+
+    <!-- 游戏代理：宿主需要读游戏状态（如类型表是否建好），typed 访问比按名字反射安全 -->
+    <Reference Include="Assembly-CSharp">
+      <HintPath>..\..\..\..\interop\generated\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>

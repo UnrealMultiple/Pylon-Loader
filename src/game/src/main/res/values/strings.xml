@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 层：宿主层（:game）的资源：补齐 Unity 需要的字符串。 -->
+<resources>
+    <!--
+      与 :app 的 strings.xml 同名同值，刻意的重复。
+
+      原因：游戏的 UnityPlayer 走的是
+        context.getResources().getIdentifier("game_view_content_description", "string", context.getPackageName())
+      而宿主的 getApplicationInfo() 被覆写成游戏的，getPackageName() 因此是
+      com.and.games505.Terraria，与资源所属包名 dev.pylon.loader 不一致 → 查不到 → id=0 → 抛异常。
+      两个模块的资源会合并进同一张表，放两份可以同时覆盖两种包名取值，先保证能起来。
+      M2 再决定是用小部件补齐还是整体切到游戏资源表。
+    -->
+    <string name="game_view_content_description">Terraria game view</string>
+</resources>

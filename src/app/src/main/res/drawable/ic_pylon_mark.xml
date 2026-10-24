@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Pylon 品牌标记：输电塔剪影（两条外张的腿 + 两道横担 + 顶部发光节点）。
+  24dp 画布，线条用青→紫渐变；供启动器页头使用，不用于系统图标。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <path
+        android:pathData="M12,4.9 L8.5,19.4"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="8"
+                android:startY="5"
+                android:endX="16"
+                android:endY="20">
+                <item android:offset="0" android:color="#FF7DE7FF" />
+                <item android:offset="1" android:color="#FF9A8CFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <path
+        android:pathData="M12,4.9 L15.5,19.4"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="8"
+                android:startY="5"
+                android:endX="16"
+                android:endY="20">
+                <item android:offset="0" android:color="#FF7DE7FF" />
+                <item android:offset="1" android:color="#FF9A8CFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <path
+        android:pathData="M9.7,12.3 L14.3,12.3 M9.0,15.7 L15.0,15.7"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:fillColor="@android:color/transparent">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:type="linear"
+                android:startX="8"
+                android:startY="12"
+                android:endX="16"
+                android:endY="16">
+                <item android:offset="0" android:color="#FF7DE7FF" />
+                <item android:offset="1" android:color="#FF9A8CFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <path
+        android:pathData="M10.6,4.9 A1.4,1.4 0 1 1 13.4,4.9 A1.4,1.4 0 1 1 10.6,4.9 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="10.6"
+                android:startY="3.5"
+                android:endX="13.4"
+                android:endY="6.3">
+                <item android:offset="0" android:color="#FFBFF4FF" />
+                <item android:offset="1" android:color="#FF9A8CFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>

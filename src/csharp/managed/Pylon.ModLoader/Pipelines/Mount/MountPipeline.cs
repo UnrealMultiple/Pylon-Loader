@@ -1,0 +1,477 @@
+using Il2CppMicrosoft.Xna.Framework;
+using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
+using ReLogic.Content;
+using Terraria;
+using Terraria.DataStructures;
+
+namespace Pylon.ModLoader.Pipelines;
+/// <summary>坐骑管线：骑上 / 下来 / 每帧 / 跳 / 能力 / 绘制；坐骑是玩家身上的 Mount 对象，作者的挂载数据走 Mount 自带的 _mountSpecificData。</summary>
+internal sealed class MountPipeline : ILoaderModule
+{
+    public static MountPipeline Instance { get; } = new();
+
+    private readonly HashSet<int> _reported = [];
+
+    private MountCall? _setting;
+    private bool _dismountSkipDust;
+
+    public string Name => "mount";
+
+    private static IModLog Log => LoaderHost.Current.Log;
+
+    /// <summary>mount 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
+    {
+        internal static bool HasMounts() => ModContent.GetContent<ModMount>().Count > 0;
+
+        internal struct Ride : IGate
+        {
+            public static bool Wanted() => HasMounts();
+
+            public static void Install()
+            {
+                On.Terraria.Mount.SetMount += Instance.SetMount;
+                On.Terraria.Mount.DoSpawnDust += Instance.SpawnDust;
+                On.Terraria.Mount.Dismount += Instance.Dismount;
+
+                Log.Info("[mount] 已挂：骑 / 下");
+            }
+        }
+
+        internal struct Update : IGate
+        {
+            public static bool Wanted() => HasMounts();
+
+            public static void Install()
+            {
+                On.Terraria.Mount.UpdateEffects += Instance.UpdateEffects;
+                On.Terraria.Mount.UpdateFrame += Instance.UpdateFrame;
+
+                Log.Info("[mount] 已挂：每帧");
+            }
+        }
+
+        internal struct Jump : IGate
+        {
+            public static bool Wanted() => HasMounts();
+
+            public static void Install()
+            {
+                On.Terraria.Mount.JumpHeight += Instance.JumpHeight;
+                On.Terraria.Mount.JumpSpeed += Instance.JumpSpeed;
+
+                Log.Info("[mount] 已挂：跳");
+            }
+        }
+
+        internal struct Ability : IGate
+        {
+            public static bool Wanted() => HasMounts();
+
+            public static void Install()
+            {
+                On.Terraria.Mount.UseAbility += Instance.UseAbility;
+                On.Terraria.Mount.AimAbility += Instance.AimAbility;
+
+                Log.Info("[mount] 已挂：能力");
+            }
+        }
+
+        internal struct Render : IGate
+        {
+            public static bool Wanted() => HasMounts();
+
+            public static void Install()
+            {
+                On.Terraria.Mount.Draw += Instance.Draw;
+
+                Log.Info("[mount] 已挂：绘制");
+            }
+        }
+
+        internal struct Initialize : IGate
+        {
+            public static bool Wanted() => HasMounts();
+
+            public static void Install()
+            {
+                On.Terraria.Mount.Initialize += Instance.Initialized;
+
+                Log.Info("[mount] 已挂：表重建");
+            }
+        }
+    }
+
+    public bool Install() => GateHub<MountPipeline>.Run();
+
+    #region 骑乘
+
+    /// <summary>一次 SetMount 的上下文：轮到哪匹、作者的 SetMount 跑过没有。</summary>
+    private sealed class MountCall
+    {
+        public ModMount Mod = null!;
+        public bool Called;
+    }
+
+    private void SetMount(On.Terraria.Mount.orig_SetMount orig, Mount self, int m, Player mountedPlayer,
+                          bool ignoreEffect)
+    {
+        _setting = null;
+
+        var mod = MountTable.Of(m);
+        if (mod is not null && self._type != m)
+        {
+            self._mountSpecificData = null;
+            MountTml.Clear(self.Pointer);
+            _setting = new MountCall { Mod = mod };
+        }
+
+        orig(self, m, mountedPlayer, ignoreEffect);
+
+        var setting = _setting;
+        _setting = null;
+        if (setting is null || setting.Called || self._type != m) return;
+
+        setting.Called = true;
+        var skip = false;
+        try
+        {
+            setting.Mod.SetMount(mountedPlayer, ref skip);
+        }
+        catch (Exception e)
+        {
+            Fail(setting.Mod.Name, HookId.SetMount, e);
+        }
+    }
+
+    private void SpawnDust(On.Terraria.Mount.orig_DoSpawnDust orig, Mount self, Player mountedPlayer,
+                           bool isDismounting)
+    {
+        var skip = false;
+
+        if (isDismounting)
+        {
+            skip = _dismountSkipDust;
+        }
+        else if (_setting is { Called: false } setting)
+        {
+            setting.Called = true;
+            try
+            {
+                setting.Mod.SetMount(mountedPlayer, ref skip);
+            }
+            catch (Exception e)
+            {
+                Fail(setting.Mod.Name, HookId.SetMount, e);
+            }
+        }
+
+        if (skip) return;
+
+        orig(self, mountedPlayer, isDismounting);
+    }
+
+    private void Dismount(On.Terraria.Mount.orig_Dismount orig, Mount self, Player mountedPlayer, bool ignoreEffect)
+    {
+        var skip = false;
+        var mod = MountTable.Of(self);
+
+        if (mod is not null)
+        {
+            try
+            {
+                mod.Dismount(mountedPlayer, ref skip);
+            }
+            catch (Exception e)
+            {
+                Fail(mod.Name, HookId.Dismount, e);
+            }
+        }
+
+        _dismountSkipDust = skip;
+        orig(self, mountedPlayer, ignoreEffect);
+        _dismountSkipDust = false;
+
+        self._mountSpecificData = null;
+        MountTml.Clear(self.Pointer);
+    }
+
+    #endregion
+
+    #region 每帧
+
+    private void UpdateEffects(On.Terraria.Mount.orig_UpdateEffects orig, Mount self, Player mountedPlayer)
+    {
+        var mod = MountTable.Of(self);
+        if (mod is null)
+        {
+            orig(self, mountedPlayer);
+            return;
+        }
+
+        try
+        {
+            mod.UpdateEffects(mountedPlayer);
+        }
+        catch (Exception e)
+        {
+            Fail(mod.Name, HookId.UpdateEffects, e);
+        }
+
+        orig(self, mountedPlayer);
+    }
+
+    private void UpdateFrame(On.Terraria.Mount.orig_UpdateFrame orig, Mount self, Player mountedPlayer, int state,
+                             Vector2 velocity)
+    {
+        var mod = MountTable.Of(self);
+        if (mod is not null)
+        {
+            try
+            {
+                if (!mod.UpdateFrame(mountedPlayer, state, velocity)) return;
+            }
+            catch (Exception e)
+            {
+                Fail(mod.Name, HookId.UpdateFrame, e);
+            }
+        }
+
+        orig(self, mountedPlayer, state, velocity);
+    }
+
+    private int JumpHeight(On.Terraria.Mount.orig_JumpHeight orig, Mount self, float xVelocity)
+    {
+        var result = orig(self, xVelocity);
+
+        var mod = MountTable.Of(self);
+        if (mod is null || !mod.HookEnabled(HookId.JumpHeight)) return result;
+
+        var owner = OwnerOf(self);
+        if (owner is null) return result;
+
+        try
+        {
+            mod.JumpHeight(owner, ref result, xVelocity);
+        }
+        catch (Exception e)
+        {
+            Fail(mod.Name, HookId.JumpHeight, e);
+        }
+
+        return result;
+    }
+
+    private float JumpSpeed(On.Terraria.Mount.orig_JumpSpeed orig, Mount self, float xVelocity)
+    {
+        var result = orig(self, xVelocity);
+
+        var mod = MountTable.Of(self);
+        if (mod is null || !mod.HookEnabled(HookId.JumpSpeed)) return result;
+
+        var owner = OwnerOf(self);
+        if (owner is null) return result;
+
+        try
+        {
+            mod.JumpSpeed(owner, ref result, xVelocity);
+        }
+        catch (Exception e)
+        {
+            Fail(mod.Name, HookId.JumpSpeed, e);
+        }
+
+        return result;
+    }
+
+    private void UseAbility(On.Terraria.Mount.orig_UseAbility orig, Mount self, Player mountedPlayer,
+                            Vector2 mousePosition, bool toggleOn)
+    {
+        orig(self, mountedPlayer, mousePosition, toggleOn);
+
+        var mod = MountTable.Of(self);
+        if (mod is null) return;
+
+        try
+        {
+            mod.UseAbility(mountedPlayer, mousePosition, toggleOn);
+        }
+        catch (Exception e)
+        {
+            Fail(mod.Name, HookId.UseAbility, e);
+        }
+    }
+
+    private bool AimAbility(On.Terraria.Mount.orig_AimAbility orig, Mount self, Player mountedPlayer,
+                            Vector2 mousePosition)
+    {
+        var mod = MountTable.Of(self);
+        if (mod is null) return orig(self, mountedPlayer, mousePosition);
+
+        try
+        {
+            mod.AimAbility(mountedPlayer, mousePosition);
+        }
+        catch (Exception e)
+        {
+            Fail(mod.Name, HookId.AimAbility, e);
+        }
+
+        return orig(self, mountedPlayer, mousePosition);
+    }
+
+    #endregion
+
+    #region 绘制
+
+    private void Draw(On.Terraria.Mount.orig_Draw orig, Mount self, PlayerDrawSet playerDrawData, int drawType,
+                      Player drawPlayer, Vector2 position, Color drawColor, SpriteEffects playerEffect, float shadow)
+    {
+        var mod = MountTable.Of(self);
+        if (mod is null || !mod.HookEnabled(HookId.Draw))
+        {
+            orig(self, playerDrawData, drawType, drawPlayer, position, drawColor, playerEffect, shadow);
+            return;
+        }
+
+        try
+        {
+            if (DrawLayer(mod, self, playerDrawData, drawType, drawPlayer, position, drawColor, playerEffect, shadow))
+                return;
+        }
+        catch (Exception e)
+        {
+            Fail(mod.Name, HookId.Draw, e);
+        }
+
+        orig(self, playerDrawData, drawType, drawPlayer, position, drawColor, playerEffect, shadow);
+    }
+
+    private static bool DrawLayer(ModMount mod, Mount mount, PlayerDrawSet set, int drawType, Player player,
+                                  Vector2 position, Color drawColor, SpriteEffects effect, float shadow)
+    {
+        var data = mount._data;
+        if (data is null) return false;
+
+        var (textureAsset, glowAsset) = LayerOf(data, drawType);
+        var texture = textureAsset?.Value;
+        if (texture is null) return false;
+
+        var glow = glowAsset?.Value;
+
+        var screen = Main.screenPosition;
+        var xOffset = mount.XOffset * (player.direction <= 0 ? -1 : 1);
+        var yOffset = mount.YOffset + mount.PlayerOffset;
+        var frameHeight = data.totalFrames > 0 ? data.textureHeight / data.totalFrames : data.textureHeight;
+
+        var glowColor = new Color((byte)(drawColor.R * 0.25f + 191.25f), (byte)(drawColor.G * 0.25f + 191.25f),
+                                  (byte)(drawColor.B * 0.25f + 191.25f), (byte)(drawColor.A * 0.25f + 191.25f));
+
+        var spriteEffects = effect;
+        if (mount.Cart && Math.Sign(player.velocity.X) == -player.direction)
+            spriteEffects = (SpriteEffects)((int)effect ^ 1);
+
+        var drawTexture = texture;
+        var drawGlow = glow!;
+        var drawPosition = new Vector2(
+            (int)(position.X - screen.X + player.width / 2f + xOffset),
+            (int)(position.Y - screen.Y + player.height / 2f + yOffset));
+        var frame = new Rectangle(0, frameHeight * mount._frame, data.textureWidth, frameHeight - 2);
+        var color = drawColor;
+        var glowDrawColor = glowColor;
+        var rotation = 0f;
+        var drawOrigin = mount.Origin;
+        var drawScale = 1f;
+
+        var extra = new List<DrawData>();
+        var keep = mod.Draw(extra, drawType, player, ref drawTexture, ref drawGlow, ref drawPosition, ref frame,
+            ref color, ref glowDrawColor, ref rotation, ref spriteEffects, ref drawOrigin, ref drawScale, shadow);
+
+        var cache = set.DrawDataCache;
+        foreach (var added in extra)
+        {
+            var count = set.DrawDataCacheCount;
+            if (cache is null || count < 0 || count >= cache.Length) break;
+            cache[count] = added;
+            set.DrawDataCacheCount = count + 1;
+        }
+
+        if (!keep) return true;
+
+        if (drawTexture is not null) Push(set, drawTexture, drawPosition, frame, color, rotation, drawOrigin, drawScale, spriteEffects);
+        if (glow is not null)
+        {
+            var alpha = color.A / 255f;
+            Push(set, glow, drawPosition, frame,
+                new Color((byte)(glowDrawColor.R * alpha), (byte)(glowDrawColor.G * alpha),
+                          (byte)(glowDrawColor.B * alpha), (byte)(glowDrawColor.A * alpha)),
+                rotation, drawOrigin, drawScale, spriteEffects);
+        }
+
+        return true;
+    }
+
+    private static (Asset<Texture2D>? Texture, Asset<Texture2D>? Glow) LayerOf(Mount.MountData data, int drawType) =>
+        drawType switch
+        {
+            0 => (data.backTexture, data.backTextureGlow),
+            1 => (data.backTextureExtra, data.backTextureExtraGlow),
+            2 => (data.frontTexture, data.frontTextureGlow),
+            3 => (data.frontTextureExtra, data.frontTextureExtraGlow),
+            _ => (null, null),
+        };
+
+    private static void Push(PlayerDrawSet set, Texture2D texture, Vector2 position, Rectangle source, Color color,
+                             float rotation, Vector2 origin, float scale, SpriteEffects effect)
+    {
+        var data = new DrawData(texture, position, source, color, rotation, origin, scale, effect, 0);
+        data.shader = Mount.currentShader;
+
+        var cache = set.DrawDataCache;
+        var count = set.DrawDataCacheCount;
+        if (cache is null || count < 0 || count >= cache.Length) return;
+
+        cache[count] = data;
+        set.DrawDataCacheCount = count + 1;
+    }
+
+    #endregion
+
+    private void Initialized(On.Terraria.Mount.orig_Initialize orig)
+    {
+        orig();
+        MountTable.Reapply();
+        MountTml.ClearAll();
+    }
+
+    private static Player? OwnerOf(Mount mount)
+    {
+        var address = Address(mount);
+        if (address == 0) return null;
+
+        var local = Main.player[Main.myPlayer];
+        if (local is not null && Address(local.mount) == address) return local;
+
+        var players = Main.player;
+        for (var i = 0; i < players.Length; i++)
+        {
+            var player = players[i];
+            if (player is not null && player.active && Address(player.mount) == address) return player;
+        }
+
+        return null;
+    }
+
+    private static long Address(Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase? obj) =>
+        obj is null ? 0 : (long)obj.Pointer;
+
+    private void Fail(string name, HookId hook, Exception exception)
+    {
+        if (!_reported.Add(HashCode.Combine(name.GetHashCode(), hook))) return;
+        ContentErrors.Report($"[mount] {hook} 异常：{Safe.Describe(exception)}");
+    }
+}

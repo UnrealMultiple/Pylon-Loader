@@ -1,0 +1,219 @@
+using System;
+using Il2CppMicrosoft.Xna.Framework;
+using Color = Il2CppMicrosoft.Xna.Framework.Graphics.Color;
+using Pylon.ModLoader;
+using Terraria;
+using Terraria.ID;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
+
+namespace XiheBoss
+{
+    public sealed class CrystalArrow : ModProjectile
+    {
+
+        private const int TrailCache = 30;
+
+        private static Vector2[][] _oldPos;
+        private static float[][] _oldRot;
+
+        public override string TexturePath => null;
+
+        public override void SetStaticDefaults()
+        {
+            Main.projFrames[Type] = 1;
+        }
+
+        public override void SetDefaults()
+        {
+            var proj = Projectile;
+            proj.width = 10;
+            proj.height = 10;
+            proj.aiStyle = -1;
+            proj.timeLeft = 180;
+            proj.scale = 1.2f;
+            proj.hostile = true;
+            proj.friendly = false;
+            proj.tileCollide = false;
+            proj.penetrate = -1;
+            proj.ignoreWater = true;
+            proj.alpha = 255;
+        }
+
+        public override void OnSpawn(Terraria.DataStructures.IEntitySource source) => Alloc(Projectile);
+
+        public override void OnKill(int timeLeft) => Clear(Projectile);
+
+        private static Vector2[] TrailOf(Projectile proj)
+        {
+            var count = Main.projectile.Length;
+            if (_oldPos == null || _oldPos.Length != count) return null;
+            var i = proj.whoAmI;
+            return i >= 0 && i < count ? _oldPos[i] : null;
+        }
+
+        private static float[] RotOf(Projectile proj)
+        {
+            var count = Main.projectile.Length;
+            if (_oldRot == null || _oldRot.Length != count) return null;
+            var i = proj.whoAmI;
+            return i >= 0 && i < count ? _oldRot[i] : null;
+        }
+
+        private static void Alloc(Projectile proj)
+        {
+            var count = Main.projectile.Length;
+            if (_oldPos == null || _oldPos.Length != count) _oldPos = new Vector2[count][];
+            if (_oldRot == null || _oldRot.Length != count) _oldRot = new float[count][];
+            var i = proj.whoAmI;
+            if (i < 0 || i >= count) return;
+            _oldPos[i] = new Vector2[TrailCache];
+            _oldRot[i] = new float[TrailCache];
+        }
+
+        private static void Clear(Projectile proj)
+        {
+            var count = Main.projectile.Length;
+            var i = proj.whoAmI;
+            if (i < 0 || i >= count) return;
+            if (_oldPos != null && _oldPos.Length == count) _oldPos[i] = null;
+            if (_oldRot != null && _oldRot.Length == count) _oldRot[i] = null;
+        }
+
+        public override void AI()
+        {
+            var proj = Projectile;
+            var ai = proj.ai;
+
+            proj.alpha = proj.timeLeft > 10
+                ? (int)MathHelper.Lerp(proj.alpha, 0f, 0.1f)
+                : (int)MathHelper.Lerp(proj.alpha, 255f, 0.1f);
+
+            if (ai[0] == -1f)
+            {
+
+                proj.velocity = Vector2.Lerp(proj.velocity,
+                    XiheHelper.DirectionTo(proj.Center, Main.MouseWorld) * 50f, 0.1f);
+                SparkBurst(proj.Center, ai[1]);
+            }
+
+            if (ai[0] == 0f)
+            {
+                if (proj.timeLeft > 160) proj.velocity *= 0.95f;
+                if (proj.timeLeft == 145) proj.velocity = Vector2.Normalize(proj.velocity) * 3f;
+                if (proj.timeLeft < 145) proj.velocity *= 1.035f;
+            }
+            else if (ai[0] == 1f)
+            {
+                var player = Main.player[Player.FindClosest(proj.Center, 1000, 1000)];
+                if (proj.timeLeft > 150)
+                {
+                    proj.velocity = XiheHelper.RotatedBy(proj.velocity, XiheHelper.NextFloatDirection() * 0.1f);
+                    proj.velocity *= 0.95f;
+                }
+                if (proj.timeLeft < 140 && proj.timeLeft > 90)
+                {
+                    proj.velocity = Vector2.Lerp(proj.velocity,
+                        XiheHelper.DirectionTo(proj.Center, player.Center) * 30f, 0.04f);
+                }
+            }
+            else if (ai[0] == 2f)
+            {
+                var player = Main.player[Player.FindClosest(proj.Center, 1000, 1000)];
+                if (proj.timeLeft > 140)
+                {
+                    proj.velocity = XiheHelper.RotatedBy(proj.velocity, XiheHelper.NextFloatDirection() * 0.1f);
+                    proj.velocity *= 0.98f;
+                }
+                if (proj.timeLeft < 140 && proj.timeLeft > 110)
+                {
+                    proj.velocity = Vector2.Lerp(proj.velocity,
+                        XiheHelper.DirectionTo(proj.Center, player.Center) * 30f, 0.03f);
+                }
+            }
+            else if (ai[0] == 3f)
+            {
+                if (proj.velocity.Y < 6f) proj.velocity = new Vector2(proj.velocity.X, proj.velocity.Y + 0.1f);
+            }
+            else if (ai[0] == 4f && proj.velocity.Y < 10f)
+            {
+                proj.velocity = new Vector2(proj.velocity.X, proj.velocity.Y + 0.1f);
+            }
+
+            proj.rotation = Utils.ToRotation(proj.velocity) + 1.57f;
+
+            var oldPos = TrailOf(proj);
+            var oldRot = RotOf(proj);
+            if (oldPos != null && oldRot != null)
+            {
+                for (var i = TrailCache - 1; i > 0; i--)
+                {
+                    oldPos[i] = oldPos[i - 1];
+                    oldRot[i] = oldRot[i - 1];
+                }
+                oldPos[0] = proj.Center;
+                oldRot[0] = proj.rotation;
+            }
+
+            if (proj.timeLeft % 5 == 0)
+            {
+                var d = Dust.NewDustDirect(proj.Center, 1, 1, 267, 0f, 0f, 0,
+                    XiheHelper.HsvToRgb(ai[1]), 1f);
+                d.noGravity = true;
+            }
+
+            if (proj.timeLeft == 1) SparkBurst(proj.Center, ai[1]);
+        }
+
+        private static void SparkBurst(Vector2 center, float hue)
+        {
+            var color = XiheHelper.HsvToRgb(hue);
+            for (var i = 0; i < 8; i++)
+            {
+                var d = Dust.NewDustDirect(center + XiheHelper.NextVector2Unit() * 4f, 1, 1, 267, 0f, 0f, 0, color, 1f);
+                d.noGravity = true;
+                d.velocity = XiheHelper.NextVector2Unit() * 5f;
+            }
+        }
+
+        public override bool ShouldUpdatePosition() => true;
+
+        public override bool PreDraw(Player player, ref Color lightColor) => false;
+
+        public static void PushVisual(Projectile p)
+        {
+            var ai = p.ai;
+            var color = XiheHelper.HsvToRgb(ai[1]) * (1f - p.alpha / 255f);
+            if (color.A == 0) return;
+
+            var scale = p.scale;
+            var oldPos = TrailOf(p);
+            var oldRot = RotOf(p);
+            if (oldPos == null || oldRot == null) return;
+            var texW = XiheTextures.WidthOf(Tex.ProjTex);
+            var texH = XiheTextures.HeightOf(Tex.ProjTex);
+            var texOrigin = new Vector2(texW, texH) / 2f;
+            var ballOrigin = new Vector2(XiheTextures.WidthOf(Tex.Ball), XiheTextures.HeightOf(Tex.Ball)) / 2f;
+            var length = (float)TrailCache;
+
+            var drawCount = TrailCache;
+
+            for (var i = 0; i < drawCount; i++)
+            {
+                var pos = oldPos[i];
+                if (i > 0 && pos == Vector2.Zero) break;
+                XiheFx.Sprite(pos, Tex.Ball, color * (0.7f * (length - i) / length), oldRot[i],
+                    scale * new Vector2(0.2f, 2.5f), texOrigin, additive: true, colorize: true);
+            }
+
+            XiheFx.Sprite(p.Center, Tex.ProjTex, color, p.rotation, Vector2.One * scale,
+                texOrigin, additive: true, colorize: true);
+
+            var pulse = (1f + 0.2f * (float)Math.Sin(Main.timeForVisualEffects * 0.6f)) * 2f;
+            XiheFx.Sprite(p.Center, Tex.Ball, color * 0.9f, 0f,
+                new Vector2(3f, 0.1f) * pulse, ballOrigin, additive: true, colorize: true);
+            XiheFx.Sprite(p.Center, Tex.Ball, color * 0.9f, 0f,
+                new Vector2(0.1f, 1.8f) * pulse, ballOrigin, additive: true, colorize: true);
+        }
+    }
+}

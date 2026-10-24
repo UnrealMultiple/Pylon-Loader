@@ -1,0 +1,74 @@
+using Il2CppInterop.Runtime.InteropTypes.Arrays;
+using Il2CppMicrosoft.Xna.Framework.Graphics;
+using ReLogic.Content;
+using Terraria.GameContent;
+
+namespace Pylon.ModLoader.Textures;
+
+/// <summary>贴图表槽位的读写。</summary>
+public static class TextureSlots
+{
+    public static bool TryWrite(TextureTable table, int type, Asset<Texture2D>? asset)
+    {
+        if (asset is null) return false;
+        var array = Table(table);
+        if (array is null || type < 0 || type >= array.Length) return false;
+        array[type] = asset;
+        return true;
+    }
+
+    public static int Length(TextureTable table) => Table(table)?.Length ?? -1;
+
+    private static Il2CppReferenceArray<Asset<Texture2D>>? Table(TextureTable table)
+    {
+        try
+        {
+            return table switch
+            {
+                TextureTable.Item => TextureAssets.Item,
+                TextureTable.ItemFlame => TextureAssets.ItemFlame,
+                TextureTable.Projectile => TextureAssets.Projectile,
+                TextureTable.Tile => TextureAssets.Tile,
+                TextureTable.Wall => TextureAssets.Wall,
+                TextureTable.Npc => TextureAssets.Npc,
+                TextureTable.NpcHead => TextureAssets.NpcHead,
+                TextureTable.NpcHeadBoss => TextureAssets.NpcHeadBoss,
+                TextureTable.Buff => TextureAssets.Buff,
+                TextureTable.Gore => TextureAssets.Gore,
+                TextureTable.Extra => TextureAssets.Extra,
+                TextureTable.Cloud => TextureAssets.Cloud,
+                TextureTable.PlayerHair => TextureAssets.PlayerHair,
+                TextureTable.PlayerHairAlt => TextureAssets.PlayerHairAlt,
+                TextureTable.Liquid => TextureAssets.Liquid,
+                TextureTable.ArmorHead => TextureAssets.ArmorHead,
+                TextureTable.ArmorBody => TextureAssets.ArmorBody,
+                TextureTable.ArmorLeg => TextureAssets.ArmorLeg,
+                TextureTable.ArmorBodyComposite => TextureAssets.ArmorBodyComposite,
+                TextureTable.FemaleBody => TextureAssets.FemaleBody,
+                TextureTable.ArmorArm => TextureAssets.ArmorArm,
+                TextureTable.AccHandsOn => TextureAssets.AccHandsOn,
+                TextureTable.AccHandsOnComposite => TextureAssets.AccHandsOnComposite,
+                TextureTable.AccHandsOffComposite => TextureAssets.AccHandsOffComposite,
+                TextureTable.AccHandsOff => TextureAssets.AccHandsOff,
+                TextureTable.AccBack => TextureAssets.AccBack,
+                TextureTable.AccFront => TextureAssets.AccFront,
+                TextureTable.AccShoes => TextureAssets.AccShoes,
+                TextureTable.AccWaist => TextureAssets.AccWaist,
+                TextureTable.Wings => TextureAssets.Wings,
+                TextureTable.AccShield => TextureAssets.AccShield,
+                TextureTable.AccNeck => TextureAssets.AccNeck,
+                TextureTable.AccFace => TextureAssets.AccFace,
+                TextureTable.AccBalloon => TextureAssets.AccBalloon,
+                TextureTable.AccBeard => TextureAssets.AccBeard,
+                TextureTable.TreeTop => TextureAssets.TreeTop,
+                TextureTable.TreeBranch => TextureAssets.TreeBranch,
+                TextureTable.TreeWood => TextureAssets.Wood,
+                _ => null,
+            };
+        }
+        catch
+        {
+            return null;
+        }
+    }
+}

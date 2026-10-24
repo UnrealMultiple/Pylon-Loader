@@ -1,0 +1,4 @@
+# Exact Cecil FullName signatures. Profile mode preserves original Full event names.
+# This example intentionally exposes only these two On events; it is not a general Mod SDK.
+System.Void Terraria.Main::Update(Il2CppMicrosoft.Xna.Framework.GameTime)
+System.Void Terraria.Main::Draw(Il2CppMicrosoft.Xna.Framework.GameTime)

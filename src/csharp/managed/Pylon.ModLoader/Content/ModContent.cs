@@ -1,0 +1,205 @@
+using System.Diagnostics.CodeAnalysis;
+using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.Pipelines;
+using ReLogic.Content;
+
+namespace Pylon.ModLoader.Content;
+/// <summary>内容门面：Mod 侧唯一入口。所有状态都在 <see cref="LoaderHost"/>，这里只做转发。</summary>
+public static class ModContent
+{
+    private static ContentRegistry Registry => LoaderHost.Current.Content;
+
+    public static int ItemType<T>() where T : ModItem => TypeOf<T>();
+    public static int TileType<T>() where T : ModTile => TypeOf<T>();
+    public static int WallType<T>() where T : ModWall => TypeOf<T>();
+    public static int ProjectileType<T>() where T : ModProjectile => TypeOf<T>();
+    public static int NPCType<T>() where T : ModNpc => TypeOf<T>();
+    public static int BuffType<T>() where T : ModBuff => TypeOf<T>();
+    public static int MountType<T>() where T : ModMount => TypeOf<T>();
+    public static int RarityType<T>() where T : ModRarity => TypeOf<T>();
+    public static int DustType<T>() where T : ModDust => GetInstance<T>()?.Type ?? 0;
+    public static int EmoteBubbleType<T>() where T : ModEmoteBubble => GetInstance<T>()?.Type ?? 0;
+    public static int GoreType<T>() where T : ModGore => GetInstance<T>()?.Type ?? 0;
+
+    /// <summary>按类型号取 mod 物品；原版类型返回 null。</summary>
+    public static ModItem? GetModItem(int type) => Find(ContentKind.Item, type) as ModItem;
+
+    /// <summary>按类型号取 mod NPC；原版类型返回 null。</summary>
+    public static ModNpc? GetModNPC(int type) => Find(ContentKind.Npc, type) as ModNpc;
+
+    /// <summary>按类型号取 mod 方块；原版类型返回 null。</summary>
+    public static ModTile? GetModTile(int type) => Find(ContentKind.Tile, type) as ModTile;
+
+    /// <summary>按类型号取 mod buff；原版 buff 返回 null。</summary>
+    public static ModBuff? GetModBuff(int type) => Find(ContentKind.Buff, type) as ModBuff;
+
+    /// <summary>按类型号取 mod 尘土；没注册返回 null。</summary>
+    public static ModDust? GetModDust(int type) => DustTable.Of(type);
+
+    /// <summary>按类型号取 mod 表情；没注册返回 null。</summary>
+    public static ModEmoteBubble? GetModEmoteBubble(int type) => EmoteBubbleTable.Of(type);
+
+    /// <summary>按类型号取 mod 血腥粒子；没注册返回 null。</summary>
+    public static ModGore? GetModGore(int type) => GoreTable.Of(type);
+
+    /// <summary>按贴图路径取 mod NPC 的 Boss 头像槽；没有返回 -1（路径可带 Mod 名或 .png）。</summary>
+    public static int GetModBossHeadSlot(string texture)
+    {
+        if (string.IsNullOrEmpty(texture)) return -1;
+
+        var wanted = texture.Replace('\\', '/');
+        if (wanted.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) wanted = wanted[..^4];
+
+        foreach (var npc in GetContent<ModNpc>())
+        {
+            if (!npc.Registered || npc.Type <= 0) continue;
+
+            var path = !string.IsNullOrEmpty(npc.BossHeadTexture) ? npc.BossHeadTexture : npc.TextureSibling("_Head_Boss");
+            if (string.IsNullOrEmpty(path)) continue;
+
+            var normalized = path.Replace('\\', '/');
+            if (normalized.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) normalized = normalized[..^4];
+
+            var full = npc.Mod is null ? normalized : npc.Mod.Name + "/" + normalized;
+            if (string.Equals(wanted, normalized, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(wanted, full, StringComparison.OrdinalIgnoreCase) ||
+                wanted.EndsWith("/" + normalized, StringComparison.OrdinalIgnoreCase))
+                return NpcHeadHooks.BossSlot(npc.Type);
+        }
+
+        return -1;
+    }
+
+    internal static int TypeOf<T>() where T : ModType =>
+        Registry.InstanceOf<T>() is { } instance
+            ? instance.Type
+            : throw new InvalidOperationException(
+                $"{typeof(T).FullName} 没有注册（要派生对应 ModType 且被自动发现）");
+
+    /// <summary>按类取已注册的实例；没注册返回 null。</summary>
+    public static T? GetInstance<T>() where T : ModType => Registry.InstanceOf<T>();
+
+    internal static List<T> GetContent<T>() where T : ModType => Registry.ContentOf<T>();
+
+    internal static IEnumerable<T> ContentOf<T>(Mod mod) where T : class
+    {
+        var registry = Registry;
+        for (var i = 0; i < registry.Count; i++)
+        {
+            var instance = registry.InstanceAt(i);
+            if (instance.Mod == mod && instance is T typed) yield return typed;
+        }
+
+        if (typeof(ModPlayer).IsAssignableFrom(typeof(T)))
+        {
+            foreach (var player in PlayerPipeline.Instance.Binding.Templates)
+                if (player.Mod == mod && player is T typed) yield return typed;
+        }
+    }
+
+    public static T Find<T>(string fullName) where T : ModType =>
+        TryFind<T>(fullName, out var instance)
+            ? instance
+            : throw new InvalidOperationException($"ModContent.Find: 没有 '{fullName}'");
+
+    public static T Find<T>(string modName, string name) where T : ModType => Find<T>(modName + "/" + name);
+
+    public static bool TryFind<T>(string fullName, [NotNullWhen(true)] out T? instance) where T : ModType =>
+        Registry.TryFind(fullName, out instance);
+
+    public static bool TryFind<T>(string modName, string name, [NotNullWhen(true)] out T? instance) where T : ModType =>
+        TryFind(modName + "/" + name, out instance);
+
+    internal static ModType? Find(ContentKind kind, int type) => Registry.ById(kind, type);
+
+    internal static bool IsCustom(ContentKind kind, int type) => Registry.ById(kind, type) is not null;
+
+    /// <summary>该种类的下一个可用 ID（扩表时用来算表长）。</summary>
+    internal static int NextType(ContentKind kind) => Registry.NextType(kind);
+
+    internal static int Count(ContentKind kind) => Registry.RegisteredCount(kind);
+
+    // ===================== 资源 =====================
+
+    /// <summary>按路径取已加载的贴图，同一路径只解码一次。只能游戏线程调。</summary>
+    internal static Asset<Texture2D> Request(Mod mod, string path) => ContentAssets.Request(mod, path);
+
+    internal static Texture2D Texture(Mod mod, string path) => ContentAssets.Request(mod, path).Value;
+
+    internal static bool HasAsset(Mod mod, string path) => ContentAssets.Has(mod, path);
+
+    public static Asset<T> Request<T>(string name, AssetRequestMode mode = AssetRequestMode.AsyncLoad) where T : class
+    {
+        var (modName, path) = SplitName(name);
+        if (string.Equals(modName, "Terraria", StringComparison.Ordinal))
+            return Terraria.Main.Assets.Request<T>(path, mode);
+
+        var mod = LoaderHost.Current.Mods.Find(modName)
+                  ?? throw new KeyNotFoundException($"'{name}': 没有名为 '{modName}' 的 Mod");
+        return mod.Assets.Request<T>(path, mode);
+    }
+
+    public static bool RequestIfExists<T>(string name, out Asset<T> asset, AssetRequestMode mode = AssetRequestMode.AsyncLoad) where T : class
+    {
+        if (!HasAsset(name))
+        {
+            asset = null!;
+            return false;
+        }
+
+        asset = Request<T>(name, mode);
+        return true;
+    }
+
+    public static bool HasAsset(string assetName)
+    {
+        var (modName, path) = SplitName(assetName);
+        if (string.Equals(modName, "Terraria", StringComparison.Ordinal))
+        {
+            try
+            {
+                _ = Terraria.Main.Assets.Request<Texture2D>(path, AssetRequestMode.ImmediateLoad);
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        var mod = LoaderHost.Current.Mods.Find(modName);
+        return mod is not null && mod.Assets.HasAsset<Texture2D>(path);
+    }
+
+    public static bool FileExists(string name)
+    {
+        var (modName, path) = SplitName(name);
+        return LoaderHost.Current.Mods.Find(modName) is { } mod && mod.FileExists(path);
+    }
+
+    public static byte[] GetFileBytes(string name)
+    {
+        var (modName, path) = SplitName(name);
+        var mod = LoaderHost.Current.Mods.Find(modName)
+                  ?? throw new KeyNotFoundException($"'{name}': 没有名为 '{modName}' 的 Mod");
+        return mod.GetFileBytes(path);
+    }
+
+    public static (string modName, string subName) SplitName(string name)
+    {
+        var clean = name.Replace('\\', '/');
+        var slash = clean.IndexOf('/');
+        if (slash <= 0 || slash == clean.Length - 1)
+            throw new ArgumentException($"'{name}' 不是 'ModName/path'", nameof(name));
+
+        return (clean[..slash], clean[(slash + 1)..]);
+    }
+
+    /// <summary>Mods/_data/&lt;id&gt;：与 Mod 目录同级，升级 Mod 不清数据。</summary>
+    internal static string DataDirectoryFor(string modDirectory, string id)
+    {
+        var parent = Path.GetDirectoryName(modDirectory.TrimEnd(Path.DirectorySeparatorChar, '/'));
+        return Path.Combine(string.IsNullOrEmpty(parent) ? modDirectory : parent, "_data", id);
+    }
+}

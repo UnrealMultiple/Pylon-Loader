@@ -1,0 +1,23 @@
+# Pylon Loader — Gradle 版本目录（层：构建工程）
+# 版本组合是本机实测可用的：Gradle 8.10.2 + AGP 8.8.0 + Kotlin 2.0.21 + JDK 17。
+# 约束来源：
+#   - AGP 8.8.0：本机离线缓存里唯一完整的 AGP；官方测到 compileSdk 35，我们用 36 并显式压制警告
+#   - compileSdk 36：设备是 API 37，本机 platforms 最高 android-36
+#   - minSdk 28 / arm64-v8a only：docs/00 的硬要求
+[versions]
+agp = "8.8.0"
+kotlin = "2.0.21"
+androidxCore = "1.13.1"
+compileSdk = "36"
+minSdk = "28"
+targetSdk = "36"
+buildTools = "36.1.0"
+
+[libraries]
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "androidxCore" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

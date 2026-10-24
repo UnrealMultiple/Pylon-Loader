@@ -1,0 +1,98 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Tables;
+using Pylon.ModLoader.Textures;
+
+namespace Pylon.ModLoader.Pipelines;
+/// <summary>
+/// 发型侧表：编号 = 原版表长 + 注册序。原版表长只能运行期读（没有编译期常量），
+/// 由 <see cref="HairTable.Base"/> 在扩表之前捕获一次。
+/// </summary>
+internal static class HairTable
+{
+    private static ModHair?[] _hairs = new ModHair?[8];
+    private static readonly Dictionary<string, ModHair> ByKey = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, ModHair?> ByName = new(StringComparer.Ordinal);
+    private static int _next;
+
+    /// <summary>原版发型表长（自定义编号的起点）。</summary>
+    internal static int Base
+    {
+        get
+        {
+            if (_vanilla > 0) return _vanilla;
+            var length = TextureSlots.Length(TextureTable.PlayerHair);
+            if (length > 0) _vanilla = length;
+            return _vanilla;
+        }
+    }
+
+    private static int _vanilla;
+
+    internal static int Count => _next;
+
+    /// <summary>扩表要的目标长度。</summary>
+    internal static int Total => Base + _next;
+
+    internal static ModHair? Of(int type)
+    {
+        var index = type - Base;
+        return (uint)index < (uint)_hairs.Length ? _hairs[index] : null;
+    }
+
+    /// <summary>按名字取编号：先 <c>Mod名/类名</c>，再裸类名（重名当没有）。</summary>
+    internal static int Find(string? name)
+    {
+        if (string.IsNullOrEmpty(name)) return 0;
+
+        if (name.IndexOf('/') >= 0) return ByKey.TryGetValue(name, out var exact) ? exact.Type : 0;
+        return ByName.TryGetValue(name, out var loose) && loose is not null ? loose.Type : 0;
+    }
+
+    /// <summary>发号；幂等，每次 Mod 注册后跑一次（原版表还没建好时先不发号）。</summary>
+    internal static void Assign()
+    {
+        if (Base <= 0) return;
+
+        foreach (var hair in ModContent.GetContent<ModHair>())
+        {
+            if (hair.Registered) continue;
+
+            if (_next == _hairs.Length) Array.Resize(ref _hairs, _hairs.Length * 2);
+
+            hair.Type = Base + _next;
+            hair.Registered = true;
+            HairIdTml.Sets.Resize(hair.Type + 1);
+            _hairs[_next++] = hair;
+
+            ByKey[hair.Mod.Name + "/" + hair.Name] = hair;
+            ByName[hair.Name] = ByName.ContainsKey(hair.Name) ? null : hair;
+        }
+    }
+}
+
+/// <summary>
+/// 发型编号相关的原生表：TextureAssets 的两张发型贴图表（主贴图与戴帽子版）。
+/// 表长在 TextureAssets 里太普通、长度判据拦不全，两张表各自用白名单点名自己的字段；
+/// 原版表长只能运行期读，读到 0 不缓存，主表锚点即 <see cref="HairTable.Base"/>，alt 表按自己的表长另行捕获。
+/// </summary>
+internal static class HairTables
+{
+    private static readonly Type[] Types = [typeof(Terraria.GameContent.TextureAssets)];
+
+    internal static readonly TableSet Set = new("发型贴图", () => HairTable.Base, Types, include: ["PlayerHair"]);
+
+    internal static readonly TableSet Alt = new("戴帽子版贴图", () => AltVanilla, Types, include: ["PlayerHairAlt"]);
+
+    private static int _alt;
+
+    internal static int AltVanilla
+    {
+        get
+        {
+            if (_alt > 0) return _alt;
+            var length = TextureSlots.Length(TextureTable.PlayerHairAlt);
+            if (length > 0) _alt = length;
+            return _alt;
+        }
+    }
+}

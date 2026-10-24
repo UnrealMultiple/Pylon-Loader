@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  层：宿主层（:game）的清单 —— 刻意是空壳，`<application>` 上不写任何属性。
+
+  三个必须知道的点（这里最容易改错）：
+
+  1. :game 是 **library** 模块，它的清单会合并进 :app。宿主层的代码归属 :game，
+     但"这个应用"的属性与组件声明只属于 :app——所以 GameActivity 与 manifest 属性
+     （launchMode / screenOrientation / configChanges / hardwareAccelerated /
+     resizeableActivity 与 5 个 unity.* / notch.* meta-data）只在 :app 声明一次。
+
+  2. 为什么不能在两处各写一份：library 的 manifest 会与 :app 合并，同名属性冲突会让合并
+     失败；更糟的情况是静默采用其中一个，让"属性对齐"悄悄失效——而这类失效的表现是
+     "黑屏/秒退"，从日志反推代价很大（docs/03 失败排查表）。
+
+  3. `:game` 进程不是由本文件决定的：进程来自 :app manifest 里 GameActivity 上的
+     android:process=":game"。library 不能声明 application 级属性，也不该决定进程。
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" />

@@ -1,0 +1,18 @@
+using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Terraria;
+
+namespace Pylon.ModLoader.Globals;
+/// <summary>作用于所有 Boss 血条（游戏的和 ModBossBar 的）的横切类；一个类一个实例，钩子收到 NPC 自己挑。</summary>
+public abstract class GlobalBossBar : ModType
+{
+    /// <summary>只放共享数值，不要碰游戏对象。</summary>
+    public override void SetStaticDefaults() { }
+
+    /// <summary>画之前；drawParams 可写，false = 这条血条不画（PostDraw 照旧跑）。</summary>
+    public virtual bool PreDraw(SpriteBatch spriteBatch, NPC npc, ref BossBarDrawParams drawParams) => true;
+
+    /// <summary>画完之后。</summary>
+    public virtual void PostDraw(SpriteBatch spriteBatch, NPC npc, BossBarDrawParams drawParams) { }
+}
+

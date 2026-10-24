@@ -1,0 +1,266 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.Tables;
+using Pylon.ModLoader.Textures;
+using Terraria;
+
+namespace Pylon.ModLoader.Pipelines;
+/// <summary>装备贴图表：按部位各一条槽位序列（槽位 = 该部位原版表长 + 序）。</summary>
+internal static class EquipTable
+{
+    internal static readonly EquipType[] Parts =
+    [
+        EquipType.Head, EquipType.Body, EquipType.Legs,
+        EquipType.HandsOn, EquipType.HandsOff, EquipType.Back, EquipType.Front,
+        EquipType.Shoes, EquipType.Waist, EquipType.Wings, EquipType.Shield,
+        EquipType.Neck, EquipType.Face, EquipType.Balloon, EquipType.Beard,
+    ];
+
+    private static readonly List<EquipTexture>[] ByPart = CreateBuckets();
+    private static readonly HashSet<ModItem> Loaded = [];
+
+    private static List<EquipTexture>[] CreateBuckets()
+    {
+        var buckets = new List<EquipTexture>[Parts.Length];
+        for (var index = 0; index < buckets.Length; index++) buckets[index] = [];
+        return buckets;
+    }
+
+    internal static int Count
+    {
+        get
+        {
+            var total = 0;
+            for (var index = 0; index < ByPart.Length; index++) total += ByPart[index].Count;
+            return total;
+        }
+    }
+
+    internal static List<EquipTexture> Of(EquipType part) => ByPart[(int)part];
+
+    internal static List<EquipType> Installed()
+    {
+        var types = new List<EquipType>();
+        for (var index = 0; index < Parts.Length; index++)
+        {
+            if (ByPart[index].Count > 0) types.Add(Parts[index]);
+        }
+        return types;
+    }
+
+    internal static int PlayerSlot(Player player, EquipType type) => type switch
+    {
+        EquipType.Head => player.head,
+        EquipType.Body => player.body,
+        EquipType.Legs => player.legs,
+        EquipType.HandsOn => player.handon,
+        EquipType.HandsOff => player.handoff,
+        EquipType.Back => player.back,
+        EquipType.Front => player.front,
+        EquipType.Shoes => player.shoe,
+        EquipType.Waist => player.waist,
+        EquipType.Wings => player.wings,
+        EquipType.Shield => player.shield,
+        EquipType.Neck => player.neck,
+        EquipType.Face => player.face,
+        EquipType.Balloon => player.balloon,
+        EquipType.Beard => player.beard,
+        _ => -1,
+    };
+
+    internal static int Vanilla(EquipType part) => EquipTables.Vanilla((int)part, Table(part));
+
+    internal static TableSet Set(EquipType part) => part switch
+    {
+        EquipType.Head => EquipTables.Head,
+        EquipType.Body => EquipTables.Body,
+        EquipType.Legs => EquipTables.Legs,
+        EquipType.HandsOn => EquipTables.HandOn,
+        EquipType.HandsOff => EquipTables.HandOff,
+        EquipType.Back => EquipTables.Back,
+        EquipType.Front => EquipTables.Front,
+        EquipType.Shoes => EquipTables.Shoes,
+        EquipType.Waist => EquipTables.Waist,
+        EquipType.Wings => EquipTables.Wing,
+        EquipType.Shield => EquipTables.Shield,
+        EquipType.Neck => EquipTables.Neck,
+        EquipType.Face => EquipTables.Face,
+        EquipType.Balloon => EquipTables.Balloon,
+        _ => EquipTables.Beard,
+    };
+
+    internal static int Target(EquipType part)
+    {
+        var count = Of(part).Count;
+        return count <= 0 ? 0 : Vanilla(part) + count;
+    }
+
+    internal static TextureTable Table(EquipType part) => part switch
+    {
+        EquipType.Head => TextureTable.ArmorHead,
+        EquipType.Body => TextureTable.ArmorBody,
+        EquipType.Legs => TextureTable.ArmorLeg,
+        EquipType.HandsOn => TextureTable.AccHandsOn,
+        EquipType.HandsOff => TextureTable.AccHandsOff,
+        EquipType.Back => TextureTable.AccBack,
+        EquipType.Front => TextureTable.AccFront,
+        EquipType.Shoes => TextureTable.AccShoes,
+        EquipType.Waist => TextureTable.AccWaist,
+        EquipType.Wings => TextureTable.Wings,
+        EquipType.Shield => TextureTable.AccShield,
+        EquipType.Neck => TextureTable.AccNeck,
+        EquipType.Face => TextureTable.AccFace,
+        EquipType.Balloon => TextureTable.AccBalloon,
+        _ => TextureTable.AccBeard,
+    };
+
+    internal static TextureTable[] Companions(EquipType part) => part switch
+    {
+        EquipType.Body => [TextureTable.ArmorBodyComposite, TextureTable.ArmorArm, TextureTable.FemaleBody],
+        EquipType.HandsOn => [TextureTable.AccHandsOnComposite],
+        EquipType.HandsOff => [TextureTable.AccHandsOffComposite],
+        _ => [],
+    };
+
+    internal static TableSet[] CompanionSets(EquipType part) => part switch
+    {
+        EquipType.Body => [EquipTables.BodyComposite, EquipTables.Arm],
+        EquipType.HandsOn => [EquipTables.HandOnComposite],
+        EquipType.HandsOff => [EquipTables.HandOffComposite],
+        _ => [],
+    };
+
+    internal static void Collect()
+    {
+        for (var index = 0; index < ByPart.Length; index++) ByPart[index].Clear();
+
+        IReadOnlyList<ModItem> items = ModContent.GetContent<ModItem>();
+        for (var index = 0; index < items.Count; index++)
+        {
+            var item = items[index];
+
+            if (Loaded.Add(item))
+            {
+                try
+                {
+                    item.Load();
+                }
+                catch (Exception e)
+                {
+                    ContentErrors.Report($"[equip] {item.Name}.Load 异常：{Safe.Describe(e)}");
+                }
+            }
+
+            var equips = item.EquipTextures;
+            for (var slot = 0; slot < equips.Count; slot++)
+            {
+                var equip = equips[slot];
+
+                if (equip.Type < EquipType.Head || equip.Type > EquipType.Beard)
+                {
+                    ContentErrors.Report($"[equip] {item.Name}.{equip.Name} 的部位 {equip.Type} 不存在（0..14）");
+                    continue;
+                }
+
+                ByPart[(int)equip.Type].Add(equip);
+            }
+        }
+    }
+
+    internal static void Assign()
+    {
+        for (var part = 0; part < Parts.Length; part++)
+        {
+            var list = ByPart[(int)Parts[part]];
+            var vanilla = Vanilla(Parts[part]);
+
+            for (var index = 0; index < list.Count; index++)
+            {
+                var equip = list[index];
+                equip.Slot = vanilla + index;
+
+                if (!BySlot.TryGetValue(Parts[part], out var map)) BySlot[Parts[part]] = map = [];
+                map[equip.Slot] = equip;
+            }
+        }
+
+        ByItem.Clear();
+        _itemMapBuilt = false;
+    }
+
+    private static readonly Dictionary<EquipType, Dictionary<int, EquipTexture>> BySlot = [];
+
+    private static readonly Dictionary<int, List<(EquipType Part, int Slot)>> ByItem = [];
+
+    internal static List<(EquipType Part, int Slot)>? SlotsOfItem(int itemType)
+    {
+        RebuildItemMap();
+        return ByItem.TryGetValue(itemType, out var slots) ? slots : null;
+    }
+
+    internal static int SlotOf(EquipType part, string? name)
+    {
+        if (string.IsNullOrEmpty(name)) return -1;
+
+        var list = Of(part);
+        for (var index = 0; index < list.Count; index++)
+        {
+            if (string.Equals(list[index].Name, name, StringComparison.Ordinal)) return list[index].Slot;
+        }
+
+        return -1;
+    }
+
+    private static bool _itemMapBuilt;
+
+    private static void RebuildItemMap()
+    {
+        if (_itemMapBuilt) return;
+        _itemMapBuilt = true;
+
+        for (var part = 0; part < Parts.Length; part++)
+        {
+            var type = Parts[part];
+            var list = Of(type);
+
+            for (var index = 0; index < list.Count; index++)
+            {
+                var equip = list[index];
+                var owner = equip.Item;
+                if (owner is null || owner.Type <= 0) continue;
+
+                if (!ByItem.TryGetValue(owner.Type, out var slots))
+                    ByItem[owner.Type] = slots = [];
+
+                slots.Add((type, equip.Slot));
+            }
+        }
+    }
+
+    internal static readonly Dictionary<EquipType, string> ItemSlotField = new()
+    {
+        [EquipType.Head] = "headSlot",
+        [EquipType.Body] = "bodySlot",
+        [EquipType.Legs] = "legSlot",
+        [EquipType.HandsOn] = "handOnSlot",
+        [EquipType.HandsOff] = "handOffSlot",
+        [EquipType.Back] = "backSlot",
+        [EquipType.Front] = "frontSlot",
+        [EquipType.Shoes] = "shoeSlot",
+        [EquipType.Waist] = "waistSlot",
+        [EquipType.Wings] = "wingSlot",
+        [EquipType.Shield] = "shieldSlot",
+        [EquipType.Neck] = "neckSlot",
+        [EquipType.Face] = "faceSlot",
+        [EquipType.Balloon] = "balloonSlot",
+        [EquipType.Beard] = "beardSlot",
+    };
+
+    internal static EquipTexture? OfSlot(EquipType part, int slot)
+    {
+        if (slot < 0) return null;
+        return BySlot.TryGetValue(part, out var map) && map.TryGetValue(slot, out var equip) ? equip : null;
+    }
+}

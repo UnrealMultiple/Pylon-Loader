@@ -1,0 +1,336 @@
+using System.Collections.ObjectModel;
+using Il2CppMicrosoft.Xna.Framework;
+using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Pipelines;
+using Terraria;
+using Terraria.DataStructures;
+using Terraria.Utilities;
+using ItemCreationContext = Pylon.ModLoader.Contracts.ItemCreationContext;
+
+namespace Pylon.ModLoader.Globals;
+/// <summary>全局物品：对游戏自己的物品（和 mod 的）也跑的一套钩子；一个类一份模板，AppliesToEntity 挑哪些物品。</summary>
+public abstract class GlobalItem : ModType
+{
+    /// <summary>true：每个物品一份自己的副本（Item.Clone 会把状态一起带走）。</summary>
+    public virtual bool InstancePerEntity => false;
+
+    /// <summary>false：这套钩子不跑在这个物品上；lateInstantiation = 在 SetDefaults 之后（类型已定）。</summary>
+    public virtual bool AppliesToEntity(Item entity, bool lateInstantiation) => true;
+
+    /// <summary>复制这套钩子实例的字段；物品流程里由 Item.Clone 调（管线接管）。</summary>
+    public virtual GlobalItem Clone(Item from, Item to) => this;
+
+    /// <summary>新物品的副本；默认就是模板自己。</summary>
+    public virtual GlobalItem NewInstance(Item target) => this;
+
+    /// <summary>物品生成或换类型时（游戏的 SetDefaults 之后）。</summary>
+    public virtual void SetDefaults(Item item) { }
+
+    /// <summary>false：这一次用不了这个物品。</summary>
+    public virtual bool CanUseItem(Item item, Player player) => true;
+
+    /// <summary>使用开始时；true = 物品算用过了（消耗品会被吃掉），false 显式不算，null = 交给游戏。</summary>
+    public virtual bool? UseItem(Item item, Player player) => null;
+
+    /// <summary>使用时的样子；游戏自己的样式和 ModItem 的之后跑。</summary>
+    public virtual void UseStyle(Item item, Player player, Rectangle heldItemFrame) { }
+
+    /// <summary>握着时的样子；游戏自己的样式和 ModItem 的之后跑。</summary>
+    public virtual void HoldStyle(Item item, Player player, Rectangle heldItemFrame) { }
+
+    /// <summary>false:该类型不能成为当前的渔夫任务;按类型调用模板,不绑定物品实体。</summary>
+    public virtual bool IsAnglerQuestAvailable(int type) => true;
+
+    /// <summary>物品模板提供任务文案后,修改描述和捕获地点;两段非空时替换渔夫原文。</summary>
+    public virtual void AnglerChat(int type, ref string description, ref string catchLocation) { }
+
+    /// <summary>手里拿着时每帧一次。</summary>
+    public virtual void HoldItem(Item item, Player player) { }
+
+    /// <summary>武器的伤害修正（同 TML：<see cref="StatModifier"/> 链）。</summary>
+    public virtual void ModifyWeaponDamage(Item item, Player player, ref StatModifier damage) { }
+
+    /// <summary>武器的暴击修正（同 TML：百分点）。</summary>
+    public virtual void ModifyWeaponCrit(Item item, Player player, ref float crit) { }
+
+    /// <summary>武器的击退修正（同 TML：<see cref="StatModifier"/> 链）。</summary>
+    public virtual void ModifyWeaponKnockback(Item item, Player player, ref StatModifier knockback) { }
+
+    /// <summary>物品画出来的体积（同 TML）。</summary>
+    public virtual void ModifyItemScale(Item item, Player player, ref float scale) { }
+
+    /// <summary>null = 交给游戏（原版连发判定）；true/false 强制开或关自动连发。</summary>
+    public virtual bool? CanAutoReuseItem(Item item, Player player) => null;
+
+    /// <summary>本次使用的用时倍率（乘区）。</summary>
+    public virtual float UseTimeMultiplier(Item item, Player player) => 1f;
+
+    /// <summary>本次使用的动画倍率（乘区）。</summary>
+    public virtual float UseAnimationMultiplier(Item item, Player player) => 1f;
+
+    /// <summary>整体使用速度倍率（乘区）。</summary>
+    public virtual float UseSpeedMultiplier(Item item, Player player) => 1f;
+
+    /// <summary>改这次使用的魔力开销：reduce 是减量、mult 是倍率（可写引用）。</summary>
+    public virtual void ModifyManaCost(Item item, Player player, ref float reduce, ref float mult) { }
+
+    /// <summary>魔力不够放不出来时。</summary>
+    public virtual void OnMissingMana(Item item, Player player, int neededMana) { }
+
+    /// <summary>实际消耗魔力之后。</summary>
+    public virtual void OnConsumeMana(Item item, Player player, int manaConsumed) { }
+
+    /// <summary>true：右键也算主用途（AltFunctionUse 路径）。</summary>
+    public virtual bool AltFunctionUse(Item item, Player player) => false;
+
+    /// <summary>这次挥击的碰撞盒（可写引用）；noHitbox = true 关掉伤害。</summary>
+    public virtual void UseItemHitbox(Item item, Player player, ref Rectangle hitbox, ref bool noHitbox) { }
+
+    /// <summary>近战挥击的特效；hitbox 是这次挥击的矩形。</summary>
+    public virtual void MeleeEffects(Item item, Player player, Rectangle hitbox) { }
+
+    /// <summary>null 保留原版，false 否决本次近战目标。</summary>
+    public virtual bool? CanHitNPC(Item item, Player player, NPC target) => null;
+
+    /// <summary>修改当前目标的近战碰撞判定，不影响下一目标。</summary>
+    public virtual bool? CanMeleeAttackCollideWithNPC(Item item, Rectangle meleeAttackHitbox, Player player, NPC target) => null;
+
+    /// <summary>在物品自身修饰之后修改本次 NPC 命中。</summary>
+    public virtual void ModifyHitNPC(Item item, Player player, NPC target, ref HitModifiers modifiers) { }
+
+    /// <summary>原版确认命中之后收到实际扣血通知。</summary>
+    public virtual void OnHitNPC(Item item, Player player, NPC target, HitInfo hit, int damageDone) { }
+
+    /// <summary>false 否决当前物品的近战玩家目标。</summary>
+    public virtual bool CanHitPvp(Item item, Player player, Player target) => true;
+
+    /// <summary>物品自身回调之后修改此武器造成的 PvP 伤害。</summary>
+    public virtual void ModifyHitPvp(Item item, Player player, Player target, ref HurtModifiers modifiers) { }
+
+    /// <summary>原版实际造成 PvP 伤害之后通知全局物品实例。</summary>
+    public virtual void OnHitPvp(Item item, Player player, Player target, HurtInfo info) { }
+
+    /// <summary>使用动画应用时（每帧使用）。</summary>
+    public virtual void UseAnimation(Item item, Player player) { }
+
+    /// <summary>使用时画哪一帧。</summary>
+    public virtual void UseItemFrame(Item item, Player player) { }
+
+    /// <summary>握着时画哪一帧。</summary>
+    public virtual void HoldItemFrame(Item item, Player player) { }
+
+    /// <summary>回的血量（可写引用），基准是正的回血量。</summary>
+    public virtual void GetHealLife(Item item, Player player, bool quickHeal, ref int healValue) { }
+
+    /// <summary>回的魔量（可写引用）。</summary>
+    public virtual void GetHealMana(Item item, Player player, bool quickHeal, ref int healValue) { }
+
+    /// <summary>药水延时（可写引用），在游戏判否决和应用之前。</summary>
+    public virtual void ModifyPotionDelay(Item item, Player player, ref int baseDelay) { }
+
+    /// <summary>false：不加计时也不给药水病，回血和消耗照旧。</summary>
+    public virtual bool ApplyPotionDelay(Item item, Player player, int potionDelay) => true;
+
+    /// <summary>false：用得了，但不发射。</summary>
+    public virtual bool CanShoot(Item item, Player player) => true;
+
+    /// <summary>false:武器允许没有背包弹药时使用默认弹药样例。</summary>
+    public virtual bool NeedsAmmo(Item weapon, Player player) => true;
+
+    /// <summary>null 按类别匹配，true 允许额外类型，false 否决。</summary>
+    public virtual bool? CanChooseAmmo(Item weapon, Item ammo, Player player) => null;
+
+    /// <summary>作用于弹药实体的候选选择判断。</summary>
+    public virtual bool? CanBeChosenAsAmmo(Item ammo, Item weapon, Player player) => null;
+
+    /// <summary>false:允许发射但不扣这份弹药。</summary>
+    public virtual bool CanConsumeAmmo(Item weapon, Item ammo, Player player) => true;
+
+    /// <summary>作用于弹药实体的消耗判断。</summary>
+    public virtual bool CanBeConsumedAsAmmo(Item ammo, Item weapon, Player player) => true;
+
+    /// <summary>武器实际消耗弹药后，在空物品清理之前调用。</summary>
+    public virtual void OnConsumeAmmo(Item weapon, Item ammo, Player player) { }
+
+    /// <summary>弹药实体实际被消耗之后。</summary>
+    public virtual void OnConsumedAsAmmo(Item ammo, Item weapon, Player player) { }
+
+    /// <summary>弹药选中后修改最终弹幕参数；damage 修饰基于原版计算结果。</summary>
+    /// <summary>配方注册阶段（Mod.AddRecipes 之后逐个跑）。</summary>
+    public virtual void AddRecipes() { }
+
+    /// <summary>持枪偏移（按物品类型问）；原点在持手，游戏会按朝向/重力/持枪旋转换算。null = 不动。</summary>
+    public virtual Vector2? HoldoutOffset(int type) => null;
+
+    public virtual void PickAmmo(Item weapon, Item ammo, Player player, ref int type, ref float speed,
+                                 ref StatModifier damage, ref float knockback)
+    { }
+
+    /// <summary>每个弹幕之前：位置/速度/类型/伤害/击退都是可写引用。</summary>
+    public virtual void ModifyShootStats(Item item, Player player, ref Vector2 position, ref Vector2 velocity,
+                                         ref int type, ref int damage, ref float knockback)
+    { }
+
+    /// <summary>false：游戏不发射自己的弹幕（在这里造自己的）；source 是这一发的来源，可能是 null 包装。</summary>
+    public virtual bool Shoot(Item item, Player player, EntitySource_ItemUse_WithAmmo? source, Vector2 position,
+                              Vector2 velocity, int type, int damage, float knockBack) => true;
+
+    /// <summary>这件物品要跟着原版物品包一起过网的那部分状态（按注册顺序编号发送）。</summary>
+    public virtual void NetSend(Item item, NetWriter writer) { }
+
+    /// <summary>对端收到同一次物品包时读；顺序必须和 <see cref="NetSend"/> 一致。</summary>
+    public virtual void NetReceive(Item item, NetReader reader) { }
+
+    /// <summary>每帧，在背包里（58 个格子）。</summary>
+    public virtual void UpdateInventory(Item item, Player player) { }
+
+    /// <summary>装备着时每帧一次（盔甲或饰品）。</summary>
+    public virtual void UpdateEquip(Item item, Player player) { }
+
+    /// <summary>饰品装备着时每帧一次；hideVisual = 关了显示。</summary>
+    public virtual void UpdateAccessory(Item item, Player player, bool hideVisual) { }
+
+    public virtual void UpdateVanity(Item item, Player player) { }
+
+    /// <summary>false：玩家既不捡也不吸这个物品（同 TML）。</summary>
+    public virtual bool CanPickup(Item item, Player player) => true;
+
+    /// <summary>被捡起时；false = 物品直接消失，不进背包（红心、经验珠）。</summary>
+    public virtual bool OnPickup(Item item, Player player) => true;
+
+    /// <summary>true：背包满了也能捡（配 OnPickup 消耗掉）。</summary>
+    public virtual bool ItemSpace(Item item, Player player) => false;
+
+    /// <summary>吸取范围，像素（可写引用，在游戏的范围上加）。</summary>
+    public virtual void GrabRange(Item item, Player player, ref int grabRange) { }
+
+    /// <summary>true：由 mod 自己把物品移过去（改 velocity），游戏不吸。</summary>
+    public virtual bool GrabStyle(Item item, Player player) => false;
+
+    /// <summary>false：这次右键不消耗该物品（同 TML）。</summary>
+    public virtual bool ConsumeItem(Item item, Player player) => true;
+
+    public virtual bool CanRightClick(Item item) => false;
+
+    public virtual void RightClick(Item item, Player player) { }
+
+    /// <summary>物品被创建时（同 TML）。</summary>
+    public virtual void OnCreated(Item item, ItemCreationContext context) { }
+
+    /// <summary>画这个物品用的颜色；返 null = 用原色（同 TML）。</summary>
+    public virtual Color? GetAlpha(Item item, Color lightColor) => null;
+
+    /// <summary>地上画它之前；rotation 和 scale 是可写引用，false = 不画。</summary>
+    public virtual bool PreDrawInWorld(Item item, SpriteBatch spriteBatch, Color lightColor, Color alphaColor,
+                                       ref float rotation, ref float scale, int whoAmI) => true;
+
+    /// <summary>地上画它之后（否决了也跑）。</summary>
+    public virtual void PostDrawInWorld(Item item, SpriteBatch spriteBatch, Color lightColor, Color alphaColor,
+                                        float rotation, float scale, int whoAmI)
+    { }
+
+    /// <summary>背包里画它之前（收的是游戏算好的帧、原点和缩放）；false = 不画。</summary>
+    public virtual bool PreDrawInInventory(Item item, SpriteBatch spriteBatch, Vector2 position, Rectangle frame,
+                                           Color drawColor, Color itemColor, Vector2 origin, float scale) => true;
+
+    /// <summary>背包里画它之后（否决了也跑）。</summary>
+    public virtual void PostDrawInInventory(Item item, SpriteBatch spriteBatch, Vector2 position, Rectangle frame,
+                                            Color drawColor, Color itemColor, Vector2 origin, float scale)
+    { }
+
+    public virtual void ModifyItemLoot(Item item, ItemLoot itemLoot) { }
+
+    /// <summary>每次 tooltip 显示时一次（合成指南弹窗里也会，不带颜色）；ModItem 的之后跑。</summary>
+    public virtual void ModifyTooltips(Item item, List<TooltipLine> tooltips) { }
+
+    /// <summary>画整个 tooltip 前；改 x/y 移动所有行，false = 一行都不画。</summary>
+    public virtual bool PreDrawTooltip(Item item, ReadOnlyCollection<TooltipLine> lines, ref int x, ref int y) => true;
+
+    /// <summary>所有行画完后（收 DrawableTooltipLine）。</summary>
+    public virtual void PostDrawTooltip(Item item, ReadOnlyCollection<DrawableTooltipLine> lines) { }
+
+    /// <summary>画这一行前；改 line 的 X/Y/字体/颜色/缩放，yOffset 加在后面所有行上；false = 这行不画。</summary>
+    public virtual bool PreDrawTooltipLine(Item item, DrawableTooltipLine line, ref int yOffset) => true;
+
+    /// <summary>这一行画完后（没画也跑）。</summary>
+    public virtual void PostDrawTooltipLine(Item item, DrawableTooltipLine line) { }
+
+    /// <summary>掷前缀时强制的那个（&gt; 0），或 -1；这里比 ModItem 的先跑。</summary>
+    public virtual int ChoosePrefix(Item item, UnifiedRandom rand) => -1;
+
+    /// <summary>true 强给，false 拦住，null = 游戏的（pre：-1 制作/箱子，-2 重铸）。</summary>
+    public virtual bool? PrefixChance(Item item, int pre, UnifiedRandom rand) => null;
+
+    /// <summary>false：这个前缀不在候选里。</summary>
+    public virtual bool AllowPrefix(Item item, int pre) => true;
+
+    /// <summary>画盔甲部件时的颜色（type 是部位、slot 是盔甲槽；可写引用）。</summary>
+    public virtual void DrawArmorColor(EquipType type, int slot, Player drawPlayer, float shadow, ref Color color,
+                                       ref int glowMask, ref Color glowMaskColor)
+    { }
+
+    /// <summary>画手臂盔甲的辉光（slot 是身体槽）。</summary>
+    public virtual void ArmorArmGlowMask(int slot, Player drawPlayer, float shadow, ref int glowMask, ref Color color) { }
+
+    /// <summary>false：这个饰品槽装不上。</summary>
+    public virtual bool CanEquipAccessory(Item item, Player player, int slot, bool modded) => true;
+
+    /// <summary>false：这对饰品不能同时装（拖进槽和点着换都问）。</summary>
+    public virtual bool CanAccessoryBeEquippedWith(Item equippedItem, Item incomingItem, Player player) => true;
+
+    /// <summary>这套是不是凑齐了；返回套装名（'' = 没凑齐）。</summary>
+    public virtual string IsArmorSet(Item head, Item body, Item legs) => "";
+
+    /// <summary>套装效果；set 是 IsArmorSet 返回的名字。</summary>
+    public virtual void UpdateArmorSet(Player player, string set) { }
+
+    /// <summary>时装套装判定，收的是画出来的槽位；默认问这些槽位物品的 IsArmorSet。</summary>
+    public virtual string IsVanitySet(int head, int body, int legs) =>
+        IsArmorSet(Sample(SlotItemType(Item.headType, head)), Sample(SlotItemType(Item.bodyType, body)),
+                   Sample(SlotItemType(Item.legType, legs)));
+
+    /// <summary>FrameEffects 之前，时装套生效时。</summary>
+    public virtual void PreUpdateVanitySet(Player player, string set) { }
+
+    /// <summary>FrameEffects 之后，时装套生效时。</summary>
+    public virtual void UpdateVanitySet(Player player, string set) { }
+
+    /// <summary>这套的影子（armorEffectDraw* 那几个字段）。</summary>
+    public virtual void ArmorSetShadows(Player player, string set) { }
+
+    /// <summary>部位画到哪个槽：armorSlot 0 头/1 身/2 腿，equipSlot 是槽，robes = true 表示长袍（占腿）。</summary>
+    public virtual void SetMatch(int armorSlot, int type, bool male, ref int equipSlot, ref bool robes) { }
+
+    /// <summary>空中这对翅膀的五个可写引用（item 是穿的那件，或 null）。</summary>
+    public virtual void VerticalWingSpeeds(Item? item, Player player, ref float ascentWhenFalling, ref float ascentWhenRising,
+                                           ref float maxCanAscendMultiplier, ref float maxAscentMultiplier, ref float constantAscend)
+    { }
+
+    /// <summary>空中平飞的加速度和速度（两个可写引用）。</summary>
+    public virtual void HorizontalWingSpeeds(Item? item, Player player, ref float speed, ref float acceleration) { }
+
+    /// <summary>true：翅膀由 mod 自己动画（游戏的 WingFrame 不跑）。</summary>
+    public virtual bool WingUpdate(int wings, Player player, bool inUse) => false;
+
+    /// <summary>这个编号的游戏样表那一份（IsVanitySet 用；没有就造一份默认值）。</summary>
+    private static Item Sample(int type)
+    {
+        var samples = Terraria.ID.ContentSamples.ItemsByType;
+        if (samples is not null)
+        {
+            if (type > 0 && samples.ContainsKey(type)) return samples[type];
+            if (samples.ContainsKey(0)) return samples[0];
+        }
+
+        var item = new Item();
+        item.SetDefaults(type, null);
+        return item;
+    }
+
+    /// <summary>画出来的槽位 → 那件衣服的编号（越界和 0 都按 0 号算）。</summary>
+    private static int SlotItemType(Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<int> table, int slot) =>
+        table[slot > 0 && slot < table.Length ? slot : 0];
+}
+

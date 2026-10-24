@@ -1,0 +1,27 @@
+using Pylon.ModLoader;
+using Pylon.ModLoader.Content;
+
+namespace PipelineTest.Content;
+
+/// <summary>测试云：权重 3。贴图 64x64（棋盘）。</summary>
+public sealed class TestCloud : ModCloud
+{
+    public static int OnSpawnCount;
+
+    /// <summary>云贴图不在基类默认路径里：显式声明。</summary>
+    public override string TexturePath => "assets/clouds/TestCloud.png";
+
+    public override float SpawnChance() => 3f;
+
+    public override void OnSpawn(Terraria.Cloud cloud) => OnSpawnCount++;
+}
+
+/// <summary>稀有测试云：RareCloud=true，权重 1；贴图是带字的高级云。</summary>
+public sealed class TestRareCloud : ModCloud
+{
+    public override string TexturePath => "assets/clouds/TestRareCloud.png";
+
+    public override bool RareCloud => true;
+
+    public override float SpawnChance() => 1f;
+}

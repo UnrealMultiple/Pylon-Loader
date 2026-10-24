@@ -1,0 +1,79 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Pylon.ModLoader</AssemblyName>
+    <RootNamespace>Pylon.ModLoader</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <PublishTrimmed>false</PublishTrimmed>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Pylon.Mod.Abstractions\Pylon.Mod.Abstractions.csproj" />
+    <ProjectReference Include="..\..\il2cppinterop\Il2CppInterop.RuntimeDetour\Il2CppInterop.RuntimeDetour.csproj" />
+
+    <Reference Include="Assembly-CSharp">
+      <HintPath>..\..\..\..\interop\generated\Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2Cppmscorlib">
+      <HintPath>..\..\..\..\interop\generated\Il2Cppmscorlib.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>..\..\..\..\interop\generated\UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AndroidJNIModule">
+      <HintPath>..\..\..\..\interop\generated\UnityEngine.AndroidJNIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>..\..\..\..\interop\generated\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ImageConversionModule">
+      <HintPath>..\..\..\..\interop\generated\UnityEngine.ImageConversionModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>..\..\..\..\interop\generated\UnityEngine.AudioModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestModule">
+      <HintPath>..\..\..\..\interop\generated\UnityEngine.UnityWebRequestModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestWWWModule">
+      <HintPath>..\..\..\..\interop\generated\UnityEngine.UnityWebRequestWWWModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\il2cppinterop\Il2CppInterop.Runtime\Il2CppInterop.Runtime.csproj" />
+    <ProjectReference Include="..\..\il2cppinterop\Il2CppInterop.Common\Il2CppInterop.Common.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Pylon.NaviteAPI\Pylon.NaviteAPI.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <DefineConstants>$(DefineConstants);PYLON_ASM_ARM64</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="AsmArm64" Version="[2.4.0]" GeneratePathProperty="true" />
+    <None Include="$(PkgAsmArm64)/lib/net8.0/AsmArm64.dll" Link="AsmArm64.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Textures\pylon.png" />
+    <EmbeddedResource Include="ImGuiHost\Fonts\ui.ttf">
+      <LogicalName>Pylon.ModLoader.ImGuiHost.Fonts.ui.ttf</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+</Project>

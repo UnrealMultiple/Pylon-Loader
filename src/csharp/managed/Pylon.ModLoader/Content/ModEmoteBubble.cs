@@ -1,0 +1,56 @@
+using Il2CppMicrosoft.Xna.Framework;
+using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Terraria.GameContent.UI;
+
+namespace Pylon.ModLoader.Content;
+/// <summary>自定义表情；一个类型一个实例（类型在游戏 151 个之后；贴图是并排两个 34×28 的图标，白泡泡来自游戏的表）。</summary>
+public abstract class ModEmoteBubble : ModType
+{
+    /// <summary>贴图相对 Mod 目录的路径（默认 assets/emotebubbles/&lt;Name&gt;.png）。</summary>
+    public override string TexturePath => $"assets/emotebubbles/{Name}.png";
+
+    /// <summary>当前这次调用的那个游戏 EmoteBubble（只在钩子方法里有效）。</summary>
+    public EmoteBubble EmoteBubble { get; internal set; } = null!;
+
+    /// <summary>占号之后一次，只放共享数值（AddToCategory 也在这里调）。</summary>
+    public override void SetStaticDefaults() { }
+
+    private List<int>? _categories;
+
+    /// <summary>把它放进表情菜单的哪个分类（数字照游戏的分类号：0 通用 / 1 石头剪刀布 / 2 物品 / 3 群系事件 / 4 城镇 NPC / 5 小动物 / 6 Boss）。</summary>
+    public void AddToCategory(int categoryId) => (_categories ??= []).Add(categoryId);
+
+    /// <summary>注册过的分类（管线用）。</summary>
+    internal IReadOnlyList<int> Categories => _categories is null ? Array.Empty<int>() : _categories;
+
+    public virtual string LocalizationCategory => "Emotes";
+
+    /// <summary>聊天里触发这个表情的命令（不含斜杠）；默认类名小写。</summary>
+    public virtual string Command => Name.ToLower();
+
+    public virtual bool IsUnlocked() => true;
+
+    /// <summary>泡泡生出来时一次（EmoteBubble.NewBubble）。</summary>
+    public virtual void OnSpawn() { }
+
+    /// <summary>每帧；false = 这个泡泡自己动画（改 EmoteBubble.frame 和 frameCounter），true = 游戏那两个帧的步子。</summary>
+    public virtual bool UpdateFrame() => true;
+
+    /// <summary>贴图里取哪一块；null = 游戏那样（贴图的一半，按 EmoteBubble.frame 取）。</summary>
+    public virtual Rectangle? GetFrame() => null;
+
+    /// <summary>菜单里取哪一块（frame 是菜单的两个帧之一，frameCounter 是菜单的帧计数）；null = 贴图的一半。</summary>
+    public virtual Rectangle? GetFrameInEmoteMenu(int frame, int frameCounter) => null;
+
+    /// <summary>菜单里的帧推进；基线同款声明、但基线自身也没有调用点（reference-dead），保留不接。</summary>
+    public virtual bool UpdateFrameInEmoteMenu(ref int frameCounter) => true;
+
+    /// <summary>画这个泡泡之前；false = 不画（PostDraw 照跑）。</summary>
+    public virtual bool PreDraw(SpriteBatch spriteBatch, Texture2D texture, Vector2 position, Rectangle frame,
+        Vector2 origin, SpriteEffects spriteEffects) => true;
+
+    /// <summary>画完这个泡泡之后。</summary>
+    public virtual void PostDraw(SpriteBatch spriteBatch, Texture2D texture, Vector2 position, Rectangle frame,
+        Vector2 origin, SpriteEffects spriteEffects)
+    { }
+}

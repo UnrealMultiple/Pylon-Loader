@@ -1,0 +1,240 @@
+using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.Tables;
+using Pylon.ModLoader.Textures;
+using Terraria;
+using Terraria.DataStructures;
+
+namespace Pylon.ModLoader.Pipelines;
+/// <summary>血腥粒子管线：生成 / 更新 / 颜色三条入口，加安装期的扩表。类型表在 <see cref="GoreTable"/>。</summary>
+internal sealed class GorePipeline : ILoaderModule, ILoaderModuleRefresh
+{
+    public static GorePipeline Instance { get; } = new();
+
+    private readonly HashSet<long> _reported = [];
+
+    [ThreadStatic]
+    internal static IEntitySource? PendingSource;
+
+    public string Name => "gore";
+
+    public IReadOnlyList<TableRequest> Tables =>
+        [new(GoreTables.Set, () => GoreTable.Total)];
+
+
+    private static IModLog Log => LoaderHost.Current.Log;
+
+    /// <summary>gore 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
+    {
+        internal struct Core : IGate
+        {
+            public static bool Wanted() => true;
+
+            public static void Install() => GoreTable.Assign();
+        }
+
+        internal struct Spawn : IGate
+        {
+            public static bool Wanted() => HookGuard.Wants<ModGore>(HookId.OnSpawn);
+
+            public static void Install()
+            {
+                On.Terraria.Gore.NewGore += Instance.NewGore;
+                Log.Info("[gore] 已挂：NewGore（OnSpawn）");
+            }
+        }
+
+        internal struct Update : IGate
+        {
+            public static bool Wanted() => HookGuard.Wants<ModGore>(HookId.Update);
+
+            public static void Install()
+            {
+                On.Terraria.Gore.Update += Instance.Update;
+                Log.Info("[gore] 已挂：Update");
+            }
+        }
+
+        internal struct Alpha : IGate
+        {
+            public static bool Wanted() => HookGuard.Wants<ModGore>(HookId.GetAlpha);
+
+            public static void Install()
+            {
+                On.Terraria.Gore.GetAlpha += Instance.GetAlpha;
+                Log.Info("[gore] 已挂：GetAlpha");
+            }
+        }
+    }
+
+    public bool Install() => GateHub<GorePipeline>.Run();
+
+    public void Refresh() => GoreTable.Assign();
+
+    internal void Build()
+    {
+        Grow();
+        GoreTable.Assign();
+
+        var count = 0;
+        for (var type = GoreTable.Base; type < GoreTable.Total; type++)
+        {
+            var gore = GoreTable.Of(type);
+            if (gore is null) continue;
+
+            Safe.Run(gore.Name + ".SetStaticDefaults", gore.SetStaticDefaults);
+            count++;
+        }
+
+        WriteVanillaDefaults();
+
+        if (count > 0) Log.Info($"[gore] 安装：{count} 个（类型 {GoreTable.Base}..{GoreTable.Total - 1}）");
+    }
+
+    private static void WriteVanillaDefaults()
+    {
+        var speed = Terraria.ID.GoreID.Sets.DisappearSpeed;
+        var alpha = Terraria.ID.GoreID.Sets.DisappearSpeedAlpha;
+        for (var type = GoreTable.Base; type < GoreTable.Total; type++)
+        {
+            if (speed is not null && (uint)type < (uint)speed.Length) speed[type] = 1;
+            if (alpha is not null && (uint)type < (uint)alpha.Length) alpha[type] = 1;
+        }
+    }
+
+    /// <summary>TextureAssets.Gore 与 GoreID.Sets 那几张平行表一次扩到位；扩表器留在 Active 里供维护期补扩。</summary>
+    private static void Grow()
+    {
+        var total = GoreTable.Total;
+        if (total <= GoreTable.Base) return;
+
+        try
+        {
+            TableMaintenance.Ensure(GoreTables.Set, total).GrowAll(Log.Info);
+        }
+        catch (Exception e)
+        {
+            Safe.Report("gore.grow", e);
+        }
+    }
+
+    private int NewGore(On.Terraria.Gore.orig_NewGore orig, Il2CppMicrosoft.Xna.Framework.Vector2 position,
+                        Il2CppMicrosoft.Xna.Framework.Vector2 velocity, int type, float scale)
+    {
+        var source = PendingSource;
+        PendingSource = null;
+        var index = orig(position, velocity, type, scale);
+
+        var gore = GoreTable.Of(type);
+        if (gore is null || !GoreTable.MasksOf(type).Has(HookId.OnSpawn)) return index;
+        if ((uint)index >= (uint)Main.gore.Length) return index;
+
+        var spawned = Main.gore[index];
+        if (spawned is null || !spawned.active || spawned.type != type) return index;
+
+        try
+        {
+            gore.OnSpawn(spawned, source);
+        }
+        catch (Exception e)
+        {
+            Report(gore, HookId.OnSpawn, e);
+        }
+
+        return index;
+    }
+
+    private void Update(On.Terraria.Gore.orig_Update orig, Gore self)
+    {
+        var gore = GoreTable.Of(self.type);
+        if (gore is null || !GoreTable.MasksOf(self.type).Has(HookId.Update))
+        {
+            orig(self);
+            return;
+        }
+
+        try
+        {
+            if (!gore.Update(self)) return;
+        }
+        catch (Exception e)
+        {
+            // 吞掉之后照常走原版：粒子会自己淡出，不会因为每帧抛错而定在屏幕上。
+            Report(gore, HookId.Update, e);
+        }
+
+        var borrowed = gore.UpdateType;
+        if (borrowed <= 0)
+        {
+            orig(self);
+            return;
+        }
+
+        // 借原版 AI：临时把自己的编号换成目标编号，原版更新跑完再换回来。
+        // 用 try/finally 而不是"跑完再赋值"：原版更新里抛异常时也必须换回来，否则这一粒会以别人的编号留在世界上。
+        var own = self.type;
+        self.type = borrowed;
+        try
+        {
+            orig(self);
+        }
+        finally
+        {
+            if (self.type == borrowed) self.type = own;
+        }
+    }
+
+    private Color GetAlpha(On.Terraria.Gore.orig_GetAlpha orig, Gore self, Color newColor)
+    {
+        var gore = GoreTable.Of(self.type);
+        if (gore is null || !GoreTable.MasksOf(self.type).Has(HookId.GetAlpha)) return orig(self, newColor);
+
+        try
+        {
+            if (gore.GetAlpha(self, newColor) is { } color) return color;
+        }
+        catch (Exception e)
+        {
+            Report(gore, HookId.GetAlpha, e);
+        }
+
+        return orig(self, newColor);
+    }
+
+    private void Report(ModGore gore, HookId hook, Exception exception)
+    {
+        if (!_reported.Add(((long)gore.Type << 32) | (uint)hook)) return;
+        ContentErrors.Report($"[gore] {gore.Name}.{hook} 异常：{Safe.Describe(exception)}");
+    }
+}
+
+/// <summary>血腥粒子编号相关的原生表：贴图、GoreID.Sets、ChildSafety（长度都跟着 gore 数量走）。</summary>
+internal static class GoreTables
+{
+    private static readonly Type[] Types =
+    [
+        typeof(Terraria.GameContent.TextureAssets),
+        typeof(Terraria.ID.GoreID.Sets),
+        typeof(Terraria.GameContent.ChildSafety),
+    ];
+
+    internal static readonly TableSet Set = new("血腥粒子", () => Vanilla, Types);
+
+    private static int _vanilla;
+
+    /// <summary>原版 gore 表长：GoreID 没有编译期 Count，只能在扩表之前按表长捕获一次；读到 0 不缓存。</summary>
+    internal static int Vanilla
+    {
+        get
+        {
+            if (_vanilla > 0) return _vanilla;
+            var length = TextureSlots.Length(TextureTable.Gore);
+            if (length > 0) _vanilla = length;
+            return _vanilla;
+        }
+    }
+}

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  仅 debug 变体的 manifest 叠加：给 MainActivity 增加一个可被 adb 驱动的入口。
+  用途：M1 验收要求"能反复、无手工步骤地复现"，这个 action 让导入与宿主启动可以用
+  adb shell am start 加 action=dev.pylon.loader.action.IMPORT 一条命令触发。
+  release 不含本文件，因此不带任何测试入口。
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity android:name="dev.pylon.loader.MainActivity">
+            <intent-filter>
+                <action android:name="dev.pylon.loader.action.IMPORT" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

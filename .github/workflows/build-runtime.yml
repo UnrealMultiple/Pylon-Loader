@@ -1,0 +1,103 @@
+# 层：CI —— 产出「别人 clone 后拿不到」的关键文件，上传成 Actions artifact
+#
+# 为什么需要：仓库故意不含三类二进制。其中这两样在 Windows 上很难自己造：
+#   · dotnet.zip          ← 微软 NuGet 包 microsoft.netcore.app.runtime.android-arm64 10.0.12（BCL + PAL）
+#   · BepInEx.Android.zip ← 上游 BepInEx 5b766a3b + 13 个补丁 + 重建的 MonoMod/Il2CppInterop
+# 它们的产出流程是 Unix shell + patch + python，正好适合在 GitHub 的 Ubuntu 上跑。
+#
+# 步骤不是猜的：照抄子模块自己的 CI（external/BepInEx-Android/.github/workflows/
+# build-bepinex.yml 与 fetch-runtime.yml），只去掉 attestation / harden-runner 这些本仓库不需要的环节。
+#
+# 拿到的 artifact 怎么用（本地）：
+#   1) 解压 BepInEx.Android.zip 与 dotnet.zip 到 runtime/bepinex-android/assets/
+#   2) 把 runtime-android 里的 native/*.so 拷到 runtime/bepinex-android/lib/
+#   3) pwsh -File tools/prepare-runtime.ps1
+#   4) pwsh -File tools/pipeline.ps1
+name: build-runtime
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'external/BepInEx-Android/**'
+      - '.github/workflows/build-runtime.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  bepinex-android:
+    name: BepInEx.Android.zip
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: external/BepInEx-Android
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # 精确版本：上游 CI 注释里写明不能用 '10.0.x'，浮版本会让同一提交在不同日子编出不同结果
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.401'
+
+      # 1) 按 provenance/bepinex.env 的钉克隆上游 BepInEx 并打 13 个补丁
+      - name: 打补丁（上游 BepInEx 按钉克隆）
+        run: ./scripts/apply_patches.sh
+
+      # 2) 重建 MonoMod 与 Il2CppInterop（restore 之前必须先有这两套包）
+      - name: 重建 MonoMod / Il2CppInterop
+        run: ./scripts/build_packages_parallel.sh
+
+      # 3) 还原并编译托管树
+      - name: 还原并编译托管树
+        run: ./scripts/restore_and_build.sh
+
+      # 4) 打包
+      - name: 打包 BepInEx.Android.zip
+        run: OUT="$PWD/out/BepInEx.Android.zip" ./scripts/package_bepinex_android.sh
+
+      - name: 记录大小与 sha256
+        run: |
+          ls -l out/BepInEx.Android.zip
+          sha256sum out/BepInEx.Android.zip | tee out/BepInEx.Android.zip.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BepInEx.Android
+          path: |
+            external/BepInEx-Android/out/BepInEx.Android.zip
+            external/BepInEx-Android/out/BepInEx.Android.zip.sha256
+          if-no-files-found: error
+
+  dotnet-runtime:
+    name: dotnet.zip + native
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: external/BepInEx-Android
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # 抓取钉住的运行时包（版本与 SHA-256 在 provenance/dotnet-runtime.env）：
+      #   out/runtime/native/*.so  libcoreclr / libclrjit / mscordaccore / System.*.Native
+      #   out/runtime/bcl/*.dll    BCL（含 PAL 副本，CoreCLR 要求同目录）
+      #   out/runtime/dotnet.zip   上面两者打成的 zip（APK 里走 assets）
+      - name: 抓取钉住的 .NET 运行时
+        run: ./scripts/fetch_dotnet_runtime.sh "$GITHUB_WORKSPACE/out/runtime"
+
+      - name: 记录清单
+        run: |
+          ls -l "$GITHUB_WORKSPACE/out/runtime/dotnet.zip"
+          ls -l "$GITHUB_WORKSPACE/out/runtime/native" | head -30
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: runtime-android
+          path: |
+            out/runtime/dotnet.zip
+            out/runtime/native/
+          if-no-files-found: error
