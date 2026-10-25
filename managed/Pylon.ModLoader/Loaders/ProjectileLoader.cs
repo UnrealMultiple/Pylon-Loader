@@ -156,6 +156,7 @@ namespace Pylon.ModLoader
         }
 
         private static AiFrame _ai;
+        private static readonly System.Collections.Generic.HashSet<int> _aiErrLogged = new();
 
         private static bool AiPrefix(Projectile __instance)
         {
@@ -233,7 +234,8 @@ namespace Pylon.ModLoader
             }
             catch (Exception e)
             {
-                _logger?.Warn($"[proj] AI 异常：{e.Message}");
+                if (_aiErrLogged.Add(p.type)) _logger?.Warn($"[proj] AI 异常 type={p.type}：{e}");
+                else _logger?.Warn($"[proj] AI 异常：{e.Message}");
                 if (frame.Swapped) p.type = frame.SavedType;
             }
             finally
@@ -1033,3 +1035,4 @@ namespace Pylon.ModLoader
         }
     }
 }
+
