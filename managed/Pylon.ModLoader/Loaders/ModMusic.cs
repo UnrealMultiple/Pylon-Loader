@@ -12,6 +12,7 @@ namespace Pylon.ModLoader
 
         private static bool _installed;
         private static int _chosen = -1;
+        private static int _lastChosen = -1;
         private static int _chooseIn;
         private static bool _silenced;
         private static float _savedSilenceFade;
@@ -30,6 +31,45 @@ namespace Pylon.ModLoader
             _installed = true;
             GameHooks.Patch(_harmony, _log, typeof(ModMusic), typeof(Main), "UpdateAudio", Type.EmptyTypes,
                 postfixHandler: nameof(UpdateAudioPostfix));
+
+            // 后台/前台：Unity 的 XNAUnityRunner 是唯一能可靠收到 onPause/onResume 的托管入口。
+            // 只暂停 MediaPlayer 音乐（不碰 SoundPool，避免在 Android 暂停音频系统的瞬间调它）。
+            try
+            {
+                var runner = typeof(Main).Assembly.GetType("XNAUnityRunner");
+                if (runner == null)
+                {
+                    _log?.Warn("[music] 找不到 XNAUnityRunner：后台时 Mod 音乐不会暂停");
+                    return;
+                }
+                GameHooks.Patch(_harmony, _log, typeof(ModMusic), runner, "OnApplicationPause",
+                    new[] { typeof(bool) }, postfixHandler: nameof(OnApplicationPausePostfix));
+                _log?.Info("[music] XNAUnityRunner.OnApplicationPause 已挂：后台暂停/前台恢复 Mod 音乐");
+            }
+            catch (Exception e)
+            {
+                _log?.Warn("[music] 后台音乐钩子失败：" + e.Message);
+            }
+        }
+
+        /// <summary>真正切到后台（Home / 切换应用）时 Unity 会暂停游戏循环，必须在这里停掉 MediaPlayer。</summary>
+        private static void OnApplicationPausePostfix(bool __0)
+        {
+            try
+            {
+                if (__0)
+                {
+                    AndroidAudio.PauseMusicAll();
+                    _log?.Info("[music] 进入后台：暂停 Mod 音乐");
+                }
+                else
+                {
+                    AndroidAudio.ResumeMusicAll();
+                    _chooseIn = 0;
+                    _log?.Info("[music] 回到前台：恢复 Mod 音乐");
+                }
+            }
+            catch (Exception e) { _log?.Warn("[music] 后台暂停/恢复失败：" + e.Message); }
         }
 
         private static void UpdateAudioPostfix()
@@ -114,9 +154,37 @@ namespace Pylon.ModLoader
             return 0;
         }
 
+        /// <summary>被 Mod 显式要求重置某条曲（例如 Boss 再次召唤）：seek 回 0，随后从 0 淡入。</summary>
+        internal static void Restart(int slot)
+        {
+            var main = MusicLoader.TrackOf(slot);
+            if (main == null) return;
+            AndroidAudio.RestartMusic(main.MusicId);
+            main.Fade = 0f;
+            main.Sent = -1f;
+            _lastChosen = slot;
+            _chosen = slot;
+            _log?.Info($"[music] 显式重置 Mod 曲 slot={slot}（{main.File}）");
+        }
+
         private static void FadeTo(int slot)
         {
             var main = MusicLoader.TrackOf(slot);
+
+            // 从“没有 Mod 曲”切到有曲（例如 Boss 死亡后再次召唤）：MediaPlayer 可能停在中间，
+            // 这里强制 seek 回 0 并从头淡入。切换场景/音乐盒同样会重置，符合“新曲从头放”。
+            if (slot != _lastChosen)
+            {
+                if (main != null)
+                {
+                    AndroidAudio.RestartMusic(main.MusicId);
+                    main.Fade = 0f;
+                    main.Sent = -1f;
+                    _log?.Info($"[music] 切到 Mod 曲 slot={slot}（{main.File}），从头播放");
+                }
+                _lastChosen = slot;
+            }
+
             var current = Main.curMusic;
             var mainAudible = main != null
                 ? main.Fade > Audible

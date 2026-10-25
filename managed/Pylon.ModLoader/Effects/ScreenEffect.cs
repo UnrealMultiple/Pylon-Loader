@@ -11,6 +11,17 @@ namespace Pylon.ModLoader.Effects
         Screen = 1,
     }
 
+    /// <summary>硬件几何路径的混合方式（与 XNA BlendState 同口径）。</summary>
+    public enum ScreenMeshBlend
+    {
+        /// <summary>直接写（不混合）。</summary>
+        None = 0,
+        /// <summary>AlphaBlend：src * src.a + dst * (1 - src.a)。</summary>
+        Alpha = 1,
+        /// <summary>Additive：src * src.a + dst。</summary>
+        Additive = 2,
+    }
+
     /// <summary>一步效果：shader + 位置/参数 + uniforms/textures，加进 ScreenFrame 提交。</summary>
     public sealed class ScreenEffect
     {
@@ -26,8 +37,20 @@ namespace Pylon.ModLoader.Effects
         /// <summary>shader 的 uSource；null = 不绑。可用 ScreenTexture.Screen / History / 目标纹理。</summary>
         public ScreenTexture Source { get; set; }
 
-        /// <summary>盒子 x0, y0, x1, y1（viewport 分数，默认整屏）。</summary>
+        /// <summary>盒子 x0, y0, x1, y1（viewport 分数，默认整屏）。mesh 路径忽略。</summary>
         public float[] Box { get; set; }
+
+        /// <summary>true = 硬件几何路径：把 <see cref="MeshVertices"/> 作为三角形列表直接画到当前目标。</summary>
+        public bool Mesh { get; set; }
+
+        /// <summary>mesh 的混合方式。</summary>
+        public ScreenMeshBlend MeshBlend { get; set; } = ScreenMeshBlend.Additive;
+
+        /// <summary>
+        /// mesh 顶点（每个 12 个 float）：x, y（屏幕分数，y 向下）、u, v、r, g, b, a（0..1）、
+        /// w, t（Trail.fx 的 coord.z / 每顶点滚动量）、aux0, aux1。顶点数必须是 3 的倍数。
+        /// </summary>
+        public float[] MeshVertices { get; set; }
 
         /// <summary>效果中心（viewport 分数，默认 0.5, 0.5）。</summary>
         public Vector2 Center { get; set; } = new(0.5f, 0.5f);

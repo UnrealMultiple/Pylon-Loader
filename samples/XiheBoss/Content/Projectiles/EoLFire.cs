@@ -215,27 +215,10 @@ namespace XiheBoss
 
             if (points.Count < 2) return;
 
-            // 源是 Trail.fx pass 0（tex4/img_color/Projectile_0，Additive）。这里和 EoLProj/SolarProminence
-            // 一样走已验证的 Tri 三角带（XiheTrail2 在 Adreno 上整条不显示，就是火舌丢失的原因）。
-            var t = p.timeLeft * 0.04f;
-            var verts = new List<TriVertex>(points.Count * 6);
-            for (var i = 0; i + 1 < points.Count; i++)
-            {
-                var a = points[i];
-                var b = points[i + 1];
-                var ca = XiheTextures.Sample(Tex.ImgColor, a.UvX, 0.5f) * MathHelper.Clamp(a.W, 0f, 1f);
-                var cb = XiheTextures.Sample(Tex.ImgColor, b.UvX, 0.5f) * MathHelper.Clamp(b.W, 0f, 1f);
-                var u0 = MathHelper.Clamp(a.UvX + t, 0f, 1f);
-                var u1 = MathHelper.Clamp(b.UvX + t, 0f, 1f);
-                verts.Add(new TriVertex { World = a.Left, Uv = new Vector2(u0, 0f), Color = ca });
-                verts.Add(new TriVertex { World = a.Right, Uv = new Vector2(u0, 1f), Color = ca });
-                verts.Add(new TriVertex { World = b.Left, Uv = new Vector2(u1, 0f), Color = cb });
-                verts.Add(new TriVertex { World = a.Right, Uv = new Vector2(u0, 1f), Color = ca });
-                verts.Add(new TriVertex { World = b.Right, Uv = new Vector2(u1, 1f), Color = cb });
-                verts.Add(new TriVertex { World = b.Left, Uv = new Vector2(u1, 0f), Color = cb });
-            }
-
-            XiheFx.Tri(Tex.Tex4, true, true, false, true, verts.ToArray());
+            // 源 Draw：Trail.fx pass 0（tex4 + img_color + Projectile_0，Additive），
+            // t = timeLeft * 0.04。走精确的 Trail.fx 逐像素通道（硬件几何）。
+            XiheFx.TrailStrip(points, Tex.Tex4, Tex.ImgColor, Tex.Transparent,
+                p.timeLeft * 0.04f, additive: true);
         }
     }
 }

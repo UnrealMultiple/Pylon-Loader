@@ -67,7 +67,8 @@ namespace XiheBoss
         private static void SetTrail(Projectile proj, List<Vector2> pos, Vector2 solarCenter, float solarRadius)
         {
             pos.Clear();
-            for (var i = 0; i < 40; i++)
+            // 源 SetupTrail：固定最多 100 点（之前写成 40，火舌比 MEAC 短了一半）。
+            for (var i = 0; i < 100; i++)
             {
                 pos.Add(proj.Center);
                 proj.Center += proj.velocity;
@@ -146,32 +147,13 @@ namespace XiheBoss
                 });
             }
 
-            if (p.timeLeft == 100 || p.timeLeft == 60)
-                XiheBossMod.Log?.Info($"[prom] who={p.whoAmI} t={p.timeLeft} pts={pos.Count} scale={p.scale:0.00} mode={mode}");
-
             if (points.Count < 2) return;
 
-            // 和 EoLProj 一样走已验证的 Tri 通道（Trail2 的逐像素采样在 Adreno 上会整条不显示，
-            // 就是“四角日冕火舌丢失”）。贴图仍是源里的 tex3/tex4 + img_color，Additive。
+            // 源 Draw：mode 0 = tex3、mode 1 = tex4，img_color 取色，Projectile_0 叠加，Additive。
+            // 走 Trail.fx 的精确逐像素通道（硬件几何），不再在 CPU 上采样颜色图。
             var tex = mode == 0 ? Tex.Tex3 : Tex.Tex4;
-            var verts = new System.Collections.Generic.List<TriVertex>(points.Count * 6);
-            for (var i = 0; i + 1 < points.Count; i++)
-            {
-                var a = points[i];
-                var b = points[i + 1];
-                var ca = XiheTextures.Sample(Tex.ImgColor, a.UvX, 0.5f) * MathHelper.Clamp(a.W, 0f, 1f);
-                var cb = XiheTextures.Sample(Tex.ImgColor, b.UvX, 0.5f) * MathHelper.Clamp(b.W, 0f, 1f);
-                var u0 = MathHelper.Clamp(a.UvX, 0f, 1f);
-                var u1 = MathHelper.Clamp(b.UvX, 0f, 1f);
-                verts.Add(new TriVertex { World = a.Left, Uv = new Vector2(u0, 0f), Color = ca });
-                verts.Add(new TriVertex { World = a.Right, Uv = new Vector2(u0, 1f), Color = ca });
-                verts.Add(new TriVertex { World = b.Left, Uv = new Vector2(u1, 0f), Color = cb });
-                verts.Add(new TriVertex { World = a.Right, Uv = new Vector2(u0, 1f), Color = ca });
-                verts.Add(new TriVertex { World = b.Right, Uv = new Vector2(u1, 1f), Color = cb });
-                verts.Add(new TriVertex { World = b.Left, Uv = new Vector2(u1, 0f), Color = cb });
-            }
-
-            XiheFx.Tri(tex, true, true, false, true, verts.ToArray());
+            XiheFx.TrailStrip(points, tex, Tex.ImgColor, Tex.Transparent,
+                p.timeLeft * 0.03f, additive: true);
         }
     }
 }

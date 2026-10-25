@@ -25,11 +25,16 @@ class ShaderRegistry {
 public:
     // 游戏线程。同名字同源码返回同一个 id。
     static int Register(const std::string& name, const std::string& source);
+    // 硬件几何路径的片元着色器（用 mesh 顶点着色器与前缀）。
+    static int RegisterMesh(const std::string& name, const std::string& source);
     static ShaderState Status(int id, std::string* error = nullptr);
 
     // 渲染线程：编译好的程序（首次编译），失败/未就绪返回 nullptr。
     static CompiledShader* Use(int id);
     static GLint Uniform(CompiledShader& shader, const std::string& name);
+
+private:
+    static int registerImpl(const std::string& name, const std::string& source, bool mesh);
 };
 
 }  // namespace pylon::graphics

@@ -225,10 +225,6 @@ namespace XiheBoss
         private static int _submittedFrame = -1;
         private static bool _loggedError;
         private static bool _loggedOverflow;
-        private static bool _probeDone;
-
-        /// <summary>诊断开关：每个 pass 都提交整屏 box（性能差，只用来判断“矩形裁剪”是不是 Box 造成的）。</summary>
-        internal static bool DebugFullScreenBox;
         private static readonly HashSet<int> _missingVisual = new();
 
         // 闪白 / 屏幕亮度 / 灰度 / 天空
@@ -284,6 +280,7 @@ namespace XiheBoss
                 RingShader = ScreenShader.FromFile(mod, "assets/effects/XiheRing.frag");
                 LineShader = ScreenShader.FromFile(mod, "assets/effects/XiheLine.frag");
                 TriShader = ScreenShader.FromFile(mod, "assets/effects/XiheTri.frag");
+                XiheMesh.Init(mod, log);
                 log?.Info("[fx] XihePrims/XihePost/XiheSprite/XiheTrail/XiheTrail2/XiheRing/XiheLine/XiheTri 已注册");
             }
             catch (Exception e)
@@ -321,6 +318,7 @@ namespace XiheBoss
             _scTtl = 0;
             _submittedFrame = -1;
             XiheBigLaserFx.Reset();
+            XiheMesh.Reset();
         }
 
         // ================= 图元 API（弹幕 / 特效调） =================
@@ -438,10 +436,10 @@ namespace XiheBoss
         /// MEAC Trail.fx 的精确几何：传显式左右顶点（每点两个顶点），逐段生成 quad。
         /// 同一帧里同贴图/同混合的 trail 会自动合并到尽量少的 pass。
         /// </summary>
-        internal static void TrailStrip(TrailStripPoint[] points, Tex shape, Tex colorTex, Tex overlay,
+        internal static void TrailStrip(IReadOnlyList<TrailStripPoint> points, Tex shape, Tex colorTex, Tex overlay,
             float t, bool additive, float alpha = 1f)
         {
-            if (points == null || points.Length < 2) return;
+            if (points == null || points.Count < 2) return;
             TrailQuadGroup group = null;
             for (var i = 0; i < TrailQuads.Count; i++)
             {
@@ -464,7 +462,7 @@ namespace XiheBoss
                 TrailQuads.Add(group);
             }
 
-            for (var i = 0; i + 1 < points.Length; i++)
+            for (var i = 0; i + 1 < points.Count; i++)
             {
                 group.Quads.Add(new TrailQuad
                 {
@@ -700,6 +698,8 @@ namespace XiheBoss
                 CycloidOverlays.Clear();
                 Warps.Clear();
                 UpdatePixelScale();
+                XiheMesh.Reset();
+                XiheMesh.BeginFrame();
 
                 var boss = XiheBossNpc.Current;
                 if (boss != null && boss.NpcAlive) boss.PushAura();
@@ -739,6 +739,7 @@ namespace XiheBoss
                 AddCycloidOverlays(frame);
                 XiheBigLaserFx.Submit(frame);
                 AddSuns(frame);
+                XiheMesh.Submit(frame);
 
                 if (_gray > 0.004f)   // gray=0 时这一步是纯 no-op（源只在入场/转场用），别再每帧跑一遍全屏 pass
                     AddPost(frame, 1f, boss != null && boss.NpcAlive ? boss.Center : XiheHelper.ScreenCenter,
@@ -758,37 +759,7 @@ namespace XiheBoss
 
                 if (frame.Draws.Count > 0)
                 {
-                    if (frameCount % 60 == 0)
-                    {
-                        var st = ScreenGraphics.Stats();
-                        XiheBossMod.Log?.Info($"[fxdbg] spr={Sprites.Count} trail={TrailCount} ring={Rings2.Count} line={Lines.Count} tri={Tris.Count} pass={frame.Draws.Count} fps={1f / Math.Max(0.0001f, UnityEngine.Time.unscaledDeltaTime):0} sky={_sky:0.00} sun={_sun:0.00} gray={_gray:0.00} sprSt={SpriteShader?.Status} trSt={TrailShader?.Status} tr2St={Trail2Shader?.Status} rgSt={RingShader?.Status} triSt={TriShader?.Status} sw={Main.screenWidth}x{Main.screenHeight} vp={st.Viewport[0]},{st.Viewport[1]},{st.Viewport[2]}x{st.Viewport[3]} fbo={st.DrawFbo} boxpx={st.BoxPixels} fullbox={(DebugFullScreenBox ? 1 : 0)} px={_pxScaleX:0.000}x{_pxScaleY:0.000} us={UnityEngine.Screen.width}x{UnityEngine.Screen.height}");
-                    }
-                    if (DebugFullScreenBox)
-                    {
-                        // 排查用：每步都用整屏 box。若“矩形裁剪”消失，说明问题在某个 pass 的裁剪框/屏幕拷贝；
-                        // 若仍然存在，说明是 Boss 本体 PreDraw 那边的问题。性能会明显下降，只做诊断。
-                        foreach (var fx in frame.Draws) fx.Box = null;
-                    }
                     frame.Submit();
-                    if (!_probeDone)
-                    {
-                        _probeDone = true;
-                        try
-                        {
-                            XiheBossMod.Log?.Info($"[fx] 首次提交：prims={PrimsShader.Status} post={PostShader.Status} sprite={SpriteShader?.Status} trail={TrailShader?.Status} ring={RingShader?.Status}");
-                            if (PrimsShader.Status == ScreenShaderStatus.Failed)
-                                XiheBossMod.Log?.Error("[fx] XihePrims 编译失败：" + PrimsShader.Error);
-                            if (PostShader.Status == ScreenShaderStatus.Failed)
-                                XiheBossMod.Log?.Error("[fx] XihePost 编译失败：" + PostShader.Error);
-                            if (SpriteShader != null && SpriteShader.Status == ScreenShaderStatus.Failed)
-                                XiheBossMod.Log?.Error("[fx] XiheSprite 编译失败：" + SpriteShader.Error);
-                            if (TrailShader != null && TrailShader.Status == ScreenShaderStatus.Failed)
-                                XiheBossMod.Log?.Error("[fx] XiheTrail 编译失败：" + TrailShader.Error);
-                            if (RingShader != null && RingShader.Status == ScreenShaderStatus.Failed)
-                                XiheBossMod.Log?.Error("[fx] XiheRing 编译失败：" + RingShader.Error);
-                        }
-                        catch { }
-                    }
                 }
             }
             catch (Exception e)
@@ -828,22 +799,12 @@ namespace XiheBoss
 
         private static void AddSuns(ScreenFrame frame)
         {
-            if (PostShader == null || Suns.Count == 0) return;
-            foreach (var s in Suns)
+            // MEAC 的 Sun.fx 是“全屏四边形 + 加色 + 逐像素太阳公式”。这里走硬件几何通道：
+            // 同样一个全屏四边形，但不读屏幕、不做屏幕拷贝（以前每帧一次 2608x1200 的 blit）。
+            for (var i = 0; i < Suns.Count; i++)
             {
-                var uv = ToUv(s.World);
-                var fx = new ScreenEffect(PostShader)
-                {
-                    Layer = ScreenEffectLayer.World,
-                    Center = new UVector2(MathHelper.Clamp(uv.X, 0f, 1f), MathHelper.Clamp(uv.Y, 0f, 1f)),
-                    Intensity = MathHelper.Clamp(s.Alpha, 0f, 1f),
-                };
-                fx.Uniform("uMode", 6f);
-                fx.Uniform("uPos", MathHelper.Clamp(uv.X, 0f, 1f), MathHelper.Clamp(uv.Y, 0f, 1f));
-                fx.Uniform("uStrength", s.Scale);
-                fx.Uniform("uExtra", s.RayAlpha);
-                if (XiheTextures.Noise != null) fx.Texture("uNoise", XiheTextures.Noise);
-                frame.Add(fx);
+                var s = Suns[i];
+                XiheMesh.AddSun(s.World, s.Scale, s.RayAlpha, s.Alpha);
             }
         }
 
@@ -1020,197 +981,25 @@ namespace XiheBoss
 
         private static void AddTrail2Passes(ScreenFrame frame)
         {
-            if (Trail2Shader == null || TrailQuads.Count == 0) return;
-            var sw = Math.Max(1, Main.screenWidth);
-            var sh = Math.Max(1, Main.screenHeight);
-            var sp = Main.screenPosition;
+            if (TrailQuads.Count == 0) return;
 
+            // 硬件几何：同 shape/color/overlay/混合的 trail 合成一次画；逐像素公式仍在 XiheTrailFx.frag 里
+            // （和 MEAC Trail.fx pass 0 逐行一致），但只着色实际覆盖的像素。
             foreach (var group in TrailQuads)
             {
-                // 先按屏幕 4x4 分区，避免一帧里相距很远的 trail 被塞进同一个全屏 pass。
-                var tiles = new List<TrailQuad>[16];
-                foreach (var q in group.Quads)
-                {
-                    var cx = (q.L0.X + q.R0.X + q.L1.X + q.R1.X) * 0.25f;
-                    var cy = (q.L0.Y + q.R0.Y + q.L1.Y + q.R1.Y) * 0.25f;
-                    var uvx = (cx - sp.X) / sw;
-                    var uvy = 1f - (cy - sp.Y) / sh;
-                    var tx = Math.Clamp((int)(uvx * 4f), 0, 3);
-                    var ty = Math.Clamp((int)(uvy * 4f), 0, 3);
-                    var k = ty * 4 + tx;
-                    (tiles[k] ??= new List<TrailQuad>()).Add(q);
-                }
-
-                foreach (var tile in tiles)
-                {
-                    if (tile == null || tile.Count == 0) continue;
-                    for (var start = 0; start < tile.Count; start += 64)
-                    {
-                        var n = Math.Min(64, tile.Count - start);
-                        var a = new float[n * 4];
-                        var b = new float[n * 4];
-                        var c = new float[n * 4];
-                        var d = new float[n * 4];
-                        var x0 = 1f; var y0 = 1f; var x1 = 0f; var y1 = 0f;
-
-                        for (var k = 0; k < n; k++)
-                        {
-                            var q = tile[start + k];
-                            var l0x = (q.L0.X - sp.X - sw / 2f) * _pxScaleX;
-                            var l0y = (q.L0.Y - sp.Y - sh / 2f) * _pxScaleY;
-                            var r0x = (q.R0.X - sp.X - sw / 2f) * _pxScaleX;
-                            var r0y = (q.R0.Y - sp.Y - sh / 2f) * _pxScaleY;
-                            var l1x = (q.L1.X - sp.X - sw / 2f) * _pxScaleX;
-                            var l1y = (q.L1.Y - sp.Y - sh / 2f) * _pxScaleY;
-                            var r1x = (q.R1.X - sp.X - sw / 2f) * _pxScaleX;
-                            var r1y = (q.R1.Y - sp.Y - sh / 2f) * _pxScaleY;
-
-                            a[k * 4 + 0] = l0x; a[k * 4 + 1] = l0y;
-                            a[k * 4 + 2] = r0x; a[k * 4 + 3] = r0y;
-                            b[k * 4 + 0] = l1x; b[k * 4 + 1] = l1y;
-                            b[k * 4 + 2] = r1x; b[k * 4 + 3] = r1y;
-                            c[k * 4 + 0] = q.U0; c[k * 4 + 1] = q.W0;
-                            c[k * 4 + 2] = q.U1; c[k * 4 + 3] = q.W1;
-                            d[k * 4 + 0] = q.T; d[k * 4 + 1] = q.Alpha;
-
-                            Include(ref x0, ref y0, ref x1, ref y1,
-                                (q.L0.X - sp.X) / sw, 1f - (q.L0.Y - sp.Y) / sh,
-                                (q.R0.X - sp.X) / sw, 1f - (q.R0.Y - sp.Y) / sh);
-                            Include(ref x0, ref y0, ref x1, ref y1,
-                                (q.L1.X - sp.X) / sw, 1f - (q.L1.Y - sp.Y) / sh,
-                                (q.R1.X - sp.X) / sw, 1f - (q.R1.Y - sp.Y) / sh);
-                        }
-
-                        if (x1 < 0f || x0 > 1f || y1 < 0f || y0 > 1f) continue;
-
-                        var shape = XiheTextures.Cell(group.Shape);
-                        var color = XiheTextures.Cell(group.ColorTex);
-                        var overlay = XiheTextures.Cell(group.Overlay);
-
-                        var fx = new ScreenEffect(Trail2Shader)
-                        {
-                            Layer = ScreenEffectLayer.World,
-                            Box = new[]
-                            {
-                                MathHelper.Clamp(x0 - 0.02f, 0f, 1f), MathHelper.Clamp(y0 - 0.02f, 0f, 1f),
-                                MathHelper.Clamp(x1 + 0.02f, 0f, 1f), MathHelper.Clamp(y1 + 0.02f, 0f, 1f),
-                            },
-                            Center = new UVector2(0.5f, 0.5f),
-                            Intensity = 1f,
-                        };
-                        fx.Uniform("uQ0", a);
-                        fx.Uniform("uQ1", b);
-                        fx.Uniform("uQ2", c);
-                        fx.Uniform("uQ3", d);
-                        fx.Uniform("uQCount", n);
-                        fx.Uniform("uCellShape", shape.U0, shape.V0, shape.DU, shape.DV);
-                        fx.Uniform("uCellColor", color.U0, color.V0, color.DU, color.DV);
-                        fx.Uniform("uCellOverlay", overlay.U0, overlay.V0, overlay.DU, overlay.DV);
-                        fx.Uniform("uAdditive", group.Additive ? 1f : 0f);
-                        fx.Uniform("uGlobalAlpha", 1f);
-                        if (XiheTextures.Atlas != null) fx.Texture("uAtlas", XiheTextures.Atlas);
-                        frame.Add(fx);
-                    }
-                }
+                XiheMesh.AddTrailQuads(group);
             }
         }
 
         private static void AddTriPasses(ScreenFrame frame)
         {
-            if (TriShader == null || Tris.Count == 0) return;
-            var sw = Math.Max(1, Main.screenWidth);
-            var sh = Math.Max(1, Main.screenHeight);
-            var sp = Main.screenPosition;
+            if (Tris.Count == 0) return;
 
-            // 按“屏幕 4x4 分区 + 贴图 + 混合/着色开关”分组，避免一帧里相距很远的图元被塞进
-            // 同一个全屏 pass（这是掉帧的主因）。无贴图的 MagicPixel 几何（长枪光矛）不分区。
-            var groups = new Dictionary<string, List<TriVertex>>();
+            // 硬件几何：每个 TriPrim 是源 DrawUserPrimitives 的一次顶点列表。
+            // 同贴图/同混合会自动合并；不再按屏幕 4x4 分区，也不再有每像素 64 三角形的循环。
             foreach (var p in Tris)
             {
-                var tx = 0;
-                var ty = 0;
-                if (p.UseTexture)
-                {
-                    var cx = 0f;
-                    var cy = 0f;
-                    foreach (var v in p.Verts) { cx += v.World.X; cy += v.World.Y; }
-                    cx /= Math.Max(1, p.Verts.Length);
-                    cy /= Math.Max(1, p.Verts.Length);
-                    var uv = ToUv(new Vector2(cx, cy));
-                    tx = Math.Clamp((int)(uv.X * 4f), 0, 3);
-                    ty = Math.Clamp((int)(uv.Y * 4f), 0, 3);
-                }
-                var key = $"{tx}|{ty}|{(int)p.Tex}|{(p.UseTexture ? 1 : 0)}|{(p.Additive ? 1 : 0)}|{(p.Colorize ? 1 : 0)}|{(p.WrapU ? 1 : 0)}";
-                if (!groups.TryGetValue(key, out var list))
-                {
-                    list = new List<TriVertex>();
-                    groups[key] = list;
-                }
-                list.AddRange(p.Verts);
-            }
-
-            foreach (var pair in groups)
-            {
-                var list = pair.Value;
-                var parts = pair.Key.Split('|');
-                var tex = (Tex)int.Parse(parts[2]);
-                var useTexture = parts[3] == "1";
-                var additive = parts[4] == "1";
-                var colorize = parts[5] == "1";
-                var wrapU = parts[6] == "1";
-                var cell = XiheTextures.Cell(tex);
-
-                for (var start = 0; start + 2 < list.Count; start += 192)
-                {
-                    var n = Math.Min(192, list.Count - start);
-                    n -= n % 3;
-                    if (n < 3) break;
-
-                    var a = new float[n * 4];
-                    var b = new float[n * 4];
-                    var x0 = 1f; var y0 = 1f; var x1 = 0f; var y1 = 0f;
-
-                    for (var k = 0; k < n; k++)
-                    {
-                        var v = list[start + k];
-                        a[k * 4 + 0] = (v.World.X - sp.X - sw / 2f) * _pxScaleX;
-                        a[k * 4 + 1] = (v.World.Y - sp.Y - sh / 2f) * _pxScaleY;
-                        a[k * 4 + 2] = v.Uv.X;
-                        a[k * 4 + 3] = v.Uv.Y;
-                        b[k * 4 + 0] = v.Color.R / 255f;
-                        b[k * 4 + 1] = v.Color.G / 255f;
-                        b[k * 4 + 2] = v.Color.B / 255f;
-                        b[k * 4 + 3] = v.Color.A / 255f;
-
-                        var uv = ToUv(v.World);
-                        Include(ref x0, ref y0, ref x1, ref y1, uv.X, uv.Y, uv.X, uv.Y);
-                    }
-
-                    if (x1 < 0f || x0 > 1f || y1 < 0f || y0 > 1f) continue;
-
-                    var fx = new ScreenEffect(TriShader)
-                    {
-                        Layer = ScreenEffectLayer.World,
-                        Box = new[]
-                        {
-                            MathHelper.Clamp(x0 - 0.02f, 0f, 1f), MathHelper.Clamp(y0 - 0.02f, 0f, 1f),
-                            MathHelper.Clamp(x1 + 0.02f, 0f, 1f), MathHelper.Clamp(y1 + 0.02f, 0f, 1f),
-                        },
-                        Center = new UVector2(0.5f, 0.5f),
-                        Intensity = 1f,
-                    };
-                    fx.Uniform("uTriA", a);
-                    fx.Uniform("uTriB", b);
-                    fx.Uniform("uTriVerts", n);
-                    fx.Uniform("uCell", cell.U0, cell.V0, cell.DU, cell.DV);
-                    fx.Uniform("uTexOn", useTexture ? 1f : 0f);
-                    fx.Uniform("uWrapU", wrapU ? 1f : 0f);
-                    fx.Uniform("uAdditive", 1f);
-                    fx.Uniform("uColorize", colorize ? 1f : 0f);
-                    fx.Uniform("uGlobalAlpha", 1f);
-                    if (useTexture && XiheTextures.Atlas != null) fx.Texture("uAtlas", XiheTextures.Atlas);
-                    frame.Add(fx);
-                }
+                XiheMesh.AddGeometry(p.Tex, p.UseTexture, p.Colorize, p.WrapU, p.Additive, p.Verts);
             }
         }
 
@@ -1263,12 +1052,10 @@ namespace XiheBoss
 
         private static void AddSpritePasses(ScreenFrame frame)
         {
-            if (SpriteShader == null || Sprites.Count == 0) return;
+            if (Sprites.Count == 0) return;
 
-            // 先按屏幕 4x4 分区，避免“全屏粒子 -> 一个整屏 pass”把每个精灵循环 16 次。
-            // 每个精灵只进一个桶（按中心），桶的 box 会扩展到精灵自身范围；桶之间 box 可以重叠，
-            // 但同一个精灵不会被画两次。
-            var buckets = new List<SpritePrim>[16];
+            // 直接交给硬件几何批：同贴图/同混合的精灵合成一次画，GPU 只光栅化实际覆盖的像素。
+            // 屏幕外的精灵仍然不提交（省顶点，行为与旧版一致）。
             var sh = Math.Max(1, Main.screenHeight);
             foreach (var s in Sprites)
             {
@@ -1277,16 +1064,7 @@ namespace XiheBoss
                     s.Source.Height * Math.Abs(s.Scale.Y)) / sh;
                 if (uv.X + ext < 0f || uv.X - ext > 1f || uv.Y + ext < 0f || uv.Y - ext > 1f)
                     continue;
-                var tx = Math.Clamp((int)(uv.X * 4f), 0, 3);
-                var ty = Math.Clamp((int)(uv.Y * 4f), 0, 3);
-                var k = ty * 4 + tx;
-                (buckets[k] ??= new List<SpritePrim>()).Add(s);
-            }
-
-            foreach (var bucket in buckets)
-            {
-                if (bucket == null || bucket.Count == 0) continue;
-                SplitSpriteGroup(bucket, frame);
+                XiheMesh.AddSprite(s);
             }
         }
 

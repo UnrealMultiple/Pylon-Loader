@@ -19,6 +19,7 @@
 // - 源的全屏黄色覆盖 (255,255,150)*(drawEffTimer/70) 用 Shoot 里的 XiheFx.Flash(0.6f) 近似。
 // - 源的 30/100 段顶点摆线无法逐点提交，这里取 6 个曲线节点画 Orbs，主体靠两圈 Ring 表达。
 using System;
+using System.Collections.Generic;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader;
@@ -266,7 +267,7 @@ namespace XiheBoss
 
         public override bool PreDraw(Projectile proj, Color lightColor) => false;
 
-        /// <summary>画面：外圈摆线（Ring + 6 个曲线节点）与内圈摆线（exPos 上的 WarpBall/Ring）。</summary>
+        /// <summary>画面：源 DrawCycloid 的三条 TriangleStrip（摆线 + 100/110 两圈），全部 MagicPixel + Additive。</summary>
         public static void PushVisual(Projectile p)
         {
             var ai = p.ai;
@@ -288,48 +289,69 @@ namespace XiheBoss
 
             var exPos = center + Utils.ToRotationVector2(angle) * 100f * scale;
 
-            // 源 PreDraw：screenTargetSwap 上的黄色全屏闪光，再经 Hide.fx 在 exPos 挖一个
-            // 半径 31*localAI[1]*zoom/screenHeight 的圆洞。这里用后处理模式 7 复现。
+            // 源 PreDraw：screenTargetSwap 上的黄色全屏闪光，再经 Hide.fx 在 exPos 挖一个洞。
             if (DrawEff.TryGetValue(p.whoAmI, out var drawEff) && drawEff > 0)
             {
                 var hole = 31f * l[1] / Math.Max(1, Main.screenHeight);
                 XiheFx.CycloidOverlay(exPos, drawEff / 70f, hole);
             }
 
-            // 源 DrawCycloid：外圆 100*scale / 110*scale，宽约 0.5*scale+2，Additive。
-            XiheFx.Ring2(center, 100f * scale, 0.5f * scale + 2f, Tex.MagicPixel, color, true);
-            XiheFx.Ring2(center, 110f * scale, 0.5f * scale + 2f, Tex.MagicPixel, color, true);
-
-            // 源 Create(r1 + 0.001, 100, 0.15, 2, 70) 的摆线，逐点画成加色折线。
-            // 源顶点对是 curve*scale 与 curve*(scale*1.02+0.05)，径向宽度约 (0.02*scale+0.05)*|curve|。
-            if (r1 > 0.01f)
-            {
-                var curve = Create(r1 + 0.001f, 100f, 0.15f, 70f);
-                var pts = new Vector2[curve.Length];
-                for (var i = 0; i < curve.Length; i++)
-                    pts[i] = center + XiheHelper.RotatedBy(curve[i], rot) * scale;
-                var halfWidth = (0.02f * scale + 0.05f) * 100f * 0.5f;
-                XiheFx.Line(pts, halfWidth, color, true);
-            }
-
-            // 源：localAI[1] != 0 时在 exPos 再画一层（localAI[0], localAI[1]*0.28, -1.5*rotation）。
+            // 源 DrawCycloid：三条三角形条带合进一次硬件几何提交（加色，顺序无关）。
+            var verts = new List<TriVertex>(700 * 6);
+            AddCycloidStrips(verts, center, r1 + 0.001f, 100f, scale, rot, color);
             if (local1 > 0.01f)
-            {
-                var inner = local1 * 0.28f;
-                var innerRot = -1.5f * rot;
-                var w = 0.5f * local1 + 2f;
-                XiheFx.Ring2(exPos, 100f * inner, w, Tex.MagicPixel, color2, true);
-                XiheFx.Ring2(exPos, 110f * inner, w, Tex.MagicPixel, color2, true);
+                AddCycloidStrips(verts, exPos, local0 + 0.001f, 100f, local1 * 0.28f, -1.5f * rot, color2);
 
-                if (local0 > 0.01f)
-                {
-                    var curve = Create(local0 + 0.001f, 100f, 0.15f, 70f);
-                    var pts = new Vector2[curve.Length];
-                    for (var i = 0; i < curve.Length; i++)
-                        pts[i] = exPos + XiheHelper.RotatedBy(curve[i], innerRot) * inner;
-                    var halfWidth = (0.02f * inner + 0.05f) * 100f * 0.5f;
-                    XiheFx.Line(pts, halfWidth, color2, true);
-                }
+            if (verts.Count >= 3)
+                XiheFx.Tri(Tex.MagicPixel, false, true, false, false, verts.ToArray());
+        }
+
+        /// <summary>源 DrawCycloid：摆线曲线 + 半径 100/110 两圈，MagicPixel 顶点色。</summary>
+        private static void AddCycloidStrips(List<TriVertex> verts, Vector2 pos, float r1, float r2,
+            float scale, float rot, Color color)
+        {
+            // 1) 摆线：Create(r1 + 0.001, r2, 0.15, 70) 的每点两个顶点。
+            var curve = Create(r1, r2, 0.15f, 70f);
+            var inner = new Vector2[curve.Length];
+            var outer = new Vector2[curve.Length];
+            for (var i = 0; i < curve.Length; i++)
+            {
+                var c = XiheHelper.RotatedBy(curve[i], rot);
+                inner[i] = pos + c * scale;
+                outer[i] = pos + c * (scale * 1.02f + 0.05f);
+            }
+            AddStrip(verts, inner, outer, color);
+
+            // 2) 100 圈、3) 110 圈：每圈 101 个点，外径 = 内径 * 1.005 + 2。
+            AddRingStrip(verts, pos, 100f * scale, 100.5f * scale + 2f, 100, color);
+            AddRingStrip(verts, pos, 110f * scale, 110.5f * scale + 2f, 100, color);
+        }
+
+        private static void AddRingStrip(List<TriVertex> verts, Vector2 pos, float radius, float outerRadius,
+            int counts, Color color)
+        {
+            var inner = new Vector2[counts + 1];
+            var outer = new Vector2[counts + 1];
+            for (var j = 0; j <= counts; j++)
+            {
+                var dir = XiheHelper.Vxr(j * 6.283f / counts);
+                inner[j] = pos + dir * radius;
+                outer[j] = pos + dir * outerRadius;
+            }
+            AddStrip(verts, inner, outer, color);
+        }
+
+        private static void AddStrip(List<TriVertex> verts, Vector2[] inner, Vector2[] outer, Color color)
+        {
+            for (var i = 0; i + 1 < inner.Length; i++)
+            {
+                var a0 = new TriVertex { World = inner[i], Color = color };
+                var b0 = new TriVertex { World = outer[i], Color = color };
+                var a1 = new TriVertex { World = inner[i + 1], Color = color };
+                var b1 = new TriVertex { World = outer[i + 1], Color = color };
+
+                verts.Add(a0); verts.Add(b0); verts.Add(a1);
+                verts.Add(b0); verts.Add(b1); verts.Add(a1);
             }
         }
 

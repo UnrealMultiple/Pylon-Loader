@@ -180,6 +180,25 @@ namespace Pylon.ModLoader
             Apply(track);
         }
 
+        /// <summary>
+        /// 把一条音乐强制回到开头。用于“Boss 死亡后再次召唤”：MediaPlayer 在死亡/淡出时可能已经 pause
+        /// 但没有 seek（暂停状态下 isPlaying=false，Apply 不会走 seek 分支），再次召唤就会从中间接着放。
+        /// </summary>
+        internal static void RestartMusic(int id)
+        {
+            if (!Tracks.TryGetValue(id, out var track)) return;
+            track.PausedByApp = false;
+            if (track.Player == null || !track.Prepared || track.Failed) return;
+            try
+            {
+                if (track.Player.CallBool("isPlaying", "()Z")) track.Player.Call("pause", "()V");
+                track.Player.Call("seekTo", "(I)V", 0);
+                track.Volume = 0f;
+                track.PausedByApp = false;
+            }
+            catch (Exception e) { Safe.Once("audio.music.restart:" + id, "AndroidAudio: 音乐重置失败：" + e.Message); }
+        }
+
         private static void Apply(Track track)
         {
             if (track.Failed) return;

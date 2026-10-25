@@ -152,27 +152,47 @@ namespace Pylon.ModLoader.Effects
             }
             foreach (var draw in frame.Draws)
             {
-                // Box 只接受 4 个数（x0,y0,x1,y1）；长度不对按 null（整屏默认）处理。
-                var hasBox = draw.Box != null && draw.Box.Length == 4;
-                if (hasBox) Array.Copy(draw.Box, BoxBuf, 4);
-                CenterBuf[0] = draw.Center.x;
-                CenterBuf[1] = draw.Center.y;
-                ColorBuf[0] = draw.Color.r;
-                ColorBuf[1] = draw.Color.g;
-                ColorBuf[2] = draw.Color.b;
-                ColorBuf[3] = draw.Color.a;
-                var handle = ScreenEffectsNative.SubmitAddDraw(
-                    draw.Shader?.Id ?? 0,
-                    (int)draw.Layer,
-                    draw.Dest,
-                    draw.Source?.Id ?? ScreenTexture.kTexNone,
-                    hasBox ? BoxBuf : null,
-                    CenterBuf,
-                    draw.Radius,
-                    draw.Intensity,
-                    draw.Progress,
-                    draw.Age,
-                    ColorBuf);
+                int handle;
+                if (draw.Mesh)
+                {
+                    var verts = draw.MeshVertices;
+                    if (verts == null || verts.Length == 0 || verts.Length % 12 != 0) continue;
+                    var count = verts.Length / 12;
+                    if (count % 3 != 0) continue;
+                    handle = ScreenEffectsNative.SubmitAddMesh(
+                        draw.Shader?.Id ?? 0,
+                        (int)draw.Layer,
+                        draw.Dest,
+                        (int)draw.MeshBlend,
+                        count,
+                        verts);
+                    if (handle <= 0) continue;
+                }
+                else
+                {
+                    // Box 只接受 4 个数（x0,y0,x1,y1）；长度不对按 null（整屏默认）处理。
+                    var hasBox = draw.Box != null && draw.Box.Length == 4;
+                    if (hasBox) Array.Copy(draw.Box, BoxBuf, 4);
+                    CenterBuf[0] = draw.Center.x;
+                    CenterBuf[1] = draw.Center.y;
+                    ColorBuf[0] = draw.Color.r;
+                    ColorBuf[1] = draw.Color.g;
+                    ColorBuf[2] = draw.Color.b;
+                    ColorBuf[3] = draw.Color.a;
+                    handle = ScreenEffectsNative.SubmitAddDraw(
+                        draw.Shader?.Id ?? 0,
+                        (int)draw.Layer,
+                        draw.Dest,
+                        draw.Source?.Id ?? ScreenTexture.kTexNone,
+                        hasBox ? BoxBuf : null,
+                        CenterBuf,
+                        draw.Radius,
+                        draw.Intensity,
+                        draw.Progress,
+                        draw.Age,
+                        ColorBuf);
+                    if (handle <= 0) continue;
+                }
                 draw.Submit(handle);
             }
             ScreenEffectsNative.SubmitEnd();

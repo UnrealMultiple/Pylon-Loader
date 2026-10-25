@@ -56,7 +56,6 @@ namespace XiheBoss
         // MEAC 的 act/actTimer：源码里 act 只在 OnSpawn 设过 1，绘制固定取手臂第 1 帧，故只留注释。
         private const int Act = 1;
         private bool _spawned;
-        private int _drawCount;
 
         internal bool GrayScale;
         internal State BossState = State.Spawn;
@@ -165,6 +164,7 @@ namespace XiheBoss
 
             XiheFx.CancelScreenPosition();
             XiheFx.RadialGlur(npc.Center, 30, false);
+            if (_musicSlot > 0) MusicLoader.RestartMusic(_musicSlot);
             XiheBossMod.Log?.Info("[boss] 羲和已生成");
         }
 
@@ -318,12 +318,6 @@ namespace XiheBoss
 
             // 把状态写回 npc.ai，保持原生同步包/调试工具看到的口径（MEAC 的 ai[0..3] 就是这个）。
             XiheHelper.WriteAi(npc, (float)BossState, _t, _ai2, _ai3);
-
-            if (TimerM % 60 == 0)
-            {
-                XiheBossMod.Log?.Info($"[dbg] t={TimerM} state={BossState} phase={_phase} alpha={_alpha:0.00} life={npc.life} body={BodyTexture != null} wings={WingTexture != null} draws={_drawCount}");
-                _drawCount = 0;
-            }
         }
 
         // ---------------- Spawn ----------------
@@ -1919,32 +1913,10 @@ namespace XiheBoss
             catch { }
         }
 
-        // ================= 调试（ImGui 页用） =================
-
-        internal void DebugSetPhase(int phase)
-        {
-            _phase = Math.Clamp(phase, 1, 3);
-            XiheBossMod.Log?.Info($"[dbg] phase -> {_phase}");
-        }
-
-        internal void DebugSkipTo(int timerM)
-        {
-            TimerM = Math.Max(0, timerM);
-            _t = 0;
-            _alpha = 1f;
-            if (timerM >= 1650) GrayScale = false;
-            if (timerM >= 12350) { _phase = 3; BossState = State.Speacial4; }
-            else if (timerM >= 9120) { _phase = 2; BossState = State.Prepare2; }
-            else if (timerM >= 4080) { _phase = 1; BossState = State.Speacial1; }
-            else BossState = State.Roar;
-            XiheBossMod.Log?.Info($"[dbg] timerM -> {TimerM} / {BossState}");
-        }
-
         // ================= 绘制 =================
 
         public override bool PreDraw(NPC npc, SpriteBatch spriteBatch, Vector2 screenPos, Color drawColor)
         {
-            _drawCount++;
             try
             {
                 DrawBody(npc, spriteBatch, screenPos);
@@ -1957,7 +1929,6 @@ namespace XiheBoss
         }
 
         private bool _drawLogged;
-
         private void DrawBody(NPC npc, SpriteBatch sb, Vector2 screenPos)
         {
             var a = MathHelper.Clamp(_alpha, 0f, 1f);

@@ -56,7 +56,7 @@ namespace XiheBoss
         public override void OnSpawn(Projectile proj)
         {
             // 源 OnSpawn：25 个 MagicRing_Sun，ai1 各加 0..50。
-            for (var i = 0; i < 12; i++)
+            for (var i = 0; i < 25; i++)
             {
                 var ring = XiheVisuals.Create(VfxKind.MagicRingSun, proj.Center, Vector2.Zero);
                 ring.OwnerProjectile = proj.whoAmI;

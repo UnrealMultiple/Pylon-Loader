@@ -65,6 +65,9 @@ namespace Pylon.ModLoader
             return track?.MusicId > 0 && AndroidAudio.MusicState(track.MusicId) == 2;
         }
 
+        /// <summary>把一条 Mod 曲强制回到开头并从 0 淡入。用于 Boss 再次召唤时重置 BGM。</summary>
+        public static void RestartMusic(int slot) => ModMusic.Restart(slot);
+
         private static int FindSlot(Mod mod, string path)
         {
             var file = Resolve(mod, path);

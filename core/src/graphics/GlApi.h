@@ -21,7 +21,7 @@ namespace pylon::graphics {
     X(Uniform1fv) X(Uniform2fv) X(Uniform3fv) X(Uniform4fv) \
     X(DrawArrays) X(DrawElements) X(Clear) X(GenSamplers) X(SamplerParameteri) X(PixelStorei) \
     X(DeleteProgram) X(DeleteBuffers) X(DeleteVertexArrays) X(GenerateMipmap) \
-    X(BlendFunc) X(BlendEquation) X(Scissor) X(GetAttribLocation) X(BindAttribLocation) \
+    X(BlendFunc) X(BlendEquation) X(BlendFuncSeparate) X(BlendEquationSeparate) X(Scissor) X(GetAttribLocation) X(BindAttribLocation) \
     X(UniformMatrix4fv)
 
 struct GlApi {

@@ -16,6 +16,7 @@ namespace {
 struct Entry {
     std::string name;
     std::string source;
+    bool mesh = false;
     ShaderState state = ShaderState::Pending;
     std::string error;
     CompiledShader compiled;  // 只有渲染线程碰
@@ -25,6 +26,8 @@ std::mutex g_mutex;
 std::vector<std::unique_ptr<Entry>> g_entries;  // id = 下标 + 1
 GLuint g_vertex = 0;
 bool g_vertexTried = false;
+GLuint g_meshVertex = 0;
+bool g_meshVertexTried = false;
 
 GLuint compile(GLenum type, const std::string& src, std::string& log) {
     auto& g = gl();
@@ -51,6 +54,15 @@ GLuint vertexShader() {
     return g_vertex;
 }
 
+GLuint meshVertexShader() {
+    if (g_meshVertexTried) return g_meshVertex;
+    g_meshVertexTried = true;
+    std::string log;
+    g_meshVertex = compile(GL_VERTEX_SHADER, ShaderLibrary::MeshVertex(), log);
+    if (!g_meshVertex) LOGE("fx", "网格顶点着色器编译失败：%s", log.c_str());
+    return g_meshVertex;
+}
+
 void fail(Entry& e, const std::string& error) {
     std::lock_guard<std::mutex> lock(g_mutex);
     e.state = ShaderState::Failed;
@@ -61,12 +73,13 @@ void fail(Entry& e, const std::string& error) {
 bool build(Entry& e) {
     auto& g = gl();
     std::string error;
-    const std::string fragment = ShaderLibrary::BuildFragment(e.source, error);
+    const std::string fragment = e.mesh ? ShaderLibrary::BuildFragmentMesh(e.source, error)
+                                        : ShaderLibrary::BuildFragment(e.source, error);
     if (fragment.empty()) {
         fail(e, error);
         return false;
     }
-    const GLuint vs = vertexShader();
+    const GLuint vs = e.mesh ? meshVertexShader() : vertexShader();
     std::string log;
     const GLuint fs = compile(GL_FRAGMENT_SHADER, fragment, log);
     if (!vs || !fs) {
@@ -107,13 +120,23 @@ bool build(Entry& e) {
 }  // namespace
 
 int ShaderRegistry::Register(const std::string& name, const std::string& source) {
+    return registerImpl(name, source, false);
+}
+
+int ShaderRegistry::RegisterMesh(const std::string& name, const std::string& source) {
+    return registerImpl(name, source, true);
+}
+
+int ShaderRegistry::registerImpl(const std::string& name, const std::string& source, bool mesh) {
     std::lock_guard<std::mutex> lock(g_mutex);
     for (size_t i = 0; i < g_entries.size(); ++i) {
-        if (g_entries[i]->name == name && g_entries[i]->source == source) return static_cast<int>(i + 1);
+        if (g_entries[i]->name == name && g_entries[i]->source == source && g_entries[i]->mesh == mesh)
+            return static_cast<int>(i + 1);
     }
     auto e = std::make_unique<Entry>();
     e->name = name;
     e->source = source;
+    e->mesh = mesh;
     g_entries.push_back(std::move(e));
     return static_cast<int>(g_entries.size());
 }

@@ -355,9 +355,36 @@ namespace XiheBoss
                 }
                 case VfxKind.Circle:
                 {
-                    // 源：200 段环带，半径 ai1、宽 18，颜色 (255,255,150)*alpha，Additive。
+                    // 源 Circle.Draw：200 段环带，半径 ai1、宽 18，颜色 (255,255,150)*alpha，Additive。
                     var a = MathHelper.Clamp(v.Alpha, 0f, 1f);
-                    XiheFx.Ring2(v.Center, v.Ai1, 18f, Tex.Wave, new Color(255, 255, 150) * a, true);
+                    if (a <= 0.002f || v.Ai1 <= 0.5f) break;
+                    var color = new Color(255, 255, 150) * a;
+                    color.A = 255;
+
+                    const int counts = 200;
+                    const float d = 18f;
+                    var radius = v.Ai1;
+                    var verts = new List<TriVertex>(counts * 6);
+                    var pa = new Vector2[counts + 1];
+                    var pb = new Vector2[counts + 1];
+                    for (var i = 0; i <= counts; i++)
+                    {
+                        var dir = XiheHelper.Vxr(i * (float)Math.PI * 2f / counts);
+                        pa[i] = v.Center + dir * radius;
+                        pb[i] = v.Center + dir * (radius + d);
+                    }
+                    for (var i = 0; i < counts; i++)
+                    {
+                        var u0 = i / (float)counts;
+                        var u1 = (i + 1) / (float)counts;
+                        verts.Add(new TriVertex { World = pa[i], Uv = new Vector2(u0, 0f), Color = color });
+                        verts.Add(new TriVertex { World = pb[i], Uv = new Vector2(u0, 1f), Color = color });
+                        verts.Add(new TriVertex { World = pa[i + 1], Uv = new Vector2(u1, 0f), Color = color });
+                        verts.Add(new TriVertex { World = pb[i], Uv = new Vector2(u0, 1f), Color = color });
+                        verts.Add(new TriVertex { World = pb[i + 1], Uv = new Vector2(u1, 1f), Color = color });
+                        verts.Add(new TriVertex { World = pa[i + 1], Uv = new Vector2(u1, 0f), Color = color });
+                    }
+                    XiheFx.Tri(Tex.Wave, true, true, false, false, verts.ToArray());
                     break;
                 }
                 case VfxKind.CircleWarp:
@@ -429,7 +456,7 @@ namespace XiheBoss
                                    + new Vector2(Main.screenWidth, Main.screenHeight) / 2f;
                     var width = 32f * v.Scale;
                     var t = v.Ai1 * 0.1f;
-                    const int counts = 20;   // 30→20：这个尺寸下肉眼看不出，三角形少 1/3
+                    const int counts = 30;   // 源 MagicRing_Sun.Draw: counts = 30
 
                     var lo = new TriVertex[counts + 1];
                     var hi = new TriVertex[counts + 1];
@@ -441,11 +468,11 @@ namespace XiheBoss
                         var b = center3 + RotV(rot + new Vector3(0f, width, 0f), v.Ai1, v.Random, v.Rand2);
                         var pa = XiheHelper.Projection(a, scCenter, 1200f);
                         var pb = XiheHelper.Projection(b, scCenter, 1200f);
+                        // 源：第一个顶点 Projection 的 k += 0.05，第二个顶点复用同一个 k（没有重新取 out）。
                         var ka = -1200f / (a.Z - 1200f) + 0.05f;
-                        var kb = -1200f / (b.Z - 1200f) + 0.05f;
                         var u = 5f * i / counts + t;
                         lo[i] = new TriVertex { World = pa, Uv = new Vector2(u, 0f), Color = color * ka };
-                        hi[i] = new TriVertex { World = pb, Uv = new Vector2(u, 1f), Color = color * kb };
+                        hi[i] = new TriVertex { World = pb, Uv = new Vector2(u, 1f), Color = color * ka };
                     }
 
                     var tris = new System.Collections.Generic.List<TriVertex>(counts * 6);

@@ -35,7 +35,6 @@ namespace XiheBoss
 
         /// <summary>源文件的 oldPos：按 whoAmI 索引的静态表（见文件头近似点 1）。</summary>
         private static Vector2[][] _trails;
-        private static bool _dbgTrail;
         private const int TrailSlots = 4096;
 
         public override string TexturePath => null;
@@ -324,12 +323,10 @@ namespace XiheBoss
             for (var i = 0; i < trail.Length; i++)
                 if (trail[i] != Vector2.Zero) counts++;
 
-            // LOD：同屏精灵很多时只画前 8 段（尾段少一点，头部/颜色/宽度仍按源公式）。
-            // 同屏图元多时降 LOD（光蛋雨）：每发最多 4/8 段，避免三角形数量爆炸掉帧。
-            var segLimit = XiheFx.TriCount > 2400 ? 8 : (XiheFx.TriCount > 800 ? 16 : trail.Length);
-
+            // 源 PostDraw：j 每次 +1（每一对相邻 oldPos 一个 quad），不是隔点取段。
+            // 之前隔点取段让尾巴只有一半长度、UV factor 只到 0.5，和 MEAC 不一样。
             var points = new System.Collections.Generic.List<TrailStripPoint>(trail.Length);
-            for (var j = 0; j < trail.Length - 1 && j + 1 < segLimit && trail[j + 1] != Vector2.Zero; j += 2)
+            for (var j = 0; j < trail.Length - 1 && trail[j + 1] != Vector2.Zero; j++)
             {
                 var normalDir = trail[j] - trail[j + 1];
                 normalDir = XiheHelper.Normalize2(new Vector2(-normalDir.Y, normalDir.X));
@@ -340,41 +337,17 @@ namespace XiheBoss
                 {
                     Left = mid + normalDir * width,
                     Right = mid - normalDir * width,
-                    UvX = factor,
+                    UvX = (float)Math.Sqrt(factor),
                     W = MathHelper.Lerp(1.2f, 0f, (float)Math.Pow(factor, 0.6f)),
                 });
             }
 
             if (points.Count < 2) return;
 
-            if (!_dbgTrail)
-            {
-                _dbgTrail = true;
-                XiheBossMod.Log?.Info($"[eolproj] who={p.whoAmI} len={trail.Length} counts={counts} points={points.Count} firstL={points[0].Left.X:0},{points[0].Left.Y:0} lastL={points[points.Count - 1].Left.X:0},{points[points.Count - 1].Left.Y:0}");
-            }
-
-            // MEAC 的 Trail.fx 是「TrailShape + 颜色图」的加色条带。手机端用已验过的 Tri 通道
-            // 直接展开三角带：贴 TrailShape，顶点色调成源 EoLProj_Color 的彩虹渐变，
-            // 这样光球一定会带拖尾（Trail2 的逐像素采样在 Adreno 上仍不稳定）。
-            var verts = new System.Collections.Generic.List<TriVertex>(points.Count * 6);
-            for (var i = 0; i + 1 < points.Count; i++)
-            {
-                var a = points[i];
-                var b = points[i + 1];
-                // 源 Trail.fx：shape * coord.z 后，用 c.r 去 EoLProj_Color 取色。
-                var ca = XiheTextures.Sample(Tex.EolProjColor, a.UvX, 0.5f) * MathHelper.Clamp(a.W, 0f, 1f);
-                var cb = XiheTextures.Sample(Tex.EolProjColor, b.UvX, 0.5f) * MathHelper.Clamp(b.W, 0f, 1f);
-                var u0 = MathHelper.Clamp(a.UvX, 0f, 1f);
-                var u1 = MathHelper.Clamp(b.UvX, 0f, 1f);
-                var vA = new TriVertex { World = a.Left, Uv = new Vector2(u0, 0f), Color = ca };
-                var vB = new TriVertex { World = a.Right, Uv = new Vector2(u0, 1f), Color = ca };
-                var vC = new TriVertex { World = b.Left, Uv = new Vector2(u1, 0f), Color = cb };
-                var vD = new TriVertex { World = b.Right, Uv = new Vector2(u1, 1f), Color = cb };
-                verts.Add(vA); verts.Add(vB); verts.Add(vC);
-                verts.Add(vB); verts.Add(vD); verts.Add(vC);
-            }
-
-            XiheFx.Tri(Tex.TrailShape, true, true, false, false, verts.ToArray());
+            // 源：Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.PointWrap, ...)
+            // → Trail.fx pass 0，t = timeLeft * 0.04。之前这里误用了 Additive（画面偏亮）。
+            XiheFx.TrailStrip(points, Tex.TrailShape, Tex.EolProjColor, Tex.Transparent,
+                p.timeLeft * 0.04f, additive: false);
         }
     }
 }

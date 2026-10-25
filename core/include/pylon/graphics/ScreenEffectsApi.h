@@ -72,6 +72,10 @@ PYLON_FX_EXPORT int32_t PylonFx_Available();
 /// 返回 id（>0）；0 = 参数无效。
 PYLON_FX_EXPORT int32_t PylonFx_ShaderRegister(const char* name, const char* source);
 
+/// 注册硬件几何路径的片元着色器（配固定的 mesh 顶点着色器：屏幕分数位置 + 顶点色 + Trail 辅助量）。
+/// 不读屏幕，所以不会触发屏幕拷贝。其余同 PylonFx_ShaderRegister。
+PYLON_FX_EXPORT int32_t PylonFx_ShaderRegisterMesh(const char* name, const char* source);
+
 /// 查询编译状态。`state` 输出 kPylonFxShader*；`error` 可空，失败时给错误文本（带 Mod 文件行号）。
 PYLON_FX_EXPORT int32_t PylonFx_ShaderStatus(int32_t id, int32_t* state, char* error, int32_t errorCap);
 
@@ -109,6 +113,12 @@ PYLON_FX_EXPORT int32_t PylonFx_SubmitAddUniform(int32_t draw, const char* name,
 
 /// 给一步加 sampler2D 绑定：`texture` = PylonFx_TextureLoad 的 id / kPylonFxTex* / 目标 id。
 PYLON_FX_EXPORT int32_t PylonFx_SubmitAddTexture(int32_t draw, const char* name, int32_t texture);
+
+/// 加一步硬件几何（三角形列表）。`count` = 顶点数（必须是 3 的倍数），`verts` = count * 12 个 float，
+/// 每个顶点依次是 x, y（屏幕分数，y 向下）、u, v、r, g, b, a（0..1）、w, t、aux0, aux1。
+/// blend：0 = 不混合 / 1 = AlphaBlend / 2 = Additive。返回 draw 句柄（>0，供 AddUniform/AddTexture 用）。
+PYLON_FX_EXPORT int32_t PylonFx_SubmitAddMesh(int32_t shader, int32_t layer, int32_t dest, int32_t blend,
+                                              int32_t count, const float* verts);
 
 /// 结束并提交本帧（交给渲染 hooks；没 AddDraw 的帧会被忽略）。
 PYLON_FX_EXPORT void PylonFx_SubmitEnd();

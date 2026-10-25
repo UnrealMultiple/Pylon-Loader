@@ -23,6 +23,24 @@ void main() {
 }
 )";
 
+// 硬件几何：aPos 是屏幕分数（0..1，y 向下），顶点着色器直接转 clip；
+// aUV 是纹理坐标，aColor 是顶点色，aAux 是 Trail.fx 用的 (coord.z, 每顶点滚动量, 备用, 备用)。
+const char* kMeshVertex = R"(#version 300 es
+layout(location = 0) in vec2 aPos;
+layout(location = 1) in vec2 aUV;
+layout(location = 2) in vec4 aColor;
+layout(location = 3) in vec4 aAux;
+out vec2 vUV;
+out vec4 vColor;
+out vec4 vAux;
+void main() {
+    vUV = aUV;
+    vColor = aColor;
+    vAux = aAux;
+    gl_Position = vec4(aPos.x * 2.0 - 1.0, 1.0 - aPos.y * 2.0, 0.0, 1.0);
+}
+)";
+
 const char* kVersion = "#version 300 es\n";
 
 const char* kPrelude = R"(precision highp float;
@@ -51,6 +69,26 @@ vec4 blScreen(vec2 uv) {
 vec4 blSource(vec2 uv) {
     return texture(uSource, uv);
 }
+)";
+
+// mesh 前缀：不声明 uScreen（不读屏幕 → 不需要每帧拷贝），额外给顶点色 / Trail 辅助量。
+const char* kMeshPrelude = R"(precision highp float;
+precision highp int;
+in vec2 vUV;
+in vec4 vColor;
+in vec4 vAux;
+out vec4 fragColor;
+#define gl_FragColor fragColor
+#define texture2D texture
+uniform vec2 uResolution;
+uniform float uAspect;
+uniform float uTime;
+uniform float uAge;
+uniform float uProgress;
+uniform float uIntensity;
+uniform vec2 uCenter;
+uniform float uRadius;
+uniform vec4 uColor;
 )";
 
 struct Include {
@@ -281,16 +319,13 @@ std::vector<std::string> includesOf(const std::string& source) {
 
 }  // namespace
 
-const char* ShaderLibrary::Vertex() {
-    return kVertex;
-}
+namespace {
 
-std::string ShaderLibrary::BuildFragment(const std::string& source, std::string& error) {
+std::string build(const std::string& source, std::string& error, const char* prelude) {
     const std::vector<std::string> includes = includesOf(source);
     std::string out = kVersion;
     out += "#line 1 1\n";
-    out += kPrelude;
-
+    out += prelude;
     std::vector<bool> emitted(includes.size(), false);
     std::istringstream in(source);
     std::string line, name;
@@ -325,6 +360,24 @@ std::string ShaderLibrary::BuildFragment(const std::string& source, std::string&
         out += '\n';
     }
     return out;
+}
+
+}  // namespace
+
+const char* ShaderLibrary::Vertex() {
+    return kVertex;
+}
+
+const char* ShaderLibrary::MeshVertex() {
+    return kMeshVertex;
+}
+
+std::string ShaderLibrary::BuildFragment(const std::string& source, std::string& error) {
+    return build(source, error, kPrelude);
+}
+
+std::string ShaderLibrary::BuildFragmentMesh(const std::string& source, std::string& error) {
+    return build(source, error, kMeshPrelude);
 }
 
 std::string ShaderLibrary::Describe(const std::string& log, const std::string& name, const std::string& source) {

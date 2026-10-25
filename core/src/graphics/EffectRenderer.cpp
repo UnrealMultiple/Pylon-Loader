@@ -27,6 +27,7 @@ struct Surface {
 struct Resources {
     bool tried = false, ok = false;
     GLuint vao = 0, vbo = 0, sampler = 0;
+    GLuint meshVao = 0, meshVbo = 0;  // 硬件几何：屏幕分数顶点 + 纹理坐标 + 顶点色 + Trail 辅助量
     Surface copy;       // 屏幕拷贝（uScreen）
     Surface history;    // 上一帧世界
     bool historyValid = false;
@@ -56,6 +57,21 @@ bool init() {
     g.BufferData(GL_ARRAY_BUFFER, sizeof quad, quad, GL_STATIC_DRAW);
     g.VertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
     g.EnableVertexAttribArray(0);
+
+    // mesh：12 float 一个顶点（48 字节）。属性 0=位置(屏幕分数)、1=uv、2=顶点色、3=Trail 辅助量。
+    g.GenVertexArrays(1, &g_res.meshVao);
+    g.BindVertexArray(g_res.meshVao);
+    g.GenBuffers(1, &g_res.meshVbo);
+    g.BindBuffer(GL_ARRAY_BUFFER, g_res.meshVbo);
+    const GLsizei meshStride = 12 * sizeof(float);
+    g.VertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, meshStride, nullptr);
+    g.VertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, meshStride, reinterpret_cast<const void*>(2 * sizeof(float)));
+    g.VertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, meshStride, reinterpret_cast<const void*>(4 * sizeof(float)));
+    g.VertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, meshStride, reinterpret_cast<const void*>(8 * sizeof(float)));
+    g.EnableVertexAttribArray(0);
+    g.EnableVertexAttribArray(1);
+    g.EnableVertexAttribArray(2);
+    g.EnableVertexAttribArray(3);
 
     // 自己的 sampler：效果纹理不依赖单元里现成的 sampler，也不动 Unity 的。
     g.GenSamplers(1, &g_res.sampler);
@@ -200,8 +216,12 @@ public:
         Surface* dest = e.dest > 0 ? find(e.dest) : nullptr;
         if (e.dest > 0 && !dest) return false;
         const GLint dw = dest ? dest->w : t_.viewport[2], dh = dest ? dest->h : t_.viewport[3];
+        if (e.mesh) return DrawMesh(e, *shader, dest, dw, dh, now);
         const Box box = pixelBox(e.box, dw, dh);
         if (box.w <= 0 || box.h <= 0) return false;
+
+        // 上一步可能是 mesh（可能开了混合）。屏幕 pass 一律不混合、整块替换。
+        g.Disable(GL_BLEND);
 
         // 这步是否读屏幕：uScreen 内置、source 是屏幕、或绑定里有屏幕。
         const bool readsScreen = shader->builtin.screen >= 0 || e.source == kTexScreen || readsTexture(e, kTexScreen);
@@ -258,9 +278,78 @@ public:
         return true;
     }
 
+    // 硬件几何：直接画三角形，不读屏幕、不做 blit。混合状态按 e.blend 设置；
+    // 下一帧的第一个屏幕 pass 会重新关掉混合（见 Draw）。
+    bool DrawMesh(const EffectDraw& e, CompiledShader& shader, Surface* dest, GLint dw, GLint dh, float now) {
+        if (e.verts.empty()) return false;
+        auto& g = gl();
+
+        if (dest) {
+            g.BindFramebuffer(GL_FRAMEBUFFER, dest->fbo);
+            g.Viewport(0, 0, dw, dh);
+        } else {
+            g.BindFramebuffer(GL_FRAMEBUFFER, t_.fbo);
+            g.Viewport(t_.viewport[0], t_.viewport[1], t_.viewport[2], t_.viewport[3]);
+        }
+        g.UseProgram(shader.program);
+        g.Disable(GL_DEPTH_TEST);
+        g.Disable(GL_STENCIL_TEST);
+        g.Disable(GL_CULL_FACE);
+        g.Disable(GL_SCISSOR_TEST);
+
+        int unit = 0;
+        for (const TextureBinding& tb : e.textures) {
+            const GLint loc = ShaderRegistry::Uniform(shader, tb.name);
+            if (loc < 0 || unit >= kModUnits) continue;
+            const GLenum glUnit = kFirstModUnit - unit++;
+            bind(glUnit, texture(tb.texture));
+            g.Uniform1i(loc, static_cast<GLint>(glUnit - GL_TEXTURE0));
+        }
+
+        const float vw = static_cast<float>(dest ? dw : t_.viewport[2]);
+        const float vh = static_cast<float>(dest ? dh : t_.viewport[3]);
+        const BuiltinUniforms& b = shader.builtin;
+        if (b.screenTexel >= 0) g.Uniform2f(b.screenTexel, 1.f / std::max(1.f, vw), 1.f / std::max(1.f, vh));
+        if (b.view >= 0) g.Uniform4f(b.view, static_cast<float>(t_.viewport[0]), static_cast<float>(t_.viewport[1]), vw, vh);
+        if (b.resolution >= 0) g.Uniform2f(b.resolution, vw, vh);
+        if (b.aspect >= 0) g.Uniform1f(b.aspect, vw / std::max(1.f, vh));
+        if (b.time >= 0) g.Uniform1f(b.time, now);
+        if (b.age >= 0) g.Uniform1f(b.age, e.age);
+        if (b.progress >= 0) g.Uniform1f(b.progress, e.progress);
+        if (b.intensity >= 0) g.Uniform1f(b.intensity, e.intensity);
+        if (b.center >= 0) g.Uniform2f(b.center, e.center[0], e.center[1]);
+        if (b.radius >= 0) g.Uniform1f(b.radius, e.radius);
+        if (b.color >= 0) g.Uniform4f(b.color, e.color[0], e.color[1], e.color[2], e.color[3]);
+        for (const UniformValue& u : e.uniforms) setUniform(ShaderRegistry::Uniform(shader, u.name), u);
+
+        switch (e.blend) {
+            case MeshBlend::Alpha:
+                g.Enable(GL_BLEND);
+                g.BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+                break;
+            case MeshBlend::Additive:
+                g.Enable(GL_BLEND);
+                g.BlendFunc(GL_SRC_ALPHA, GL_ONE);
+                break;
+            default:
+                g.Disable(GL_BLEND);
+                break;
+        }
+
+        g.BindVertexArray(g_res.meshVao);
+        g.BindBuffer(GL_ARRAY_BUFFER, g_res.meshVbo);
+        g.BufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(e.verts.size() * sizeof(MeshVertex)),
+                     e.verts.data(), GL_STREAM_DRAW);
+        g.DrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(e.verts.size()));
+        if (!dest) screenDirty_ = true;
+
+        std::lock_guard<std::mutex> lock(g_statsMutex);
+        g_local.boxPixels += static_cast<int64_t>(e.verts.size());
+        return true;
+    }
+
     // 世界+效果，留给下一帧的 History。
-    void SaveHistory() {
-        bool fresh = false;
+    void SaveHistory() {        bool fresh = false;
         if (!ensureSurface(g_res.history, t_.viewport[2], t_.viewport[3], "previous frame", fresh)) return;
         g_res.historyValid = copyScreen(t_, g_res.history, {0, 0, t_.viewport[2], t_.viewport[3]});
     }
@@ -352,6 +441,15 @@ void EffectRenderer::Execute(const EffectFrame& frame, const DrawTarget& target,
     const auto started = std::chrono::steady_clock::now();
     const float now = seconds();
     GlRestore restore(state);
+    // mesh 会改混合函数；Unity 的状态镜像里没有这两项，单独记下来还回去。
+    GLint blendSrcRgb = GL_ONE, blendDstRgb = GL_ZERO, blendSrcA = GL_ONE, blendDstA = GL_ZERO;
+    GLint blendEqRgb = GL_FUNC_ADD, blendEqA = GL_FUNC_ADD;
+    g.GetIntegerv(GL_BLEND_SRC_RGB, &blendSrcRgb);
+    g.GetIntegerv(GL_BLEND_DST_RGB, &blendDstRgb);
+    g.GetIntegerv(GL_BLEND_SRC_ALPHA, &blendSrcA);
+    g.GetIntegerv(GL_BLEND_DST_ALPHA, &blendDstA);
+    g.GetIntegerv(GL_BLEND_EQUATION_RGB, &blendEqRgb);
+    g.GetIntegerv(GL_BLEND_EQUATION_ALPHA, &blendEqA);
     GpuTimer::Begin(GpuChannel::Effect);
     if (state.scissor) g.Disable(GL_SCISSOR_TEST);
     if (state.blend) g.Disable(GL_BLEND);
@@ -368,6 +466,9 @@ void EffectRenderer::Execute(const EffectFrame& frame, const DrawTarget& target,
         for (const EffectDraw& e : frame.draws) drawn += run.Draw(e, now) ? 1 : 0;
         if (frame.history) run.SaveHistory();
     }
+    g.BlendFuncSeparate(static_cast<GLenum>(blendSrcRgb), static_cast<GLenum>(blendDstRgb),
+                        static_cast<GLenum>(blendSrcA), static_cast<GLenum>(blendDstA));
+    g.BlendEquationSeparate(static_cast<GLenum>(blendEqRgb), static_cast<GLenum>(blendEqA));
     GpuTimer::End(GpuChannel::Effect);
 
     const auto cpuNs = std::chrono::duration_cast<std::chrono::nanoseconds>(

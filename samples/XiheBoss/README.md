@@ -11,14 +11,14 @@ MEAC `MEAC.Bosses.EoL.XiHe` 的 **1:1 复刻**，跑在 Pylon Loader 上（Terra
 
 ## 怎么打
 
-进世界后打开 **Pylon Mod → 羲和 Boss** 页：
-
-- 「召唤羲和」：在玩家上方 500px 生成；
-- 「跳到阶段 2 / 3」「快进到终极技 (4450)」「快进到阶段 2 终盘 (9120)」：直接看后半段；
-- 「移除羲和」：清场。
+进世界后打开 **Pylon Mod → 羲和 Boss** 页，点「召唤羲和」：在玩家上方 500px 生成。
+再次召唤会重新开始整场战斗；每次召唤都会把 BGM 重置到开头。
 
 Boss 自带场地半径（2000 → 准备阶段 1200/750 → 900/750），玩家跑出圈会被拉回来；
 Boss 强制白天、时间随血量推进（`Main.time` 2000 → 53700）。
+
+BGM（`TakeFlight.mp3`）由 Mod 的 MediaPlayer 播放：切到后台时暂停，回到前台继续；
+Boss 再次召唤/BGM 重新选中时从 0 开始。
 
 ## 数值（与 MEAC 完全一致）
 
@@ -161,7 +161,7 @@ dotnet build samples\XiheBoss\XiheBoss.csproj -c Debug -m:1 -p:RestoreUseStaticG
 ```text
 XiheBoss/
   XiheBossMod.cs            入口：着色器/贴图/音效、屏幕效果提交、相机、菜单
-  XiheBossImGuiTab.cs       召唤 / 阶段跳转 / 状态显示
+  XiheBossImGuiTab.cs       召唤羲和
   XiheHelper.cs             MEAC Helper 的数学移植
   Content/
     XiheBossNpc.cs          Boss 本体（23 状态 + 绘制 + 场地）

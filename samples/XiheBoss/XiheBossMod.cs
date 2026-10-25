@@ -28,7 +28,7 @@ namespace XiheBoss
             XiheSounds.Init(Logger);
             RegisterImGuiTab(new XiheBossImGuiTab());
 
-            Logger.Info("[build] 2026-10-25 21:40 perf2；羲和 Boss 已加载（复刻 MEAC.Bosses.EoL.XiHe）");
+            Logger.Info("[build] 2026-10-25 23:10；羲和 Boss 已加载（复刻 MEAC.Bosses.EoL.XiHe）");
         }
 
         public override void SetupContent()
@@ -98,8 +98,6 @@ namespace XiheBoss
                 }
             }
             catch (Exception e) { Logger.Warn("[music] DecideOnNewMusic 挂载失败：" + e.Message); }
-
-            Probe();
         }
 
         /// <summary>
@@ -142,80 +140,5 @@ namespace XiheBoss
             XiheBossNpc.Current = null;
         }
 
-        /// <summary>着色器探针：1px 的 pass，编译错误会立刻进日志。</summary>
-        internal static void Probe()
-        {
-            try
-            {
-                if (XiheFx.PrimsShader == null) return;
-                ProbeOne(XiheFx.PrimsShader, "prims", fx =>
-                {
-                    fx.Uniform("uOrbCount", 0);
-                    fx.Uniform("uBeamCount", 0);
-                    fx.Uniform("uRingCount", 0);
-                    fx.Uniform("uGlobalAlpha", 0f);
-                });
-                ProbeOne(XiheFx.PostShader, "post", fx => fx.Uniform("uMode", 1f));
-                ProbeOne(XiheFx.SpriteShader, "sprite", fx => fx.Uniform("uSprCount", 0));
-                ProbeOne(XiheFx.TrailShader, "trail", fx =>
-                {
-                    fx.Uniform("uCount", 0);
-                    fx.Uniform("uAdditive", 0f);
-                });
-                ProbeOne(XiheFx.Trail2Shader, "trail2", fx =>
-                {
-                    fx.Uniform("uQCount", 0);
-                    fx.Uniform("uCellShape", 0f, 0f, 1f, 1f);
-                    fx.Uniform("uCellColor", 0f, 0f, 1f, 1f);
-                    fx.Uniform("uCellOverlay", 0f, 0f, 1f, 1f);
-                    fx.Uniform("uAdditive", 0f);
-                    fx.Uniform("uGlobalAlpha", 1f);
-                });
-                ProbeOne(XiheFx.TriShader, "tri", fx =>
-                {
-                    fx.Uniform("uTriVerts", 0);
-                    fx.Uniform("uCell", 0f, 0f, 1f, 1f);
-                    fx.Uniform("uTexOn", 0f);
-                    fx.Uniform("uWrapU", 0f);
-                    fx.Uniform("uAdditive", 1f);
-                    fx.Uniform("uColorize", 0f);
-                    fx.Uniform("uGlobalAlpha", 1f);
-                });
-                ProbeOne(XiheFx.RingShader, "ring", fx => fx.Uniform("uRingCount", 0));
-                ProbeOne(XiheFx.LineShader, "line", fx =>
-                {
-                    fx.Uniform("uCount", 0);
-                    fx.Uniform("uAdditive", 0f);
-                });
-            }
-            catch (Exception e) { Log?.Warn("[fx] 着色器探针失败：" + e.Message); }
-        }
-
-        private static void ProbeOne(ScreenShader shader, string name, Action<ScreenEffect> fill)
-        {
-            if (shader == null) return;
-            var fx = new ScreenEffect(shader)
-            {
-                Layer = ScreenEffectLayer.World,
-                Box = new[] { 0f, 0f, 0.001f, 0.001f },
-                Center = new UnityEngine.Vector2(0.5f, 0.5f),
-                Intensity = 0f,
-            };
-            fill(fx);
-            if (XiheTextures.Atlas != null) fx.Texture("uAtlas", XiheTextures.Atlas);
-            if (XiheTextures.Noise != null) fx.Texture("uNoise", XiheTextures.Noise);
-            if (XiheTextures.Sky != null) fx.Texture("uSkyTex", XiheTextures.Sky);
-            var frame = new ScreenFrame();
-            frame.Add(fx);
-            frame.Submit();
-            var status = shader.Status;
-            if (status == ScreenShaderStatus.Failed) Log?.Error($"[fx] {name} 编译失败：" + shader.Error);
-            else Log?.Info($"[fx] {name} 编译状态：{status}");
-        }
     }
 }
-
-
-
-
-

@@ -6,6 +6,7 @@
 using System;
 using System.Collections.Generic;
 using Il2CppMicrosoft.Xna.Framework;
+using Color = Il2CppMicrosoft.Xna.Framework.Graphics.Color;
 using Pylon.ModLoader;
 using Pylon.ModLoader.Effects;
 using Terraria;
@@ -119,39 +120,8 @@ namespace XiheBoss
                 fx.Uniform("uTexOn", 1f);
                 fx.Uniform("uRingViewZ", 1000f / sh);
                 fx.Uniform("uRingHalo", 3f / sh);
-                // 光柱 pass 不再跑环（环的 3D 反解很贵，之前每个屏幕像素都要跑最多 8 次）。
+                // 光柱 pass 不再跑环（环改用硬件几何，见 BuildRings）。
                 fx.Uniform("uRingCount", 0f);
-
-                // 环：按年龄展开到 4（源 SmoothStep 0.2 走 20 tick 的结果约 3.556），最后 10 tick 收掉。
-                var ringData = new List<float>(state.Rings.Count * 4);
-                var ringCount = 0;
-                var rx0 = 1f; var ry0 = 1f; var rx1 = 0f; var ry1 = 0f;
-                foreach (var r in state.Rings)
-                {
-                    var age = r.Birth - p.timeLeft;
-                    if (age < 0) continue;
-                    var remain = r.Life - age;
-                    if (remain <= 0) continue;
-
-                    var s = 4f * (1f - (float)Math.Exp(-age / 9f));
-                    if (remain < 10) s *= remain / 10f;
-                    if (s <= 0.01f) continue;
-
-                    var radius = 110f * s * r.Ai0;
-                    var halfW = 10f * s * r.Ai0;
-                    var ringUv = XiheFx.ToUv(p.Center + new Vector2(0f, r.Y));
-                    var rUv = (radius + halfW) / sh;
-                    if (ringUv.X + rUv < 0f || ringUv.X - rUv > 1f || ringUv.Y + rUv < 0f || ringUv.Y - rUv > 1f)
-                        continue;   // 屏幕外不提交
-                    ringData.Add(ringUv.X);
-                    ringData.Add(ringUv.Y);
-                    ringData.Add(radius / sh);
-                    ringData.Add(halfW / sh);
-                    rx0 = Math.Min(rx0, ringUv.X - rUv); ry0 = Math.Min(ry0, ringUv.Y - rUv);
-                    rx1 = Math.Max(rx1, ringUv.X + rUv); ry1 = Math.Max(ry1, ringUv.Y + rUv);
-                    ringCount++;
-                    if (ringCount >= 8) break;
-                }
 
                 if (XiheTextures.BigOuter != null) fx.Texture("uBeamTex", XiheTextures.BigOuter);
                 if (XiheTextures.BigCore != null) fx.Texture("uCoreTex", XiheTextures.BigCore);
@@ -160,39 +130,11 @@ namespace XiheBoss
                 if (XiheTextures.BigRing != null) fx.Texture("uRingStrip", XiheTextures.BigRing);
                 frame.Add(fx);
 
-                // 环单独一步，只在自己的包围盒里跑：和把环塞进全屏光柱 pass 的画面完全一致，
-                // 但第二根光柱（环多）不会再让每个像素都跑 8 次 3D 反解。
-                if (ringCount > 0)
-                {
-                    var ringFx = new ScreenEffect(Shader)
-                    {
-                        Layer = ScreenEffectLayer.World,
-                        Box = new[]
-                        {
-                            MathHelper.Clamp(rx0 - 0.02f, 0f, 1f), MathHelper.Clamp(ry0 - 0.02f, 0f, 1f),
-                            MathHelper.Clamp(rx1 + 0.02f, 0f, 1f), MathHelper.Clamp(ry1 + 0.02f, 0f, 1f),
-                        },
-                        Center = new UVector2(MathHelper.Clamp(uvx, 0f, 1f), MathHelper.Clamp(uvy, 0f, 1f)),
-                        Intensity = 1f,
-                    };
-                    ringFx.Uniform("uCharge", 0f);
-                    ringFx.Uniform("uBeam", 0f);
-                    ringFx.Uniform("uFlash", 0f);
-                    ringFx.Uniform("uSky", 0f);
-                    ringFx.Uniform("uShake", 0f);
-                    ringFx.Uniform("uImpact", 0f);
-                    ringFx.Uniform("uBeamWidth", 0.01f);
-                    ringFx.Uniform("uBeamX", -1f);
-                    ringFx.Uniform("uTexOn", 1f);
-                    ringFx.Uniform("uRingViewZ", 1000f / sh);
-                    ringFx.Uniform("uRingHalo", 3f / sh);
-                    ringFx.Uniform("uRings", ringData.ToArray());
-                    ringFx.Uniform("uRingCount", ringCount);
-                    if (XiheTextures.BigRing != null) ringFx.Texture("uRingStrip", XiheTextures.BigRing);
-                    if (XiheTextures.BigArc != null) ringFx.Texture("uArcTex", XiheTextures.BigArc);
-                    if (XiheTextures.BigStar != null) ringFx.Texture("uStarTex", XiheTextures.BigStar);
-                    frame.Add(ringFx);
-                }
+                // 环：按 MEAC.Entities.MagicRing.Draw 的 3D 顶点投影逐点生成（counts=50、sX=3、
+                // 半径 110*scale*ai0、带宽 10*scale*ai0、PointWrap、Additive），交给硬件几何通道。
+                // 旧实现用逐像素反解：环越大，包围盒里每个像素都要算 atan/acos/exp，这是
+                // “法阵一扩大就掉帧”的根因；现在 GPU 只光栅化环带本身。
+                BuildRings(p);
             }
 
             // 清掉已经不存在的弹幕状态。
@@ -207,6 +149,94 @@ namespace XiheBoss
                     if (!seen.Contains(key)) dead.Add(key);
                 foreach (var key in dead) States.Remove(key);
             }
+        }
+
+        /// <summary>MEAC MagicRing.AI（laserOwner 存在时的分支）逐 tick 复算 scale。</summary>
+        private static float RingScale(Ring r, int laserTimeLeft, int age)
+        {
+            var scale = 0f;
+            var tl = r.Life;
+            for (var i = 0; i < age; i++)
+            {
+                var laserTl = laserTimeLeft + (age - i);
+                if (tl > r.Life - 20) scale = XiheHelper.SmoothStepQ(scale, 4f, 0.2f);
+                else if (laserTl > 20 && tl > 15) tl = 20;
+
+                if (laserTl <= 20) tl = 15;
+                if (tl > 10 && tl < 15) scale = XiheHelper.SmoothStepQ(scale, 5f, 0.2f);
+                if (tl < 10) scale = XiheHelper.SmoothStepQ(scale, 0f, 0.35f);
+                tl--;
+            }
+            return scale;
+        }
+
+        /// <summary>MagicRing.Draw 的顶点：50 段、画布中心投影（viewZ=1000）、sX=3 的 u 滚动。</summary>
+        private static void BuildRings(Projectile p)
+        {
+            if (!States.TryGetValue(p.whoAmI, out var state) || state.Rings.Count == 0) return;
+
+            var sw = Math.Max(1, Main.screenWidth);
+            var sh = Math.Max(1, Main.screenHeight);
+            var scCenter = Main.screenPosition + new Vector2(sw, sh) / 2f;
+            var t = -(float)(int)Main.timeForVisualEffects * 0.01f;   // MagicRing.cn = true
+            const int counts = 50;
+            var verts = new List<TriVertex>();
+
+            foreach (var r in state.Rings)
+            {
+                var age = r.Birth - p.timeLeft;
+                if (age < 0 || age > r.Life + 32) continue;
+
+                var s = RingScale(r, p.timeLeft, age);
+                if (s <= 0.01f) continue;
+
+                var radius = 110f * s * r.Ai0;
+                var width = 10f * s * r.Ai0;
+                if (radius < 0.5f || width < 0.05f) continue;
+
+                var center = new Vector3(p.Center.X, p.Center.Y + r.Y, 0f);
+
+                // 屏幕外不提交（投影后半径最多约 (radius + width) * viewZ/(viewZ-radius)）。
+                var ringUv = XiheFx.ToUv(p.Center + new Vector2(0f, r.Y));
+                var rUv = (radius + width) * 1.4f / sh;
+                if (ringUv.X + rUv < 0f || ringUv.X - rUv > 1f || ringUv.Y + rUv < 0f || ringUv.Y - rUv > 1f)
+                    continue;
+
+                var a = new Vector2[counts + 1];
+                var b = new Vector2[counts + 1];
+                var colors = new Color[counts + 1];
+                for (var i = 0; i <= counts; i++)
+                {
+                    var rot = XiheHelper.Vec3RotBy("Y", Vector3.UnitX,
+                        i * (float)Math.PI * 2f / counts) * radius;
+                    var pa3 = center + rot + new Vector3(0f, -width, 0f);
+                    var pb3 = center + rot + new Vector3(0f, width, 0f);
+
+                    a[i] = XiheHelper.Projection(pa3, scCenter, 1000f);
+                    var k = -1000f / (pa3.Z - 1000f) + 0.05f;   // 源：第一个顶点 k += 0.05，第二个复用
+                    b[i] = XiheHelper.Projection(pb3, scCenter, 1000f);
+
+                    // 源 drawColor = White（MagicRing 没改 drawColor），顶点色 = White * k。
+                    var kc = MathHelper.Clamp(k, 0f, 1f);
+                    colors[i] = new Color(kc, kc, kc, 1f);
+                }
+
+                for (var i = 0; i < counts; i++)
+                {
+                    var u0 = 3f * i / counts + t;
+                    var u1 = 3f * (i + 1) / counts + t;
+                    verts.Add(new TriVertex { World = a[i], Uv = new Vector2(u0, 0f), Color = colors[i] });
+                    verts.Add(new TriVertex { World = b[i], Uv = new Vector2(u0, 1f), Color = colors[i] });
+                    verts.Add(new TriVertex { World = a[i + 1], Uv = new Vector2(u1, 0f), Color = colors[i + 1] });
+
+                    verts.Add(new TriVertex { World = b[i], Uv = new Vector2(u0, 1f), Color = colors[i] });
+                    verts.Add(new TriVertex { World = b[i + 1], Uv = new Vector2(u1, 1f), Color = colors[i + 1] });
+                    verts.Add(new TriVertex { World = a[i + 1], Uv = new Vector2(u1, 0f), Color = colors[i + 1] });
+                }
+            }
+
+            if (verts.Count >= 3)
+                XiheMesh.AddGeometry(Tex.MagicRing, true, false, true, true, verts);
         }
 
         private static void AddRing(List<Ring> rings, int birth, float y, float scale, int life)

@@ -44,6 +44,11 @@ PYLON_FX_EXPORT int32_t PylonFx_ShaderRegister(const char* name, const char* sou
     return ShaderRegistry::Register(name, source);
 }
 
+PYLON_FX_EXPORT int32_t PylonFx_ShaderRegisterMesh(const char* name, const char* source) {
+    if (!name || !source) return 0;
+    return ShaderRegistry::RegisterMesh(name, source);
+}
+
 PYLON_FX_EXPORT int32_t PylonFx_ShaderStatus(int32_t id, int32_t* state, char* error, int32_t errorCap) {
     std::string text;
     const ShaderState s = ShaderRegistry::Status(id, &text);
@@ -118,6 +123,30 @@ PYLON_FX_EXPORT int32_t PylonFx_SubmitAddTexture(int32_t draw, const char* name,
     if (draw > static_cast<int32_t>(g_submitFrame.draws.size())) return 0;
     g_submitFrame.draws[draw - 1].textures.push_back({name, texture});
     return 1;
+}
+
+PYLON_FX_EXPORT int32_t PylonFx_SubmitAddMesh(int32_t shader, int32_t layer, int32_t dest, int32_t blend,
+                                              int32_t count, const float* verts) {
+    if (shader <= 0 || !verts || count < 3 || count % 3 != 0) return 0;
+    std::lock_guard<std::mutex> lock(g_submitMutex);
+    EffectDraw d;
+    d.mesh = true;
+    d.shader = shader;
+    d.layer = layer >= 1 ? EffectLayer::Screen : EffectLayer::World;
+    d.dest = dest;
+    d.blend = blend == 1 ? MeshBlend::Alpha : (blend == 2 ? MeshBlend::Additive : MeshBlend::None);
+    d.verts.resize(static_cast<size_t>(count));
+    for (int i = 0; i < count; ++i) {
+        const float* p = verts + static_cast<size_t>(i) * 12;
+        MeshVertex& v = d.verts[static_cast<size_t>(i)];
+        v.x = p[0]; v.y = p[1];
+        v.u = p[2]; v.v = p[3];
+        v.r = p[4]; v.g = p[5]; v.b = p[6]; v.a = p[7];
+        v.w = p[8]; v.t = p[9];
+        v.aux0 = p[10]; v.aux1 = p[11];
+    }
+    g_submitFrame.draws.push_back(std::move(d));
+    return static_cast<int32_t>(g_submitFrame.draws.size());
 }
 
 PYLON_FX_EXPORT void PylonFx_SubmitEnd() {
