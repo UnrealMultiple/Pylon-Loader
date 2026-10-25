@@ -71,3 +71,4 @@ obj/
 # CMake/NDK 的 configure 中间产物（早期 externalNativeBuild 尝试留下的；内核改走 core/build.ps1）
 .cxx/
 /.work
+/.work_screen.png
