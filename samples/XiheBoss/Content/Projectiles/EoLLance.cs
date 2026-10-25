@@ -1,6 +1,3 @@
-// 长枪（MEAC EoLLance）：Boss 最常用的弹幕。
-// 原版是一条 2500px 的彩色光矛（末端 + 拖尾），命中是一条线段；这里保留同样的判定与拖尾数量，
-// 画面交给 XiheFx 的 beam/orb 图元（着色器加色）。
 using System;
 using Il2CppMicrosoft.Xna.Framework;
 using Color = Il2CppMicrosoft.Xna.Framework.Graphics.Color;

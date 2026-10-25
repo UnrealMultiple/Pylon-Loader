@@ -1,9 +1,3 @@
-// 日珥（源：MEAC.Bosses.EoL.Projectiles.SolarProminence 1:1 移植）。
-//
-// AI/寿命/缩放/判定逐行照抄；画面是 Trail.fx pass 0 的显式左右顶点三角形带
-// （tex3 / tex4 + img_color + Projectile_0，Additive），由 XiheFx.TrailStrip 精确提交。
-// 源文件没有外部 ai；solarCenter/solarRadius 由 SunProj 生成后直接写字段，这里改成
-// 按 whoAmI 的静态表 + Configure()，因为 Pylon 不允许把 Projectile 强转成 ModProjectile。
 using System;
 using System.Collections.Generic;
 using Il2CppMicrosoft.Xna.Framework;

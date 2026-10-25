@@ -1,23 +1,3 @@
-// 摆线（源：MEAC.Bosses.EoL.Projectiles.Cycloid 1:1 移植）。
-//
-// AI 逐行照抄：840 tick 生命周期、每 51.5 tick 的 Shoot（timeLeft 634/583/531/480）、
-// timeLeft 370/385/410 的 10 向 EoLProj、410~80 段的环形弹幕、三段 scale / alpha / localAI 的
-// Lerp（>428、>=20、<20）、25/10 tick 的收尾 Shoot、p2 在 210 tick 起的 localAI[1] 收缩，
-// 以及 Colliding 的 3000px / 100*scale / localAI[1]*28 判定。全部数值与时序与源文件一致。
-//
-// ai 约定（PORTING.md）：
-//   ai[0] = 宿主 NPC 下标（源 ownerIndex），ai[1] = 1 表示 p2（源 p2）。
-// 源文件自己的 ai[0]（摆线半径 r1）挪到 ai[2]，源 ai[1]（角度偏移）挪到 localAI[2]
-// （手机版 localAI 只有 3 格，没有 localAI[3]）；localAI[0] / localAI[1] 保持源含义。
-// PushVisual 只读这些 proj 字段，drawEffTimer 只留在实例字段。
-//
-// 视觉近似点（原版 PreDraw 的抓屏/反色在 Pylon 里做不了）：
-// - 源把 Cycloid 画进 Main.screenTargetSwap、再用 Hide shader 在屏幕上挖一个洞（抓屏 + 反色 +
-//   顶点绘制）；Pylon 的手机版代理不能碰 screenTargetSwap，也没有原生 Effect。这里用
-//   XiheFx.Flash 闪白 + RadialGlur 径向模糊 + ScreenShake 近似“屏幕被撕开”的冲击，
-//   摆线本体用 Ring(WarpRing/MagicRing) + Orb(WarpBall) 按源文件的半径/时间重画。
-// - 源的全屏黄色覆盖 (255,255,150)*(drawEffTimer/70) 用 Shoot 里的 XiheFx.Flash(0.6f) 近似。
-// - 源的 30/100 段顶点摆线无法逐点提交，这里取 6 个曲线节点画 Orbs，主体靠两圈 Ring 表达。
 using System;
 using System.Collections.Generic;
 using Il2CppMicrosoft.Xna.Framework;

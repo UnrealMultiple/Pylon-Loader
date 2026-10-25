@@ -1,18 +1,3 @@
-// EoLLight（MEAC：MEAC.Bosses.EoL.Projectiles.EoLLight）—— 羲和 CrossRay 的「光棱」：锚在 Boss 身上、
-// 以 rotation 为轴、localAI[1] 为长度的线段判定光柱。
-//
-// 源文件：.work\meac\MEAC.Bosses.EoL.Projectiles\EoLLight.cs —— AI / CanDamage / Colliding 逐行照抄。
-// ai 约定（PORTING.md）：ai[0] = 宿主 NPC 下标，ai[1] = 旋转速度（±1 / ±2 / ±3 分档）。
-//   Boss 生成后还会**外部直接写**：localAI[0]（色相，0..360 或 50）、rotation（起始角）、timeLeft（60）。
-//   这些一律照读，不在 OnSpawn 里覆盖。
-//
-// 视觉（源 PreDraw）：一张长条贴图沿 rotation 拉伸，长度 = localAI[1]，横向 scale = projectile.scale，
-//   加色混合，颜色 = HsvToRgb(localAI[0], 1, 0.8)。
-//   这里用 1 条 beam（Trail 贴图，半宽 10*scale，亮心 0.7）+ 1 个端点光球近似。
-// 近似点：
-//   1) 源贴图 MEAC/Projectiles/projTex 没进图集，宽度未知；半宽按 projectile.width(20)/2 取 10*scale；
-//   2) 源用 MEAC.Colorize 着色（Byte 通道偏移），这里直接把色相算进 beam 颜色；
-//   3) 源 PreDraw 忽略 projectile.alpha（默认 255 只为隐藏原生精灵），所以 PushVisual 不乘 alpha。
 using System;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;

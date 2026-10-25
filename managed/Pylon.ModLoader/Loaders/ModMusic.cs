@@ -15,6 +15,8 @@ namespace Pylon.ModLoader
         private static int _lastChosen = -1;
         private static int _chooseIn;
         private static bool _silenced;
+        private static bool _stopped;
+        private static bool _gamePaused;
         private static float _savedSilenceFade;
         private static Harmony _harmony;
         private static ModLogger _log;
@@ -78,6 +80,29 @@ namespace Pylon.ModLoader
             {
                 FadeTo(-1);
                 return;
+            }
+
+            // Boss 已经死亡：死亡动画期间 NPC 还 active，Choose() 会再次选中它；这里直接保持静音。
+            if (_stopped)
+            {
+                FadeTo(-1);
+                return;
+            }
+
+            // 回来再继续，避免暂停期间音乐继续走、回来对不上节拍。
+            if (Main.gamePaused)
+            {
+                if (!_gamePaused)
+                {
+                    _gamePaused = true;
+                    AndroidAudio.PauseMusicAll();
+                }
+                return;
+            }
+            if (_gamePaused)
+            {
+                _gamePaused = false;
+                AndroidAudio.ResumeMusicAll();
             }
 
             if (--_chooseIn <= 0)
@@ -164,7 +189,17 @@ namespace Pylon.ModLoader
             main.Sent = -1f;
             _lastChosen = slot;
             _chosen = slot;
+            _stopped = false;
             _log?.Info($"[music] 显式重置 Mod 曲 slot={slot}（{main.File}），立即从头播放");
+        }
+
+        /// <summary>Boss 死亡：让当前 Mod 曲淡出并停住；下次召唤由 Restart 重新开始。</summary>
+        internal static void Stop()
+        {
+            _stopped = true;
+            _chosen = -1;
+            _lastChosen = -1;
+            FadeTo(-1);
         }
 
         private static void FadeTo(int slot)

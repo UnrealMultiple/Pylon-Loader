@@ -1,9 +1,3 @@
-// 羲和（MEAC.Bosses.EoL.XiHe 的 1:1 复刻）。
-//
-// AI 完全照 MEAC 的状态机抄：timerM 绝对时钟 + 23 个 State + SwitchState 的随机分支，
-// 每一段的生成物、节拍（51.5 tick/拍）、伤害（npc.damage / N）都与原版一致。
-// 画面：身体/翅膀/手臂用原版贴图（NPC_636 + Extra[157..160]）在 PreDraw 里画，
-// 加色元素（场地环、残影、光晕）走 XiheFx 的屏幕着色器。
 using System;
 using Il2CppMicrosoft.Xna.Framework;
 using Color = Il2CppMicrosoft.Xna.Framework.Graphics.Color;
@@ -181,6 +175,12 @@ namespace XiheBoss
             if (Main.expertMode) npc.lifeMax = 120000;
             if (Main.masterMode) npc.lifeMax = 150000;
             npc.lifeMax = (int)(bossAdjustment * npc.lifeMax);
+
+            // MEAC 的 XiHe 只缩 lifeMax，npc.damage 保持 SetDefaults 的 50（弹幕伤害 = npc.damage / 5 = 10）。
+            // Pylon 的 ScaleStats 会按难度/人数把 damage 再缩一次（实测大师里被缩成 25，弹幕只剩 5），
+            // 这里在缩放回调之后把源值写回去，保证和 MEAC 一致。
+            npc.damage = 50;
+            npc.defDamage = 50;
         }
 
         public override bool CheckDead(NPC npc)
@@ -197,6 +197,7 @@ namespace XiheBoss
         public override void OnKill(NPC npc)
         {
             Current = null;
+            MusicLoader.StopMusic();
             XiheFx.CancelScreenPosition();
             XiheVisuals.Clear();
         }

@@ -6,22 +6,6 @@
 //
 // AI 逐行照抄源文件：
 //   模式 0：timeLeft 195..210 涨 scale，<210 撒黄尘，<20 缩 scale；
-//   模式 1：跟 Boss（Center = npc.Center - (0,200)），四组 MagicRing 时刻（350/330/320/260）、
-//           260 的 RadialGlur2 + 音效、260..65 的 EoLLance 双向喷射（每 16 tick 一组，第二组错半格、
-//           伤害用 projectile.damage/2）、240..260 涨 scale、<255 震屏/黄尘/每 20 tick 的 RadialGlur2、
-//           <20 缩 scale 并炸 EoLProj（ai0 = Main.npc[owner].target，ai1 = 3，寿命 +20）。
-//
-// 近似点：
-//   · MagicRing 没有移植（原版是 3D 投影的魔法阵）。这里用私有计数器 _ringCount 在完全相同的
-//     timeLeft 时刻记录环事件（位置 yOffset / 半径系数 ai0 = 1 + scale / 寿命），再每 tick 用
-//     XiheFx.Ring + Tex.MagicRing 重发一次（图元是即时的，必须每帧重发才能持续显示）。
-//     半径 = 110*4*(1+scale)（MagicRing.Draw 的 110*scale*ai0，scale 前 20 tick 从 0 涨到 4），
-//     宽度 = 10*4*(1+scale)，alpha 按环自身寿命淡出。源的 ai1（Z 倾角）恒为 0，未折算。
-//   · 源文件的自定义音效 MEAC/Sounds/Customs/Laser 没有对应资源，只保留 SoundID.Item159。
-//   · RadialGlur2 用 XiheFx.RadialGlur(…, additive: true) 近似。
-//   · 源 PreDraw 以 Center-(0,2000) 为原点画 tex3/tex0（timeLeft*4 / *5 / *8 三张），这里用
-//     两条 4000px 的 XiheFx.Beam（外层 Tex3 半宽 190*scale，内层 Tex0 半宽 90*scale），
-//     scroll 按 timeLeft*4 与 timeLeft*8 推。
 using System;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;

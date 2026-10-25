@@ -1,20 +1,3 @@
-// EoLFire（MEAC：MEAC.Bosses.EoL.Projectiles.EoLFire）—— 羲和 CrossRay 阶段绕 Boss 旋转的「火环」：
-// 本体钉在 Boss 身上，velocity 每 tick 旋转 ai[1]，并沿途不停留下节点（Node）拖尾；命中沿节点折线判定。
-//
-// 源文件：.work\meac\MEAC.Bosses.EoL.Projectiles\EoLFire.cs —— AI / Colliding / PreDraw 逐行照抄。
-// ai 约定（PORTING.md）：ai[0] = 宿主 NPC 下标，ai[1] = 每 tick 的旋转弧度（Boss 传 -ai2*0.033）。
-//
-// 视觉（源 PreDraw / DrawWarp）：把 nodes 当 3D 顶点条带（贴图 tex4 / Extra1），半宽 = node.width*3，
-//   加色混合，逐段按 factor 淡出。这里沿节点画若干段 beam（Tex.Tex4）近似。
-// 近似点：
-//   1) 源的 MEAC.Entities.Node 没有出现在提取树里（.work\meac 下只有用到它的 EoLFire.cs）：
-//      · 构造参数按 (position, velocity, int timeleft, float width, int type) 解释，即 timeleft=10、width=50f
-//        （原调用是 new Node(center, velocity*10, 10, 50f, 1) { type = 2 }；50f 只能是 float 形参，
-//          所以第 4 个参数是 width；这一条无法从提取源验证）；
-//      · Update 按「position += velocity；velocity *= 0.9；timeleft--」补的 —— 这是本文件最大的不确定点；
-//   2) 源的 3D 顶点条带用 fragment 着色器做颜色渐变，这里改成每段一根 beam + 按段 alpha 淡出；
-//   3) 源 IWarpProj.DrawWarp（Extra1 贴图 + EoLWarp 全屏 warp）在 Pylon 没有全局 warp 弹幕接口，未接；
-//   4) 节点的数组按 whoAmI 存在静态表里 —— PushVisual 是 static，按约定不能强转 ModProjectile。
 using System;
 using System.Collections.Generic;
 using Il2CppMicrosoft.Xna.Framework;

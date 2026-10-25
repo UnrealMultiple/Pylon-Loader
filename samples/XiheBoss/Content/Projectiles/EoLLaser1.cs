@@ -1,23 +1,3 @@
-// 激光束（MEAC EoLLaser1）——源文件：.work/meac/MEAC.Bosses.EoL.Projectiles/EoLLaser1.cs
-//
-// ai 约定（Boss 侧已经这么传，见 XiheBossNpc.LaserRing / SetLaserTime）：
-//   ai[0] = 色相（模式 0/3/4）或宿主 NPC 下标（模式 -1/1/2）
-//   ai[1] = 模式（0 / 1 / -1 / 2 / 3 / 4）
-//   ai[2] = 源文件的 public int maxTime 字段（Boss 在 NewProjectile 之后写进 ai）
-// maxTime 在 OnSpawn 抄进实例字段 _maxTime，AI 第一帧再兜底一次；timer = maxTime - timeLeft。
-//
-// AI 逐行照抄源文件（所有模式/分支都在）：0 = 原地涨缩 + 起手尘；-1/1 = 跟随宿主 NPC 旋转；
-// 2 = 跟随宿主 NPC + 正弦摆动；3 = 定角 + 起手尘；4 = 大激光四角柱子（时间轴 20/50/100/120/135）。
-//
-// 近似点：
-//   · 源文件用 VisualEffect.Create<LightDust> 撒起手尘；这里换成 XiheVisuals 的 LightDust 图元
-//     （屏幕加色，颜色照源文件的 HsvToRgb / Lerp(White) 口径）。
-//   · 源 PreDraw 的固定色 HsvToRgb(45,1,0.5) 用于模式 0；模式 -1/1/2/3/4 按约定取 ai[0] 当色相。
-//   · 源 PreDraw 把 tex4 的 5×256 图块拉伸成 localAI[1]（=5000）像素；这里用 XiheFx.Beam，
-//     repeat = 1000px 等价于原来的 5 段重复，scroll 用源 rect 的 timeLeft*8。
-//   · 端点的 Laser0（scale*2）与 4 层 Extra89（0.5×3 / 0.5×2 / 0.6×4 / 0.6×6 再乘 scale*3 或 *2）
-//     按贴图尺寸折算成 Orb 的半径 + YScale：Laser0 半径 72*scale；Extra89 半径 54/54/43.2/43.2，
-//     YScale 6 / 4 / 6.667 / 10。
 using System;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;

@@ -1,16 +1,3 @@
-// 水晶箭（源：MEAC.Bosses.EoL.Projectiles.CrystalArrow 1:1 移植）。
-//
-// AI 逐行照抄：alpha 的淡入/淡出、ai[0] = -1/0/1/2/3/4 六种模式、30 段 oldPos/oldRot 拖尾维护、
-// 每 5 tick 一颗尘土、timeLeft == 1 的粒子爆。数值、顺序、分支都与源文件一致。
-//
-// ai 约定（PORTING.md）：ai[0] = 源 ai[0]（模式），ai[1] = 源 ai[1]（色相）。
-//
-// 视觉近似点：
-// - 源 PreDraw 用一张 projTex 画箭体、用 Ball 拉伸成 30 段拖尾，最后再画两笔十字辉光；
-//   这里全部交给 XiheFx（加色着色器）：箭体 = KnifeExtra1 光束 + Laser0 头部光球，
-//   拖尾 = 每段一个 Ball 光球（radius = 15*0.2*scale，yScale = 2.5/0.2 = 12.5，等价原版 (0.2, 2.5) 拉伸）。
-// - 源 PreDraw 遍历全部 30 段拖尾；为控制屏幕图元数量这里只画最新 8 段（AI 仍完整维护 30 段缓存）。
-// - 源用 ParticleOrchestrator（原版粒子系统）；这里用 Dust.NewDustPerfect(267) 的等价小爆散代替。
 using System;
 using Il2CppMicrosoft.Xna.Framework;
 using Color = Il2CppMicrosoft.Xna.Framework.Graphics.Color;

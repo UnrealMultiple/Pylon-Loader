@@ -1,19 +1,3 @@
-// EoLProj（MEAC：MEAC.Bosses.EoL.Projectiles.EoLProj）—— 羲和最基础的弹幕。
-//
-// 源文件：.work\meac\MEAC.Bosses.EoL.Projectiles\EoLProj.cs
-//   AI 逐行照抄，ai[1] 的分支 0/1/2/3/4/5/6/7/8/9/114514 全部在（114514 在源里没有对应块，
-//   走的是通用尾段：自转 + 位移 + 尾迹；这里显式留一个空分支并注明）。
-// ai 约定（PORTING.md）：ai[0] = 源 ai[0]（玩家下标 / NPC 下标 / 旋转方向），ai[1] = 源 ai[1]（行为）。
-//
-// 视觉（源 PostDraw）：
-//   * 30 点轨迹条带：TrailShape 贴图、半宽 15px、滚动 t = timeLeft * 0.04；
-//   * 头部 4 层精灵：Ball 拉伸成 4x0.5 与 5x0.3 两个交叉椭圆 + Sun 圆盘。
-//   这里用 1 条 beam（整条轨迹的弦）+ 2 个 orb（EolProj 光球 + 白心）近似。
-// 近似点：
-//   1) 源 oldPos 的采样点按 whoAmI 存在静态表里 —— PushVisual 是 static，按约定不能强转 ModProjectile；
-//   2) 两个交叉拉伸的 Ball 椭圆 + Sun 圆盘合成「1 个 EolProj 光球 + 1 个白心」，避免同屏几十发时抢 beam 预算；
-//   3) 源 Kill 里的 Explosion（7 帧贴图）没有等价的 VfxKind，用一发放大的 LightDust 近似；
-//   4) 源 OnSpawn 的 LightEff0（星形 + 环）/ AI 与 Kill 的 LightDust 用 XiheVisuals 的 LightDust 近似。
 using System;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;

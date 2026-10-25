@@ -68,6 +68,9 @@ namespace Pylon.ModLoader
         /// <summary>把一条 Mod 曲强制回到开头并从 0 淡入。用于 Boss 再次召唤时重置 BGM。</summary>
         public static void RestartMusic(int slot) => ModMusic.Restart(slot);
 
+        /// <summary>Boss 死亡：停掉当前 Mod 曲（粉饰淡出到 0），避免死亡后 BGM 还在响。</summary>
+        public static void StopMusic() => ModMusic.Stop();
+
         private static int FindSlot(Mod mod, string path)
         {
             var file = Resolve(mod, path);
