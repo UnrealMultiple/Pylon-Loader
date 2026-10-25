@@ -213,8 +213,9 @@ namespace XiheBoss
             var wave = XiheVisuals.Create(VfxKind.Wave, proj.Center, Vector2.Zero);
             wave.Scale *= 1.5f;
 
-            // 源：RadialGlur(20)，Pos = Center
-            XiheFx.RadialGlur(proj.Center, 20, true);
+            // 源：RadialGlur(20)，Pos = Center。注意源用的是**非加色**的 RadialGlur（不是 RadialGlur2），
+            // 这里之前传了 true，整个屏幕被 9 层加色叠成纯白——就是“法阵打伤害全屏白”的原因。
+            XiheFx.RadialGlur(proj.Center, 20, false);
 
             for (var j = 0; j < 10; j++)
             {

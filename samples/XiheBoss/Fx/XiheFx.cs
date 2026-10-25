@@ -579,7 +579,7 @@ namespace XiheBoss
             _cancelSc = false;
             _scTarget = target;
             _scAmount = amount;
-            _scTtl = 3;
+            _scTtl = 10;   // 真机可能 >60 帧；按帧递减要留够两次 Boss tick 的余量
         }
 
         internal static void CancelScreenPosition()

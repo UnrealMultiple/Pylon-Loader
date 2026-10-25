@@ -85,8 +85,16 @@ namespace XiheBoss
             npc.position -= npc.velocity;
         }
 
-        /// <summary>MEAC Boss 的节拍：BeatTime(n) = n * 51.5。</summary>
-        public static int BeatTime(int n) => (int)(n * 51.5f);
+        /// <summary>
+        /// 羲和 BGM（Take Flight）是 140 BPM：1 拍 = 60/140 秒 = 25.714 tick，2 拍 = 51.4286 tick。
+        /// MEAC 源码写的是 51.5（约 0.14% 偏长），一场 4 分钟的战斗会累计约 0.3 秒——
+        /// 前面能卡上、到后面整拍偏掉。这里用歌曲的精确值。
+        /// </summary>
+        public const float BeatTicks = 51.4285714f;
+        public const float HalfBeatTicks = 25.7142857f;
+
+        /// <summary>MEAC Boss 的节拍：BeatTime(n) = n * 2 拍（140 BPM）。</summary>
+        public static int BeatTime(int n) => (int)(n * BeatTicks);
 
         /// <summary>Utils.RotatedBy 的包装（避免每处都写 double 转换）。</summary>
         public static Vector2 RotatedBy(Vector2 v, float radians) =>

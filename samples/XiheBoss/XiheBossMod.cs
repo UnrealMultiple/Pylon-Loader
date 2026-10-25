@@ -17,6 +17,7 @@ namespace XiheBoss
         internal static ModLogger Log { get; private set; }
 
         private static bool _submitFromUpdate;
+        private static bool _cameraHookInstalled;
 
         public override void Load()
         {
@@ -75,6 +76,26 @@ namespace XiheBoss
                 Logger.Warn("[fx] Main.DoDraw 挂载失败，改为 PostUpdateEverything 提交：" + e.Message);
             }
 
+            // 镜头锁：MEAC 在 ModPlayer.ModifyScreenPosition（原版相机算完之后）改 Main.screenPosition。
+            // Pylon 没有这个回调，直接挂原版的 DoDraw_UpdateCameraPosition（static/private/无参），
+            // 在它算完之后应用 XiheFx 的 UseScreenPosition，否则 sp/放光球时的锁镜头不会生效。
+            try
+            {
+                var methods = typeof(Main).GetMethods(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+                var updateCam = methods.FirstOrDefault(m =>
+                    (m.Name == "DoDraw_UpdateCameraPosition" || m.Name == "ClampScreenPositionToWorld")
+                    && m.GetParameters().Length == 0);
+                if (updateCam != null)
+                {
+                    Harmony.Patch(updateCam, postfix: new HarmonyMethod(typeof(XiheBossMod).GetMethod(
+                        nameof(AfterCameraUpdate), BindingFlags.Static | BindingFlags.NonPublic)));
+                    _cameraHookInstalled = true;
+                    Logger.Info($"[fx] Main.{updateCam.Name} 已挂：UseScreenPosition 镜头锁生效");
+                }
+                else Logger.Warn("[fx] 找不到相机更新方法，镜头锁不可用");
+            }
+            catch (Exception e) { Logger.Warn("[fx] 镜头钩子失败：" + e.Message); }
+
             try { ScreenGraphics.Install(); }
             catch (Exception e) { Logger.Warn("[fx] 屏幕效果安装失败：" + e.Message); }
 
@@ -123,15 +144,25 @@ namespace XiheBoss
             XiheBossNpc.ResolveMusic(this);
         }
 
-        private static void BeforeDraw() => XiheFx.Submit();
+        private static void BeforeDraw()
+        {
+            // 相机钩子装上了就等 DoDraw_UpdateCameraPosition 之后提交（那时 screenPosition 才是最终值），
+            // 否则镜头锁会把世界画面移走、而图元仍按旧 screenPosition 画。
+            if (!_cameraHookInstalled) XiheFx.Submit();
+        }
+
+        /// <summary>原版相机算完之后再应用镜头锁，并按最终 screenPosition 提交本帧图元。</summary>
+        private static void AfterCameraUpdate()
+        {
+            XiheFx.ApplyCamera();
+            XiheFx.Submit();
+        }
 
         public override void PostUpdateEverything()
         {
             XiheFx.Tick();
             if (_submitFromUpdate) XiheFx.Submit();
         }
-
-        public override void ModifyScreenPosition() => XiheFx.ApplyCamera();
 
         public override void OnWorldUnload()
         {

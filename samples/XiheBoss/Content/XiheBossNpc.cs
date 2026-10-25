@@ -56,6 +56,10 @@ namespace XiheBoss
         // MEAC 的 act/actTimer：源码里 act 只在 OnSpawn 设过 1，绘制固定取手臂第 1 帧，故只留注释。
         private const int Act = 1;
         private bool _spawned;
+        // 手机版逻辑更新跟帧率走；BGM 是实时音频。用真实时间把 Boss 的 60Hz 时钟补齐，
+        // 否则掉到 59~58 tick/s 时，一场 4 分钟的战斗会慢慢落后音乐半拍以上。
+        private long _lastTickMs;
+        private double _tickCarry;
 
         internal bool GrayScale;
         internal State BossState = State.Spawn;
@@ -161,6 +165,9 @@ namespace XiheBoss
             _alpha = 0f;
             TimerM = 0;
             _t = 0;
+            _lastTickMs = Environment.TickCount64;
+            // 手机音频输出有几十毫秒延迟；Boss 的节拍比“听到的”音乐略早，先把逻辑时钟压后 2 tick（≈33ms）。
+            _tickCarry = -2.0;
 
             XiheFx.CancelScreenPosition();
             XiheFx.RadialGlur(npc.Center, 30, false);
@@ -249,6 +256,34 @@ namespace XiheBoss
         {
             if (!_spawned) OnSpawn(npc, null);
 
+            // 固定 60Hz：每帧按真实时间补 0/1/2 步。这样无论手机当前是 59/60/120 帧，
+            // TimerM 都按 60 tick/s 推进，和 140 BPM 的 BGM 逐拍对齐（PC 版 tModLoader 就是固定 60Hz）。
+            if (Main.gamePaused)
+            {
+                _lastTickMs = Environment.TickCount64;
+                return;
+            }
+
+            var now = Environment.TickCount64;
+            if (_lastTickMs <= 0) _lastTickMs = now;
+            var elapsed = now - _lastTickMs;
+            _lastTickMs = now;
+            if (elapsed > 100)   // 刚从后台/读盘回来：不补帧，避免一次跑几十步
+            {
+                _tickCarry = 0;
+                return;
+            }
+
+            _tickCarry += elapsed * 60.0 / 1000.0;
+            var steps = (int)_tickCarry;
+            _tickCarry -= steps;
+            if (steps <= 0) return;
+            for (var i = 0; i < steps; i++) TickBoss(npc);
+        }
+
+        /// <summary>一个游戏 tick（60Hz）的完整逻辑。</summary>
+        private void TickBoss(NPC npc)
+        {
             if (TimerM < 1650 && TimerM % 5 == 0) npc.GivenName = XiheHelper.RandomString(15);
 
             _setAreaRadius = 2000f;
@@ -1829,8 +1864,8 @@ namespace XiheBoss
 
         // ================= 小动作 =================
 
-        private bool TimerOnBeat => Math.Abs(TimerM % 51.5f) < 1f;
-        private bool TimerOnHalfBeat => Math.Abs(TimerM % 25.7f) < 1f;
+        private bool TimerOnBeat => Math.Abs(TimerM % XiheHelper.BeatTicks) < 1f;
+        private bool TimerOnHalfBeat => Math.Abs(TimerM % XiheHelper.HalfBeatTicks) < 1f;
 
         private void StraightMove30(NPC npc, Player player, float x, float y)
         {

@@ -20,6 +20,9 @@ Boss 强制白天、时间随血量推进（`Main.time` 2000 → 53700）。
 BGM（`TakeFlight.mp3`）由 Mod 的 MediaPlayer 播放：切到后台时暂停，回到前台继续；
 Boss 再次召唤/BGM 重新选中时从 0 开始。
 
+手机版逻辑更新跟帧率走，直接按 tick 计时会在 59~58 tick/s 时慢慢落后音乐；
+`XiheBossNpc.AI` 用真实时间补 0/1/2 步，把 Boss 时钟固定回 60Hz（PC 版 tModLoader 的行为）。
+
 ## 数值（与 MEAC 完全一致）
 
 | 项 | 值 |
@@ -28,7 +31,7 @@ Boss 再次召唤/BGM 重新选中时从 0 开始。
 | 伤害 / 防御 | 50 / 50 |
 | 免击退、无重力、穿墙 | 是 |
 | 开场 | `timerM` 1650 前无敌 + 名字乱码；1650 进入 Roar |
-| 节拍 | `BeatTime(n) = n * 51.5` tick |
+| 节拍 | `BeatTime(n) = n * 51.4285714` tick（Take Flight 140 BPM，2 拍；MEAC 写 51.5 会每小节慢约 1.2ms） |
 | 场地 | `realAreaRadius` 每 tick 向 `setAreaRadius` 插值 0.03 |
 | DPS 上限 | 原版 `LimitDPS` 按 14820 tick 线性摊血；Pylon 没有命中改写钩子，**未接**（见差异） |
 

@@ -160,11 +160,11 @@ namespace Pylon.ModLoader
             var main = MusicLoader.TrackOf(slot);
             if (main == null) return;
             AndroidAudio.RestartMusic(main.MusicId);
-            main.Fade = 0f;
+            main.Fade = 1f;
             main.Sent = -1f;
             _lastChosen = slot;
             _chosen = slot;
-            _log?.Info($"[music] 显式重置 Mod 曲 slot={slot}（{main.File}）");
+            _log?.Info($"[music] 显式重置 Mod 曲 slot={slot}（{main.File}），立即从头播放");
         }
 
         private static void FadeTo(int slot)

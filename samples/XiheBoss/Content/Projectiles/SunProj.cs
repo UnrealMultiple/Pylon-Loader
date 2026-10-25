@@ -17,7 +17,7 @@
 // - 源日珥是 SolarProminence 弹幕（带 solarCenter/solarRadius、SetTrail，会伤害玩家）。本 Mod 没有
 //   登记 SolarProminence，也不允许强转 ModProjectile，所以日珥改为 XiheVisuals 的 LightDust /
 //   LightDustCn（沿径向速度飞出）：生成时机、半径、速度、数量与源文件完全一致，但不再造成伤害。
-// - 10 tick 的爆炸闪光：源由太阳 shader 的过曝表现，这里补一个 XiheFx.Flash(0.75f) 近似。
+// - 10 tick 的爆炸闪光由太阳 shader 自身的过曝表现（与 MEAC 一致），不再额外全屏白。
 using System;
 using Il2CppMicrosoft.Xna.Framework;
 using Color = Il2CppMicrosoft.Xna.Framework.Graphics.Color;
@@ -82,7 +82,7 @@ namespace XiheBoss
             if (proj.timeLeft == 10)
             {
                 XiheFx.ScreenShake(30f, proj.Center);
-                XiheFx.Flash(0.75f);   // 近似：源的太阳 shader 过曝
+                // 源只靠太阳 shader 自身的过曝（DrawSun），没有全屏白 Flash；这里对齐 MEAC，不再加白屏。
 
                 if (Main.netMode != 1)
                 {

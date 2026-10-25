@@ -79,8 +79,10 @@ namespace Pylon.ModLoader
             if (Slots.TryGetValue(file, out var slot)) return slot;
 
             slot = Base + Tracks.Count;
-            Tracks.Add(new Track { Slot = slot, File = file, MusicId = AndroidAudio.RegisterMusic(file) });
+            var track = new Track { Slot = slot, File = file, MusicId = AndroidAudio.RegisterMusic(file) };
+            Tracks.Add(track);
             Slots[file] = slot;
+            AndroidAudio.PrimeMusic(track.MusicId);   // 提前 prepare，召唤时 start 即时
             ModMusic.Install();
             return slot;
         }

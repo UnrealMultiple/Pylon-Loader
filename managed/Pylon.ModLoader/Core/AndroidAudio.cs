@@ -172,6 +172,16 @@ namespace Pylon.ModLoader
             return id;
         }
 
+        /// <summary>
+        /// 提前创建并 prepareAsync：Boss 召唤时 MediaPlayer 已经解码就绪，start 不用再等
+        /// prepare（这是“招式/音乐慢半拍”的主要延迟来源）。不 start、不出声。
+        /// </summary>
+        internal static void PrimeMusic(int id)
+        {
+            if (!Tracks.TryGetValue(id, out var track) || track.Failed) return;
+            if (track.Player == null) CreatePlayer(track);
+        }
+
         /// <summary>音乐当前音量（0..1，fade 已乘进去）：>0 准备/播放，=0 暂停并回到开头；准备异步，就绪用 getDuration 轮询。</summary>
         internal static void SetMusicVolume(int id, float volume)
         {
