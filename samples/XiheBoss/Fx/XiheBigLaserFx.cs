@@ -99,7 +99,8 @@ namespace XiheBoss
                 var fx = new ScreenEffect(Shader)
                 {
                     Layer = ScreenEffectLayer.World,
-                    Box = new[] { 0f, 0f, 1f, 1f },
+                    // 光柱 shader 是“读屏幕 + 加柱体”；柱体外的贴图/泛光由 frag 里的 beamMask
+                    // 硬截断，不用 Box 裁剪，避免 Box 边缘出现矩形色差。
                     Center = new UVector2(MathHelper.Clamp(uvx, 0f, 1f), MathHelper.Clamp(uvy, 0f, 1f)),
                     Intensity = 1f,
                 };

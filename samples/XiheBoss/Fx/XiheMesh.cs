@@ -15,7 +15,6 @@ using Color = Il2CppMicrosoft.Xna.Framework.Graphics.Color;
 using Pylon.ModLoader;
 using Pylon.ModLoader.Effects;
 using Terraria;
-using UVector2 = UnityEngine.Vector2;
 
 namespace XiheBoss
 {
@@ -23,7 +22,6 @@ namespace XiheBoss
     {
         internal static ScreenShader GeoShader;
         internal static ScreenShader TrailShader;
-        internal static ScreenShader SunShader;
 
         private sealed class GeoBatch
         {
@@ -44,17 +42,8 @@ namespace XiheBoss
             public readonly List<float> Verts = new();
         }
 
-        private struct SunItem
-        {
-            public Vector2 World;
-            public float Scale;
-            public float RayAlpha;
-            public float Alpha;
-        }
-
         private static readonly List<GeoBatch> GeoBatches = new();
         private static readonly List<TrailBatch> TrailBatches = new();
-        private static readonly List<SunItem> SunItems = new();
 
         private static float _sw = 1f, _sh = 1f;
         private static Vector2 _sp;
@@ -65,8 +54,7 @@ namespace XiheBoss
             {
                 GeoShader = ScreenShader.FromFileMesh(mod, "assets/effects/XiheGeo.frag");
                 TrailShader = ScreenShader.FromFileMesh(mod, "assets/effects/XiheTrailFx.frag");
-                SunShader = ScreenShader.FromFileMesh(mod, "assets/effects/XiheSunFx.frag");
-                log?.Info("[mesh] XiheGeo/XiheTrailFx/XiheSunFx 已注册（硬件几何：不读屏幕、不做屏幕拷贝）");
+                log?.Info("[mesh] XiheGeo/XiheTrailFx 已注册（硬件几何：不读屏幕、不做屏幕拷贝）");
             }
             catch (Exception e)
             {
@@ -78,7 +66,6 @@ namespace XiheBoss
         {
             GeoBatches.Clear();
             TrailBatches.Clear();
-            SunItems.Clear();
         }
 
         /// <summary>每帧在收集图元之前调一次：把世界坐标换成屏幕分数。</summary>
@@ -245,11 +232,6 @@ namespace XiheBoss
             }
         }
 
-        internal static void AddSun(Vector2 world, float scale, float rayAlpha, float alpha)
-        {
-            SunItems.Add(new SunItem { World = world, Scale = scale, RayAlpha = rayAlpha, Alpha = alpha });
-        }
-
         // ================= 提交 =================
 
         internal static void Submit(ScreenFrame frame)
@@ -301,48 +283,6 @@ namespace XiheBoss
                     frame.Add(fx);
                 }
             }
-
-            if (SunShader != null)
-            {
-                foreach (var s in SunItems)
-                {
-                    if (s.Alpha <= 0.001f || s.Scale <= 0.0001f) continue;
-                    var uv = XiheFx.ToUv(s.World);
-                    var fx = new ScreenEffect(SunShader)
-                    {
-                        Layer = ScreenEffectLayer.World,
-                        Mesh = true,
-                        MeshBlend = ScreenMeshBlend.Additive,
-                        MeshVertices = FullScreenQuad(),
-                        Center = new UVector2(MathHelper.Clamp(uv.X, 0f, 1f), MathHelper.Clamp(uv.Y, 0f, 1f)),
-                        Radius = s.Scale,
-                        Intensity = s.Alpha,
-                    };
-                    fx.Uniform("uSunTime", (float)Main.timeForVisualEffects * 0.02f);
-                    fx.Uniform("uExtra", s.RayAlpha);
-                    frame.Add(fx);
-                }
-            }
-        }
-
-        private static float[] FullScreenQuad()
-        {
-            var v = new List<float>(72);
-            const float c = 1f;
-            void Raw(float x, float y, float u, float vv)
-            {
-                v.Add(x); v.Add(y); v.Add(u); v.Add(vv);
-                v.Add(c); v.Add(c); v.Add(c); v.Add(c);
-                v.Add(1f); v.Add(0f); v.Add(0f); v.Add(0f);
-            }
-
-            Raw(0f, 0f, 0f, 0f);
-            Raw(1f, 0f, 1f, 0f);
-            Raw(0f, 1f, 0f, 1f);
-            Raw(1f, 0f, 1f, 0f);
-            Raw(1f, 1f, 1f, 1f);
-            Raw(0f, 1f, 0f, 1f);
-            return v.ToArray();
         }
     }
 }

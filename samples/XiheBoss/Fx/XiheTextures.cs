@@ -73,9 +73,6 @@ namespace XiheBoss
         /// <summary>图集在 shader 里的 sampler（uAtlas）。</summary>
         internal static ScreenTexture Atlas { get; private set; }
 
-        /// <summary>单独一张：天空渐变（uSkyTex，8x1024 竖条）。</summary>
-        internal static ScreenTexture Sky { get; private set; }
-
         /// <summary>单独一张：Perlin 噪声（uNoise，屏幕效果里做抖动/扭曲）。</summary>
         internal static ScreenTexture Noise { get; private set; }
 
@@ -241,8 +238,6 @@ namespace XiheBoss
             Widths = widths;
             Heights = heights;
 
-            try { Sky = Load(mod, "assets/textures/TSSky1.png", repeat: false); }
-            catch (Exception e) { log?.Warn("[tex] TSSky1 读取失败：" + e.Message); }
             try { Noise = Load(mod, "assets/textures/Perlin.png", repeat: true); }
             catch (Exception e) { log?.Warn("[tex] Perlin 读取失败：" + e.Message); }
 
@@ -257,7 +252,7 @@ namespace XiheBoss
             try { BigRing = Load(mod, "assets/textures/MagicRing.png", repeat: true); }
             catch (Exception e) { log?.Warn("[tex] 大光柱 MagicRing 读取失败：" + e.Message); }
 
-            log?.Info($"[tex] 图集 {atlasW}x{atlasH}（{CountLoaded(images)} 张）、Sky={(Sky != null ? "ok" : "无")}、Noise={(Noise != null ? "ok" : "无")}、BigLaser={(BigOuter != null && BigCore != null && BigRing != null ? "ok" : "无")}");
+            log?.Info($"[tex] 图集 {atlasW}x{atlasH}（{CountLoaded(images)} 张）、Noise={(Noise != null ? "ok" : "无")}、BigLaser={(BigOuter != null && BigCore != null && BigRing != null ? "ok" : "无")}");
         }
 
         private static int CountLoaded(Image[] images)

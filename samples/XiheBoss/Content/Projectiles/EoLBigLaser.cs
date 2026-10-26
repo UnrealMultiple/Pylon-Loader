@@ -131,7 +131,7 @@ namespace XiheBoss
                     AddRing(proj, 200f, -0.3f, 260);
                     AddRing(proj, 400f, 0.2f, 260);
 
-                    XiheFx.RadialGlur(proj.Center, 60, true);
+                    XiheFx.RadialGlur(proj.Center, 60, false);
                     SoundEngine.PlaySound(SoundID.Item159, proj.Center);
                 }
 
@@ -170,7 +170,7 @@ namespace XiheBoss
                 {
                     XiheFx.ScreenShake(10f, proj.Center);
                     if (proj.timeLeft % 20 == 0 && proj.timeLeft > 175)
-                        XiheFx.RadialGlur(proj.Center + Vector2.UnitY * 200f, 25, true);
+                        XiheFx.RadialGlur(proj.Center + Vector2.UnitY * 200f, 25, false);
 
                     for (var i = 0; i < 2; i++)
                     {

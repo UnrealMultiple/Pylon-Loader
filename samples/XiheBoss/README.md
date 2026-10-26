@@ -4,9 +4,10 @@ MEAC `MEAC.Bosses.EoL.XiHe` 的 **1:1 复刻**，跑在 Pylon Loader 上（Terra
 
 - NPC：`XiheBossNpc`（1 只 Boss，无小怪、无召唤物）
 - 弹幕：`EoLLance` / `EoLProj` / `EoLLaser1` / `EoLBigLaser` / `CrystalArrow` / `Cycloid` / `EoLLight` / `EoLFire` / `SunProj`
-- 视觉：`Fx/XiheFx.cs`（屏幕图元）+ `assets/effects/XihePrims.frag`（orb/beam/ring 加色）+ `XihePost.frag`
+- 视觉：`Fx/XiheFx.cs`（屏幕图元/后处理）+ `Fx/XiheMesh.cs`（硬件几何批：精灵/三角形/拖尾）
+  + `assets/effects/XiheGeo.frag` / `XiheTrailFx.frag` + `XihePost.frag`
   + `XiheBigLaser.frag`（**直接复用 samples/XiheMagic 的 XiheBeam.frag**，大光柱 + MagicRing 3D 投影）
-  （灰度/径向模糊/亮度/天空/闪白）；Boss 本体和 EOLEff 残影用原版贴图走 `PreDraw`。
+  （灰度/径向模糊/亮度）；Boss 本体和 EOLEff 残影用原版贴图走 `PreDraw`。
 - 声音：原版 `SoundID` + MEAC 的 `Laser.wav`；BGM 用 MEAC 的 `TakeFlight.mp3`（`MusicLoader` 注册）。
 
 ## 怎么打
@@ -15,7 +16,7 @@ MEAC `MEAC.Bosses.EoL.XiHe` 的 **1:1 复刻**，跑在 Pylon Loader 上（Terra
 再次召唤会重新开始整场战斗；每次召唤都会把 BGM 重置到开头。
 
 Boss 自带场地半径（2000 → 准备阶段 1200/750 → 900/750），玩家跑出圈会被拉回来；
-Boss 强制白天、时间随血量推进（`Main.time` 2000 → 53700）。
+Boss 强制黎明（`Main.dayTime = true`、`Main.time = 6000`），不再随血量推进到黄昏。
 
 BGM（`TakeFlight.mp3`）由 Mod 的 MediaPlayer 播放：切到后台时暂停，回到前台继续；
 Boss 再次召唤/BGM 重新选中时从 0 开始。
@@ -70,22 +71,23 @@ Boss 再次召唤/BGM 重新选中时从 0 开始。
 「不要 patch SpriteBatch / 不要中途 Begin」）。所以：
 
 1. **Boss 本体**：`ModNpc.PreDraw` 里用原版贴图（`NPC_636` = `NPCID.HallowBoss`，
-   `Extra[157..160]` 翅膀/手臂，`Extra[187/188]` 光点）按 MEAC `DrawEoL` 的顺序与缩放画；
+   `Extra[157]` 翅膀、`Extra[159]` 翅膀背光）按 MEAC `DrawEoL` 的顺序与缩放画；
    原版的 `HallowBoss` 滤镜（`XiHe_Wing` 当遮罩）无法在 SpriteBatch 里换 Effect，改成
-   wing1/wing2 两层 + 屏幕光晕近似（见差异）。
-2. **MEAC 弹幕绘制逐次搬**：不再用“光球/光柱”近似。`XiheSprite.frag` 按 XNA SpriteBatch 的
-   位置/旋转/缩放/origin/源矩形采样，`XiheTrail.frag` 是 `MEAC/Effects/Trail.fx` 的 pass 0，
-   `XiheRing.frag` 是 DrawArea/Circle 的环带，`XiheLine.frag` 是 Cycloid 的折线；
-   颜色变换按 `MEAC/Effects/Colorize.fx`，混合按调用点 Additive/AlphaBlend 逐条复现。
-   贴图是 MEAC 原素材 + 原版 `Projectile_919` / `Sun` 等，打进一张 1024 图集（`Fx/XiheTextures.cs`）。
+   wing1/wing2 两层 + 放大 wing1 的加色光晕近似。
+2. **弹幕绘制**：`XiheMesh` 走硬件几何通道，`XiheGeo.frag` 负责精灵/三角形 + Colorize，
+   `XiheTrailFx.frag` 是 `MEAC/Effects/Trail.fx` 的 pass 0；`XiheRing.frag` 是 DrawArea/Circle
+   的环带，`XiheLine.frag` 是 Cycloid 的折线。颜色变换按 `MEAC/Effects/Colorize.fx`，
+   混合按调用点 Additive/AlphaBlend 逐条复现。贴图是 MEAC 原素材 + 原版 `Projectile_919` /
+   `Sun` 等，打进一张 1024 图集（`Fx/XiheTextures.cs`）。
    **EoLBigLaser 单独走 `XiheBigLaser.frag`**：就是 `samples/XiheMagic/assets/effects/XiheBeam.frag` 的
    拷贝，MagicRing 的逐像素 3D 投影反解原样保留；`Fx/XiheBigLaserFx.cs` 只负责喂
    uBeam/uBeamX/uImpact/uRings。
 3. **屏幕后处理**：`XihePost.frag` 一个 shader 多个 mode：EoLWarp（Gray.fx 的 0.3/0.6/0.1 +
-   EoLWarp.fx 的 Perlin 旋转位移）、RadialGlur/2（9 次缩放采样）、Brightness、EoLSky、闪白、
-   Sun.fx（SunProj 的逐像素太阳）。
-4. **相机**：MEAC 在 `Player.PreUpdate` 里改 `Main.screenPosition`；这里等价地在
-   `Mod.ModifyScreenPosition` 里叠震屏/镜头推拉，世界与光效一起抖。
+   EoLWarp.fx 的 Perlin 旋转位移）、RadialGlur/2（9 次缩放采样）、Brightness、Sun.fx
+   （SunProj 的逐像素太阳）。
+4. **相机**：MEAC 在 `ModPlayer.ModifyScreenPosition` 里改 `Main.screenPosition`；Pylon 没有这个
+   回调，这里挂 `Main.DoDraw_UpdateCameraPosition` 的 postfix，在原版相机算完后叠震屏/镜头锁，
+   并且在该 postfix 里提交图元，保证世界与光效使用同一个 `screenPosition`。
 5. **音效/音乐**：`SoundID.Item159/160/161/163/164` 原样；BGM 是 MEAC 的 `TakeFlight.mp3`。
 
 ### 图元参数
@@ -103,22 +105,22 @@ Boss 再次召唤/BGM 重新选中时从 0 开始。
    - Boss 的 `LimitDPS`（14820 tick 摊血）没有生效；
    - 弹幕伤害走游戏原生 hitbox（`ModProjectile.CanDamage/Colliding` 已按源文件实现）。
 2. **Boss 本体滤镜**：原版翅膀用 `GameShaders.Misc["HallowBoss"]` + `XiHe_Wing` 遮罩；
-   Pylon 里不能在绘制中途换 Effect，改成两层贴图 + 屏幕光晕。
+   Pylon 不能在绘制中途换 Effect，改成 wing2 加色层 + 放大 wing1 的加色光晕近似。
 3. **EOLEff 残影**：原版是 3D 旋转 + 投影的翅膀/身体剪影；这里保留「同一帧条的翅膀+身体」精灵，
    3D 投影改成平面螺旋（`VfxKind.EolEff` 里的 `VAngle`/`Dis`）。
 4. **MagicRing**（EoLBigLaser 的符文环）：大光柱走 `XiheBigLaser.frag`，就是 XiheMagic 的
    XiheBeam.frag —— 逐像素的 3D 投影反解与原版一致；`XiheFx` 的平面环版本只作为
    着色器加载失败时的 fallback。
 5. **Cycloid**：逐点摆线/外圈已按源 `Create` 参数方程画成加色折线；原版的抓屏反色 + Hide
-   遮罩在 Pylon 里不能读 `Main.screenTargetSwap`，仍用闪白 + 径向模糊近似这层屏幕效果。
-6. **符文/太阳**：`SunProj` 的 `Sun.fx` 已逐像素搬进 `XihePost.frag`；源 `OnSpawn` 的 25 个
-   `MagicRing_Sun` 3D 环尚未单独建类型（太阳本体的日珥/光线已由 Sun.fx 表达）。
+   遮罩在 Pylon 里不能读 `Main.screenTargetSwap`，改用黄色屏幕叠加 + 圆洞近似。
+6. **符文/太阳**：`SunProj` 的 `Sun.fx` 已搬进 `XihePost.frag` 的 mode 6；太阳的
+   `MagicRing_Sun` 用硬件几何环。 
 7. **EoLFire 的节点**：源 `MEAC.Entities.Node` 不在源码提取树里，按调用点
    `new Node(center, velocity*10, 10, 50f, 1){type=2}` 还原为
    `position += velocity; velocity *= 0.9; timeleft--`（文件头标注为最大不确定点）。
 8. **EoLLaser1 颜色**：源 `PreDraw` 实际用固定 `HsvToRgb(45,1,0.5)`，这里也固定 45°。
-9. **天幕**：MEAC 是自定义 `CustomSky`；Pylon 没有天空钩子，做成屏幕叠加（黑幕 + TSSky1 +
-   太阳），不挡世界；入场黑白滤镜在天空之后应用，所以黑白是整屏的。
+9. **天幕**：MEAC 是自定义 `CustomSky`；Pylon 没有天空钩子，不能在世界之下铺天空。
+   这里不再做全屏蒙版，只把 `Main.dayTime = true`、`Main.time = 6000`，用原版黎明天空/光照。
 10. **联机**：AI 在生成端跑，状态用 `SendExtraAI/ReceiveExtraAI` 同步；弹幕靠原生同步。
     手机版一般单机，联机路径未实测。
 
@@ -136,10 +138,10 @@ dotnet build samples\XiheBoss\XiheBoss.csproj -c Debug -m:1 -p:RestoreUseStaticG
     manifest.json
     assets/effects/XihePrims.frag
     assets/effects/XihePost.frag
-    assets/effects/XiheSprite.frag
-    assets/effects/XiheTrail.frag
     assets/effects/XiheRing.frag
     assets/effects/XiheLine.frag
+    assets/effects/XiheGeo.frag
+    assets/effects/XiheTrailFx.frag
     assets/effects/XiheBigLaser.frag
     assets/textures/*.png
     assets/sounds/Laser.wav
@@ -171,11 +173,12 @@ XiheBoss/
     Projectiles/*.cs        9 种弹幕（AI 1:1 + PushVisual）
   Fx/
     XiheFx.cs               图元收集 / 分 pass / 后处理 / 相机
+    XiheMesh.cs             硬件几何批（精灵/三角形/拖尾）
     XiheBigLaserFx.cs       EoLBigLaser 专用：复用 XiheBeam.frag 的大光柱 + 3D MagicRing
     XiheVisuals.cs          VisualEffect 组（EOLEff/Wave/RingWarp/VLight/Circle/…）
     XiheTextures.cs         PNG 解码 + 1024 图集
     XiheSounds.cs           Laser.wav
-  assets/effects/*.frag     GLSL（XiheSprite / XiheTrail / XiheRing / XiheLine / XihePost / XiheBigLaser）
+  assets/effects/*.frag     GLSL（XiheGeo / XiheTrailFx / XiheRing / XiheLine / XihePost / XiheBigLaser）
   assets/textures/*.png     MEAC 原素材 + 原版 Projectile_919
   assets/sounds/Laser.wav   MEAC 原素材
   assets/music/TakeFlight.mp3

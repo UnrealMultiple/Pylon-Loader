@@ -214,7 +214,9 @@ namespace XiheBoss
         public static void PushVisual(Projectile p)
         {
             var ai = p.ai;
-            var color = XiheHelper.HsvToRgb(ai[0] % 360f) * 1.35f;   // 源 Colorize 更亮，长枪颜色提一档
+            // 源 PreDraw 用的是 MEAC.Colorize（把贴图亮度映射到 HSV 色），不是普通 Color 乘法；
+            // 这里让 Sprite 走 colorize 通道，颜色才和 MEAC 一样亮。
+            var color = XiheHelper.HsvToRgb(ai[0] % 360f);
             var alpha = p.localAI[0] * (1f - p.alpha / 255f);
             if (alpha <= 0.01f) return;
 
@@ -247,12 +249,12 @@ namespace XiheBoss
                 {
                     XiheFx.Sprite(p.Center - p.velocity * 0.8f * i, tex,
                         color * (p.localAI[0] * (0.6f - i / 15f)), rot, scale, origin,
-                        additive: true);
+                        additive: true, colorize: true);
                 }
             }
 
             XiheFx.Sprite(p.Center, tex, color * p.localAI[0], rot,
-                new Vector2(1f, p.hostile ? 1f : 0.5f) * p.scale, origin, additive: true);
+                new Vector2(1f, p.hostile ? 1f : 0.5f) * p.scale, origin, additive: true, colorize: true);
         }
     }
 }

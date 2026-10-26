@@ -2,9 +2,7 @@
 //   1 = EoLWarp：Gray.fx（0.3/0.6/0.1）+ EoLWarp.fx（Perlin 旋转偏移）
 //   2 = RadialGlur / RadialGlur2：9 层缩放采样（AlphaBlend / Additive）
 //   3 = Brightness：加色叠屏（a = Lerp(1,brightness,progress2)，>1 再叠一次）
-//   4 = EoLSky：黑幕 + TSSky1（加色）
-//   5 = 闪白
-//   6 = Sun.fx：SunProj / EoLSky.DrawSun 的完整逐像素公式
+//   6 = Sun.fx：SunProj 的完整逐像素公式
 #include <bl/screen>
 #include <bl/noise>
 
@@ -12,7 +10,6 @@ uniform float uMode;
 uniform vec2 uPos;        // 效果中心（uv，v=0 顶部）
 uniform float uStrength;
 uniform float uExtra;
-uniform sampler2D uSkyTex;
 uniform sampler2D uNoise;
 
 const float TAU = 6.28318530718;
@@ -84,18 +81,6 @@ void main() {
     } else if (uMode < 3.5) {
         // ---- Brightness ----
         base += base * uStrength;
-    } else if (uMode < 4.5) {
-        // ---- EoLSky ----
-        float black = clamp(uStrength, 0.0, 1.0);
-        float sun = clamp(uExtra, 0.0, 1.0);
-        vec3 sky = texture(uSkyTex, vec2(0.5, uv.y)).rgb;
-        base += sky * black * 0.8;
-        base *= (1.0 - black * 0.35);
-        if (sun > 0.001) {
-            base += sunFx(uvTop, posTop, 0.05 * sqrt(sun), sun);
-        }
-    } else if (uMode < 5.5) {
-        base += vec3(1.0, 0.97, 0.86) * uStrength;
     } else if (uMode < 6.5) {
         // ---- Sun.fx ----
         base += sunFx(uvTop, posTop, max(uStrength, 0.0001), uExtra) * uIntensity;

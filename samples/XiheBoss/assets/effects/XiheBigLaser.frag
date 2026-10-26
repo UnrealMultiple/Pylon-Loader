@@ -187,6 +187,7 @@ void main() {
     if (uBeam > 0.001) {
         float w = max(uBeamWidth, 0.0015);
         float dx = (uv.x - uBeamX) * uAspect;
+        float beamMask = abs(dx) > w * 2.2 ? 0.0 : exp(-pow(abs(dx) / (w * 2.2), 2.0));
 
         if (uTexOn > 0.5) {
             float v = clamp(dx / w * 0.5 + 0.5, 0.0, 1.0);
@@ -200,8 +201,10 @@ void main() {
             vec3 c3 = colorize(t3.rgb, vec3(0.5, 0.35, 0.1), 0.8, 0.0);
             vec3 c0 = colorize(t0.rgb, vec3(0.5, 0.35, 0.1), 0.8, 0.0);
 
-            col += c3 * 0.78 * uBeam;
-            col += c0 * 0.90 * uBeam;
+            // v 在柱体外会被 clamp 到贴图边缘；没有这个 mask 时，边缘颜色会铺满整个 box，
+            // 整屏发白。柱体 2.2w 以外不再叠贴图。
+            col += c3 * 0.78 * uBeam * beamMask;
+            col += c0 * 0.90 * uBeam * beamMask;
             col += vec3(1.0, 0.87, 0.55) * t0.r * exp(-pow(abs(dx) / (w * 0.16), 2.0)) * 0.25 * uBeam;
         } else {
             float core = exp(-pow(abs(dx) / (w * 0.24), 2.0));
@@ -220,7 +223,7 @@ void main() {
         col += vec3(1.0, 0.95, 0.75) * cap * exp(-pow(abs(dx) / (w * 0.30), 2.0)) * 0.45 * uBeam;
 
         float ir = length(beamRel * vec2(1.0, 2.4));
-        col += vec3(1.0, 0.86, 0.50) * (exp(-ir * 0.010) * 0.40 + exp(-ir * 0.0035) * 0.18) * uBeam;
+        col += vec3(1.0, 0.86, 0.50) * (exp(-ir * 0.010) * 0.40 + exp(-ir * 0.0035) * 0.18) * uBeam * beamMask;
     }
 
     // ---------------- MagicRing（在柱之后；真 3D 投影，逐像素反解）----------------

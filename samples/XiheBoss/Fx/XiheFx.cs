@@ -81,15 +81,6 @@ namespace XiheBoss
         public float WrapShift;        // PointWrap 的相位（源矩形 x / texW）
     }
 
-    /// <summary>Trail.fx pass 0 的一个折线点。</summary>
-    internal struct TrailPoint
-    {
-        public Vector2 World;
-        public float HalfWidth;
-        public float UvX;
-        public float W;
-    }
-
     /// <summary>Trail.fx 的显式左右顶点（MEAC 的 triangle strip 原样）。</summary>
     internal struct TrailStripPoint
     {
@@ -97,17 +88,6 @@ namespace XiheBoss
         public Vector2 Right;
         public float UvX;
         public float W;
-    }
-
-    internal sealed class TrailPrim
-    {
-        public TrailPoint[] Points;
-        public Tex Shape;
-        public Tex ColorTex;
-        public Tex Overlay;
-        public float T;
-        public bool Additive;
-        public float Alpha = 1f;
     }
 
     /// <summary>MEAC triangle strip 的一个顶点（VertexPositionColorTexture 同口径）。</summary>
@@ -199,18 +179,13 @@ namespace XiheBoss
 
         internal static ScreenShader PrimsShader;
         internal static ScreenShader PostShader;
-        internal static ScreenShader SpriteShader;
-        internal static ScreenShader TrailShader;
-        internal static ScreenShader Trail2Shader;
         internal static ScreenShader RingShader;
         internal static ScreenShader LineShader;
-        internal static ScreenShader TriShader;
 
         private static readonly List<OrbPrim> Orbs = new();
         private static readonly List<BeamPrim> Beams = new();
         private static readonly List<RingPrim> Rings = new();
         private static readonly List<SpritePrim> Sprites = new();
-        private static readonly List<TrailPrim> Trails = new();
         private static readonly List<TrailQuadGroup> TrailQuads = new();
         private static readonly List<TriPrim> Tris = new();
         private static readonly List<Ring2Prim> Rings2 = new();
@@ -227,14 +202,11 @@ namespace XiheBoss
         private static bool _loggedOverflow;
         private static readonly HashSet<int> _missingVisual = new();
 
-        // 闪白 / 屏幕亮度 / 灰度 / 天空
-        private static float _flash;
+        // 屏幕亮度 / 灰度
         private static float _brightness;
         private static int _brightnessTime;
         private static int _brightnessMax = 1;
         private static float _gray;
-        private static float _sky;
-        private static float _sun;
         private static float _warp = 0.03f;
 
         // 屏幕效果里的像素坐标 = GL viewport（例如 2608x1200）；游戏可能开着动态分辨率
@@ -251,22 +223,10 @@ namespace XiheBoss
         private static float _scAmount = 0.3f;
         private static int _scTtl;
 
-        internal static float FlashLevel => _flash;
         internal static float Gray => _gray;
-        internal static float Sky => _sky;
-        internal static float Sun => _sun;
         internal static int SpriteCount => Sprites.Count;
         internal static int TriCount => Tris.Count;
         internal static int VisualCount => Visuals.Count;
-        internal static int TrailCount
-        {
-            get
-            {
-                var n = Trails.Count;
-                foreach (var g in TrailQuads) n += g.Quads.Count;
-                return n;
-            }
-        }
 
         internal static void Init(Mod mod, ModLogger log)
         {
@@ -274,14 +234,10 @@ namespace XiheBoss
             {
                 PrimsShader = ScreenShader.FromFile(mod, "assets/effects/XihePrims.frag");
                 PostShader = ScreenShader.FromFile(mod, "assets/effects/XihePost.frag");
-                SpriteShader = ScreenShader.FromFile(mod, "assets/effects/XiheSprite.frag");
-                TrailShader = ScreenShader.FromFile(mod, "assets/effects/XiheTrail.frag");
-                Trail2Shader = ScreenShader.FromFile(mod, "assets/effects/XiheTrail2.frag");
                 RingShader = ScreenShader.FromFile(mod, "assets/effects/XiheRing.frag");
                 LineShader = ScreenShader.FromFile(mod, "assets/effects/XiheLine.frag");
-                TriShader = ScreenShader.FromFile(mod, "assets/effects/XiheTri.frag");
                 XiheMesh.Init(mod, log);
-                log?.Info("[fx] XihePrims/XihePost/XiheSprite/XiheTrail/XiheTrail2/XiheRing/XiheLine/XiheTri 已注册");
+                log?.Info("[fx] XihePrims/XihePost/XiheRing/XiheLine 已注册");
             }
             catch (Exception e)
             {
@@ -295,7 +251,6 @@ namespace XiheBoss
             Beams.Clear();
             Rings.Clear();
             Sprites.Clear();
-            Trails.Clear();
             TrailQuads.Clear();
             Tris.Clear();
             Rings2.Clear();
@@ -304,12 +259,9 @@ namespace XiheBoss
             CycloidOverlays.Clear();
             Warps.Clear();
             Glurs.Clear();
-            _flash = 0f;
             _brightness = 0f;
             _brightnessTime = 0;
             _gray = 0f;
-            _sky = 0f;
-            _sun = 0f;
             _warp = 0.03f;
             _shake = 0f;
             _useSc = false;
@@ -416,22 +368,6 @@ namespace XiheBoss
             });
         }
 
-        internal static void Trail(TrailPoint[] points, Tex shape, Tex colorTex, Tex overlay,
-            float t, bool additive, float alpha = 1f)
-        {
-            if (points == null || points.Length < 2) return;
-            Trails.Add(new TrailPrim
-            {
-                Points = points,
-                Shape = shape,
-                ColorTex = colorTex,
-                Overlay = overlay,
-                T = t,
-                Additive = additive,
-                Alpha = alpha,
-            });
-        }
-
         /// <summary>
         /// MEAC Trail.fx 的精确几何：传显式左右顶点（每点两个顶点），逐段生成 quad。
         /// 同一帧里同贴图/同混合的 trail 会自动合并到尽量少的 pass。
@@ -517,9 +453,6 @@ namespace XiheBoss
             if (points == null || points.Length < 2 || halfWidth <= 0.01f || color.A == 0) return;
             Lines.Add(new LinePrim { Points = points, HalfWidth = halfWidth, Color = color, Additive = additive });
         }
-
-        internal static void Flash(float strength) =>
-            _flash = MathHelper.Clamp(Math.Max(_flash, strength), 0f, 1f);
 
         /// <summary>Cycloid 的黄色全屏闪光；holeRadius 是源 Hide.fx 圆洞的半径（屏幕高度分数）。</summary>
         internal static void CycloidOverlay(Vector2 world, float alpha, float holeRadius)
@@ -645,11 +578,6 @@ namespace XiheBoss
 
                 XiheVisuals.Tick();
 
-                if (_flash > 0f)
-                {
-                    _flash -= 0.05f;
-                    if (_flash < 0f) _flash = 0f;
-                }
                 if (_brightnessTime > 0) _brightnessTime--;
                 for (var i = Glurs.Count - 1; i >= 0; i--)
                 {
@@ -661,12 +589,6 @@ namespace XiheBoss
                 var grayTarget = boss != null && boss.NpcAlive && boss.GrayScale ? 1f : 0f;
                 _gray += (grayTarget - _gray) * 0.03f;
                 if (_gray < 0.004f) _gray = 0f;
-
-                // MEAC 的 EoLSky 是 CustomSky（画在世界之后、世界之下）。Pylon 没有天空层，
-                // 之前把 TSSky1/黑幕当全屏叠加铺在世界上面，导致整屏发蓝、黑白滤镜被冲掉。
-                // 这里不再叠天空，只保留 EoLWarp 的黑白/径向扭曲（源 OnSpawn 的入场滤镜）。
-                _sky = 0f;
-                _sun = 0f;
             }
             catch (Exception e)
             {
@@ -689,7 +611,6 @@ namespace XiheBoss
                 Beams.Clear();
                 Rings.Clear();
                 Sprites.Clear();
-                Trails.Clear();
                 TrailQuads.Clear();
                 Tris.Clear();
                 Rings2.Clear();
@@ -725,12 +646,10 @@ namespace XiheBoss
 
                 var frame = new ScreenFrame();
 
-                // MEAC：EoLSky 在世界之前（这里只能在屏幕层铺，先铺它，让弹幕/特效盖在天空上）；
-                // 之后就不要再把 TSSky1 叠到世界上了（会冲掉入场黑白）。
-
+                // 黎明只靠 Main.dayTime + Main.time（原版天空/光照），不叠全屏天空蒙版。
+                // Pylon 没有“世界之下”的天空层，全屏叠色会变成一层蒙版，画面发灰发黄。
                 AddRingPasses(frame);
                 AddTrail2Passes(frame);
-                AddTrailPasses(frame);
                 AddLinePasses(frame);
                 AddSpritePasses(frame);
                 AddTriPasses(frame);
@@ -752,10 +671,6 @@ namespace XiheBoss
                     var p2 = 2f * (p < 0.5f ? p : 1f - p);
                     AddPost(frame, 3f, default, (_brightness - 1f) * p2, 0f);
                 }
-                if (_flash > 0.002f)
-                {
-                    AddPost(frame, 5f, default, _flash, 0f);
-                }
 
                 if (frame.Draws.Count > 0)
                 {
@@ -766,16 +681,6 @@ namespace XiheBoss
             {
                 if (!_loggedError) { _loggedError = true; XiheBossMod.Log?.Warn("[fx] Submit 异常：" + e.Message); }
             }
-        }
-
-        private static Vector2 SkySunPos()
-        {
-            // EoLSky.GetSunPos 的移植：随 Main.time 横移、地平线上方 250。
-            var num = Main.dayTime ? 27000f : 16200f;
-            var num3 = 1f - (float)Main.time / num;
-            var x = (1f - num3) * Main.screenWidth / 2f - 100f * num3;
-            var y = 180f + num3 * num3 * 250f;
-            return new Vector2(x / Math.Max(1, Main.screenWidth), 1f - y / Math.Max(1, Main.screenHeight));
         }
 
         private static void AddPost(ScreenFrame frame, float mode, Vector2 centerWorld, float strength, float extra)
@@ -792,19 +697,32 @@ namespace XiheBoss
             fx.Uniform("uPos", MathHelper.Clamp(center.X, 0f, 1f), MathHelper.Clamp(center.Y, 0f, 1f));
             fx.Uniform("uStrength", MathHelper.Clamp(strength, 0f, 2f));
             fx.Uniform("uExtra", MathHelper.Clamp(extra, 0f, 2f));
-            if (XiheTextures.Sky != null) fx.Texture("uSkyTex", XiheTextures.Sky);
             if (XiheTextures.Noise != null) fx.Texture("uNoise", XiheTextures.Noise);
             frame.Add(fx);
         }
 
         private static void AddSuns(ScreenFrame frame)
         {
-            // MEAC 的 Sun.fx 是“全屏四边形 + 加色 + 逐像素太阳公式”。这里走硬件几何通道：
-            // 同样一个全屏四边形，但不读屏幕、不做屏幕拷贝（以前每帧一次 2608x1200 的 blit）。
+            // 手机端硬件 mesh 的全屏四边形在上下边缘会出现半屏矩形色差；改回 XihePost 的全屏
+            // Sun.fx pass（mode 6）。一个太阳一帧一次 pass，开销可接受。
+            if (PostShader == null) return;
             for (var i = 0; i < Suns.Count; i++)
             {
                 var s = Suns[i];
-                XiheMesh.AddSun(s.World, s.Scale, s.RayAlpha, s.Alpha);
+                if (s.Alpha <= 0.001f || s.Scale <= 0.0001f) continue;
+                var uv = ToUv(s.World);
+                var fx = new ScreenEffect(PostShader)
+                {
+                    Layer = ScreenEffectLayer.World,
+                    Center = new UVector2(MathHelper.Clamp(uv.X, 0f, 1f), MathHelper.Clamp(uv.Y, 0f, 1f)),
+                    Intensity = s.Alpha,
+                };
+                fx.Uniform("uMode", 6f);
+                fx.Uniform("uPos", MathHelper.Clamp(uv.X, 0f, 1f), MathHelper.Clamp(uv.Y, 0f, 1f));
+                fx.Uniform("uStrength", s.Scale);
+                fx.Uniform("uExtra", s.RayAlpha);
+                fx.Uniform("uIntensity", s.Alpha);
+                frame.Add(fx);
             }
         }
 
@@ -914,66 +832,6 @@ namespace XiheBoss
                 fx.Uniform("uRingC", c);
                 fx.Uniform("uRingD", d);
                 fx.Uniform("uRingCount", n);
-                if (XiheTextures.Atlas != null) fx.Texture("uAtlas", XiheTextures.Atlas);
-                frame.Add(fx);
-            }
-        }
-
-        private static void AddTrailPasses(ScreenFrame frame)
-        {
-            if (TrailShader == null || Trails.Count == 0) return;
-            var sw = Math.Max(1, Main.screenWidth);
-            var sh = Math.Max(1, Main.screenHeight);
-            var sp = Main.screenPosition;
-
-            foreach (var trail in Trails)
-            {
-                var count = Math.Min(32, trail.Points.Length);
-                if (count < 2) continue;
-                var pts = new float[count * 4];
-                var widths = new float[count * 4];
-                var x0 = 1f; var y0 = 1f; var x1 = 0f; var y1 = 0f;
-
-                for (var i = 0; i < count; i++)
-                {
-                    var p = trail.Points[i];
-                    pts[i * 4 + 0] = (p.World.X - sp.X - sw / 2f) * _pxScaleX;
-                    pts[i * 4 + 1] = (p.World.Y - sp.Y - sh / 2f) * _pxScaleY;
-                    pts[i * 4 + 2] = p.UvX;
-                    pts[i * 4 + 3] = p.W;
-                    widths[i * 4 + 0] = p.HalfWidth * _pxScaleY;
-
-                    var uv = ToUv(p.World);
-                    var r = p.HalfWidth / sh;
-                    Include(ref x0, ref y0, ref x1, ref y1, uv.X - r, uv.Y - r, uv.X + r, uv.Y + r);
-                }
-
-                if (x1 < 0f || x0 > 1f || y1 < 0f || y0 > 1f) continue;
-
-                var shape = XiheTextures.Cell(trail.Shape);
-                var color = XiheTextures.Cell(trail.ColorTex);
-                var overlay = XiheTextures.Cell(trail.Overlay);
-
-                var fx = new ScreenEffect(TrailShader)
-                {
-                    Layer = ScreenEffectLayer.World,
-                    Box = new[]
-                    {
-                        MathHelper.Clamp(x0 - 0.03f, 0f, 1f), MathHelper.Clamp(y0 - 0.03f, 0f, 1f),
-                        MathHelper.Clamp(x1 + 0.03f, 0f, 1f), MathHelper.Clamp(y1 + 0.03f, 0f, 1f),
-                    },
-                    Center = new UVector2(0.5f, 0.5f),
-                    Intensity = 1f,
-                };
-                fx.Uniform("uPts", pts);
-                fx.Uniform("uWidth", widths);
-                fx.Uniform("uCount", count);
-                fx.Uniform("uCellShape", shape.U0, shape.V0, shape.DU, shape.DV);
-                fx.Uniform("uCellColor", color.U0, color.V0, color.DU, color.DV);
-                fx.Uniform("uCellOverlay", overlay.U0, overlay.V0, overlay.DU, overlay.DV);
-                fx.Uniform("uT", trail.T);
-                fx.Uniform("uAdditive", trail.Additive ? 1f : 0f);
-                fx.Uniform("uAlpha", trail.Alpha);
                 if (XiheTextures.Atlas != null) fx.Texture("uAtlas", XiheTextures.Atlas);
                 frame.Add(fx);
             }

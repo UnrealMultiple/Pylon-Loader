@@ -29,10 +29,6 @@ namespace XiheBoss
         internal static Texture2D BodyTexture;
         internal static Texture2D WingTexture;
         internal static Texture2D WingGlowTexture;
-        internal static Texture2D ArmTexture;
-        internal static Texture2D ArmGlowTexture;
-        internal static Texture2D GlowTexture;
-        internal static Texture2D Glow2Texture;
 
         private static int _musicSlot = -1;
 
@@ -114,12 +110,8 @@ namespace XiheBoss
         public override void PostSetupContent()
         {
             BodyTexture = LoadGameTexture("Images/NPC_" + NPCID.HallowBoss, "boss 身体");
-            WingTexture = LoadGameTexture("Images/Extra_157", "翅膀底");
-            ArmTexture = LoadGameTexture("Images/Extra_158", "左手");
-            WingGlowTexture = LoadGameTexture("Images/Extra_159", "翅膀光");
-            ArmGlowTexture = LoadGameTexture("Images/Extra_160", "右手");
-            GlowTexture = LoadGameTexture("Images/Extra_187", "外圈光点");
-            Glow2Texture = LoadGameTexture("Images/Extra_188", "内圈光点");
+            WingTexture = LoadGameTexture("Images/Extra_157", "翅膀");
+            WingGlowTexture = LoadGameTexture("Images/Extra_159", "翅膀背光");
         }
 
         /// <summary>
@@ -132,11 +124,7 @@ namespace XiheBoss
             {
                 var asset = Main.Assets.Request<Texture2D>(path, ReLogic.Content.AssetRequestMode.ImmediateLoad);
                 var tex = asset?.Value;
-                if (tex != null)
-                {
-                    XiheBossMod.Log?.Info($"[boss] 贴图就绪：{label} {path} {tex.Width}x{tex.Height}");
-                    return tex;
-                }
+                if (tex != null) return tex;
             }
             catch (Exception e)
             {
@@ -163,10 +151,13 @@ namespace XiheBoss
             // 手机音频输出有几十毫秒延迟；Boss 的节拍比“听到的”音乐略早，先把逻辑时钟压后 2 tick（≈33ms）。
             _tickCarry = -2.0;
 
+            // 召唤瞬间就是黎明，避免从夜晚慢慢 lerp 过去。
+            Main.dayTime = true;
+            Main.time = 6000f;
+
             XiheFx.CancelScreenPosition();
             XiheFx.RadialGlur(npc.Center, 30, false);
             if (_musicSlot > 0) MusicLoader.RestartMusic(_musicSlot);
-            XiheBossMod.Log?.Info("[boss] 羲和已生成");
         }
 
         public override void ApplyDifficultyAndPlayerScaling(NPC npc, int numPlayers, float balance, float bossAdjustment)
@@ -304,12 +295,10 @@ namespace XiheBoss
                 if (player.dead) BossState = State.Leave;
             }
 
-            if (!Main.dayTime) Main.dayTime = true;
-            if (npc.life > 10)
-            {
-                Main.time = MathHelper.Lerp((float)Main.time,
-                    MathHelper.Lerp(2000f, 53700f, 1f - (float)npc.life / npc.lifeMax), 0.005f);
-            }
+            Main.dayTime = true;
+            // 整场保持黎明。MEAC 低血量会把 Main.time 推向黄昏，但 EoLSky 本身始终是黎明色；
+            // 这里固定到 2000（黎明），避免后半段世界光照变黑。
+            Main.time = MathHelper.Lerp((float)Main.time, 6000f, 0.02f);
 
             _oldPosition = npc.Center;
 
@@ -1155,7 +1144,7 @@ namespace XiheBoss
             if (_t == 50)
             {
                 XiheVisuals.Create(VfxKind.Wave, npc.Center, Vector2.Zero);
-                XiheFx.RadialGlur(npc.Center, 50, true);
+                XiheFx.RadialGlur(npc.Center, 50, false);
                 SoundEngine.PlaySound(SoundID.Item159, npc.Center);
                 XiheSounds.PlayLaser(npc.Center);
 
@@ -1905,6 +1894,8 @@ namespace XiheBoss
             float ai0, float ai1)
         {
             if (type <= 0) return null;
+            // 需求：整体弹幕伤害 ×4。damage <= 1 的是纯视觉弹幕（洗地光棱等），保持原值。
+            if (damage > 1) damage *= 4;
             var idx = Projectile.NewProjectile(null, pos, vel, type, damage, 0f, Main.myPlayer, ai0, ai1, 0f);
             if (idx < 0 || idx >= Main.projectile.Length) return null;
             return Main.projectile[idx];
@@ -1976,10 +1967,27 @@ namespace XiheBoss
             var wingFrame = Utils.Frame(WingTexture, 1, wingFrames, 0, wingTime % wingFrames, 0, 0);
             var wingOrigin = new Vector2(WingTexture.Width, WingTexture.Height / wingFrames) / 2f;
 
-            // 只画 wing1（Extra_157，带正常 alpha）。wing2 / Extra_187 / 手臂都是“黑底加色”贴图，
-            // SpriteBatch 只有 AlphaBlend，画上去就是黑矩形（就是那条黑块）。要恢复它们必须走着色器
-            // 加色混合（贴图进图集），否则永远会带一块黑底。
-            XiheDraw.Sprite(sb, WingTexture, pos, wingFrame, Color.White * a, 0f, wingOrigin, 2f);
+            // 源 DrawEoL 顺序：wing2（Extra_159，加色黄光）先画在翅膀后面，再用 wing1 盖住内侧。
+            // 手机端拿不到 HallowBoss pass 的调色结果，这里用 wing1 自身放大一层加色光晕来补：
+            // 翅膀外轮廓会多出一圈金色柔光，wing1 本体再压成暖金色。
+            var wingGlow = WingGlowTexture ?? TextureAssets.Extra[159]?.Value;
+            var gold = new Color(255, 220, 120);
+            sb.End();
+            sb.Begin(SpriteSortMode.Immediate, BlendState.Additive, SamplerState.PointClamp,
+                DepthStencilState.None, RasterizerState.CullNone, null,
+                new Il2CppSystem.Nullable<Matrix>(Main.GameViewMatrix.TransformationMatrix));
+
+            if (wingGlow != null)
+                XiheDraw.Sprite(sb, wingGlow, pos, wingFrame, Color.Yellow * a, 0f, wingOrigin, 2f);
+            XiheDraw.Sprite(sb, WingTexture, pos, wingFrame, gold * (0.32f * a), 0f, wingOrigin, 2.18f);
+
+            sb.End();
+            sb.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp,
+                DepthStencilState.None, RasterizerState.CullNone, null,
+                new Il2CppSystem.Nullable<Matrix>(Main.GameViewMatrix.TransformationMatrix));
+
+            // wing1 本体：暖白金色，不再直接白/灰。
+            XiheDraw.Sprite(sb, WingTexture, pos, wingFrame, new Color(255, 242, 208) * a, 0f, wingOrigin, 2f);
 
             // 身体（NPC_636 第 2 帧）
             if (BodyTexture != null)
