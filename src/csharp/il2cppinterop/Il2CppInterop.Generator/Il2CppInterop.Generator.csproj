@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <PackageId>Il2CppInterop.Generator</PackageId>
+    <Version>1.5.3</Version>
+    <Authors>knah, BepInEx et al.</Authors>
+    <Description>Library for generating assemblies and metadata for calling Il2Cpp functions from .NET</Description>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Il2CppInterop.Generator</RootNamespace>
+    <Configurations>Debug;Release</Configurations>
+    <Platforms>AnyCPU</Platforms>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AsmResolver.DotNet" Version="6.0.0-beta.5" />
+    <PackageReference Include="MonoMod.Backports" Version="1.1.2">
+      <Aliases>MonoModBackports</Aliases><!-- Transitive dependency from AsmResolver. Extern alias prevents it from affecting us. -->
+    </PackageReference>
+    <PackageReference Include="PolySharp" Version="1.14.1">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Il2CppInterop.Common\Il2CppInterop.Common.csproj" />
+  </ItemGroup>
+</Project>

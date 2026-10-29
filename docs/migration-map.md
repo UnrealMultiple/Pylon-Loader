@@ -204,7 +204,7 @@ ModConfig → ModRarity → DamageClass → ModMount → ModBuff → ModPrefix �
 - **手机版武器样式分流（Pylon 实踩，上游 docs/05-itens.md 证实）**：上游的"能射击的武器"是**远程**（`Item.ranged = true` + `shoot` + `noMelee` + `SetDefaultWeaponStyle` → useStyle=Shoot）→ 游戏走 `ItemCheck_Shoot` → ItemLoader 接管（CanShoot→ModifyShootStats→Shoot）；`useStyle=Swing`（近战）时游戏走近战剑气路径、**不调 ItemCheck_Shoot**、弹幕依赖 ai 数组。`Item.shoot` 是 **int**（不是 byte，弹幕 1000+，`(byte)` 溢出成错误 ID）。`SetDefaultWeaponStyle` **必须先设 `item.shoot` 再调用**（它读 shoot 决定样式，顺序反了 shoot=0 → 误判 Swing → 弹幕永不发射）。
 - **数组扩容的坑（真机 SIGSEGV）**：不能 `new Il2CppStructArray<T>(len)` 然后逐元素写——interop 的 setref 在 ARM64 上直接崩（PC=`0x7cf774`，就是 `il2cpp_array_length` 读到坏指针）。同理**别用 interop 的数组包装去扩 `Nullable<T>[]` 表**：生成代理把它写成 `Il2CppReferenceArray<Nullable<T>>`，元素步长按指针算，`ItemID.Sets.CanBeQuickusedOnGamepad` / `ProjectileID.Sets.WindPhysicsImmunity` / `NPCID.Sets.HunterPotionFriendlyOverride` 这些会整批抛 `TargetInvocationException`，表没扩成、mod 类型一查就越界。现在的做法见 `TypeTables`：字段枚举、静态读写、`il2cpp_array_new`、`memcpy` 全走原生（`TypeTables::growArray` 的 C# 版），值类型数组按 `il2cpp_class_value_size` 一次整块拷、引用数组拷指针，尾部按 `[0]` 填；判"是不是数组"必须看 `il2cpp_type_get_type == SZARRAY`（这版 `il2cpp_class_get_element_class` 不做数组检查，会把 int 静态字段当数组指针崩在同一个 `0x7cf774`）。普通值类型数组的"托管数组 + 隐式转换"（`TouchButtonHooks.Sized`）仍然可用。
 - **原版对 mod 类型有编译期上限**：`Main.DrawNPCs`/`GUIBuffs.Draw`/`NPC.SetDefaults`/`NPC.NPCLoot`/`Lang.GetNPCName` 里写死了 `NPCID.Count`/`BuffID.Count` 比较。上游用原生 `kLimitPatches` 改比较常量；IL2CPP 上 Harmony transpiler 无 IL 可改，Pylon 的等效做法是：绘制入口自己补画、SetDefaults 自己补原版尾部默认值、buff 图标临时映射到空的原版槽位。
-  方块/墙壁另有一批直接编进 ARM64 指令的 `type > 753` / `type >= 754`（`WorldGen.PlaceTile/KillTile/TileFrameImportant`、`Collision.IsWorldPointSolid`、`TileData.GetTileDefinition` 等，名单见上游 `ModTiles.cpp:266-293`）。Pylon 在内核里实现了同一套立即数补丁：`PylonMod_PatchCompareLimit`（`core/src/mod/LimitPatch.cpp`），由 `Core/LimitPatch.cs` 在方块表定型后调用；方法体结尾按同类下一个方法定位，只改 `cmp` 后跟顺序条件跳转的指令。补丁失败只记日志，不静默。
+  方块/墙壁另有一批直接编进 ARM64 指令的 `type > 753` / `type >= 754`（`WorldGen.PlaceTile/KillTile/TileFrameImportant`、`Collision.IsWorldPointSolid`、`TileData.GetTileDefinition` 等，名单见上游 `ModTiles.cpp:266-293`）。Pylon 在内核里实现了同一套立即数补丁：`PylonMod_PatchCompareLimit`（`src/core/src/mod/LimitPatch.cpp`），由 `Core/LimitPatch.cs` 在方块表定型后调用；方法体结尾按同类下一个方法定位，只改 `cmp` 后跟顺序条件跳转的指令。补丁失败只记日志，不静默。
 - **方块表扩容要填"模式值"不是 0**：`TypeTables` 对 Tile 用 `Fill::Mode`（上游同款）。填 0 会让新方块默认 `tileSolid=true`（泥土的值），挖不动、挡光、边框全错。墙壁仍用 0。
 - **`Main.tileMerge` 是 `bool[754][]` 的锯齿表**：外层长大不够，每一行也得是独立 `bool[total]`；`Main.SetupTileMerge` 会在进世界时整表重建，必须 prefix 存 mod 行/列、postfix 扩容后写回（`TileLoader.MergePrefix/MergePostfix`）。
 - **`TileObjectData._data` 是 List 不是数组**：SetStaticDefaults 前要补到 `total`（null = 1x1），并临时把 `readOnlyData` 放开；静态默认值结束后关回去。
@@ -221,7 +221,6 @@ ModConfig → ModRarity → DamageClass → ModMount → ModBuff → ModPrefix �
 - 本文件是当前唯一的内容管线对照表；新增 Loader 后同步更新第 3 节的“Pylon”列与第 5 节的进度。
 - `docs/mods/` 尚未建立：等某条管线稳定后，再按“签名 + 例程”给该管线补页，不预先铺空目录。
 - 代码注释里引用的 `docs/mods/*.md` 与 `docs/NN` 是上游 / 早期笔记的编号，未随本仓库发布；
-  现行文档以 `README.md`、`docs/构建-从零开始.md`、本文件与 `core/README.md` 为准。
+  现行文档以 `README.md`、`docs/构建-从零开始.md`、本文件与 `src/core/README.md` 为准。
 - 保持"只作行为对照、不复制代码"的原则；代码注释简短意概，不再引用上游行号。
-
 

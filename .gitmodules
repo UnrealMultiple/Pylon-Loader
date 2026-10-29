@@ -1,6 +1,6 @@
 # 外部依赖（只钉提交，不含构建产物）
 #
-# 说明：Il2CppInterop 已改为仓库内源码（src/il2cppinterop，含 ARM64/Disarm 补丁）；
+# 说明：Il2CppInterop 已改为仓库内源码（src/csharp/il2cppinterop，含 ARM64/Disarm 补丁）；
 # 剩下的子模块用于复现运行时（那些 so/dll 是怎么来的）。
 # 产物（libcoreclr.so、dotnet.zip、BepInEx.Android.zip、interop/generated）仍然要构建或从
 # 上游 release 取，且不进本仓库 —— 见 docs/构建-从零开始.md。

@@ -4,13 +4,13 @@ refs/*
 *.apk
 *.so
 terraria*_assets/
-app/src/main/jniLibs/
-app/libs/
+src/app/src/main/jniLibs/
+src/app/libs/
 assets/bin/Data/
 
 # 预置进启动器 debug 变体的游戏资源（来自 refs/，只在本机存在）
 # 这是"用户导入"这一形态在本机构建的落地物，永不提交、永不进 release。
-app/src/debug/assets/
+src/app/src/debug/assets/
 
 # 本地构建缓存与脚手架：本机沙箱不允许写 ~/.gradle，构建缓存收进工作区
 .gradle-home/
@@ -19,25 +19,28 @@ app/src/debug/assets/
 .dexcheck/
 
 # 内核的中间产物（.o/.log）；产物 libpylon.so 已被上面的 *.so 与 jniLibs/ 规则覆盖
-core/build-arm64/
+src/core/build-arm64/
 
 # Il2CppInterop 生成的代理程序集：派生自游戏类型，不进 git（生成命令见 docs/构建-从零开始.md 第 4 节）
 interop/generated/
+
+# 生成的 On.* 源码（tools/hookgen → src/csharp/managed/Pylon.Hooks/Generated；换游戏版本会重新生成）
+src/csharp/managed/Pylon.Hooks/Generated/
 
 # 从 BepInEx-Android 发行 APK 里拆出来的运行时（CoreCLR/BCL/框架），派生自上游，不进 git
 runtime/
 
 # 由 tools/deploy-runtime.ps1 / Gradle 生成的 debug 运行时件（派生自游戏/上游，不进 git）
-app/src/debug/assets/pylon-dotnet/
-app/src/debug/assets/pylon-interop/
-app/src/debug/assets/pylon-managed/
-app/src/debug/assets/pylon-sample-mod/
-app/src/debug/assets/pylon-samples/
-app/src/debug/jniLibs/arm64-v8a/libcoreclr.so
-app/src/debug/jniLibs/arm64-v8a/libclrjit.so
-app/src/debug/jniLibs/arm64-v8a/libmscordaccore.so
-app/src/debug/jniLibs/arm64-v8a/libmscordbi.so
-app/src/debug/jniLibs/arm64-v8a/libSystem.*.so
+src/app/src/debug/assets/pylon-dotnet/
+src/app/src/debug/assets/pylon-interop/
+src/app/src/debug/assets/pylon-managed/
+src/app/src/debug/assets/pylon-sample-mod/
+src/app/src/debug/assets/pylon-samples/
+src/app/src/debug/jniLibs/arm64-v8a/libcoreclr.so
+src/app/src/debug/jniLibs/arm64-v8a/libclrjit.so
+src/app/src/debug/jniLibs/arm64-v8a/libmscordaccore.so
+src/app/src/debug/jniLibs/arm64-v8a/libmscordbi.so
+src/app/src/debug/jniLibs/arm64-v8a/libSystem.*.so
 
 # 本地配置与密钥
 # debug.keystore 是本地生成的调试签名材料（本机沙箱不允许写 ~/.android），
@@ -68,7 +71,7 @@ obj/
 *.user
 *.suo
 
-# CMake/NDK 的 configure 中间产物（早期 externalNativeBuild 尝试留下的；内核改走 core/build.ps1）
+# CMake/NDK 的 configure 中间产物（早期 externalNativeBuild 尝试留下的；内核改走 src/core/build.ps1）
 .cxx/
 /.work
 /.work_screen.png

@@ -1,17 +1,17 @@
 # 层：CI —— 交叉编译内核 libpylon.so
 #
 # 内核不依赖任何游戏文件（全部按名字 dlsym），所以可以在 CI 上产出。
-# core/build.ps1 已按宿主自动选 toolchains/llvm/prebuilt/<host>/bin（Windows / Linux / macOS），
+# src/core/build.ps1 已按宿主自动选 toolchains/llvm/prebuilt/<host>/bin（Windows / Linux / macOS），
 # 因此这份脚本在 Ubuntu runner 上直接跑。
 #
-# 拿到的 artifact 放这里：app/src/main/jniLibs/arm64-v8a/libpylon.so
+# 拿到的 artifact 放这里：src/app/src/main/jniLibs/arm64-v8a/libpylon.so
 name: build-kernel
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - 'core/**'
+      - 'src/core/**'
       - '.github/workflows/build-kernel.yml'
 
 permissions:
@@ -32,15 +32,15 @@ jobs:
           "$SDKMANAGER" --install "ndk;27.1.12297006"
 
       - name: 编译内核（NDK clang++，不经 CMake）
-        run: pwsh -NoProfile -File core/build.ps1 -Ndk "$ANDROID_HOME/ndk/27.1.12297006"
+        run: pwsh -NoProfile -File src/core/build.ps1 -Ndk "$ANDROID_HOME/ndk/27.1.12297006"
 
       - name: 记录导出符号
         run: |
           READELF="$ANDROID_HOME/ndk/27.1.12297006/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
-          "$READELF" --dyn-syms --wide app/src/main/jniLibs/arm64-v8a/libpylon.so | head -40
+          "$READELF" --dyn-syms --wide src/app/src/main/jniLibs/arm64-v8a/libpylon.so | head -40
 
       - uses: actions/upload-artifact@v4
         with:
           name: libpylon
-          path: app/src/main/jniLibs/arm64-v8a/libpylon.so
+          path: src/app/src/main/jniLibs/arm64-v8a/libpylon.so
           if-no-files-found: error

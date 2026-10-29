@@ -23,7 +23,7 @@ debug 也不再把 `refs/` 预置进 APK（`-PpylonStageRefs=true` 仅本地回�
 1. `README.md` —— 项目现状、边界与构建入口
 2. `docs/构建-从零开始.md` —— 三类二进制怎么补、报错对照、CI artifact
 3. `docs/migration-map.md` —— 哪些管线已接、哪些没接、踩过的坑
-4. `core/README.md` —— 内核目录与硬约束（改内核前必读）
+4. `src/core/README.md` —— 内核目录与硬约束（改内核前必读）
 5. `refs/README.md` —— 游戏 dump 的来源与版本纪律
 
 代码注释里的 `docs/NN` 是早期设计笔记的编号，未随仓库发布；以这五份为准。
@@ -31,7 +31,7 @@ debug 也不再把 `refs/` 预置进 APK（`-PpylonStageRefs=true` 仅本地回�
 ## 第一步提示词
 
 ```text
-先按顺序读 README.md、docs/构建-从零开始.md、docs/migration-map.md、core/README.md、
+先按顺序读 README.md、docs/构建-从零开始.md、docs/migration-map.md、src/core/README.md、
 refs/README.md，读完用三句话复述关键约束（加载形态、内核纪律、Mod 隔离），确认无误再动手。
 
 背景：Pylon Loader 是非官方的 Terraria 移动版 Mod 加载器。技术路线是
@@ -40,7 +40,7 @@ Kotlin 启动器（外部 UI）→ :game 宿主进程（把游戏运行时加载
 → C# Mod（Pylon.ModLoader，API 参照 tModLoader 使用习惯）。
 
 当前状态（不要重复做已完成的）：
-- 宿主链路、内核引用校验、CoreCLR、Harmony、ImGui 菜单、游戏原生配置屏已跑通；
+- 宿主链路、内核引用校验、CoreCLR、Il2CppInterop.RuntimeDetour（On.* 钩子）、ImGui 菜单、游戏原生配置屏已跑通；
 - 已接内容管线：Item / Projectile / NPC / Buff / Mount / Prefix / Rarity / Recipe /
   Tile / Wall / Player / Mod 世界生命周期 / 网络 / 城镇 NPC / 音乐音效 / Config / Tooltip /
   TouchButton / GlobalItem / GlobalProjectile / GlobalNPC / GlobalBuff / GlobalTile；
@@ -53,9 +53,9 @@ Kotlin 启动器（外部 UI）→ :game 宿主进程（把游戏运行时加载
 3. 表扩容一律走 `TypeTables` 的原生指针路径（`il2cpp_array_new` + 一次 memcpy）；
    不要逐元素写 il2cpp 数组，也不要用 interop 的数组包装去扩 `Nullable<T>[]`（会 SIGSEGV / TargetInvocationException）。
 4. 一切按名字解析；解析失败停用对应 Mod 并写日志，不要静默。
-5. 改动后跑 tools/check-env.ps1，再用 tools/pipeline.ps1 -Stages apk 打包；真机日志看
+5. 改动后跑 src/csharp/tools/check-env.ps1，再用 src/csharp/tools/pipeline.ps1 -Stages apk 打包；真机日志看
    adb logcat -s PylonLoader。
-6. 不改 interop/harmonysupport，不引入第三方加载器代码。
+6. hook 只有 Il2CppInterop.RuntimeDetour 一套（宿主实现 DetourBackend 接 Dobby），不引入 Harmony / 第三方加载器代码。
 ```
 
 ## 后续阶段的提示词

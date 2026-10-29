@@ -53,8 +53,9 @@ public override bool Shoot(Item item, Player player, Vector2 position, Vector2 v
 - **tModLoader 式的上手路径**：`ModItem` / `ModProjectile` / `ModNPC` / `ModBuff` / `ModMount` /
   `ModPrefix` / `ModRarity` / `ModRecipe` / `ModConfig` / `Global*`；内容 ID 自动分配，
   贴图、配方、配置由框架统一注册。
-- **Harmony 直接打补丁**：需要改原版行为时用 `[HarmonyPatch]` 挂游戏方法，和 C# Mod 生态一致；
-  框架自己的内容钩子也走这套。
+- **MonoMod 写法的钩子，零额外程序集**：改原版行为直接订阅强类型事件
+  `On.Terraria.Main.Update += (orig, self, time) => { ... }`；目标方法、签名、orig 由
+  Il2CppInterop 在生成代理时一并产出，框架自己的内容钩子也走同一套，不再有 Harmony。
 - **进程内直调，没有中间层**：不是 IPC、不是 JS 解释器；调用直接落到 IL2CPP，热路径开销小，
   框架按“先判覆写再分派”避免为空钩子付出分派成本。
 - **不改游戏 APK、不需要 root**：启动器只读你已安装的那份游戏，宿主把自己的进程变成游戏进程；
@@ -79,20 +80,25 @@ public override bool Shoot(Item item, Player player, Vector2 position, Vector2 v
 1. **启动器**（`:app`，Kotlin）：从已安装游戏导入运行时并逐文件校验，然后拉起宿主进程。
 2. **宿主**（`:game`）：`GameActivity` 是真正的 `Activity`（Unity 的 `instanceof Activity` 与游戏 C# 的 JNI 名字查找都依赖它）；注入游戏的 `classes.dex`，从导入目录加载游戏库（并把目录追加进 classloader 的 native 搜索路径），挂载所选游戏 APK 的 assets，创建 `UnityPlayer` 并对齐生命周期。
 3. **内核**（`libpylon.so`，C++20）：等引擎稳定后才碰 IL2CPP；按名字解析类/字段/方法并逐条校验，任一必需引用失败就停用 Mod（游戏照常跑）；Dobby 提供原生 detour，CoreCLR 跑托管层，ImGui 走 Vulkan 覆盖层。
-4. **Mod 层**（C#，net10.0）：CoreCLR 由内核启动并调用托管入口；`Pylon.Managed` 装 Harmony、按依赖加载 Mod；`Pylon.ModLoader` 是内容框架；Il2CppInterop 提供游戏类型的托管代理。
+4. **Mod 层**（C#，net10.0）：CoreCLR 由内核启动并调用托管入口；`Pylon.Managed` 实现
+   `DetourBackend`（接内核 Dobby）并按依赖加载 Mod；`Pylon.ModLoader` 是内容框架；
+   Il2CppInterop 提供游戏类型代理，**`On.*` 钩子直接生成在代理程序集里**。
 
 ## 目录
 
 ```text
-app/       启动器（外部 UI）：深色状态页，导入运行时、拉起 :game
-game/      宿主层（:game）：dex 注入、运行时装载、UnityPlayer、崩溃日志
-common/    契约层：导入目录布局、清单格式、哈希
-core/      C++ 内核 libpylon.so（boot / il2cpp / hook / dotnet / mod / imgui），用 core/build.ps1 编
-managed/   C# 托管层：Pylon.Managed（宿主入口）、Pylon.ModLoader（Mod 框架）、
-           Pylon.Mod.Abstractions（Mod 契约）、Pylon.ImGui（ImGui 绑定）
-samples/   示例 Mod（FrameMod）
-interop/   Il2CppInterop 代理与自编的 Harmony 支持层（harmonysupport）
-tools/     环境自检、运行时部署、一条龙构建、真机日志
+src/app/     启动器（外部 UI）：深色状态页，导入运行时、拉起 :game
+src/game/    宿主层（:game）：dex 注入、运行时装载、UnityPlayer、崩溃日志
+src/common/  契约层：导入目录布局、清单格式、哈希
+src/core/    C++ 内核 libpylon.so（boot / il2cpp / hook / dotnet / mod / imgui），用 src/core/build.ps1 编
+src/csharp/  C# 托管层 + 示例：Pylon.Managed（宿主入口）、Pylon.ModLoader（Mod 框架）、
+             Pylon.Mod.Abstractions（Mod 契约）、Pylon.ImGui（ImGui 绑定）、示例 Mod（FrameMod）
+             （managed/、samples/、tools/、il2cppinterop/ 都归在 src/csharp/ 下）
+interop/     Il2CppInterop 代理程序集（含生成的 On.* 钩子）
+external/    外部依赖（git 子模块，只钉源码）
+refs/        本地游戏 dump（不进 git；仅 refs/README.md 进 git）
+runtime/     BepInEx-Android 运行时（不进 git）
+docs/        文档
 external/  外部依赖（git 子模块，只钉源码）
 refs/      本地游戏 dump（不进 git；仅 refs/README.md 进 git）
 runtime/   BepInEx-Android 运行时（不进 git）
@@ -105,16 +111,16 @@ docs/      文档
 
 ```powershell
 git clone --recurse-submodules https://github.com/Controllerdestiny/Pylon-Loader.git
-pwsh -File tools/check-env.ps1
-pwsh -File tools/pipeline.ps1 -BepInExApk D:\dl\app-release-aligned.apk -DummyDir refs\DummyDll
+pwsh -File src/csharp/tools/check-env.ps1
+pwsh -File src/csharp/tools/pipeline.ps1 -BepInExApk D:\dl\app-release-aligned.apk -DummyDir refs\DummyDll
 ```
 
 `pipeline.ps1` 依次补齐子模块、`runtime/`、`interop/generated/`、内核、托管件与 APK；每一阶段幂等，缺件时会说明要传哪个参数。也可以手工分步（或只重打 APK）：
 
 ```powershell
-pwsh -File tools/deploy-runtime.ps1     # 运行时 native → jniLibs；BCL/托管件 → assets
-pwsh -File core/build.ps1               # 内核 libpylon.so
-gradlew :app:assembleDebug              # 打包（会先编 interop/harmonysupport）
+pwsh -File src/csharp/tools/deploy-runtime.ps1  # 运行时 native → jniLibs；BCL/托管件 → assets
+pwsh -File src/core/build.ps1              # 内核 libpylon.so
+gradlew :app:assembleDebug              # 打包（前两步已产出托管件与 On.*）
 ```
 
 仓库**不含**三类内容：`refs/`（游戏 dump）、`runtime/`（CoreCLR/BCL/BepInEx 托管栈）、`interop/generated/`（由游戏程序集派生的代理）。它们的来源、补齐方式与 CI artifact 见 [`docs/构建-从零开始.md`](docs/构建-从零开始.md)。
@@ -132,7 +138,7 @@ public sealed class MyMod : Pylon.ModLoader.Mod
 }
 ```
 
-物品等内容的写法与 tModLoader 的使用习惯一致（`ModItem` 的 `SetDefaults` / `Shoot` / `UseItem`，`ModProjectile` 的 `AI` / `OnKill` 等）。完整示例在 [`samples/FrameMod`](samples/FrameMod)，包含物品、弹幕、NPC、Buff、坐骑、前缀、稀有度、配方、配置、触屏按钮与 ImGui Tab。
+物品等内容的写法与 tModLoader 的使用习惯一致（`ModItem` 的 `SetDefaults` / `Shoot` / `UseItem`，`ModProjectile` 的 `AI` / `OnKill` 等）。完整示例在 [`src/csharp/samples/FrameMod`](src/csharp/samples/FrameMod)，包含物品、弹幕、NPC、Buff、坐骑、前缀、稀有度、配方、配置、触屏按钮与 ImGui Tab。
 
 安装：把编译产物放进设备的
 `/storage/emulated/0/Android/data/dev.pylon.loader/Mods/<id>/`（`mod.dll` + 可选 `manifest.json` / `assets/` / `lib/`），或直接把单个 dll 丢进 `Mods/`。该目录是应用专属外部目录，不需要额外存储权限；改完重启游戏生效。
@@ -150,7 +156,7 @@ public sealed class MyMod : Pylon.ModLoader.Mod
 
 - [`docs/构建-从零开始.md`](docs/构建-从零开始.md)：新 clone 怎么补齐三类二进制、工具链、报错对照、CI artifact。
 - [`docs/migration-map.md`](docs/migration-map.md)：内容管线与上游参考的逐项对照、当前完成度、后续路线。
-- [`core/README.md`](core/README.md)：内核的目录、构建契约与硬约束（改内核前先读）。
+- [`src/core/README.md`](src/core/README.md)：内核的目录、构建契约与硬约束（改内核前先读）。
 - [`refs/README.md`](refs/README.md)：游戏 dump 的来源、版本纪律与用途边界。
 - [`PROMPT.md`](PROMPT.md)：新会话 / 交接用的项目现状与提示词。
 
@@ -163,7 +169,8 @@ public sealed class MyMod : Pylon.ModLoader.Mod
 - **名称与商标**：产品名不含 "Terraria"；只在描述里写 "for Terraria Mobile"。图标不使用游戏美术。
 - **不复制上游代码**：[Bunny Loader](https://github.com/JonataOliveiraa/Bunny-Loader.git) 采用 PolyForm Noncommercial，与本项目不兼容；只借鉴其技术路线与实测结论，代码为独立实现。
 - **按名字解析**：不硬编码游戏偏移；解析失败就停用 Mod 并写日志，不要静默。
-- **Harmony 支持层用仓库里这份**（`interop/harmonysupport`，带值类型参数修复），不要替换成上游原包。
+- **hook 只有一套**：`Il2CppInterop.RuntimeDetour`（引擎）+ Pylon 的 `DobbyDetourBackend`；
+  不要重新引入 Harmony、MonoMod 或第二套 detour。
 - 目标平台：`com.and.games505.Terraria` 1.4.5.8.6（Unity 2021.3.56f2，arm64-v8a）。
 
 ## 许可证
