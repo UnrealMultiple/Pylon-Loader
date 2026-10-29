@@ -49,11 +49,12 @@ internal class MemoryUtils
 
     public static nint FindSignatureInBlock(nint block, long blockSize, string pattern, string mask, long sigOffset = 0)
     {
-        return FindSignatureInBlock(block, blockSize, pattern.ToCharArray(), mask.ToCharArray(), sigOffset);
+        // Span overload: no char[] allocations per scan.
+        return FindSignatureInBlock(block, blockSize, pattern.AsSpan(), mask.AsSpan(), sigOffset);
     }
 
-    public static unsafe nint FindSignatureInBlock(nint block, long blockSize, char[] pattern, char[] mask,
-        long sigOffset = 0)
+    public static unsafe nint FindSignatureInBlock(nint block, long blockSize, ReadOnlySpan<char> pattern,
+        ReadOnlySpan<char> mask, long sigOffset = 0)
     {
         // Stop at blockSize - mask.Length so the inner read (block + address + mask.Length - 1) never passes the
         // end of this block. When the caller scans per-region (Unity 6 readable regions interleaved with guard /
@@ -62,7 +63,7 @@ internal class MemoryUtils
         for (long address = 0; address <= blockSize - mask.Length; address++)
         {
             var found = true;
-            for (uint offset = 0; offset < mask.Length; offset++)
+            for (var offset = 0; offset < mask.Length; offset++)
                 if (*(byte*)(address + block + offset) != (byte)pattern[offset] && mask[offset] != '?')
                 {
                     found = false;

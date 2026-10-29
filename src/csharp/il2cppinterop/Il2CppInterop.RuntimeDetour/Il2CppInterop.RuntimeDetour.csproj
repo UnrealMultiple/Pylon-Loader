@@ -1,14 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
-    Il2CppInterop.RuntimeDetour —— 唯一一套 hook 引擎（MonoMod 形状）。
-    · 引擎本身不碰任何原生 detour 实现：宿主（Pylon）实现 DetourBackend 接内核 Dobby。
-    · On.* 钩子由 Il2CppInterop.RuntimeDetour.HookGen 直接发 IL 写进代理程序集。
+    Il2CppInterop.RuntimeDetour —— the single hook engine (MonoMod-shaped).
+    · The engine itself never touches a native detour implementation: the host (Pylon)
+      implements DetourBackend on top of the kernel's Dobby.
+    · On.* hooks are emitted straight into the proxy assemblies as IL by
+      Il2CppInterop.RuntimeDetour.HookGen.
   -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>Il2CppInterop.RuntimeDetour</AssemblyName>
     <RootNamespace>Il2CppInterop.RuntimeDetour</RootNamespace>
-    <Nullable>disable</Nullable>
+    <Nullable>enable</Nullable>
     <ImplicitUsings>false</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>latest</LangVersion>

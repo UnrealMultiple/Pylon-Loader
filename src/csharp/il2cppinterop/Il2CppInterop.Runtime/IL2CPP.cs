@@ -41,8 +41,7 @@ public static unsafe class IL2CPP
 
     internal static IntPtr GetIl2CppImage(string name)
     {
-        if (ourImagesMap.ContainsKey(name)) return ourImagesMap[name];
-        return IntPtr.Zero;
+        return ourImagesMap.TryGetValue(name, out var image) ? image : IntPtr.Zero;
     }
 
     internal static IntPtr[] GetIl2CppImages()
@@ -604,8 +603,6 @@ public static unsafe class IL2CPP
     [return: MarshalAs(UnmanagedType.I1)]
     public static extern bool il2cpp_stats_dump_to_file(IntPtr path);
 
-    //[DllImport("GameAssembly", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-    //public extern static ulong il2cpp_stats_get_value(IL2CPP_Stat stat);
     [DllImport("GameAssembly", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
     public static extern IntPtr il2cpp_domain_get();
 
@@ -788,8 +785,6 @@ public static unsafe class IL2CPP
     [DllImport("GameAssembly", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
     public static extern void il2cpp_profiler_install(IntPtr prof, IntPtr shutdown_callback);
 
-    // [DllImport("GameAssembly", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-    // public extern static void il2cpp_profiler_set_events(IL2CPP_ProfileFlags events);
     [DllImport("GameAssembly", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
     public static extern void il2cpp_profiler_install_enter_leave(IntPtr enter, IntPtr fleave);
 
@@ -881,8 +876,6 @@ public static unsafe class IL2CPP
     [DllImport("GameAssembly", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
     public static extern void il2cpp_runtime_object_init_exception(IntPtr obj, ref IntPtr exc);
 
-    // [DllImport("GameAssembly", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-    // public extern static void il2cpp_runtime_unhandled_exception_policy_set(IL2CPP_RuntimeUnhandledExceptionPolicy value);
     [DllImport("GameAssembly", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
     public static extern int il2cpp_string_length(IntPtr str);
 

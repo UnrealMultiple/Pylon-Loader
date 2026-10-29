@@ -36,6 +36,11 @@
 4. **离线 NuGet**：`src/csharp/il2cppinterop/local-feed/Disarm.2022.1.0-master.99.nupkg` 由
    `runtime/bepinex-android/bepinex/core/Disarm.dll` 重建（见该目录 README）。
 5. 删除 `global.json`（上游把 SDK 钉在 8.x；本仓库统一用根目录的 .NET 10 SDK）。
+6. **生成物 corlib 升级到 .NET 10**：`Generator/Utils/CorlibReferences` 的 `TargetCorlib` 从
+   `KnownCorLibs.SystemRuntime_v6_0_0_0` 改为 `SystemRuntime_v10_0_0_0`（TargetFrameworkAttribute 同步为
+   ".NET 10.0"），与仓库 net10.0 的 Runtime/Common/HookGen 一致，避免生成物带 System.Runtime 6.x
+   的陈旧引用。
+
 
 ## 构建
 

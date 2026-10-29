@@ -508,12 +508,12 @@ public static unsafe partial class ClassInjector
             vTablePointer[index++] = default;
         }
 
-        var TypeHierarchyDepth = 1 + baseClassPointer.TypeHierarchyDepth;
-        classPointer.TypeHierarchyDepth = (byte)TypeHierarchyDepth;
-        classPointer.TypeHierarchy = (Il2CppClass**)Marshal.AllocHGlobal(TypeHierarchyDepth * IntPtr.Size);
-        for (var i = 0; i < TypeHierarchyDepth; i++)
+        var typeHierarchyDepth = 1 + baseClassPointer.TypeHierarchyDepth;
+        classPointer.TypeHierarchyDepth = (byte)typeHierarchyDepth;
+        classPointer.TypeHierarchy = (Il2CppClass**)Marshal.AllocHGlobal(typeHierarchyDepth * IntPtr.Size);
+        for (var i = 0; i < typeHierarchyDepth; i++)
             classPointer.TypeHierarchy[i] = baseClassPointer.TypeHierarchy[i];
-        classPointer.TypeHierarchy[TypeHierarchyDepth - 1] = classPointer.ClassPointer;
+        classPointer.TypeHierarchy[typeHierarchyDepth - 1] = classPointer.ClassPointer;
 
         classPointer.ByValArg.Data =
             classPointer.ThisArg.Data = (IntPtr)InjectorHelpers.CreateClassToken(classPointer.Pointer);

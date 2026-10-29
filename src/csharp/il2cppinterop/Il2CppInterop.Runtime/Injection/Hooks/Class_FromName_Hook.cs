@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Linq;
 using System.Runtime.InteropServices;
 using Il2CppInterop.Common;
@@ -6,41 +6,39 @@ using Il2CppInterop.Common.XrefScans;
 using Il2CppInterop.Runtime.Runtime;
 using Microsoft.Extensions.Logging;
 
-namespace Il2CppInterop.Runtime.Injection.Hooks
+namespace Il2CppInterop.Runtime.Injection.Hooks;
+internal unsafe class Class_FromName_Hook : Hook<Class_FromName_Hook.MethodDelegate>
 {
-    internal unsafe class Class_FromName_Hook : Hook<Class_FromName_Hook.MethodDelegate>
+    public override string TargetMethodName => "Class::FromName";
+    public override MethodDelegate GetDetour() => Hook;
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    internal delegate Il2CppClass* MethodDelegate(Il2CppImage* image, IntPtr _namespace, IntPtr name);
+
+    private Il2CppClass* Hook(Il2CppImage* image, IntPtr _namespace, IntPtr name)
     {
-        public override string TargetMethodName => "Class::FromName";
-        public override MethodDelegate GetDetour() => Hook;
+        Il2CppClass* classPtr = Original(image, _namespace, name);
 
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        internal delegate Il2CppClass* MethodDelegate(Il2CppImage* image, IntPtr _namespace, IntPtr name);
-
-        private Il2CppClass* Hook(Il2CppImage* image, IntPtr _namespace, IntPtr name)
+        if (classPtr == null)
         {
-            Il2CppClass* classPtr = Original(image, _namespace, name);
-
-            if (classPtr == null)
-            {
-                string namespaze = Marshal.PtrToStringUTF8(_namespace);
-                string className = Marshal.PtrToStringUTF8(name);
-                InjectorHelpers.s_ClassNameLookup.TryGetValue((namespaze, className, (IntPtr)image), out IntPtr injectedClass);
-                classPtr = (Il2CppClass*)injectedClass;
-            }
-
-            return classPtr;
+            string namespaze = Marshal.PtrToStringUTF8(_namespace);
+            string className = Marshal.PtrToStringUTF8(name);
+            InjectorHelpers.s_ClassNameLookup.TryGetValue((namespaze, className, (IntPtr)image), out IntPtr injectedClass);
+            classPtr = (Il2CppClass*)injectedClass;
         }
 
-        public override IntPtr FindTargetMethod()
-        {
-            var classFromNameAPI = InjectorHelpers.GetIl2CppExport(nameof(IL2CPP.il2cpp_class_from_name));
-            Logger.Instance.LogTrace("il2cpp_class_from_name: 0x{ClassFromNameApiAddress}", classFromNameAPI.ToInt64().ToString("X2"));
+        return classPtr;
+    }
 
-            var target = XrefScannerLowLevel.JumpTargets(classFromNameAPI, false, 250).First();
-            var throughOneHop = XrefScannerLowLevel.JumpTargets(target, false, 1).SingleOrDefault();
-            if (throughOneHop == IntPtr.Zero)
-                return target;
-            return throughOneHop;
-        }
+    public override IntPtr FindTargetMethod()
+    {
+        var classFromNameAPI = InjectorHelpers.GetIl2CppExport(nameof(IL2CPP.il2cpp_class_from_name));
+        Logger.Instance.LogTrace("il2cpp_class_from_name: 0x{ClassFromNameApiAddress}", classFromNameAPI.ToInt64().ToString("X2"));
+
+        var target = XrefScannerLowLevel.JumpTargets(classFromNameAPI, false, 250).First();
+        var throughOneHop = XrefScannerLowLevel.JumpTargets(target, false, 1).SingleOrDefault();
+        if (throughOneHop == IntPtr.Zero)
+            return target;
+        return throughOneHop;
     }
 }

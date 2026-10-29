@@ -10,8 +10,8 @@ internal static class CorlibReferences
     /// <summary>
     /// This is used in the TargetFrameworkAttribute.
     /// </summary>
-    public static string TargetFrameworkName => ".NET 6.0";
-    public static AssemblyReference TargetCorlib => KnownCorLibs.SystemRuntime_v6_0_0_0;
+    public static string TargetFrameworkName => ".NET 10.0";
+    public static AssemblyReference TargetCorlib => KnownCorLibs.SystemRuntime_v10_0_0_0;
 
     public static void RewriteCorlibReference(AssemblyReference assemblyNameReference)
     {

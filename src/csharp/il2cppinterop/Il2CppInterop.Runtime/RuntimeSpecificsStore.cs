@@ -1,37 +1,22 @@
 using System;
-using System.Collections.Generic;
-using System.Threading;
+using System.Collections.Concurrent;
 
 namespace Il2CppInterop.Runtime;
 
+/// <summary>Per-class runtime flags used by the interop layer.</summary>
 public static class RuntimeSpecificsStore
 {
-    private static readonly ReaderWriterLockSlim Lock = new();
-    private static readonly Dictionary<IntPtr, bool> WasInjectedStore = new();
+    // IsInjected runs on the hot path (every reference wrap), so use a lock-free dictionary
+    // instead of a ReaderWriterLockSlim-protected Dictionary.
+    private static readonly ConcurrentDictionary<IntPtr, bool> s_wasInjected = new();
 
     public static bool IsInjected(IntPtr nativeClass)
     {
-        Lock.EnterReadLock();
-        try
-        {
-            return WasInjectedStore.TryGetValue(nativeClass, out var result) && result;
-        }
-        finally
-        {
-            Lock.ExitReadLock();
-        }
+        return s_wasInjected.TryGetValue(nativeClass, out var result) && result;
     }
 
     public static void SetClassInfo(IntPtr nativeClass, bool wasInjected)
     {
-        Lock.EnterWriteLock();
-        try
-        {
-            WasInjectedStore[nativeClass] = wasInjected;
-        }
-        finally
-        {
-            Lock.ExitWriteLock();
-        }
+        s_wasInjected[nativeClass] = wasInjected;
     }
 }

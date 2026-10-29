@@ -1,37 +1,33 @@
-#nullable disable
-// 层：Hook 引擎 —— 日志出口。
-// 引擎不认识宿主（Pylon.ModLoader / Pylon.Managed），只向上抛两条委托；宿主启动时接上。
-// 不接也不会崩：Info 为空就静默，Error 为空退回 Info。
 using System;
 
-namespace Il2CppInterop.RuntimeDetour
+namespace Il2CppInterop.RuntimeDetour;
+
+/// <summary>
+///     Logging sink of the hook engine. The engine does not know the host
+///     (Pylon.ModLoader / Pylon.Managed): it only exposes two hooks that the host
+///     attaches during startup. When nothing is attached, messages are silently dropped.
+/// </summary>
+public static class HookLog
 {
-    /// <summary>Hook 引擎的日志出口（宿主装配时接上自己的日志）。</summary>
-    public static class HookLog
+    /// <summary>Informational messages (apply / undo / chain layout).</summary>
+    public static Action<string>? Info;
+
+    /// <summary>Errors (handler exceptions, stub generation failures).</summary>
+    public static Action<string, Exception>? Error;
+
+    internal static void Say(string message)
     {
-        /// <summary>普通信息（挂钩/撤销/链位置）。</summary>
-        public static Action<string> Info;
+        if (message is null) return;
+        try { Info?.Invoke(message); } catch { /* logging must never break hooking */ }
+    }
 
-        /// <summary>错误（handler 抛异常、桩生成失败）。</summary>
-        public static Action<string, Exception> Error;
-
-        internal static void Say(string message)
+    internal static void Fail(string label, Exception exception)
+    {
+        try
         {
-            if (message == null) return;
-            try { Info?.Invoke(message); } catch { }
+            if (Error is not null) Error(label, exception);
+            else Info?.Invoke($"[hook] {label}: {exception.GetType().Name}: {exception.Message}");
         }
-
-        internal static void Fail(string label, Exception exception)
-        {
-            try
-            {
-                if (Error != null) Error(label, exception);
-                else Info?.Invoke($"[hook] {label}: {exception?.GetType().Name}: {exception?.Message}");
-            }
-            catch { }
-        }
+        catch { /* logging must never break hooking */ }
     }
 }
-
-
-

@@ -1,125 +1,129 @@
-#nullable disable
-// 层：Hook 引擎 —— 运行期槽位与链。
-//
-// 每条 hook 占一个"槽位"（slot）：生成出来的桩用 ldc.i4 slot + get_Item 读写运行期状态，
-// 所以换 handler / 换下一跳指针都不用重新生成 IL，也不需要重新 patch 内存。
-//
-// 链的形状（Nodes 按调用顺序）：
-//     游戏 → Nodes[0]（Dobby 真正 patch 的桩）→ Nodes[1] → … → Dobby 跳板（真正的原函数）
-// 新加的 hook 追加到链尾，因此"先挂的先跑"。写明了就不算意外。
 using System;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 
-namespace Il2CppInterop.RuntimeDetour
+namespace Il2CppInterop.RuntimeDetour;
+
+/// <summary>
+///     Runtime state of the hook engine: the slot tables plus one chain per target address.
+///
+///     Each hook owns a "slot": stubs load their per-call state from these tables
+///     (ldc.i4 slot + get_Item), so swapping a handler or re-pointing the next hop never
+///     requires regenerating IL or re-patching memory.
+///
+///     Chain shape (Nodes in invocation order):
+///         game -> Nodes[0] (the stub Dobby actually patches) -> Nodes[1] -> ... -> trampoline
+///     New hooks are appended to the end of the chain, so earlier hooks run first.
+/// </summary>
+internal static class HookState
 {
-    /// <summary>hook 的运行期状态：槽位表 + 每个目标地址的链。</summary>
-    internal static class HookState
+    internal static readonly List<Delegate> s_handlers = new();
+    internal static readonly List<Delegate> s_origDelegates = new();
+    internal static readonly List<IntPtr> s_origPointers = new();
+
+    /// <summary>Pins stubs and delegates so the GC never collects them mid-invocation.</summary>
+    internal static readonly List<object> s_keepAlive = new();
+
+    /// <summary>Currently applied hooks (diagnostics / undo-all).</summary>
+    private static readonly List<Hook> s_active = new();
+    internal static List<Hook> Active => s_active;
+
+    private static readonly Dictionary<IntPtr, HookChain> s_chains = new();
+    private static readonly object s_gate = new();
+
+    internal static int AllocateSlot(Delegate handler)
     {
-        internal static readonly List<Delegate> Handlers = new();
-        internal static readonly List<Delegate> OrigDelegates = new();
-        internal static readonly List<IntPtr> OrigPointers = new();
-
-        /// <summary>把委托与桩对象钉住，防 GC 回收后跳进已释放的桩。</summary>
-        internal static readonly List<object> KeepAlive = new();
-
-        /// <summary>当前还挂着的 hook（诊断/清点用）。</summary>
-        internal static readonly List<Hook> Active = new();
-
-        private static readonly Dictionary<IntPtr, HookChain> Chains = new();
-        private static readonly object Gate = new();
-
-        internal static int AllocateSlot(Delegate handler)
+        lock (s_gate)
         {
-            lock (Gate)
-            {
-                var slot = Handlers.Count;
-                Handlers.Add(handler);
-                OrigDelegates.Add(null);
-                OrigPointers.Add(IntPtr.Zero);
-                return slot;
-            }
+            var slot = s_handlers.Count;
+            s_handlers.Add(handler);
+            s_origDelegates.Add(null!);
+            s_origPointers.Add(IntPtr.Zero);
+            return slot;
         }
-
-        internal static void SetOrigDelegate(int slot, Delegate orig)
-        {
-            if (slot < 0 || slot >= OrigDelegates.Count) return;
-            OrigDelegates[slot] = orig;
-        }
-
-        internal static void SetHandler(int slot, Delegate handler)
-        {
-            if (slot < 0 || slot >= Handlers.Count) return;
-            Handlers[slot] = handler;
-        }
-
-        /// <summary>换某个槽位的下一跳指针（链重排只改这里，不需要重新 patch）。</summary>
-        internal static void SetOrig(int slot, IntPtr pointer)
-        {
-            if (slot < 0 || slot >= OrigPointers.Count) return;
-            OrigPointers[slot] = pointer;
-        }
-
-        internal static IntPtr GetOrig(int slot) =>
-            slot >= 0 && slot < OrigPointers.Count ? OrigPointers[slot] : IntPtr.Zero;
-
-        internal static HookChain GetOrCreateChain(IntPtr target)
-        {
-            lock (Gate)
-            {
-                if (Chains.TryGetValue(target, out var chain)) return chain;
-                chain = new HookChain(target);
-                Chains[target] = chain;
-                return chain;
-            }
-        }
-
-        internal static HookChain FindChain(IntPtr target)
-        {
-            lock (Gate) return Chains.TryGetValue(target, out var chain) ? chain : null;
-        }
-
-        internal static void RemoveChain(HookChain chain)
-        {
-            if (chain == null) return;
-            lock (Gate) Chains.Remove(chain.Target);
-        }
-
-        /// <summary>桩里的兜底：hook 抛异常只记一条，不把游戏线程带走。</summary>
-        internal static void ReportException(string label, Exception exception) => HookLog.Fail(label, exception);
     }
 
-    /// <summary>链上的一个节点：一个槽位 + 它的原生入口。</summary>
-    internal sealed class HookNode
+    internal static void SetOrigDelegate(int slot, Delegate orig)
     {
-        internal HookNode(int slot, IntPtr entry) { Slot = slot; Entry = entry; }
-
-        internal int Slot;
-        internal IntPtr Entry;
-
-        /// <summary>为 null 表示这条 hook 已撤销，节点保留只做转发（Dobby 钩子不动）。</summary>
-        internal Hook Owner;
+        if (slot < 0 || slot >= s_origDelegates.Count) return;
+        s_origDelegates[slot] = orig;
     }
 
-    /// <summary>同一目标地址上的 hook 链。</summary>
-    internal sealed class HookChain
+    internal static void SetHandler(int slot, Delegate handler)
     {
-        internal HookChain(IntPtr target) => Target = target;
+        if (slot < 0 || slot >= s_handlers.Count) return;
+        s_handlers[slot] = handler;
+    }
 
-        internal IntPtr Target;
+    /// <summary>Re-points a slot's next hop (chain re-linking only changes this, never re-patches memory).</summary>
+    internal static void SetOrig(int slot, IntPtr pointer)
+    {
+        if (slot < 0 || slot >= s_origPointers.Count) return;
+        s_origPointers[slot] = pointer;
+    }
 
-        /// <summary>Dobby 给出的真跳板（链尾）。</summary>
-        internal IntPtr Trampoline;
+    internal static IntPtr GetOrig(int slot) =>
+        slot >= 0 && slot < s_origPointers.Count ? s_origPointers[slot] : IntPtr.Zero;
 
-        /// <summary>按调用顺序排列；[0] 是 Dobby 真正 patch 的桩。</summary>
-        internal readonly List<HookNode> Nodes = new();
-
-        internal HookNode FindNode(Hook hook)
+    internal static HookChain GetOrCreateChain(IntPtr target)
+    {
+        lock (s_gate)
         {
-            foreach (var node in Nodes) if (ReferenceEquals(node.Owner, hook)) return node;
-            return null;
+            if (s_chains.TryGetValue(target, out var chain)) return chain;
+            chain = new HookChain(target);
+            s_chains[target] = chain;
+            return chain;
         }
     }
+
+    internal static HookChain? FindChain(IntPtr target)
+    {
+        lock (s_gate) return s_chains.TryGetValue(target, out var chain) ? chain : null;
+    }
+
+    internal static void RemoveChain(HookChain chain)
+    {
+        if (chain is null) return;
+        lock (s_gate) s_chains.Remove(chain.Target);
+    }
+
+    /// <summary>Fallback used by stubs: a handler exception is logged, never propagated into the game.</summary>
+    internal static void ReportException(string label, Exception exception) => HookLog.Fail(label, exception);
 }
 
+/// <summary>A single node of a hook chain: one slot plus its native entry point.</summary>
+internal sealed class HookNode
+{
+    internal HookNode(int slot, IntPtr entry)
+    {
+        Slot = slot;
+        Entry = entry;
+    }
 
+    internal int Slot { get; }
+    internal IntPtr Entry { get; }
+
+    /// <summary>The hook this node belongs to; null once the hook is undone (the node then only forwards).</summary>
+    internal Hook? Owner { get; set; }
+}
+
+/// <summary>The chain of hooks attached to a single target address.</summary>
+internal sealed class HookChain
+{
+    internal HookChain(IntPtr target) => Target = target;
+
+    internal IntPtr Target { get; }
+
+    /// <summary>The real trampoline handed out by the backend (end of the chain).</summary>
+    internal IntPtr Trampoline { get; set; }
+
+    /// <summary>Nodes in invocation order; [0] is the stub Dobby actually patches.</summary>
+    internal List<HookNode> Nodes { get; } = new();
+
+    internal HookNode? FindNode(Hook hook)
+    {
+        foreach (var node in Nodes)
+            if (ReferenceEquals(node.Owner, hook))
+                return node;
+        return null;
+    }
+}

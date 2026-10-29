@@ -1,13 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
-    Il2CppInterop.RuntimeDetour.HookGen —— 把 On.* 钩子直接用 Cecil 发 IL 写进代理程序集。
-    不生成 C# 源码、不经过 Roslyn；每个 On.X.Y 事件就是一个强类型委托 + add/remove 方法。
+    Il2CppInterop.RuntimeDetour.HookGen: writes On.* hooks straight into the proxy assemblies
+    as IL via Cecil. No C# source is generated and Roslyn is not involved; every On.X.Y event
+    is a strongly typed delegate + add/remove method.
   -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>Il2CppInterop.RuntimeDetour.HookGen</AssemblyName>
     <RootNamespace>Il2CppInterop.RuntimeDetour.HookGen</RootNamespace>
-    <Nullable>disable</Nullable>
+    <Nullable>enable</Nullable>
     <ImplicitUsings>false</ImplicitUsings>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>

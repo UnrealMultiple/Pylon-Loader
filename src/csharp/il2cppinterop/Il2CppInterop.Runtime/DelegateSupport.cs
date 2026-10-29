@@ -317,26 +317,40 @@ public static class DelegateSupport
         return converted.Cast<TIl2Cpp>();
     }
 
+    /// <summary>
+    ///     A normalized native signature: return type, (optional) declaring type for instance
+    ///     methods, and parameter types mapped to their native slot types. Instances are immutable
+    ///     and compared by signature components, not by hash code.
+    /// </summary>
+    /// <summary>
+    ///     A normalized native signature: return type, (optional) declaring type for instance
+    ///     methods, and parameter types mapped to their native slot types. Instances are immutable
+    ///     and compared by signature components, not by hash code.
+    /// </summary>
     internal class MethodSignature : IEquatable<MethodSignature>
     {
         public readonly bool ConstructedFromNative;
         public readonly bool HasThis;
+
+        // Comparison keys. System.Type for managed signatures; Il2CppSystem.Type for native
+        // signatures (kept as object so both fit without a P/Invoke round trip).
+        private readonly object? _returnType;
+        private readonly object? _declaringType;
+        private readonly object[] _parameterTypes;
         private readonly int _hashCode;
 
         public MethodSignature(Il2CppSystem.Reflection.MethodInfo methodInfo, bool hasThis)
         {
             HasThis = hasThis;
             ConstructedFromNative = true;
+            _returnType = methodInfo.ReturnType;
+            _declaringType = hasThis ? methodInfo.DeclaringType : null;
+            _parameterTypes = methodInfo.GetParameters().Select(p => (object)p.ParameterType).ToArray();
 
             var hashCode = new HashCode();
-
-            hashCode.Add(methodInfo.ReturnType.GetHashCode());
-            if (hasThis) hashCode.Add(methodInfo.DeclaringType.GetHashCode());
-            foreach (var parameterInfo in methodInfo.GetParameters())
-            {
-                hashCode.Add(parameterInfo.ParameterType.GetHashCode());
-            }
-
+            hashCode.Add(_returnType);
+            if (hasThis) hashCode.Add(_declaringType);
+            foreach (var parameterType in _parameterTypes) hashCode.Add(parameterType);
             _hashCode = hashCode.ToHashCode();
         }
 
@@ -344,16 +358,14 @@ public static class DelegateSupport
         {
             HasThis = hasThis;
             ConstructedFromNative = false;
+            _returnType = methodInfo.ReturnType.NativeType();
+            _declaringType = hasThis ? methodInfo.DeclaringType!.NativeType() : null;
+            _parameterTypes = methodInfo.GetParameters().Select(p => (object)p.ParameterType.NativeType()).ToArray();
 
             var hashCode = new HashCode();
-
-            hashCode.Add(methodInfo.ReturnType.NativeType());
-            if (hasThis) hashCode.Add(methodInfo.DeclaringType.NativeType());
-            foreach (var parameterInfo in methodInfo.GetParameters())
-            {
-                hashCode.Add(parameterInfo.ParameterType.NativeType());
-            }
-
+            hashCode.Add(_returnType);
+            if (hasThis) hashCode.Add(_declaringType);
+            foreach (var parameterType in _parameterTypes) hashCode.Add(parameterType);
             _hashCode = hashCode.ToHashCode();
         }
 
@@ -362,27 +374,32 @@ public static class DelegateSupport
             return _hashCode;
         }
 
-        public bool Equals(MethodSignature other)
+        public bool Equals(MethodSignature? other)
         {
-            if (ReferenceEquals(null, other)) return false;
+            if (other is null) return false;
             if (ReferenceEquals(this, other)) return true;
-            return _hashCode.GetHashCode() == other.GetHashCode();
+            if (ConstructedFromNative != other.ConstructedFromNative) return false;
+            if (HasThis != other.HasThis) return false;
+            if (!Equals(_returnType, other._returnType)) return false;
+            if (!Equals(_declaringType, other._declaringType)) return false;
+            if (_parameterTypes.Length != other._parameterTypes.Length) return false;
+            for (var i = 0; i < _parameterTypes.Length; i++)
+                if (!Equals(_parameterTypes[i], other._parameterTypes[i]))
+                    return false;
+            return true;
         }
 
-        public override bool Equals(object obj)
+        public override bool Equals(object? obj)
         {
-            if (ReferenceEquals(null, obj)) return false;
-            if (ReferenceEquals(this, obj)) return true;
-            if (obj.GetType() != GetType()) return false;
-            return Equals((MethodSignature)obj);
+            return obj is MethodSignature other && Equals(other);
         }
 
-        public static bool operator ==(MethodSignature left, MethodSignature right)
+        public static bool operator ==(MethodSignature? left, MethodSignature? right)
         {
             return Equals(left, right);
         }
 
-        public static bool operator !=(MethodSignature left, MethodSignature right)
+        public static bool operator !=(MethodSignature? left, MethodSignature? right)
         {
             return !Equals(left, right);
         }

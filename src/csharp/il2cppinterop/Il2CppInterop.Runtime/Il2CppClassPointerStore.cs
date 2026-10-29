@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using Il2CppInterop.Common.Attributes;
@@ -10,14 +11,19 @@ namespace Il2CppInterop.Runtime;
 
 public static class Il2CppClassPointerStore
 {
+    // Resolution goes through reflection (MakeGenericType + GetField + GetValue); cache the result
+    // because this runs on hot paths such as TryCast, Unbox and array wrapping.
+    private static readonly ConcurrentDictionary<Type, IntPtr> s_nativeClassPointers = new();
+
     public static IntPtr GetNativeClassPointer(Type type)
     {
         if (type == typeof(void)) return Il2CppClassPointerStore<Void>.NativeClassPtr;
         if (type == typeof(String)) return Il2CppClassPointerStore<string>.NativeClassPtr;
-        return (IntPtr)typeof(Il2CppClassPointerStore<>)
-            .MakeGenericType(type)
-            .GetField(nameof(Il2CppClassPointerStore<int>.NativeClassPtr))
-            .GetValue(null);
+        return s_nativeClassPointers.GetOrAdd(type, static t =>
+            (IntPtr)typeof(Il2CppClassPointerStore<>)
+                .MakeGenericType(t)
+                .GetField(nameof(Il2CppClassPointerStore<int>.NativeClassPtr))
+                .GetValue(null)!);
     }
 
     internal static void SetNativeClassPointer(Type type, IntPtr value)
@@ -26,6 +32,7 @@ public static class Il2CppClassPointerStore
             .MakeGenericType(type)
             .GetField(nameof(Il2CppClassPointerStore<int>.NativeClassPtr))
             .SetValue(null, value);
+        s_nativeClassPointers[type] = value; // keep the cache in sync
     }
 }
 
