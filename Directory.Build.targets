@@ -1,0 +1,61 @@
+<Project>
+  <!--
+    层：构建 —— Mod 单引用注入
+
+    目标：写 Mod 时 csproj 里只写一个引用（Pylon.ModLoader 的 ProjectReference），
+    本文件把 Pylon.ModLoader 编译时用到的游戏代理程序集（Assembly-CSharp /
+    Il2Cppmscorlib / UnityEngine.*）原样注入到 Mod 工程。
+
+    为什么需要它：SDK 风格工程里 ProjectReference 的"传递引用"只带被引用工程的
+    项目输出——所以 Pylon.ImGui / Pylon.Mod.Abstractions / Il2CppInterop.* 会
+    自动可用；但被引用工程的裸 &lt;Reference&gt;（HintPath 引的程序集）不会传给
+    引用方，游戏代理必须显式补上。
+
+    触发条件：Mod 工程 PropertyGroup 里加一行 &lt;PylonModProject&gt;true&lt;/PylonModProject&gt;。
+    所有注入项 &lt;Private&gt;false&lt;/Private&gt;：只供编译，不拷进输出目录（运行期游戏代理
+    由宿主在 TPA 里提供；Mod 侧绝不能自带一份，否则类型身份分裂）。
+
+    注意：下面的代理清单要与 src/csharp/managed/Pylon.ModLoader/Pylon.ModLoader.csproj
+    保持同步；仓库外开发时用 &lt;PylonInteropDir&gt; 指向本地 interop/generated。
+  -->
+
+  <PropertyGroup>
+    <!-- 游戏代理目录；Mod 工程可在自己 csproj 里用 PylonInteropDir 覆盖（默认仓库根 interop/generated） -->
+    <PylonInteropDir Condition="'$(PylonInteropDir)' == ''">$(MSBuildThisFileDirectory)interop/generated/</PylonInteropDir>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(PylonModProject)' == 'true'">
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(PylonInteropDir)Assembly-CSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Il2Cppmscorlib">
+      <HintPath>$(PylonInteropDir)Il2Cppmscorlib.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(PylonInteropDir)UnityEngine.CoreModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>$(PylonInteropDir)UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ImageConversionModule">
+      <HintPath>$(PylonInteropDir)UnityEngine.ImageConversionModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>$(PylonInteropDir)UnityEngine.AudioModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestModule">
+      <HintPath>$(PylonInteropDir)UnityEngine.UnityWebRequestModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestWWWModule">
+      <HintPath>$(PylonInteropDir)UnityEngine.UnityWebRequestWWWModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>

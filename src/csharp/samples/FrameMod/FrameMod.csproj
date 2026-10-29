@@ -11,11 +11,14 @@
     <Nullable>disable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <NoWarn>CS0436</NoWarn>
+    <!-- 单引用 Mod：游戏代理 + ImGui + Abstractions + Il2CppInterop 全部由这一个引用带入 -->
+    <PylonModProject>true</PylonModProject>
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- 唯一引用：框架 + ImGui + Abstractions + Il2CppInterop 由 ProjectReference 传递引用带入，
+         游戏代理（Assembly-CSharp/Il2Cppmscorlib/UnityEngine.*）由仓库根 Directory.Build.targets 注入 -->
     <ProjectReference Include="..\..\managed\Pylon.ModLoader\Pylon.ModLoader.csproj" />
-    <ProjectReference Include="..\..\managed\Pylon.ImGui\Pylon.ImGui.csproj" />
   </ItemGroup>
 
   <!-- 瘦身为着色器测试：排除全部内容/自检/音乐文件（否则会被自动发现并安装，还会触发 MIUI 冻结） -->
@@ -50,19 +53,4 @@
     <Compile Remove="TestWallItem.cs" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Reference Include="Assembly-CSharp">
-      <HintPath>..\..\..\..\interop\generated\Assembly-CSharp.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="Il2Cppmscorlib">
-      <HintPath>..\..\..\..\interop\generated\Il2Cppmscorlib.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <!-- 屏幕效果 API 暴露 UnityEngine.Vector2/Color/Mathf（见 Pylon.ModLoader.Effects） -->
-    <Reference Include="UnityEngine.CoreModule">
-      <HintPath>..\..\..\..\interop\generated\UnityEngine.CoreModule.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-  </ItemGroup>
 </Project>

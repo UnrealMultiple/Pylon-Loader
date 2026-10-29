@@ -11,31 +11,13 @@
     <ImplicitUsings>disable</ImplicitUsings>
     <LangVersion>latest</LangVersion>
     <NoWarn>CS0436</NoWarn>
+    <!-- 单引用 Mod：游戏代理 + ImGui + Abstractions + Il2CppInterop 全部由这一个引用带入 -->
+    <PylonModProject>true</PylonModProject>
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- 唯一引用：游戏代理（Assembly-CSharp/Il2Cppmscorlib/UnityEngine.*）由仓库根 Directory.Build.targets 注入 -->
     <ProjectReference Include="..\..\managed\Pylon.ModLoader\Pylon.ModLoader.csproj" />
-    <ProjectReference Include="..\..\managed\Pylon.ImGui\Pylon.ImGui.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Reference Include="Assembly-CSharp">
-      <HintPath>..\..\..\..\interop\generated\Assembly-CSharp.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="Il2Cppmscorlib">
-      <HintPath>..\..\..\..\interop\generated\Il2Cppmscorlib.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <!-- 屏幕效果 API 用 UnityEngine.Vector2 / Color；贴图走 UnityEngine.Texture2D -->
-    <Reference Include="UnityEngine.CoreModule">
-      <HintPath>..\..\..\..\interop\generated\UnityEngine.CoreModule.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="UnityEngine.ImageConversionModule">
-      <HintPath>..\..\..\..\interop\generated\UnityEngine.ImageConversionModule.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
   </ItemGroup>
 
   <ItemGroup>

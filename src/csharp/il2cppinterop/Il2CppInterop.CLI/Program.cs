@@ -36,6 +36,8 @@ var generateCommand = new Command("generate")
     new Option<bool>("--passthrough-names",
         "If specified, names will be copied from input assemblies as-is without renaming or deobfuscation."),
     new Option<bool>("--no-parallel", "Disable parallel processing when writing assemblies. Use if you encounter stability issues when generating assemblies."),
+    new Option<bool>("--direct-invoke",
+        "Emit protected direct-call bodies (Pylon GuardedCall + methodPointer) instead of il2cpp_runtime_invoke for ABI-compatible signatures."),
 };
 generateCommand.Description = "Generate wrapper assemblies that can be used to interop with Il2Cpp";
 generateCommand.Handler = CommandHandler.Create((GenerateCommandOptions opts) =>
@@ -189,7 +191,8 @@ internal record GenerateCommandOptions(
     string[]? BlacklistAssembly,
     Regex? ObfRegex,
     bool PassthroughNames,
-    bool NoParallel
+    bool NoParallel,
+    bool DirectInvoke
 ) : BaseCmdOptions(Verbose)
 {
     public override CmdOptionsResult Build()
@@ -208,6 +211,7 @@ internal record GenerateCommandOptions(
         opts.ObfuscatedNamesRegex = ObfRegex;
         opts.PassthroughNames = PassthroughNames;
         opts.Parallel = !NoParallel;
+        opts.DirectInvoke = DirectInvoke;
 
         if (AddPrefixTo is not null && AddPrefixTo.Length > 0)
         {
