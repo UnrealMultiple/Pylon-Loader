@@ -4,7 +4,6 @@
 
 #include "../Font/Font.h"
 #include "../imgui.h"
-#include "../Style/ModernTheme.h"
 
 namespace ImGuiSetup
 {
@@ -39,7 +38,6 @@ void EnsureContext(ANativeWindow *platformWindow)
     fontConfig.FontDataOwnedByAtlas = false;
     io.Fonts->AddFontFromMemoryTTF(const_cast<unsigned int*>(Window_data),static_cast<int>(Window_size),45.0f,&fontConfig,io.Fonts->GetGlyphRangesChineseFull());
 
-    ImGuiTheme::Apply();
     ImGuiStyle &style = ImGui::GetStyle();
     // 触屏端整体放大 UI（字体已在 45px，此处同步放大间距/圆角/控件高度）
     style.ScaleAllSizes(1.25f);
