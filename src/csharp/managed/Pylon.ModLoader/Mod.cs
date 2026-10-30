@@ -187,8 +187,11 @@ namespace Pylon.ModLoader
             ModLoader.Register(this);   // 跨 Mod 查找（ModLoader.GetMod/HasMod/Mods）用
             // 注册期装内容管线的 hook（幂等：第一个 mod 装一次）
             ItemLoader.Install(Logger);
+            ItemSetDefaultsPatch.Install(Logger);
             ProjectileLoader.Install(Logger);
+            ProjectileSetDefaultsPatch.Install(Logger);
             NpcLoader.Install(Logger);
+            NpcSetDefaultsPatch.Install(Logger);
             TownNpcLoader.Install(Logger);
             BuffLoader.Install(Logger);
             MountLoader.Install(Logger);
