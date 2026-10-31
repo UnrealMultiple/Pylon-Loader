@@ -1,8 +1,8 @@
 // ImGui 页：只保留「召唤羲和」入口（正式游戏用；不再放阶段跳转/技能测试等调试按钮）。
 using Pylon.Mod;
 using Pylon.ModLoader;
+using Pylon.ModLoader.UI;
 using Terraria;
-using ImGuiApi = Pylon.ImGui.ImGui;
 
 namespace XiheBoss
 {
@@ -12,8 +12,8 @@ namespace XiheBoss
 
         public void Draw()
         {
-            ImGuiApi.SeparatorText("羲和");
-            if (ImGuiApi.Button("召唤羲和")) Spawn();
+            TerrariaUI.SeparatorText("羲和");
+            if (TerrariaUI.Button("召唤羲和")) Spawn();
         }
 
         private static void Spawn()

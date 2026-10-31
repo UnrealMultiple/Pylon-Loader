@@ -2,8 +2,8 @@
 using System;
 using Pylon.Mod;
 using Pylon.ModLoader;
+using Pylon.ModLoader.UI;
 using Terraria;
-using ImGuiApi = Pylon.ImGui.ImGui;
 
 namespace XiheMagic
 {
@@ -15,17 +15,17 @@ namespace XiheMagic
 
         public void Draw()
         {
-            ImGuiApi.SeparatorText("羲和魔杖（MEAC XiHeMagicItem 复刻）");
-            ImGuiApi.Text("按住使用蓄力，约 3.3 秒后在准星处降下激光柱；");
-            ImGuiApi.Text("激光柱可拖动、持续消耗魔力，松手中断。");
+            TerrariaUI.SeparatorText("羲和魔杖（MEAC XiHeMagicItem 复刻）");
+            TerrariaUI.Text("按住使用蓄力，约 3.3 秒后在准星处降下激光柱；");
+            TerrariaUI.Text("激光柱可拖动、持续消耗魔力，松手中断。");
 
-            ImGuiApi.SeparatorText("获得");
+            TerrariaUI.SeparatorText("获得");
 
-            if (ImGuiApi.Button("添加到背包"))
+            if (TerrariaUI.Button("添加到背包"))
                 Give(1);
 
             if (!string.IsNullOrEmpty(_status))
-                ImGuiApi.Text(_status);
+                TerrariaUI.Status(_status);
         }
 
 

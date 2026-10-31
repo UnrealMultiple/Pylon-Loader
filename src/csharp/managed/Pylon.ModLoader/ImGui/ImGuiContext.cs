@@ -35,6 +35,7 @@ namespace Pylon.ModLoader.UI
 
             if (!LoadFont()) return false;
             ImGuiApi.StyleColorsDark();
+            TerrariaTheme.Apply();
             ApplyScale(UiSettings.Scale);
             EnableErrorRecovery();
             return true;
