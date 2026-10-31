@@ -19,10 +19,15 @@ using Terraria.ID;
 namespace Pylon.ModLoader
 {
     /// <summary>ModMount 的钩子接线与 MountData 安装。</summary>
-    internal static class MountLoader
+    internal sealed class MountLoader : ILoaderModule
     {
+        public MountLoader(ModLogger logger) => _logger = logger;
+
+        public string Name => "mount";
+
+        public int Order => 410;
+
         private static ModLogger _logger;
-        private static bool _installed;
 
         /// <summary>原版坐骑数量（MountID.Count 在 mod 占号前的值，注册期捕获一次）。</summary>
         private static int _vanillaCount;
@@ -33,12 +38,8 @@ namespace Pylon.ModLoader
             return _vanillaCount;
         }
 
-        internal static void Install(ModLogger logger)
+        public bool Install()
         {
-            if (_installed) return;
-            _installed = true;
-            _logger = logger;
-
             On.Terraria.Mount.SetMount += SetMount;
             On.Terraria.Mount.DoSpawnDust += SpawnDust;
             On.Terraria.Mount.Dismount += Dismount;
@@ -52,6 +53,7 @@ namespace Pylon.ModLoader
             On.Terraria.Mount.Initialize += InitializePostfix;
 
             _logger?.Info("[mount] MountLoader 已挂（骑/下/跳/AI/绘制）");
+            return true;
         }
 
         /// <summary>诊断用：硬编码订阅清单（run-test 里显示）。</summary>

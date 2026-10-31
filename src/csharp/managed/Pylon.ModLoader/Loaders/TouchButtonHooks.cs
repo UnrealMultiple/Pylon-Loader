@@ -70,7 +70,7 @@ namespace Pylon.ModLoader
             catch { return false; }
         }
 
-        internal static void Install()
+        internal static void Install() => Hooks.Once("touchbutton.hooks", () =>
         {
             // 控制器更新：长数组 + 小组里松在一个 mod 动作上 = 按它
             On.GUIVirtualInputController.Update += ControllerUpdatePostfix;
@@ -96,7 +96,7 @@ namespace Pylon.ModLoader
             On.VirtualControlsStyles_Layout.LoadConfiguration += StylesLoadPostfix;
             // 分享码不带 mod 动作
             On.VirtualControlsStyles_Layout.GetShareCode += StylesShare;
-        }
+        });
 
         // ---- 控制器 ----
 

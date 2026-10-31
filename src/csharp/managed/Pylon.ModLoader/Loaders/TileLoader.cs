@@ -16,12 +16,17 @@ using Terraria.ObjectData;
 namespace Pylon.ModLoader
 {
     /// <summary>自定义方块的运行期管线（占号/贴图/表扩容在 ContentInstaller）：注册期装 hook，表定型后扩表、跑 SetStaticDefaults、顶开编译期上限。</summary>
-    internal static class TileLoader
+    internal sealed class TileLoader : ILoaderModule
     {
+        public TileLoader(ModLogger logger) => _log = logger;
+
+        public string Name => "tile";
+
+        public int Order => 500;
+
         private const int VanillaCount = 754;
 
         private static ModLogger _log;
-        private static bool _installed;
         private static bool _setupDone;
         private static int _total;
 
@@ -60,11 +65,9 @@ namespace Pylon.ModLoader
 
         // ===================== 注册期：装 hook =====================
 
-        internal static void Install(ModLogger log)
+        public bool Install()
         {
-            if (_installed || !Any) return;
-            _installed = true;
-            _log = log;
+            if (!Any) return false;
 
             On.Terraria.Player.GetPickaxeDamage += PickaxePostfix;
             On.Terraria.WorldGen.TileFrameImportant += ImportantPrefix;
@@ -106,6 +109,7 @@ namespace Pylon.ModLoader
 
             // 每格绘制都要经过它：只有 Type >= 754 才做活。家具的宽/高/偏移与动画帧都靠这里。
             On.Terraria.GameContent.Drawing.TileDrawing.GetTileDrawData += DrawDataPostfix;
+            return true;
         }
 
         private static bool AnimationHook;
@@ -124,7 +128,7 @@ namespace Pylon.ModLoader
         {
             if (_setupDone || !Any) return;
             _setupDone = true;
-            _log = log;
+
             _total = ModContent.NextType(ContentKind.Tile);
 
             FixTileMerge(_total);
@@ -840,7 +844,6 @@ namespace Pylon.ModLoader
             }
             orig(firstX, lastX, firstY, lastY);
         }
-
 
         /// <summary>世界更新之后：把这一轮算好的 mod 光照加进去，并跑 NearbyEffects。</summary>
         private static void UpdateWorldPostfix(On.Terraria.Main.orig_DoUpdateInWorld orig, Main self)

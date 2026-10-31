@@ -188,11 +188,11 @@ namespace Pylon.ModLoader
                     break;
 
                 case OptionKind.Toggle:
-                    option.Default = API.Convert(option.Default, false);
+                    option.Default = ValueConverter.Convert(option.Default, false);
                     break;
 
                 case OptionKind.Range:
-                    var def = API.Convert(option.Default, double.NaN);
+                    var def = ValueConverter.Convert(option.Default, double.NaN);
                     if (double.IsNaN(def) || double.IsNaN(option.Min) || double.IsNaN(option.Max) || double.IsNaN(option.Step))
                         throw new InvalidOperationException($"{where}: Range 的 min/max/step/default 都要是数字");
                     if (!(option.Max > option.Min) || !(option.Step > 0))
@@ -289,7 +289,7 @@ namespace Pylon.ModLoader
                     return value is bool;
                 case OptionKind.Range:
                 {
-                    var number = API.Convert(value, double.NaN);
+                    var number = ValueConverter.Convert(value, double.NaN);
                     return !double.IsNaN(number) && number >= option.Min && number <= option.Max;
                 }
                 case OptionKind.Radio:
@@ -410,7 +410,7 @@ namespace Pylon.ModLoader
         /// <summary>写一个值：Snap/大写 → 校验 → 写草稿或真值（写真值时立刻 OnChanged）。</summary>
         public static void Set(ModConfigEntry entry, ModConfigOption option, object value)
         {
-            if (option.Kind == OptionKind.Range) value = Snap(option, API.Convert(value, option.Min));
+            if (option.Kind == OptionKind.Range) value = Snap(option, ValueConverter.Convert(value, option.Min));
             if (option.Kind == OptionKind.Color && value is string text) value = text.ToUpperInvariant();
 
             var target = View(entry);
@@ -450,7 +450,7 @@ namespace Pylon.ModLoader
         {
             if (option.EnabledWhenKey == null && option.EnabledWhen == null) return true;
             var view = View(entry);
-            if (option.EnabledWhenKey != null) return API.Convert(view.GetValue(option.EnabledWhenKey), false);
+            if (option.EnabledWhenKey != null) return ValueConverter.Convert(view.GetValue(option.EnabledWhenKey), false);
             try { return option.EnabledWhen(view); }
             catch (Exception e)
             {

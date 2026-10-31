@@ -10,8 +10,14 @@ namespace Pylon.ModLoader
 {
     /// <summary>Mod 音效：在 Mod 目录找 ogg/wav/mp3，用 Android SoundPool 播（这版 Unity 造不出 AudioClip）。
     /// SoundId=1000 + Style 下标认出 Mod 声音，同路径同选项复用下标；注册时即异步解码。</summary>
-    internal static class SoundLoader
+    internal sealed class SoundLoader : ILoaderModule
     {
+        public SoundLoader(ModLogger logger) => _ = logger; // 本管线不用日志
+
+        public string Name => "sound";
+
+        public int Order => 800;
+
         private const int ModSoundId = 1000;
 
         private sealed class Stream
@@ -33,7 +39,6 @@ namespace Pylon.ModLoader
         private static readonly Dictionary<string, int> ByKey = new(StringComparer.Ordinal);
         private static readonly Dictionary<int, Entry> ByHandle = new();
         private static int _nextHandle = 1;
-        private static bool _installed;
         private static int _tickAge;
 
         internal static int Register(SoundStyle style)
@@ -50,13 +55,12 @@ namespace Pylon.ModLoader
             return index;
         }
 
-        internal static void Install(ModLogger log)
+        public bool Install()
         {
-            if (_installed) return;
-            _installed = true;
             On.Terraria.Audio.LegacySoundPlayer.PlaySound += PlayPrefix;
             // 每帧收尾：过期的 stream 从活动表里摘掉（SoundPool 没有结束通知，按时长估算）。
             On.Terraria.Main.UpdateAudio += UpdatePostfix;
+            return true;
         }
 
         internal static int Play(SoundStyle style, Vector2? position)

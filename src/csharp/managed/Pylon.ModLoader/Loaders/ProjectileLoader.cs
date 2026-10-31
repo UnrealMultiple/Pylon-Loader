@@ -17,18 +17,19 @@ using Terraria.ID;
 namespace Pylon.ModLoader
 {
     /// <summary>ModProjectile / GlobalProjectile 的每帧钩子接线。</summary>
-    internal static class ProjectileLoader
+    internal sealed class ProjectileLoader : ILoaderModule
     {
+        public ProjectileLoader(ModLogger logger) => _logger = logger;
+
+        public string Name => "projectile";
+
+        public int Order => 200;
+
         private static ModLogger _logger;
-        private static bool _installed;
 
         /// <summary>注册期装一次（幂等）：第一个 mod 注册弹幕时由管线调。</summary>
-        internal static void Install(ModLogger logger)
+        public bool Install()
         {
-            if (_installed) return;
-            _installed = true;
-            _logger = logger;
-
             On.Terraria.Projectile.AI += AiHook;
             On.Terraria.Projectile.ApplyStatsFromSource += OriginalDamageHook;
             On.Terraria.Projectile.HandleMovement += MovementHook;
@@ -52,6 +53,7 @@ namespace Pylon.ModLoader
 
             // 签名索引里没有 Terraria.Player.GetGrapplingForces 的 On.* 事件：实现保留，暂不订阅。
             _logger?.Warn("[proj] 找不到 On.Terraria.Player.GetGrapplingForces，GrappleTargetPoint/GrapplePullSpeed 暂不可用");
+            return true;
         }
 
         // ================= 小工具 =================

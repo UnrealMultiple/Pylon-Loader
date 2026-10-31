@@ -11,12 +11,17 @@ using Terraria.ID;
 namespace Pylon.ModLoader
 {
     /// <summary>自定义墙壁的运行期管线；结构同 TileLoader。</summary>
-    internal static class WallLoader
+    internal sealed class WallLoader : ILoaderModule
     {
+        public WallLoader(ModLogger logger) => _log = logger;
+
+        public string Name => "wall";
+
+        public int Order => 510;
+
         private const int VanillaCount = 367;
 
         private static ModLogger _log;
-        private static bool _installed;
         private static bool _setupDone;
         private static int _total;
 
@@ -53,11 +58,9 @@ namespace Pylon.ModLoader
             return plan;
         }
 
-        internal static void Install(ModLogger log)
+        public bool Install()
         {
-            if (_installed || !Any) return;
-            _installed = true;
-            _log = log;
+            if (!Any) return false;
 
             On.Terraria.WorldGen.KillWall += KillWall;
             On.Terraria.WorldGen.KillWall_MakeWallDust += MakeDustPrefix;
@@ -77,6 +80,7 @@ namespace Pylon.ModLoader
             {
                 On.Terraria.Main.DoUpdate_AnimateWalls += AnimateWallsPostfix;
             }
+            return true;
         }
 
         private static bool HasAny(string method)
@@ -90,7 +94,7 @@ namespace Pylon.ModLoader
         {
             if (_setupDone || !Any) return;
             _setupDone = true;
-            _log = log;
+
             _total = ModContent.NextType(ContentKind.Wall);
 
             var walls = ModContent.GetContent<ModWall>();

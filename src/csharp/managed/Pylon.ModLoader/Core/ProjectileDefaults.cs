@@ -9,7 +9,7 @@ namespace Pylon.ModLoader
     /// <summary>弹幕字段的出厂值与应用。</summary>
     internal static class ProjectileDefaults
     {
-        private static Projectile _defaults;
+        private static Projectile? _defaults;
 
         /// <summary>拿/建出厂值对象（只在游戏线程调）。</summary>
         private static Projectile Defaults => _defaults ??= new Projectile();

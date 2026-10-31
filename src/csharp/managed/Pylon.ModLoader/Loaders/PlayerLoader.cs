@@ -8,8 +8,14 @@ using Terraria.IO;
 namespace Pylon.ModLoader
 {
     /// <summary>每玩家一份 ModPlayer 实例（按覆写分派生命周期钩子）；侧车存档 &lt;角色&gt;.plr.bl.json，键 "&lt;mod&gt;/&lt;类名&gt;"，没加载的 Mod 的键原样保留。</summary>
-    internal static class PlayerLoader
+    internal sealed class PlayerLoader : ILoaderModule
     {
+        public PlayerLoader(ModLogger logger) => _ = logger; // 本管线不用日志
+
+        public string Name => "player";
+
+        public int Order => 600;
+
         private static readonly List<ModPlayer> Templates = new();
         private static readonly Dictionary<Type, OverridePlan> Plans = new();
         private static readonly Dictionary<string, List<ModPlayer>> ByMethod = new(StringComparer.Ordinal);
@@ -18,7 +24,6 @@ namespace Pylon.ModLoader
         private static readonly IntPtr[] OwnerPointers = new IntPtr[MaxPlayers];
         private static readonly ModPlayer[][] Instances = new ModPlayer[MaxPlayers][];
 
-        private static bool _installed;
         private static bool _loadingSave;
         private static bool _vetoLuck;
         private static float _luckBefore;
@@ -138,10 +143,9 @@ namespace Pylon.ModLoader
 
         // ===================== 注册期：装 hook =====================
 
-        internal static void Install(ModLogger log)
+        public bool Install()
         {
-            if (_installed || Templates.Count == 0) return;
-            _installed = true;
+            if (Templates.Count == 0) return false;
 
             if (Has("ResetEffects") || Has("ModifyMaxStats"))
                 On.Terraria.Player.ResetEffects += ResetEffectsPostfix;
@@ -174,6 +178,7 @@ namespace Pylon.ModLoader
                 On.Terraria.Player.InternalSavePlayerFile += Save;
                 On.Terraria.Player.LoadPlayer += LoadPostfix;
             }
+            return true;
         }
 
         // ===================== 生命周期 =====================

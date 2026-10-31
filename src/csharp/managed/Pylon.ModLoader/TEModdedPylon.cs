@@ -20,7 +20,7 @@ namespace Pylon.ModLoader
         }
 
         /// <summary>这实体位置上的晶塔（ModPylon），不是就 null。</summary>
-        public ModPylon TryGetModPylon()
+        public ModPylon? TryGetModPylon()
         {
             var tile = Main.tile[Position.X, Position.Y];
             return ModContent.Find(ContentKind.Tile, tile.type) as ModPylon;

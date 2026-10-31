@@ -1,5 +1,4 @@
-using System;
-using System.Collections.Generic;
+using System.Diagnostics;
 using Il2CppInterop.Runtime;
 
 namespace Pylon.ModLoader.Textures;
@@ -12,22 +11,13 @@ namespace Pylon.ModLoader.Textures;
 /// </summary>
 public static class TypeTables
 {
-    private sealed class TableClass
+    private sealed class TableClass(string ns, string name, string? nested = null, string? nested2 = null, string[]? skip = null)
     {
-        internal readonly string Ns;
-        internal readonly string Name;
-        internal readonly string Nested;
-        internal readonly string Nested2;
-        internal readonly string[] Skip;
-
-        internal TableClass(string ns, string name, string nested = null, string nested2 = null, string[] skip = null)
-        {
-            Ns = ns ?? "";
-            Name = name;
-            Nested = nested;
-            Nested2 = nested2;
-            Skip = skip;
-        }
+        internal string Ns { get; } = ns ?? "";
+        internal string Name { get; } = name;
+        internal string? Nested { get; } = nested;
+        internal string? Nested2 { get; } = nested2;
+        internal string[]? Skip { get; } = skip;
 
         public override string ToString() =>
             (Ns.Length == 0 ? "" : Ns + ".") + Name +
@@ -37,7 +27,7 @@ public static class TypeTables
 
     /// <summary>libil2cpp 里所有 6196 长度的 new[]。</summary>
     private static readonly TableClass[] ItemClasses =
-    {
+    [
         new("Terraria.ID", "ItemID", "Sets"),
         new("Terraria.ID", "ItemID"),
         new("Terraria.ID", "AmmoID", "Sets"),
@@ -54,19 +44,19 @@ public static class TypeTables
         new("Terraria.UI", "ItemSorting"),
         new("Terraria.UI", "ItemSlot"),
         new("", "VirtualControllerInputState"),   // 触控控制器（全局命名空间）
-    };
+    ];
 
     private static readonly TableClass[] ProjectileClasses =
-    {
+    [
         new("Terraria.ID", "ProjectileID", "Sets"),
         new("Terraria", "Main"),
         new("Terraria", "Lang"),
         new("Terraria", "Projectile"),
         new("Terraria.GameContent", "TextureAssets"),
-    };
+    ];
 
     private static readonly TableClass[] NpcClasses =
-    {
+    [
         new("Terraria.ID", "NPCID", "Sets"),
         new("Terraria", "Main"),
         new("Terraria", "Lang"),
@@ -74,19 +64,19 @@ public static class TypeTables
         new("Terraria.GameContent", "TextureAssets"),
         new("Terraria.GameContent.UI", "EmoteBubble"),
         new("Terraria.GameContent", "ConditionalDialogue"),
-    };
+    ];
 
     private static readonly TableClass[] BuffClasses =
-    {
+    [
         new("Terraria.ID", "BuffID", "Sets"),
         new("Terraria", "Main", null, null, ["item", "timeItemSlotCannotBeReusedFor", "itemFrame", "itemFrameCounter"]),
         new("Terraria", "Lang"),
         new("Terraria.GameContent", "TextureAssets"),
-    };
+    ];
 
     // 扫描过 `mov #0x2f2` 的全部 754 长度表。
     private static readonly TableClass[] TileClasses =
-    {
+    [
         new("Terraria", "Main"),
         new("Terraria.ID", "TileID", "Sets"),
         new("Terraria.ID", "TileID", "Sets", "Conversion"),
@@ -102,16 +92,16 @@ public static class TypeTables
         new("Terraria", "WorldGen", "Skyblock"),
         new("Terraria.GameContent.Biomes", "CorruptionPitBiome"),
         new("Terraria.GameContent.Biomes.CaveHouse", "HouseUtils"),
-    };
+    ];
 
     private static readonly TableClass[] WallClasses =
-    {
+    [
         new("Terraria", "Main"),
         new("Terraria.ID", "WallID", "Sets"),
         new("Terraria.ID", "WallID", "Sets", "Conversion"),
         new("Terraria.GameContent", "TextureAssets"),
         new("Terraria.Map", "MapHelper"),
-    };
+    ];
 
     public enum TableKind { Item, Projectile, Npc, Buff, Tile, Wall }
 
@@ -232,11 +222,12 @@ public static class TypeTables
 
     private static bool IsSkipped(TableClass spec, IntPtr field)
     {
-        if (spec.Skip == null || spec.Skip.Length == 0) return false;
+        var skip = spec.Skip;
+        if (skip is not { Length: > 0 }) return false;
         var name = IL2CPP.il2cpp_field_get_name_(field);
         if (string.IsNullOrEmpty(name)) return false;
-        for (var i = 0; i < spec.Skip.Length; i++)
-            if (string.Equals(spec.Skip[i], name, StringComparison.Ordinal)) return true;
+        foreach (var candidate in skip)
+            if (string.Equals(candidate, name, StringComparison.Ordinal)) return true;
         return false;
     }
 
@@ -346,12 +337,11 @@ public static class TypeTables
         return best;
     }
 
-
     /// <summary>已经跑过（还在盯着的）扩表器：每帧补 pending / 每 120 帧查重建。</summary>
     private static readonly List<TableGrower> Active = [];
     private static int _watchTicks;
 
-    private static TableGrower Find(TableKind kind)
+    private static TableGrower? Find(TableKind kind)
     {
         for (var i = 0; i < Active.Count; i++)
             if (Active[i].Kind == kind) return Active[i];
@@ -362,7 +352,7 @@ public static class TypeTables
     /// 被游戏重建回原版长度的表。返回本次真正扩了几张；<paramref name="regrown"/> 拿到种类回调，
     /// 贴图/名字要往新表重写一遍。
     /// </summary>
-    public static int Maintenance(Action<string> log = null, Action<TableKind> regrown = null)
+    public static int Maintenance(Action<string>? log = null, Action<TableKind>? regrown = null)
     {
         if (Active.Count == 0) return 0;
 
@@ -390,9 +380,9 @@ public static class TypeTables
     }
 
     /// <summary>表换了内容（补扩/重建）：贴图与名字要往新表再写一遍。</summary>
-    private static void Notify(Action<TableKind> regrown, TableGrower grower, Action<string> log)
+    private static void Notify(Action<TableKind>? regrown, TableGrower grower, Action<string>? log)
     {
-        if (regrown == null) return;
+        if (regrown is null) return;
         try { regrown(grower.Kind); }
         catch (Exception e) { log?.Invoke($"[typetables] {grower.Name} 换了新表后重写失败：{e.Message}"); }
     }
@@ -444,11 +434,11 @@ public static class TypeTables
         internal bool Done => _newCapacity <= _vanilla || (_classIndex >= _classes.Length && _fieldIndex >= _fields.Count);
 
         /// <summary>扩下一批（最多 budget 张表）；返回本批扩了几张。Done 后恒为 0。</summary>
-        internal int NextBatch(int budget, Action<string> log)
+        internal int NextBatch(int budget, Action<string>? log)
         {
             if (_newCapacity <= _vanilla || budget <= 0) return 0;
 
-            var watch = System.Diagnostics.Stopwatch.StartNew();
+            var watch = Stopwatch.StartNew();
             var grownBefore = _grown;
             var batch = 0;
             while (batch < budget)
@@ -484,15 +474,9 @@ public static class TypeTables
         }
 
         /// <summary>换一个类：按名解析 → 跑静态构造 → 收集静态数组字段。</summary>
-        private bool BeginClass(TableClass spec, Action<string> log)
+        private bool BeginClass(TableClass spec, Action<string>? log)
         {
-            IntPtr cls;
-            try { cls = FindClass(spec); }
-            catch (Exception e)
-            {
-                log?.Invoke($"[typetables] {_name} 解析 {spec} 异常：{e.Message}");
-                return false;
-            }
+            var cls = FindClass(spec);
             if (cls == IntPtr.Zero)
             {
                 log?.Invoke($"[typetables] {_name} 找不到 {spec}，跳过");
@@ -500,7 +484,7 @@ public static class TypeTables
             }
 
             // 先跑静态构造：没跑过时 Sets 整类还是 null（此时 mod 已读过/写过越界位置），只能当 pending 等下帧补。
-            var watch = System.Diagnostics.Stopwatch.StartNew();
+            var watch = Stopwatch.StartNew();
             try { IL2CPP.il2cpp_runtime_class_init(cls); }
             catch (Exception e) { log?.Invoke($"[typetables] {_name} {spec} 静态构造异常（继续扫描）：{e.Message}"); }
             var initMs = watch.ElapsedMilliseconds;
@@ -520,7 +504,7 @@ public static class TypeTables
             return true;
         }
 
-        private bool GrowField(IntPtr field, IntPtr array, Action<string> log)
+        private bool GrowField(IntPtr field, IntPtr array, Action<string>? log)
         {
             try
             {
@@ -537,7 +521,7 @@ public static class TypeTables
         }
 
         /// <summary>扫到时还是 null 的表：建出来就补扩（每帧）。</summary>
-        internal int CheckPending(Action<string> log)
+        internal int CheckPending(Action<string>? log)
         {
             if (_pending.Count == 0 || _newCapacity <= _vanilla) return 0;
 
@@ -560,7 +544,7 @@ public static class TypeTables
         }
 
         /// <summary>游戏把表重建回原版长度（切语言、重载资源）：再扩一遍。</summary>
-        internal int Watch(Action<string> log)
+        internal int Watch(Action<string>? log)
         {
             if (_newCapacity <= _vanilla) return 0;
 
@@ -585,7 +569,7 @@ public static class TypeTables
         /// 名单只算扫到时长度 == 原版数、或被补扩过的那些，不含 Main 里长度本来就够大的数组。
         /// </summary>
         internal void Audit(out int total, out int grown, out int stale, out int missing,
-                           List<string> missingNames = null)
+                           List<string>? missingNames = null)
         {
             total = grown = stale = missing = 0;
             if (_newCapacity <= _vanilla) return;
@@ -621,10 +605,8 @@ public static class TypeTables
         }
     }
 
-    // ===================== 自检入口 =====================
-
     /// <summary>自检：按原生名字读一张表的当前长度（0 = 类/字段/数组不存在）。</summary>
-    public static int TableLength(string ns, string name, string nested, string fieldName)
+    public static int TableLength(string ns, string name, string? nested, string fieldName)
     {
         try
         {
@@ -643,11 +625,11 @@ public static class TypeTables
     /// 只读原生字段与数组长度，不碰 interop 包装（<c>Nullable&lt;T&gt;[]</c> 的包装本身是坏的）。
     /// </summary>
     public static bool Audit(TableKind kind, out int total, out int grown, out int stale, out int missing,
-                             List<string> missingNames = null)
+                             List<string>? missingNames = null)
     {
         total = grown = stale = missing = 0;
         var grower = Find(kind);
-        if (grower == null) return false;
+        if (grower is null) return false;
         grower.Audit(out total, out grown, out stale, out missing, missingNames);
         return true;
     }

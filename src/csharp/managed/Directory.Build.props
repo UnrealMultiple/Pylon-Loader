@@ -1,0 +1,12 @@
+<Project>
+  <!--
+    托管层共享构建配置。
+
+    可空引用类型 / 隐式 using / 分析器等级按工程逐个开启（写在各 csproj 里）：
+    重构是一个工程一个工程推进的，未完成的工程保持旧设置，避免警告洪水淹没编译输出。
+  -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+</Project>

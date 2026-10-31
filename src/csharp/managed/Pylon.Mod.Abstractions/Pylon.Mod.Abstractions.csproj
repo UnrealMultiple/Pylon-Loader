@@ -1,14 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!--
     Mod 契约（给 Mod 作者引用的最小程序集）。
-    随宿主一起进 TPA：这样所有 Mod 的加载上下文都会共享同一份契约类型，
-    `typeof(IPylonMod).IsAssignableFrom(modType)` 才判得成立（各加载一份就会分裂）。
+    随宿主一起进 TPA：所有 Mod 的加载上下文共享同一份契约类型，
+    typeof(IPylonMod).IsAssignableFrom(modType) 才判得成立（各加载一份就会分裂）。
   -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>Pylon.Mod.Abstractions</AssemblyName>
     <RootNamespace>Pylon.Mod</RootNamespace>
-    <Nullable>disable</Nullable>
-    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <!-- CA1716：Pylon.Mod 是已发布的 Mod 契约命名空间，改名会破坏所有 Mod 的源码兼容。 -->
+    <NoWarn>$(NoWarn);CA1716</NoWarn>
   </PropertyGroup>
 </Project>

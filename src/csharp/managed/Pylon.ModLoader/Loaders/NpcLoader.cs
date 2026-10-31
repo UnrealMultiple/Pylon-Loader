@@ -16,24 +16,24 @@ using Terraria.Graphics.Light;
 namespace Pylon.ModLoader
 {
     /// <summary>ModNpc / GlobalNpc 的钩子接线。</summary>
-    internal static class NpcLoader
+    internal sealed class NpcLoader : ILoaderModule, ILoaderModuleRefresh
     {
+        public NpcLoader(ModLogger logger) => _logger = logger;
+
+        public string Name => "npc";
+
+        public int Order => 300;
+
         private static ModLogger _logger;
-        private static bool _installed;
 
         /// <summary>大师难度（这版是 float，Master = 2）。</summary>
         private const float MasterDifficulty = 2f;
 
         // ================= 装配 =================
 
-        /// <summary>注册期装一次（幂等）；每个 Mod.Load 都刷新一次 Global 门控（Global 在注册期登记）。</summary>
-        internal static void Install(ModLogger logger)
+        /// <summary>装 hook；Global 门控由 <see cref="Refresh"/> 在每次 Mod 注册后刷新。</summary>
+        public bool Install()
         {
-            if (!_installed)
-            {
-                _installed = true;
-                _logger = logger;
-
                 On.Terraria.Main.DrawNPCs += DrawNpcsPrefix;                          // 绘制入口（Pylon 专有补画）
                 On.Terraria.NPC.AI += Ai;                                             // AI：PreAI 否决 + 游戏 AI + AI/PostAI 分派
                 On.Terraria.NPC.NewNPC += NewNpcPostfix;                              // OnSpawn
@@ -58,8 +58,11 @@ namespace Pylon.ModLoader
                 _logger?.Warn("[npc] NPC.get_CanTalk/get_CanBeTalkedTo 没有可挂的方法，CanChat 钩子暂不可用");
 
                 _logger?.Info("[npc] NpcLoader 已挂（AI/事件/绘制/对话）");
-            }
+            return true;
+        }
 
+        public void Refresh()
+        {
             // 过滤器：没有 Global 覆写这套钩子时，原版 NPC 一个钩子都不用进。
             _anyGlobalAny = GlobalNpcRegistry.AnyWith(GlobalHooks);
             _anyGlobalAI = GlobalNpcRegistry.AnyWith("PreAI", "AI", "PostAI");

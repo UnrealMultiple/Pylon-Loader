@@ -7,12 +7,17 @@ using Terraria.ID;
 namespace Pylon.ModLoader
 {
     /// <summary>城镇 NPC：搬进空房、名字表、房间条件、聊天按钮与商店。</summary>
-    internal static class TownNpcLoader
+    internal sealed class TownNpcLoader : ILoaderModule
     {
+        public TownNpcLoader(ModLogger logger) => _ = logger; // 本管线不用日志
+
+        public string Name => "townnpc";
+
+        public int Order => 320;
+
         private const int Merchant = 17;
 
         private static readonly Dictionary<Type, OverridePlan> Plans = new();
-        private static bool _installed;
         private static NPC _talking;
         private static int _talkingType;
 
@@ -27,10 +32,9 @@ namespace Pylon.ModLoader
 
         private static bool Over(ModNpc npc, string method) => PlanOf(npc).Has(method);
 
-        internal static void Install(ModLogger log)
+        public bool Install()
         {
-            if (_installed || ModContent.Count(ContentKind.Npc) == 0) return;
-            _installed = true;
+            if (ModContent.Count(ContentKind.Npc) == 0) return false;
 
             On.Terraria.Main.UpdateTime_SpawnTownNPCs += SpawnPostfix;
             On.Terraria.WorldGen.CheckSpecialTownNPCSpawningConditions += CheckConditionsPrefix;
@@ -38,6 +42,7 @@ namespace Pylon.ModLoader
             On.GUINPCDialogue.SetupButtonText += Buttons;
             On.GUINPCDialogue.Option1Clicked += Option1Prefix;
             On.GUINPCDialogue.Option2Clicked += Option2Prefix;
+            return true;
         }
 
         /// <summary>内容安装时把各城镇 NPC 的商店登记进来。</summary>

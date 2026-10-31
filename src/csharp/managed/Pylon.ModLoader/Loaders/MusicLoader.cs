@@ -86,7 +86,7 @@ namespace Pylon.ModLoader
             Tracks.Add(track);
             Slots[file] = slot;
             AndroidAudio.PrimeMusic(track.MusicId);   // 提前 prepare，召唤时 start 即时
-            ModMusic.Install();
+            ModMusic.EnsureHooks();
             return slot;
         }
 

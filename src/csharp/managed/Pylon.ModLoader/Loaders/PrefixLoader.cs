@@ -17,8 +17,14 @@ using Terraria.Utilities;
 namespace Pylon.ModLoader
 {
     /// <summary>ModPrefix 的占号、表扩容、掷前缀/数值/应用钩子。</summary>
-    internal static class PrefixLoader
+    internal sealed class PrefixLoader : ILoaderModule
     {
+        public PrefixLoader(ModLogger logger) => _logger = logger;
+
+        string ILoaderModule.Name => "prefix"; // 类里有同名的私有嵌套类型 Name，只能显式实现
+
+        public int Order => 420;
+
         // IsWeaponSubCategory 用到的分类值（PrefixCategory 是本版游戏没有的枚举，值照 tModLoader）。
         internal const int CategoryMelee = 0, CategoryRanged = 1, CategoryMagic = 2, CategorySummon = 3,
                              CategoryAnyWeapon = 4, CategoryAccessory = 5, CategoryCustom = 6;
@@ -38,7 +44,6 @@ namespace Pylon.ModLoader
         }
 
         private static ModLogger _logger;
-        private static bool _installed;      // Install 只跑一次
         private static readonly Dictionary<string, bool> HookWanted = new(StringComparer.Ordinal);   // 谁覆写了哪个钩子
 
         // ===================== 注册表 =====================
@@ -63,12 +68,8 @@ namespace Pylon.ModLoader
         // ===================== 注册（ModContent 占号后立刻） =====================
 
         /// <summary>Mod.cs 注册期调（幂等）：挂全部 On.* 订阅；各 handler 内部按已注册内容自检，没内容就走原版。</summary>
-        internal static void Install(ModLogger logger)
+        public bool Install()
         {
-            _logger ??= logger;
-            if (_installed) return;
-            _installed = true;
-
             // Item.GetRollablePrefixes 在代理的 On 表里不存在（on-signatures 无此目标）：不订阅、只告警，
             // 列表合并（RollablePostfix）待代理补上钩子后用 `On.Terraria.Item.GetRollablePrefixes += RollablePostfix;` 恢复。
             _logger?.Warn("[prefix] 找不到 GetRollablePrefixes 的 hook，mod 前缀无法并入可掷列表（CanRollPrefix/RollAPrefix/数值仍可用）");
@@ -79,6 +80,7 @@ namespace Pylon.ModLoader
             On.Terraria.Item.Prefix_1 += ApplyPrefix;   // 旧 Apply 的前后置合成一个 handler
             On.Terraria.Player.GrantPrefixBenefits += AccessoryPostfix;
             On.Terraria.Lang.InitializeLegacyLocalization += AfterLegacyLocalization;
+            return true;
         }
 
         // Register：分类查表、名字进本地化、按覆着装钩子。
@@ -121,7 +123,6 @@ namespace Pylon.ModLoader
         internal static void Setup(ModLogger logger)
         {
             if (ByType.Count == 0) return;
-            _logger ??= logger;
 
             Tables();
             MarkPrefixableItems();
@@ -391,7 +392,6 @@ namespace Pylon.ModLoader
         }
 
         // ===================== 掷前缀：列表 =====================
-
 
         // #Rollable：游戏的列表 + mod 前缀并去重；有人覆写 AllowPrefix 才逐条问。
         // ⚠ 代理的 On 表里没有 Item.GetRollablePrefixes（on-signatures 无此目标），Install 不订阅、只告警；
@@ -716,7 +716,6 @@ namespace Pylon.ModLoader
             if (prefix == null || prefix.Plan == null || !prefix.Plan.Has("ApplyAccessoryEffects")) return;
             Safe.Run(prefix.Name + ".ApplyAccessoryEffects", () => prefix.ApplyAccessoryEffects(self));
         }
-
 
     }
 }

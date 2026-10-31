@@ -3,8 +3,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>Pylon.ModLoader</AssemblyName>
     <RootNamespace>Pylon.ModLoader</RootNamespace>
-    <Nullable>disable</Nullable>
-    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PublishTrimmed>false</PublishTrimmed>
     <InvariantGlobalization>true</InvariantGlobalization>

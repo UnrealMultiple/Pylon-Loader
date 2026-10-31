@@ -4,12 +4,15 @@ using Terraria;
 namespace Pylon.ModLoader
 {
     /// <summary>Mod 曲子的选择与淡入淡出：场景/NPC 优先级高过原版时接管，手机用 MediaPlayer 播。</summary>
-    internal static class ModMusic
+    internal sealed class ModMusic : ILoaderModule
     {
+        public string Name => "music";
+
+        public int Order => 900;
+
         private const float FadeStep = 0.005f;
         private const float Audible = 0.25f;
 
-        private static bool _installed;
         private static int _chosen = -1;
         private static int _lastChosen = -1;
         private static int _chooseIn;
@@ -19,15 +22,20 @@ namespace Pylon.ModLoader
         private static float _savedSilenceFade;
         private static ModLogger _log;
 
-        internal static void Configure(ModLogger log)
+        public ModMusic(ModLogger logger) => Configure(logger);
+
+        public bool Install()
         {
-            _log = log;
+            EnsureHooks();
+            return true;
         }
 
-        internal static void Install()
+        internal static void Configure(ModLogger log)
         {
-            if (_installed) return;
-            _installed = true;
+        }
+
+        internal static void EnsureHooks()
+        {
             On.Terraria.Main.UpdateAudio += UpdateAudioPostfix;
 
             // 后台/前台：Unity 的 XNAUnityRunner 是唯一能可靠收到 onPause/onResume 的托管入口。

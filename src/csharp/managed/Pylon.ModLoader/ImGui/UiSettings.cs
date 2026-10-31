@@ -1,65 +1,63 @@
-using System;
 using System.IO;
 using System.Text.Json;
 
-namespace Pylon.ModLoader.UI
+namespace Pylon.ModLoader.UI;
+
+/// <summary>框架自己的 UI 设置（整体缩放）。存 Mods 根下 .pylon/ui.json，不进 Mod 目录、不被升级覆盖。</summary>
+internal static class UiSettings
 {
-    /// <summary>框架自己的 UI 设置（整体缩放）。存 Mods 根下 .pylon/ui.json，不进 Mod 目录、不被升级覆盖。</summary>
-    internal static class UiSettings
+    internal const float MinScale = 0.75f;
+    internal const float MaxScale = 1.5f;
+
+    private static bool _loaded;
+    private static float _uiScale = 1.0f;
+
+    internal static float Scale
     {
-        internal const float MinScale = 0.75f;
-        internal const float MaxScale = 1.5f;
+        get { EnsureLoaded(); return _uiScale; }
+        set { EnsureLoaded(); _uiScale = Math.Clamp(value, MinScale, MaxScale); }
+    }
 
-        private static bool _loaded;
-        private static float _uiScale = 1.0f;
-
-        internal static float Scale
+    internal static void Save()
+    {
+        try
         {
-            get { EnsureLoaded(); return _uiScale; }
-            set { EnsureLoaded(); _uiScale = Math.Clamp(value, MinScale, MaxScale); }
+            var path = SettingsPath;
+            if (path == null) return;
+            Directory.CreateDirectory(Path.GetDirectoryName(path) ?? ".");
+            File.WriteAllText(path, JsonSerializer.Serialize(new { uiScale = _uiScale }));
         }
-
-        internal static void Save()
+        catch (Exception e)
         {
-            try
-            {
-                var path = SettingsPath;
-                if (path == null) return;
-                Directory.CreateDirectory(Path.GetDirectoryName(path) ?? ".");
-                File.WriteAllText(path, JsonSerializer.Serialize(new { uiScale = _uiScale }));
-            }
-            catch (Exception e)
-            {
-                Safe.Warn?.Invoke("保存 UI 设置失败：" + e.Message);
-            }
+            Safe.Warn("保存 UI 设置失败：" + e.Message);
         }
+    }
 
-        private static string SettingsPath
+    private static string? SettingsPath
+    {
+        get
         {
-            get
-            {
-                var root = Framework.HostDirectory;
-                return string.IsNullOrEmpty(root) ? null : Path.Combine(root, ".pylon", "ui.json");
-            }
+            var root = Framework.HostDirectory;
+            return string.IsNullOrEmpty(root) ? null : Path.Combine(root, ".pylon", "ui.json");
         }
+    }
 
-        private static void EnsureLoaded()
+    private static void EnsureLoaded()
+    {
+        if (_loaded) return;
+        _loaded = true;
+        try
         {
-            if (_loaded) return;
-            _loaded = true;
-            try
-            {
-                var path = SettingsPath;
-                if (path == null || !File.Exists(path)) return;
-                using var doc = JsonDocument.Parse(File.ReadAllText(path));
-                if (doc.RootElement.TryGetProperty("uiScale", out var value) &&
-                    value.ValueKind == JsonValueKind.Number)
-                    _uiScale = Math.Clamp((float)value.GetDouble(), MinScale, MaxScale);
-            }
-            catch (Exception e)
-            {
-                Safe.Warn?.Invoke("读取 UI 设置失败（用默认值）：" + e.Message);
-            }
+            var path = SettingsPath;
+            if (path == null || !File.Exists(path)) return;
+            using var doc = JsonDocument.Parse(File.ReadAllText(path));
+            if (doc.RootElement.TryGetProperty("uiScale", out var value) &&
+                value.ValueKind == JsonValueKind.Number)
+                _uiScale = Math.Clamp((float)value.GetDouble(), MinScale, MaxScale);
+        }
+        catch (Exception e)
+        {
+            Safe.Warn("读取 UI 设置失败（用默认值）：" + e.Message);
         }
     }
 }

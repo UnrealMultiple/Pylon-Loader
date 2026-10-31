@@ -9,18 +9,19 @@ using Terraria.DataStructures;
 namespace Pylon.ModLoader
 {
     /// <summary>ModItem 的使用与装备 hook 接线。</summary>
-    internal static class ItemLoader
+    internal sealed class ItemLoader : ILoaderModule
     {
+        public ItemLoader(ModLogger logger) => _logger = logger;
+
+        public string Name => "item";
+
+        public int Order => 100;
+
         private static ModLogger _logger;
-        private static bool _installed;
 
         /// <summary>注册期装一次（幂等）：第一个 mod 注册 item 时由管线调。</summary>
-        internal static void Install(ModLogger logger)
+        public bool Install()
         {
-            if (_installed) return;
-            _installed = true;
-            _logger = logger;
-
             On.Terraria.Player.ItemCheck_CheckCanUse_Inner += CanUse;
             On.Terraria.Player.ItemCheck_StartActualUse += Use;
             On.Terraria.Player.ItemCheck_ApplyUseStyle += UseStyle;
@@ -32,6 +33,7 @@ namespace Pylon.ModLoader
             On.Terraria.Projectile.NewProjectile_1 += NewProjectile;
 
             _logger?.Info("[item] ItemLoader 已挂（使用/装备/背包更新/射击）");
+            return true;
         }
 
         private static bool IsModItem(Item item) =>

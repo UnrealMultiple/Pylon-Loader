@@ -15,13 +15,18 @@ using Terraria.ID;
 namespace Pylon.ModLoader
 {
     /// <summary>ModRecipe 的回调/条件挂接 + 配方派生表重建。</summary>
-    internal static class RecipeLoader
+    internal sealed class RecipeLoader : ILoaderModule
     {
+        public RecipeLoader(ModLogger logger) => _logger = logger;
+
+        public string Name => "recipe";
+
+        public int Order => 440;
+
         // MAX_RECIPES：README 说 1.4.5.8.6 是 3700；C# 侧是编译期常量（dump: maxRecipes = 3700），同版本下等价。
         internal const int MaxRecipes = 3700;
 
         private static ModLogger _logger;
-        private static bool _installed;
 
         private sealed class Extra
         {
@@ -40,12 +45,8 @@ namespace Pylon.ModLoader
         private static bool _filtering;
 
         /// <summary>早阶段：装钩子（只装一次）。</summary>
-        internal static void Install(ModLogger logger)
+        public bool Install()
         {
-            if (_installed) return;
-            _installed = true;
-            _logger = logger;
-
             On.Terraria.Recipe.FindRecipes += FindRecipes;
             On.Terraria.Recipe.GetIngredientCraftingDiscount += DiscountPostfix;
             On.Terraria.Main.CraftItem_GrantItem += GrantItemPrefix;
@@ -54,6 +55,7 @@ namespace Pylon.ModLoader
             On.Terraria.Recipe.UpdateItemVariants += VariantsPostfix;
 
             _logger?.Info("[recipe] RecipeLoader 已挂（条件过滤 / 消耗回调 / OnCraft / 超上限）");
+            return true;
         }
 
         // ===================== 注册（ModRecipe.Register 调） =====================
@@ -450,7 +452,6 @@ namespace Pylon.ModLoader
         }
 
         private static void Step(string name, Action action) => Safe.Run("receitas: " + name, action);
-
 
     }
 }

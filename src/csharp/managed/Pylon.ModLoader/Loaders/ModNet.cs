@@ -9,24 +9,27 @@ using Terraria.Net;
 namespace Pylon.ModLoader
 {
     /// <summary>Mod 数据过 NetModule 通道（消息 82，id 0xB17E）：ModPacket、NetSend/NetReceive、SendExtraAI/ReceiveExtraAI、Global NetSend/NetReceive；载荷是类型标记的二进制流。</summary>
-    internal static class ModNet
+    internal sealed class ModNet : ILoaderModule
     {
+        public ModNet(ModLogger logger) => _ = logger; // 本管线不用日志
+
+        public string Name => "net";
+
+        public int Order => 700;
+
         private const ushort Id = 0xB17E;
         private const int MaxBytes = 65000;
 
         private const byte KindPacket = 1, KindWorld = 2, KindNpc = 3, KindProjectile = 4;
 
         private static readonly Dictionary<Type, OverridePlan> Plans = new();
-        private static bool _installed;
 
-        internal static void Install(ModLogger log)
+        public bool Install()
         {
-            if (_installed) return;
-            _installed = true;
-
             On.Terraria.Net.NetManager.Read += ReadHook;
             // 旧 prefix（劫持判定）+ 旧 postfix（补 Mod 数据）合成一个 handler：原版只跑一次，顺序不变。
             On.Terraria.NetMessage.SendData += SendHook;
+            return true;
         }
 
         private static bool Overrides(Mod mod, string method)

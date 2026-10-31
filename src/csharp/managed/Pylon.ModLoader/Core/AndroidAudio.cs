@@ -22,7 +22,7 @@ namespace Pylon.ModLoader
 
         private static bool _tried;
         private static bool _ok;
-        private static JniObject _pool;
+        private static JniObject? _pool; // _ok 为真时保证非空
 
         private static readonly Dictionary<string, int> SoundIds = new(StringComparer.Ordinal);
 
@@ -68,7 +68,7 @@ namespace Pylon.ModLoader
         }
 
         /// <summary>new AudioAttributes$Builder().setUsage(usage).setContentType(kind).build()；用完 Dispose。</summary>
-        private static JniObject BuildAudioAttributes(int contentType)
+        private static JniObject? BuildAudioAttributes(int contentType)
         {
             var builder = JniObject.New(AudioAttributesBuilderClass, "()V");
             if (builder == null) return null;
@@ -90,7 +90,7 @@ namespace Pylon.ModLoader
             try
             {
                 using var path = Jni.NewString(file);
-                var id = _pool.CallInt("load", "(Ljava/lang/String;I)I", path.AsArg(), 1);
+                var id = _pool!.CallInt("load", "(Ljava/lang/String;I)I", path.AsArg(), 1);
                 if (id <= 0)
                 {
                     Safe.Once("audio.load:" + file, "AndroidAudio: SoundPool.load 拒绝 " + file + "：" + Jni.LastError, true);
@@ -114,7 +114,7 @@ namespace Pylon.ModLoader
             {
                 volume = Math.Clamp(volume, 0f, 1f);
                 rate = Math.Clamp(rate, 0.5f, 2f);
-                return _pool.CallInt("play", "(IFFIIF)I", id, volume, volume, 1, 0, rate);
+                return _pool!.CallInt("play", "(IFFIIF)I", id, volume, volume, 1, 0, rate);
             }
             catch (Exception e)
             {
@@ -126,7 +126,7 @@ namespace Pylon.ModLoader
         internal static void StopSound(int stream)
         {
             if (!_ok || stream <= 0) return;
-            try { _pool.Call("stop", "(I)V", stream); }
+            try { _pool!.Call("stop", "(I)V", stream); }
             catch (Exception e) { Safe.Report("AndroidAudio.StopSound", e); }
         }
 
@@ -136,14 +136,14 @@ namespace Pylon.ModLoader
         internal static void PauseAll()
         {
             if (!_ok) return;
-            try { _pool.Call("autoPause", "()V"); } catch { }
+            try { _pool!.Call("autoPause", "()V"); } catch { }
             PauseMusicAll();
         }
 
         internal static void ResumeAll()
         {
             if (!_ok) return;
-            try { _pool.Call("autoResume", "()V"); } catch { }
+            try { _pool!.Call("autoResume", "()V"); } catch { }
             ResumeMusicAll();
         }
 
@@ -152,8 +152,8 @@ namespace Pylon.ModLoader
         private sealed class Track
         {
             internal int Id;
-            internal string File;
-            internal JniObject Player;
+            internal string File = string.Empty;
+            internal JniObject? Player;
             internal bool Prepared;
             internal bool Failed;
             internal bool PausedByApp;

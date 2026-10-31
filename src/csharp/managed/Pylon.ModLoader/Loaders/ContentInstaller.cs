@@ -17,8 +17,6 @@ namespace Pylon.ModLoader
         public static void InstallTextures(Mod mod, IReadOnlyList<ModType> types)
         {
             PylonTexture.Logger = mod.Logger;
-            Safe.Log = m => mod.Logger.Info(m);
-            Safe.Warn = m => mod.Logger.Warn(m);
 
             // ① 贴图先加载缓存（type.Texture），扩表后写表槽用。
             int loaded = 0;

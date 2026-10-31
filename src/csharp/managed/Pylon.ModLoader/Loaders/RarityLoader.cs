@@ -11,10 +11,15 @@ using Terraria.GameContent.UI;
 namespace Pylon.ModLoader
 {
     /// <summary>ModRarity 的占号、颜色表、拾取色、前缀升降稀有度。</summary>
-    internal static class RarityLoader
+    internal sealed class RarityLoader : ILoaderModule
     {
+        public RarityLoader(ModLogger logger) => _logger = logger;
+
+        public string Name => "rarity";
+
+        public int Order => 430;
+
         private static ModLogger _logger;
-        private static bool _installed;
 
         /// <summary>原版稀有度数量（ItemRarityID.Count，1.4.5 是 12）。</summary>
         internal const int VanillaCount = 12;
@@ -31,17 +36,14 @@ namespace Pylon.ModLoader
             catch (Exception e) { _logger?.Warn($"[rarity] {mod.Name}.RarityColor 异常：{e.Message}"); return Color.White; }
         }
 
-        internal static void Install(ModLogger logger)
+        public bool Install()
         {
-            if (_installed) return;
-            _installed = true;
-            _logger = logger;
-
             On.Terraria.GameContent.UI.ItemRarity.Initialize += InitializePostfix;
             On.Terraria.Item.GetPopupRarityColor_1 += PopupColorPrefix;
             On.Terraria.Item.Prefix_1 += PrefixRarity;   // 旧的前后置合成一个 handler
 
             _logger?.Info("[rarity] RarityLoader 已挂（颜色表/拾取色/前缀升降）");
+            return true;
         }
 
         // ================= 颜色表 =================
