@@ -90,7 +90,10 @@ export function parseAll() {
     }
     s.methods = methods;
   }
-  model.functions = model.functions.filter(f => f._src === 'imgui' && !f.impl
+  // imgui_demo.cpp 没有编进内核（不带 demo），这几个函数在别处没有定义。若照常导出，
+  // libpylon.so 会留下未定义符号，Android 的 dlopen（-z now）会直接失败。
+  const DEMO_ONLY = new Set(['ShowDemoWindow', 'ShowAboutWindow', 'ShowStyleEditor', 'ShowStyleSelector', 'ShowUserGuide']);
+  model.functions = model.functions.filter(f => f._src === 'imgui' && !f.impl && !DEMO_ONLY.has(f.name)
     && !(f.params || []).some(pp => typeof pp.type === 'string' && pp.type.includes('(') && pp.type.includes(')')));
   model.functions.forEach(f => { f.exportName = 'ig' + f.name; });
   return model;

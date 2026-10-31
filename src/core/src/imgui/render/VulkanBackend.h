@@ -17,6 +17,8 @@ public:
     void EndFrame() override;
     void Shutdown() override;
     bool IsReady() const override;
+    /// 表面尺寸变化时就地重建交换链（保留 instance/device 与图标纹理）。
+    bool Resize(int width, int height);
     bool RequiresSurfaceRebuild() const;
     uint64_t PresentedFrameCount() const;
 

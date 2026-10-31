@@ -78,9 +78,8 @@ $common = @(
     "-I$(Join-Path $PSScriptRoot 'include')",
     "-I$srcRoot",
     "-I$(Join-Path $srcRoot 'imgui')",
-    "-I$(Join-Path (Join-Path $srcRoot 'imgui') 'backends')",
-    "-I$(Join-Path (Join-Path $srcRoot 'imgui') 'Graphics')",
-    "-I$(Join-Path (Join-Path $srcRoot 'imgui') 'helper')"
+    "-I$(Join-Path (Join-Path $srcRoot 'imgui') 'render')",
+    "-I$(Join-Path $srcRoot 'jni')"
 )
 
 # 源文件：*.cpp 之外还有 *.S（graphics/GuardedCall.S 的受保护调用 trampoline，走集成汇编器）。
@@ -144,4 +143,22 @@ if (Test-Path $readelf) {
     if ($modCount -lt 25) { throw "Mod ABI 导出不足（$modCount 个），检查 PYLON_MOD_EXPORT 与 -fvisibility" }
     if ($fxCount -lt 12) { throw "Fx ABI 导出不足（$fxCount 个），检查 PYLON_FX_EXPORT 与 -fvisibility" }
     if ($cxxCount -gt 0) { throw "仍有 $cxxCount 个 libc++ 符号被导出，检查 -Wl,--exclude-libs,ALL" }
+
+    # 未定义符号自检。Android 的 dlopen 会拒绝**强**未定义符号，而静态链接期不报错，
+    # 结果就是 APK 装得上、一启动却 "cannot locate symbol"，内核整个起不来。
+    # 已经踩过一次：桥接层导出了 imgui_demo.cpp 独有、而该文件从未编进内核的 5 个函数。
+    # 弱未定义（WEAK）绑定到 0，不属于问题，这里跳过。
+    $systemPrefix = '^(vk|ANativeWindow|AAsset|__android_log)'
+    $strongUndef = @(& $readelf --dyn-syms --wide $outSo |
+        Select-String ' UND ' |
+        Where-Object { $_.Line -notmatch '\bWEAK\b' } |
+        ForEach-Object { ($_.Line -split '\s+')[-1] } |
+        ForEach-Object { $_ } |
+        Where-Object { $_ -and $_ -notmatch '@' -and $_ -notmatch $systemPrefix } |
+        Sort-Object -Unique)
+    if ($strongUndef.Count -gt 0) {
+        $strongUndef | ForEach-Object { Write-Host "          $_" }
+        throw "有 $($strongUndef.Count) 个强未定义符号，dlopen 会失败；多半是某个 .cpp 没编进来"
+    }
+    Write-Host "[pylon] 未定义符号  : 无强未定义（dlopen 安全）"
 }

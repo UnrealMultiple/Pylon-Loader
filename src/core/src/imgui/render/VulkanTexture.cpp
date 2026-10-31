@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../backends/imgui_impl_vulkan.h"
+#include "imgui_impl_vulkan.h"
 #include "Logger.h"
 
 namespace VulkanTexture

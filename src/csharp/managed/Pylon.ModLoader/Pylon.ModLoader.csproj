@@ -63,5 +63,9 @@
   <ItemGroup>
     <EmbeddedResource Include="Textures\loaderIcon.png" />
     <EmbeddedResource Include="Textures\pylon.png" />
+    <!-- ImGui 字体随程序集内嵌，避免在安卓上依赖外部文件路径 -->
+    <EmbeddedResource Include="ImGui\Fonts\ui.ttf">
+      <LogicalName>Pylon.ModLoader.ImGui.Fonts.ui.ttf</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 </Project>

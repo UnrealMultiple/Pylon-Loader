@@ -94,21 +94,40 @@ internal object RuntimeDeploy {
         marker.writeText("$DEPLOY_VERSION_TAG bcl=$expectedDotnet interop=$expectedInterop managed=$expectedManaged\n")
         return Layout(dotnetDir, managedDir, interopDir, entry)
     }
-    /** 资产树的指纹：文件数 + 总字节。字节必须**读流**统计 —— openFd().length 对压缩 asset 会抛异常，吞掉就恒为 0。 */
+    /**
+     * 资产树的指纹：文件数 + 内容 CRC32。
+     *
+     * 曾经只算"文件数 + 总字节"，结果两次构建的 Pylon.ModLoader.dll 字节数恰好相同，宿主判定
+     * 无需重解，于是一直跑设备上的旧程序集（改了代码却不生效，极难察觉）。CRC32 读一遍流即可，
+     * 托管目录只有 4 个文件，代价可以忽略。
+     */
     private fun fingerprint(assets: AssetManager, assetPath: String, depth: Int = 0): String {
         if (depth > DEPTH_LIMIT) return "deep"
         val children = runCatching { assets.list(assetPath) }.getOrNull() ?: return "0:0"
-        if (children.isEmpty()) return "1:${sizeOf(assets, assetPath)}"
+        if (children.isEmpty()) return "1:${crcOf(assets, assetPath)}"
 
         var files = 0
-        var bytes = 0L
+        var crc = 0L
         for (child in children) {
             val parts = fingerprint(assets, "$assetPath/$child", depth + 1).split(':')
             files += parts[0].toIntOrNull() ?: 0
-            bytes += parts[1].toLongOrNull() ?: 0L
+            crc = (crc * 31 + (parts[1].toLongOrNull() ?: 0L)) and 0x7FFFFFFF
         }
-        return "$files:$bytes"
+        return "$files:$crc"
     }
+
+    private fun crcOf(assets: AssetManager, assetPath: String): Long = runCatching {
+        val crc = java.util.zip.CRC32()
+        assets.open(assetPath).use { input ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            while (true) {
+                val read = input.read(buffer)
+                if (read <= 0) break
+                crc.update(buffer, 0, read)
+            }
+        }
+        crc.value
+    }.getOrDefault(0L)
 
     private fun sizeOf(assets: AssetManager, assetPath: String): Long = runCatching {
         assets.open(assetPath).use { input ->

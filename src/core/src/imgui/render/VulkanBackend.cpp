@@ -14,11 +14,12 @@
 #include "VulkanBackend.h"
 
 #include <android/native_window.h>
+#include <android/set_abort_message.h>
 #include <algorithm>
 #include <cstring>
 
-#include "../imgui.h"
-#include "../backends/imgui_impl_vulkan.h"
+#include "imgui.h"
+#include "imgui_impl_vulkan.h"
 #include "VulkanTexture.h"
 #include "Logger.h"
 
@@ -42,6 +43,16 @@
     } while (0)
 
 constexpr uint64_t kAcquireTimeoutNanoseconds = 1'000'000;
+
+// Init 逐步留痕：某一步若把进程直接打死（驱动 abort / ImGui 断言），日志里最后一条
+// "init: xxx" 就是现场，不必靠猜。
+#define PYLON_INIT_STEP(name, expr)                        \
+    do {                                                   \
+        if (!ok) break;                                    \
+        android_set_abort_message("vulkan-init: " name);   \
+        LOGI("[VulkanBackend] init: %s", name);            \
+        ok = (expr);                                       \
+    } while (0)
 
 /**
  * @brief ImGui Vulkan 后端的错误回调
@@ -83,19 +94,21 @@ bool VulkanBackend::Init(ANativeWindow *window, int width, int height)
     presentedFrameCount_ = 0;
     recoveryScope_ = RecoveryScope::None;
 
-    // 链式调用：任何一步返回 false 即短路停止
-    bool ok = CreateInstance()
-           && CreateSurface(window)
-           && SelectPhysicalDevice()
-           && CreateLogicalDevice()
-           && CreateSwapchain(width, height)
-           && CreateRenderPass()
-           && CreateFramebuffers()
-           && CreateCommandPool()
-           && CreateCommandBuffers()
-           && CreateSyncObjects()
-           && CreateDescriptorPool()
-           && InitImGuiVulkan();
+    // 逐步执行并留痕：某一步若把进程直接打死（驱动 abort / ImGui 断言），
+    // 日志里最后一条 "init: xxx" 就是现场，不必猜。
+    bool ok = true;
+    PYLON_INIT_STEP("instance",         CreateInstance());
+    PYLON_INIT_STEP("surface",          CreateSurface(window));
+    PYLON_INIT_STEP("physical-device",  SelectPhysicalDevice());
+    PYLON_INIT_STEP("logical-device",   CreateLogicalDevice());
+    PYLON_INIT_STEP("swapchain",        CreateSwapchain(width, height));
+    PYLON_INIT_STEP("render-pass",      CreateRenderPass());
+    PYLON_INIT_STEP("framebuffers",     CreateFramebuffers());
+    PYLON_INIT_STEP("command-pool",     CreateCommandPool());
+    PYLON_INIT_STEP("command-buffers",  CreateCommandBuffers());
+    PYLON_INIT_STEP("sync-objects",     CreateSyncObjects());
+    PYLON_INIT_STEP("descriptor-pool",  CreateDescriptorPool());
+    PYLON_INIT_STEP("imgui-vulkan",     InitImGuiVulkan());
 
     if (!ok)
     {
@@ -377,6 +390,62 @@ bool VulkanBackend::IsReady() const
 bool VulkanBackend::RequiresSurfaceRebuild() const
 {
     return recoveryScope_ == RecoveryScope::Surface;
+}
+
+bool VulkanBackend::Resize(int width, int height)
+{
+    if (!initialized_ || device_ == VK_NULL_HANDLE) return false;
+    if (width <= 0 || height <= 0) return false;
+    if (width == width_ && height == height_ && recoveryScope_ == RecoveryScope::None)
+        return true;
+
+    vkDeviceWaitIdle(device_);
+
+    // 同步原语与命令缓冲按 imageCount 分配，交换链可能换出不同的图像数，必须整组重来。
+    for (auto f : inFlightFences_)
+        if (f) vkDestroyFence(device_, f, nullptr);
+    for (auto s : imageAvailableSemaphores_)
+        if (s) vkDestroySemaphore(device_, s, nullptr);
+    for (auto s : renderFinishedSemaphores_)
+        if (s) vkDestroySemaphore(device_, s, nullptr);
+    inFlightFences_.clear();
+    imageAvailableSemaphores_.clear();
+    renderFinishedSemaphores_.clear();
+
+    if (commandPool_ && !commandBuffers_.empty())
+        vkFreeCommandBuffers(device_, commandPool_,
+                             static_cast<uint32_t>(commandBuffers_.size()),
+                             commandBuffers_.data());
+    commandBuffers_.clear();
+
+    // ImGui 后端的管线绑定旧的 render pass，必须一起重建（字体纹理由 NewFrame 自动重做）。
+    ImGui_ImplVulkan_Shutdown();
+    CleanupSwapchain();
+
+    width_  = width;
+    height_ = height;
+    semaphoreIndex_     = 0;
+    semaphoreCount_     = 0;
+    acquiredImageIndex_ = 0;
+    frameStarted_       = false;
+
+    const bool ok = CreateSwapchain(width, height)
+                 && CreateRenderPass()
+                 && CreateFramebuffers()
+                 && CreateCommandBuffers()
+                 && CreateSyncObjects()
+                 && InitImGuiVulkan();
+    if (!ok)
+    {
+        LOGE("[VulkanBackend] resize -> %dx%d failed", width, height);
+        initialized_   = false;
+        recoveryScope_ = RecoveryScope::Backend;
+        return false;
+    }
+
+    recoveryScope_ = RecoveryScope::None;
+    LOGI("[VulkanBackend] resized %dx%d images=%u", width_, height_, imageCount_);
+    return true;
 }
 
 uint64_t VulkanBackend::PresentedFrameCount() const

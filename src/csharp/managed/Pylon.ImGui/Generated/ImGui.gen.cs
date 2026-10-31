@@ -69,13 +69,6 @@ namespace Pylon.ImGui
             return ret;
         }
 
-        public static void ShowDemoWindow(ref bool p_open)
-        {
-            byte native_p_open_val = p_open ? (byte)1 : (byte)0;
-            byte* native_p_open = &native_p_open_val;
-            ImGuiNative.igShowDemoWindow(native_p_open);
-        }
-
         public static void ShowMetricsWindow(ref bool p_open)
         {
             byte native_p_open_val = p_open ? (byte)1 : (byte)0;
@@ -95,47 +88,6 @@ namespace Pylon.ImGui
             byte native_p_open_val = p_open ? (byte)1 : (byte)0;
             byte* native_p_open = &native_p_open_val;
             ImGuiNative.igShowIDStackToolWindow(native_p_open);
-        }
-
-        public static void ShowAboutWindow(ref bool p_open)
-        {
-            byte native_p_open_val = p_open ? (byte)1 : (byte)0;
-            byte* native_p_open = &native_p_open_val;
-            ImGuiNative.igShowAboutWindow(native_p_open);
-        }
-
-        public static void ShowStyleEditor(ImGuiStylePtr arg1 = default)
-        {
-            ImGuiStyle* native_arg1 = arg1.NativePtr;
-            ImGuiNative.igShowStyleEditor(native_arg1);
-        }
-
-        public static bool ShowStyleSelector(string label)
-        {
-            byte* native_label;
-            int label_byteCount = 0;
-            if (label != null)
-            {
-                label_byteCount = Encoding.UTF8.GetByteCount(label);
-                if (label_byteCount > Util.StackAllocationSizeLimit)
-                {
-                    native_label = Util.Allocate(label_byteCount + 1);
-                }
-                else
-                {
-                    byte* native_label_stackBytes = stackalloc byte[label_byteCount + 1];
-                    native_label = native_label_stackBytes;
-                }
-                int native_label_offset = Util.GetUtf8(label, native_label, label_byteCount);
-                native_label[native_label_offset] = 0;
-            }
-            else { native_label = null; }
-            byte ret = ImGuiNative.igShowStyleSelector(native_label);
-            if (label_byteCount > Util.StackAllocationSizeLimit)
-            {
-                Util.Free(native_label);
-            }
-            return ret != 0;
         }
 
         public static void ShowFontSelector(string label)
@@ -163,11 +115,6 @@ namespace Pylon.ImGui
             {
                 Util.Free(native_label);
             }
-        }
-
-        public static void ShowUserGuide()
-        {
-            ImGuiNative.igShowUserGuide();
         }
 
         public static string GetVersion()

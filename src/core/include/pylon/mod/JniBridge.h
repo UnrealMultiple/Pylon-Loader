@@ -14,6 +14,8 @@
 
 PYLON_MOD_EXPORT int32_t PylonMod_Jni_EnsureAttached();
 PYLON_MOD_EXPORT const char* PylonMod_Jni_LastError();
+/// 清空 LastError：调用方在关键步骤前清一次，调用后看是否被写，以此判断这一步是否真的成功。
+PYLON_MOD_EXPORT void PylonMod_Jni_ClearError();
 
 // ---- 类 / 对象句柄 ----
 
@@ -39,6 +41,19 @@ PYLON_MOD_EXPORT void* PylonMod_Jni_GetMethodID(void* cls, const char* name, con
 
 /// 静态方法；失败返回 nullptr，原因见 LastError。
 PYLON_MOD_EXPORT void* PylonMod_Jni_GetStaticMethodID(void* cls, const char* name, const char* sig);
+
+// ---- 字段 ID 与读写（C# 侧要拼 WindowManager.LayoutParams 之类只能靠字段） ----
+
+PYLON_MOD_EXPORT void* PylonMod_Jni_GetFieldID(void* cls, const char* name, const char* sig);
+PYLON_MOD_EXPORT void* PylonMod_Jni_GetStaticFieldID(void* cls, const char* name, const char* sig);
+
+/// 读引用字段/静态字段（返回全局引用，用完 DeleteGlobalRef）。
+PYLON_MOD_EXPORT void* PylonMod_Jni_GetObjectField(void* obj, void* field);
+PYLON_MOD_EXPORT void* PylonMod_Jni_GetStaticObjectField(void* cls, void* field);
+
+PYLON_MOD_EXPORT int32_t PylonMod_Jni_GetIntField(void* obj, void* field);
+PYLON_MOD_EXPORT void PylonMod_Jni_SetIntField(void* obj, void* field, int32_t value);
+PYLON_MOD_EXPORT void PylonMod_Jni_SetObjectField(void* obj, void* field, void* value);
 
 // ---- 构造 / 调用（argv = jvalue* 数组，argc 个；返回引用类型时转全局引用） ----
 

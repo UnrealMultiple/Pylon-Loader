@@ -38,6 +38,13 @@ namespace Pylon.ModLoader
 
         [DllImport("pylon")] internal static extern int PylonMod_Jni_EnsureAttached();
         [DllImport("pylon")] internal static extern IntPtr PylonMod_Jni_LastError();
+        [DllImport("pylon")] internal static extern void PylonMod_Jni_ClearError();
+
+        /// <summary>关键步骤前清一次，之后看 <see cref="LastError"/> 是否为空，判断这一步是否真的成功。</summary>
+        internal static void ClearError()
+        {
+            try { PylonMod_Jni_ClearError(); } catch { }
+        }
 
         [DllImport("pylon")] internal static extern IntPtr PylonMod_Jni_FindClass(string name);
         [DllImport("pylon")] internal static extern IntPtr PylonMod_Jni_GetObjectClass(IntPtr obj);
@@ -51,6 +58,18 @@ namespace Pylon.ModLoader
         [DllImport("pylon")] internal static extern int PylonMod_Jni_CallBoolean(IntPtr obj, IntPtr method, int argc, JValue[] argv);
         [DllImport("pylon")] internal static extern void PylonMod_Jni_CallVoid(IntPtr obj, IntPtr method, int argc, JValue[] argv);
         [DllImport("pylon")] internal static extern IntPtr PylonMod_Jni_CallObject(IntPtr obj, IntPtr method, int argc, JValue[] argv);
+
+        [DllImport("pylon")] internal static extern int PylonMod_Jni_CallStaticInt(IntPtr cls, IntPtr method, int argc, JValue[] argv);
+        [DllImport("pylon")] internal static extern IntPtr PylonMod_Jni_CallStaticObject(IntPtr cls, IntPtr method, int argc, JValue[] argv);
+        [DllImport("pylon")] internal static extern void PylonMod_Jni_CallStaticVoid(IntPtr cls, IntPtr method, int argc, JValue[] argv);
+
+        [DllImport("pylon")] internal static extern IntPtr PylonMod_Jni_GetFieldID(IntPtr cls, string name, string sig);
+        [DllImport("pylon")] internal static extern IntPtr PylonMod_Jni_GetStaticFieldID(IntPtr cls, string name, string sig);
+        [DllImport("pylon")] internal static extern IntPtr PylonMod_Jni_GetObjectField(IntPtr obj, IntPtr field);
+        [DllImport("pylon")] internal static extern IntPtr PylonMod_Jni_GetStaticObjectField(IntPtr cls, IntPtr field);
+        [DllImport("pylon")] internal static extern int PylonMod_Jni_GetIntField(IntPtr obj, IntPtr field);
+        [DllImport("pylon")] internal static extern void PylonMod_Jni_SetIntField(IntPtr obj, IntPtr field, int value);
+        [DllImport("pylon")] internal static extern void PylonMod_Jni_SetObjectField(IntPtr obj, IntPtr field, IntPtr value);
 
         [DllImport("pylon")] internal static extern IntPtr PylonMod_Jni_NewStringUtf(string utf8);
         [DllImport("pylon")] internal static extern IntPtr PylonMod_Jni_GetStringUtf(IntPtr jstring);
@@ -92,6 +111,33 @@ namespace Pylon.ModLoader
             if (method != IntPtr.Zero) MethodCache[key] = method;
             return method;
         }
+
+        // 字段 ID 缓存（键 = 类引用 + 名字 + 签名 + 静态标记）
+        private static readonly ConcurrentDictionary<(IntPtr, string, string, bool), IntPtr> FieldCache = new();
+
+        internal static IntPtr Field(IntPtr cls, string name, string sig, bool isStatic)
+        {
+            var key = (cls, name, sig, isStatic);
+            if (FieldCache.TryGetValue(key, out var cached)) return cached;
+            var field = isStatic
+                ? PylonMod_Jni_GetStaticFieldID(cls, name, sig)
+                : PylonMod_Jni_GetFieldID(cls, name, sig);
+            if (field != IntPtr.Zero) FieldCache[key] = field;
+            return field;
+        }
+
+        // 静态方法调用（cls 是 jclass 全局引用）
+        internal static int CallStaticInt(IntPtr cls, IntPtr method, params JValue[] argv)
+            => PylonMod_Jni_CallStaticInt(cls, method, argv?.Length ?? 0, argv);
+
+        internal static IntPtr CallStaticObject(IntPtr cls, IntPtr method, params JValue[] argv)
+        {
+            var obj = PylonMod_Jni_CallStaticObject(cls, method, argv?.Length ?? 0, argv);
+            return obj;
+        }
+
+        internal static void CallStaticVoid(IntPtr cls, IntPtr method, params JValue[] argv)
+            => PylonMod_Jni_CallStaticVoid(cls, method, argv?.Length ?? 0, argv);
     }
 
     /// <summary>
@@ -187,6 +233,30 @@ namespace Pylon.ModLoader
             return obj == IntPtr.Zero ? null : new JniObject(obj);
         }
 
+        // 接口方法（如 SurfaceHolder.getSurface）用运行时类查不到 MethodID，必须按声明它的接口查。
+
+        internal JniObject CallObjectOn(JniClass declaring, string name, string sig, params JValue[] args)
+        {
+            var method = Jni.Method(declaring.Handle, name, sig, isStatic: false);
+            if (method == IntPtr.Zero) { Report(declaring.Name + "." + name); return null; }
+            var obj = Jni.PylonMod_Jni_CallObject(Handle, method, args?.Length ?? 0, args);
+            return obj == IntPtr.Zero ? null : new JniObject(obj);
+        }
+
+        internal bool CallBoolOn(JniClass declaring, string name, string sig, params JValue[] args)
+        {
+            var method = Jni.Method(declaring.Handle, name, sig, isStatic: false);
+            if (method == IntPtr.Zero) { Report(declaring.Name + "." + name); return false; }
+            return Jni.PylonMod_Jni_CallBoolean(Handle, method, args?.Length ?? 0, args) != 0;
+        }
+
+        internal void CallOn(JniClass declaring, string name, string sig, params JValue[] args)
+        {
+            var method = Jni.Method(declaring.Handle, name, sig, isStatic: false);
+            if (method == IntPtr.Zero) { Report(declaring.Name + "." + name); return; }
+            Jni.PylonMod_Jni_CallVoid(Handle, method, args?.Length ?? 0, args);
+        }
+
         internal string GetString(string name, string sig, params JValue[] args)
         {
             using var str = CallObject(name, sig, args);
@@ -195,6 +265,38 @@ namespace Pylon.ModLoader
             if (pointer == IntPtr.Zero) return null;
             try { return Marshal.PtrToStringUTF8(pointer); }
             finally { Jni.PylonMod_Jni_ReleaseStringUtf(pointer); }
+        }
+
+        // ---- 字段读写 ----
+
+        internal int GetIntField(string name, string sig)
+        {
+            var field = Jni.Field(ClassRef(), name, sig, isStatic: false);
+            if (field == IntPtr.Zero) return 0;
+            return Jni.PylonMod_Jni_GetIntField(Handle, field);
+        }
+
+        internal void SetIntField(string name, string sig, int value)
+        {
+            var field = Jni.Field(ClassRef(), name, sig, isStatic: false);
+            if (field == IntPtr.Zero) return;
+            Jni.PylonMod_Jni_SetIntField(Handle, field, value);
+        }
+
+        internal void SetFieldObject(string name, string sig, JniObject value)
+        {
+            var field = Jni.Field(ClassRef(), name, sig, isStatic: false);
+            if (field == IntPtr.Zero) return;
+            Jni.PylonMod_Jni_SetObjectField(Handle, field, value?.Handle ?? IntPtr.Zero);
+        }
+
+        /// <summary>读引用字段（新全局引用，用完 Dispose）；null 字段返回 null。</summary>
+        internal JniObject GetFieldObject(string name, string sig)
+        {
+            var field = Jni.Field(ClassRef(), name, sig, isStatic: false);
+            if (field == IntPtr.Zero) return null;
+            var obj = Jni.PylonMod_Jni_GetObjectField(Handle, field);
+            return obj == IntPtr.Zero ? null : new JniObject(obj);
         }
 
         /// <summary>本对象作为参数时的 jvalue。</summary>
@@ -212,6 +314,59 @@ namespace Pylon.ModLoader
             if (Handle != IntPtr.Zero) Jni.PylonMod_Jni_DeleteGlobalRef(Handle);
             if (_givenClass != IntPtr.Zero && _givenClass != Handle) Jni.PylonMod_Jni_DeleteGlobalRef(_givenClass);
             if (_lazyClass != IntPtr.Zero && _lazyClass != Handle) Jni.PylonMod_Jni_DeleteGlobalRef(_lazyClass);
+        }
+    }
+
+    /// <summary>
+    /// Java 类句柄的薄封装（全局 jclass 引用 + 静态成员访问）。与 JniObject 的区别只在
+    /// 调用走 CallStatic*。命名规则同 JniObject。
+    /// </summary>
+    internal sealed class JniClass : IDisposable
+    {
+        internal readonly IntPtr Handle;
+        internal readonly string Name;
+
+        private JniClass(IntPtr handle, string name) { Handle = handle; Name = name; }
+
+        /// <summary>按 "android/view/SurfaceView" 形式取类；失败返回 null。</summary>
+        internal static JniClass Find(string jniName)
+        {
+            var cls = Jni.PylonMod_Jni_FindClass(jniName);
+            if (cls == IntPtr.Zero) { JniObject.Report("FindClass " + jniName); return null; }
+            return new JniClass(cls, jniName);
+        }
+
+        internal int CallStaticInt(string name, string sig, params JValue[] args)
+        {
+            var m = Jni.Method(Handle, name, sig, isStatic: true);
+            return m == IntPtr.Zero ? 0 : Jni.CallStaticInt(Handle, m, args);
+        }
+
+        internal JniObject CallStaticObject(string name, string sig, params JValue[] args)
+        {
+            var m = Jni.Method(Handle, name, sig, isStatic: true);
+            if (m == IntPtr.Zero) return null;
+            var obj = Jni.CallStaticObject(Handle, m, args);
+            return obj == IntPtr.Zero ? null : new JniObject(obj);
+        }
+
+        internal void CallStaticVoid(string name, string sig, params JValue[] args)
+        {
+            var m = Jni.Method(Handle, name, sig, isStatic: true);
+            if (m != IntPtr.Zero) Jni.CallStaticVoid(Handle, m, args);
+        }
+
+        internal JniObject GetStaticObject(string name, string sig)
+        {
+            var field = Jni.Field(Handle, name, sig, isStatic: true);
+            if (field == IntPtr.Zero) return null;
+            var obj = Jni.PylonMod_Jni_GetStaticObjectField(Handle, field);
+            return obj == IntPtr.Zero ? null : new JniObject(obj);
+        }
+
+        public void Dispose()
+        {
+            if (Handle != IntPtr.Zero) Jni.PylonMod_Jni_DeleteGlobalRef(Handle);
         }
     }
 }

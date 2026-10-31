@@ -1,7 +1,7 @@
 // GENERATED FILE — do not edit. See tools/imgui-gen/
 #include "imgui.h"
 #include "imgui_internal.h"
-#include "Graphics/VulkanTexture.h"
+#include "render/VulkanTexture.h"
 #include <cstdint>
 #include <cstdarg>
 #include <cstring>
@@ -21,15 +21,10 @@ PYLON_IMGUI_EXPORT void igNewFrame() { ImGui::NewFrame(); }
 PYLON_IMGUI_EXPORT void igEndFrame() { ImGui::EndFrame(); }
 PYLON_IMGUI_EXPORT void igRender() { ImGui::Render(); }
 PYLON_IMGUI_EXPORT ImDrawData * igGetDrawData() { return ImGui::GetDrawData(); }
-PYLON_IMGUI_EXPORT void igShowDemoWindow(bool * p_open) { ImGui::ShowDemoWindow(p_open); }
 PYLON_IMGUI_EXPORT void igShowMetricsWindow(bool * p_open) { ImGui::ShowMetricsWindow(p_open); }
 PYLON_IMGUI_EXPORT void igShowDebugLogWindow(bool * p_open) { ImGui::ShowDebugLogWindow(p_open); }
 PYLON_IMGUI_EXPORT void igShowIDStackToolWindow(bool * p_open) { ImGui::ShowIDStackToolWindow(p_open); }
-PYLON_IMGUI_EXPORT void igShowAboutWindow(bool * p_open) { ImGui::ShowAboutWindow(p_open); }
-PYLON_IMGUI_EXPORT void igShowStyleEditor(ImGuiStyle * ref) { ImGui::ShowStyleEditor(ref); }
-PYLON_IMGUI_EXPORT bool igShowStyleSelector(const char * label) { return ImGui::ShowStyleSelector(label); }
 PYLON_IMGUI_EXPORT void igShowFontSelector(const char * label) { ImGui::ShowFontSelector(label); }
-PYLON_IMGUI_EXPORT void igShowUserGuide() { ImGui::ShowUserGuide(); }
 PYLON_IMGUI_EXPORT const char * igGetVersion() { return ImGui::GetVersion(); }
 PYLON_IMGUI_EXPORT void igStyleColorsDark(ImGuiStyle * dst) { ImGui::StyleColorsDark(dst); }
 PYLON_IMGUI_EXPORT void igStyleColorsLight(ImGuiStyle * dst) { ImGui::StyleColorsLight(dst); }

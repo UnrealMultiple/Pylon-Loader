@@ -1,11 +1,10 @@
-using System;
 using System.Collections.Generic;
 using UnityEngine;
 
 namespace Pylon.ModLoader.UI
 {
-    /// <summary>触摸穿透拦截（游戏侧 CursorManager 的 ShouldIgnore* 过滤）。</summary>
-    internal static class ImGuiTouchGuard
+    /// <summary>触摸穿透拦截：注册本帧菜单窗口矩形，游戏侧 CursorManager 命中即忽略世界/触摸输入。</summary>
+    internal static class ImGuiTouchRouter
     {
         private readonly struct Rect(float x, float y, float w, float h)
         {
@@ -27,7 +26,6 @@ namespace Pylon.ModLoader.UI
             Rects.Add(new Rect(x, y, w, h));
         }
 
-        /// <summary>覆盖层坐标命中测试</summary>
         internal static bool HitWindowAt(float overlayX, float overlayY)
         {
             foreach (var r in Rects)
@@ -39,7 +37,7 @@ namespace Pylon.ModLoader.UI
             return false;
         }
 
-        internal static void RequestInstall(ModLogger logger)
+        internal static void RequestInstall()
         {
             if (_installed) return;
             _installed = true;
@@ -65,9 +63,7 @@ namespace Pylon.ModLoader.UI
             Vector2 pos;
             try { pos = self.GetTouchPosition(touchIndex); }
             catch { return false; }
-            if (HitWindowAt(pos.x / Kx, (ScrH - pos.y) / Ky))
-                return true;
-            return false;
+            return HitWindowAt(pos.x / Kx, (ScrH - pos.y) / Ky);
         }
     }
 }

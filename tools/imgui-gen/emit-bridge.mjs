@@ -47,7 +47,7 @@ export function emitBridgeCpp(model, outPath) {
   W('// GENERATED FILE — do not edit. See tools/imgui-gen/');
   W('#include "imgui.h"');
   W('#include "imgui_internal.h"');
-  W('#include "Graphics/VulkanTexture.h"');
+  W('#include "render/VulkanTexture.h"');
   W('#include <cstdint>');
   W('#include <cstdarg>');
   W('#include <cstring>');

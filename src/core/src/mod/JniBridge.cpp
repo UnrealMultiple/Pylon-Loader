@@ -1,55 +1,33 @@
 // 层：内核层 / mod —— Java（JNI）反射桥的实现（声明见 include/pylon/mod/JniBridge.h）
 // 用反射而非逐类写 JNI 粘合：C# 要"能直接反射 Java"这一通用原语，任何系统类都能从 C# 调。
-// 线程/引用纪律：未 attach 的线程自动 attach（JavaVM 从 libart/libnativehelper 找，与
-// JniRuntime.cpp 同源）并登记退出 detach（否则 ART 在线程结束时 abort 进程）；返回给 C# 的
+// 线程/引用纪律：未 attach 的线程自动 attach（见 jni/JniRuntime）并登记退出 detach
+// （否则 ART 在线程结束时 abort 进程）；返回给 C# 的
 // jclass/jobject/jstring 一律**全局引用**，本地引用用完即删；每次调用后清未决异常并写
 // LastError（带异常继续调 JNI 是未定义行为）。
 #include "pylon/mod/JniBridge.h"
 
 #include <jni.h>
-#include <dlfcn.h>
-#include <pthread.h>
 #include <string.h>
 
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
-#include "imgui/backends/JniRuntime.h"
+#include "jni/JniRuntime.h"
 
 namespace {
 
 thread_local char g_error[512] = {0};
-thread_local pthread_key_t g_detach_key;
-thread_local bool g_detach_key_created = false;
 
 void SetError(const char* text) {
     if (text == nullptr) text = "未知 JNI 错误";
     std::snprintf(g_error, sizeof(g_error), "%s", text);
 }
 
-void DetachOnExit(void*) {
-    JavaVM* vm = AndroidPlatform::GetJavaVM();
-    if (vm) vm->DetachCurrentThread();
-}
-
-/// 当前线程的 JNIEnv：已 attach 直接用，否则 attach（并登记退出 detach）。
+/// 本文件的 Env 入口：attach 逻辑在 jni/JniRuntime，这里只补一条 LastError。
 JNIEnv* EnsureEnv() {
-    JavaVM* vm = AndroidPlatform::GetJavaVM();
-    if (vm == nullptr) {
-        SetError("拿不到 JavaVM");
-        return nullptr;
-    }
-    JNIEnv* env = nullptr;
-    if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) == JNI_OK) return env;
-    if (vm->AttachCurrentThread(&env, nullptr) != JNI_OK) {
-        SetError("AttachCurrentThread 失败");
-        return nullptr;
-    }
-    if (!g_detach_key_created) {
-        if (pthread_key_create(&g_detach_key, DetachOnExit) == 0) g_detach_key_created = true;
-    }
-    if (g_detach_key_created) pthread_setspecific(g_detach_key, env);
+    JNIEnv* env = AndroidPlatform::EnsureEnv();
+    if (env == nullptr) SetError("拿不到 JavaVM 或 attach 失败");
     return env;
 }
 
@@ -74,6 +52,10 @@ int32_t PylonMod_Jni_EnsureAttached() {
 
 const char* PylonMod_Jni_LastError() {
     return g_error;
+}
+
+void PylonMod_Jni_ClearError() {
+    g_error[0] = '\0';
 }
 
 // ---- 类 / 对象句柄 ----
@@ -150,6 +132,76 @@ void* PylonMod_Jni_GetStaticMethodID(void* cls, const char* name, const char* si
         return nullptr;
     }
     return mid;
+}
+
+// ---- 字段 ----
+
+void* PylonMod_Jni_GetFieldID(void* cls, const char* name, const char* sig) {
+    JNIEnv* env = EnsureEnv();
+    if (env == nullptr || cls == nullptr || name == nullptr || sig == nullptr) { SetError("GetFieldID 参数为空"); return nullptr; }
+    jfieldID fid = env->GetFieldID(static_cast<jclass>(cls), name, sig);
+    if (fid == nullptr) {
+        AfterCall(env, "GetFieldID 失败");
+        std::snprintf(g_error, sizeof(g_error), "GetFieldID(%s%s) 失败", name, sig);
+        return nullptr;
+    }
+    return fid;
+}
+
+void* PylonMod_Jni_GetStaticFieldID(void* cls, const char* name, const char* sig) {
+    JNIEnv* env = EnsureEnv();
+    if (env == nullptr || cls == nullptr || name == nullptr || sig == nullptr) { SetError("GetStaticFieldID 参数为空"); return nullptr; }
+    jfieldID fid = env->GetStaticFieldID(static_cast<jclass>(cls), name, sig);
+    if (fid == nullptr) {
+        AfterCall(env, "GetStaticFieldID 失败");
+        std::snprintf(g_error, sizeof(g_error), "GetStaticFieldID(%s%s) 失败", name, sig);
+        return nullptr;
+    }
+    return fid;
+}
+
+void* PylonMod_Jni_GetObjectField(void* obj, void* field) {
+    JNIEnv* env = EnsureEnv();
+    if (env == nullptr || obj == nullptr || field == nullptr) { SetError("GetObjectField 参数为空"); return nullptr; }
+    jobject local = env->GetObjectField(static_cast<jobject>(obj), reinterpret_cast<jfieldID>(field));
+    if (!AfterCall(env, "GetObjectField 抛异常")) return nullptr;
+    if (local == nullptr) return nullptr;
+    jobject global = env->NewGlobalRef(local);
+    env->DeleteLocalRef(local);
+    return global;
+}
+
+void* PylonMod_Jni_GetStaticObjectField(void* cls, void* field) {
+    JNIEnv* env = EnsureEnv();
+    if (env == nullptr || cls == nullptr || field == nullptr) { SetError("GetStaticObjectField 参数为空"); return nullptr; }
+    jobject local = env->GetStaticObjectField(static_cast<jclass>(cls), reinterpret_cast<jfieldID>(field));
+    if (!AfterCall(env, "GetStaticObjectField 抛异常")) return nullptr;
+    if (local == nullptr) return nullptr;
+    jobject global = env->NewGlobalRef(local);
+    env->DeleteLocalRef(local);
+    return global;
+}
+
+int32_t PylonMod_Jni_GetIntField(void* obj, void* field) {
+    JNIEnv* env = EnsureEnv();
+    if (env == nullptr || obj == nullptr || field == nullptr) { SetError("GetIntField 参数为空"); return 0; }
+    jint value = env->GetIntField(static_cast<jobject>(obj), reinterpret_cast<jfieldID>(field));
+    if (!AfterCall(env, "GetIntField 抛异常")) return 0;
+    return value;
+}
+
+void PylonMod_Jni_SetIntField(void* obj, void* field, int32_t value) {
+    JNIEnv* env = EnsureEnv();
+    if (env == nullptr || obj == nullptr || field == nullptr) { SetError("SetIntField 参数为空"); return; }
+    env->SetIntField(static_cast<jobject>(obj), reinterpret_cast<jfieldID>(field), value);
+    AfterCall(env, "SetIntField 抛异常");
+}
+
+void PylonMod_Jni_SetObjectField(void* obj, void* field, void* value) {
+    JNIEnv* env = EnsureEnv();
+    if (env == nullptr || obj == nullptr || field == nullptr) { SetError("SetObjectField 参数为空"); return; }
+    env->SetObjectField(static_cast<jobject>(obj), reinterpret_cast<jfieldID>(field), static_cast<jobject>(value));
+    AfterCall(env, "SetObjectField 抛异常");
 }
 
 // ---- 构造 / 调用 ----

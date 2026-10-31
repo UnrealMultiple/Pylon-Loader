@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace Pylon.ModLoader.UI
 {
-    /// <summary>框架自己的 UI 设置（当前只有整体缩放）；存用户 Mods 根下 .pylon/ui.json，不进 Mod 目录、不被升级覆盖。</summary>
+    /// <summary>框架自己的 UI 设置（整体缩放）。存 Mods 根下 .pylon/ui.json，不进 Mod 目录、不被升级覆盖。</summary>
     internal static class UiSettings
     {
         internal const float MinScale = 0.75f;
@@ -13,11 +13,10 @@ namespace Pylon.ModLoader.UI
         private static bool _loaded;
         private static float _uiScale = 1.0f;
 
-        /// <summary>ImGui 整体缩放比例（字体 + 控件度量）。</summary>
         internal static float Scale
         {
             get { EnsureLoaded(); return _uiScale; }
-            set { EnsureLoaded(); _uiScale = Clamp(value); }
+            set { EnsureLoaded(); _uiScale = Math.Clamp(value, MinScale, MaxScale); }
         }
 
         internal static void Save()
@@ -40,8 +39,7 @@ namespace Pylon.ModLoader.UI
             get
             {
                 var root = Framework.HostDirectory;
-                if (string.IsNullOrEmpty(root)) return null;
-                return Path.Combine(root, ".pylon", "ui.json");
+                return string.IsNullOrEmpty(root) ? null : Path.Combine(root, ".pylon", "ui.json");
             }
         }
 
@@ -56,14 +54,12 @@ namespace Pylon.ModLoader.UI
                 using var doc = JsonDocument.Parse(File.ReadAllText(path));
                 if (doc.RootElement.TryGetProperty("uiScale", out var value) &&
                     value.ValueKind == JsonValueKind.Number)
-                    _uiScale = Clamp((float)value.GetDouble());
+                    _uiScale = Math.Clamp((float)value.GetDouble(), MinScale, MaxScale);
             }
             catch (Exception e)
             {
                 Safe.Warn?.Invoke("读取 UI 设置失败（用默认值）：" + e.Message);
             }
         }
-
-        private static float Clamp(float value) => Math.Clamp(value, MinScale, MaxScale);
     }
 }

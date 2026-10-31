@@ -30,23 +30,13 @@ namespace Pylon.ImGui
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
         public static extern ImDrawData* igGetDrawData();
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void igShowDemoWindow(byte* p_open);
-        [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
         public static extern void igShowMetricsWindow(byte* p_open);
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
         public static extern void igShowDebugLogWindow(byte* p_open);
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
         public static extern void igShowIDStackToolWindow(byte* p_open);
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void igShowAboutWindow(byte* p_open);
-        [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void igShowStyleEditor(ImGuiStyle* @ref);
-        [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
-        public static extern byte igShowStyleSelector(byte* label);
-        [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
         public static extern void igShowFontSelector(byte* label);
-        [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void igShowUserGuide();
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
         public static extern byte* igGetVersion();
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
