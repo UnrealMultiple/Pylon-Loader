@@ -5,6 +5,7 @@ using ImGuiApi = Pylon.ImGui.ImGui;
 using Terraria;
 using Terraria.ID;
 using Il2CppMicrosoft.Xna.Framework;
+using ImGuiVector2 = System.Numerics.Vector2;
 
 namespace FrameMod
 {
@@ -65,9 +66,9 @@ namespace FrameMod
             if (_texId != 0)
             {
                 ImGuiApi.SeparatorText("纹理/图片");
-                ImGuiApi.Image(_texId, new Pylon.ImGui.ImVec2(64, 64));   // 控件：光标处画 64×64
+                ImGuiApi.Image(_texId, new ImGuiVector2(64, 64));   // 控件：光标处画 64×64
                 ImGuiApi.SameLine();
-                ImGuiApi.Image(_texId, new Pylon.ImGui.ImVec2(128, 128));  // 放大版
+                ImGuiApi.Image(_texId, new ImGuiVector2(128, 128));  // 放大版
             }
         }
 

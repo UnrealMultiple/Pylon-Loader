@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 using Pylon.ImGui;
 using ImGuiApi = Pylon.ImGui.ImGui;
@@ -7,21 +8,21 @@ using Vector2 = System.Numerics.Vector2;
 
 namespace Pylon.ModLoader.UI
 {
-    /// <summary>
-    /// ImGui 覆盖层的唯一驱动与界面骨架：上下文/字体/样式/缩放、每帧取帧-绘制-呈现、
-    /// 菜单窗口（左侧导航 + 右侧内容）与折叠态悬浮球。Mod 的 Tab 通过 IModImGuiTab 注册进来。
-    /// </summary>
+    /// <summary>ImGui 覆盖层的驱动与菜单骨架（左侧导航 + 右侧 Tab 内容）。</summary>
     internal static class ImGuiOverlay
     {
         private const string MenuTitle = "Pylon Mod";
+        private const float BallSize = 36f;
 
         private static bool _started;
         private static bool _viewReady;
-        private static bool _menuOpen = true;   // 首帧就把菜单显示出来，否则只有一个 36x36 的小球
+        private static bool _menuOpen = true;
         private static int _activeTab;
         private static bool _sizeInit;
-        private static int _frames;
-        private static bool _frameErrorLogged;
+        private static bool _frameOpen;
+
+        private static readonly HashSet<string> ReportedFrameErrors = [];
+        private static readonly HashSet<Pylon.Mod.IModImGuiTab> BrokenTabs = [];
 
         public static bool Visible { get; set; } = true;
 
@@ -51,6 +52,11 @@ namespace Pylon.ModLoader.UI
         {
             if (!_started) return;
             _started = false;
+            _viewReady = false;
+            _sizeInit = false;
+            _frameOpen = false;
+            ReportedFrameErrors.Clear();
+            BrokenTabs.Clear();
             try
             {
                 ImGuiPlatform.Detach();
@@ -59,11 +65,8 @@ namespace Pylon.ModLoader.UI
             catch { }
         }
 
-        /// <summary>每帧驱动（游戏线程）。</summary>
         internal static void Update()
         {
-            if (++_frames == 1 || _frames % 300 == 0)
-                ModUI.Logger?.Info($"覆盖层驱动 第 {_frames} 帧（visible={Visible} view={_viewReady} attached={ImGuiPlatform.Attached}）");
             if (!Visible) return;
             EnsureStarted();
             if (!_started) return;
@@ -73,42 +76,60 @@ namespace Pylon.ModLoader.UI
                 if (!_viewReady) _viewReady = ImGuiPlatform.EnsureView();
                 if (!ImGuiPlatform.TryAttachSurface())
                 {
-                    ImGuiPlatform.LogPendingState();   // Surface 还没好
+                    ImGuiPlatform.LogPendingState();
                     return;
                 }
                 if (ImGuiNativeApi.BeginFrame() == 0) return;
 
-                // ImGui 要求 DisplaySize 非负、DeltaTime 为正，否则 NewFrame 直接断言中止进程。
                 var io = ImGuiApi.GetIO();
                 var (pw, ph) = ImGuiNativeApi.DisplaySize;
                 io.DisplaySize = new Vector2(pw, ph);
                 io.DeltaTime = 1f / 60f;
 
                 ImGuiApi.NewFrame();
+                _frameOpen = true;
                 ImGuiTouchRouter.BeginFrame();
                 ImGuiInputText.TickKeyboard();
                 ImGuiInput.Feed();
                 ImGuiContext.ApplyScale(UiSettings.Scale);
                 Draw();
                 ImGuiApi.Render();
+                _frameOpen = false;
                 ImGuiNativeApi.EndFrame();
                 ImGuiInputText.EndFrame();
             }
             catch (Exception e)
             {
-                if (!_frameErrorLogged)   // 只留第一次的完整堆栈，避免刷屏
-                {
-                    _frameErrorLogged = true;
-                    var where = (e.StackTrace ?? "").Replace("\r", "").Replace("\n", " | ");
-                    ModUI.Logger?.Warn($"ImGui 帧异常：{e.GetType().Name}: {e.Message} @ {where}");
-                }
+                // 必须收尾：否则下一帧 NewFrame 会因“上一帧未结束”断言 abort。
+                CloseBrokenFrame();
+                ReportFrameErrorOnce(e);
             }
+        }
+
+        private static void CloseBrokenFrame()
+        {
+            if (_frameOpen)
+            {
+                _frameOpen = false;
+                try { ImGuiApi.Render(); }
+                catch { try { ImGuiApi.EndFrame(); } catch { } }
+            }
+            try { ImGuiNativeApi.EndFrame(); } catch { }
+        }
+
+        private static void ReportFrameErrorOnce(Exception e)
+        {
+            var key = e.GetType().FullName + "|" + e.Message;
+            if (!ReportedFrameErrors.Add(key)) return;
+
+            var where = (e.StackTrace ?? "").Replace("\r", "").Replace("\n", " | ");
+            ModUI.Logger?.Warn($"ImGui 帧异常：{e.GetType().Name}: {e.Message} @ {where}");
         }
 
         private static void Draw()
         {
             var tabs = Pylon.Mod.ImGuiTabRegistry.All;
-            if (_activeTab >= tabs.Count + 1) _activeTab = 0;
+            if (_activeTab < 0 || _activeTab > tabs.Count) _activeTab = 0;
 
             if (!_menuOpen)
             {
@@ -134,7 +155,6 @@ namespace Pylon.ModLoader.UI
                 ImGuiApi.SameLine();
                 DrawContent(tabs);
 
-                // End 之前取窗口坐标，注册为触摸拦截命中区
                 var pos = ImGuiApi.GetWindowPos();
                 var size = ImGuiApi.GetWindowSize();
                 RegisterHitRect(pos, size);
@@ -150,7 +170,7 @@ namespace Pylon.ModLoader.UI
             if (ImGuiApi.Selectable("设置", _activeTab == 0)) _activeTab = 0;
             for (int i = 0; i < tabs.Count; i++)
             {
-                if (ImGuiApi.Selectable(tabs[i].Title, _activeTab == i + 1)) _activeTab = i + 1;
+                if (ImGuiApi.Selectable(SafeTitle(tabs[i]), _activeTab == i + 1)) _activeTab = i + 1;
             }
             ImGuiApi.EndChild();
         }
@@ -159,8 +179,47 @@ namespace Pylon.ModLoader.UI
         {
             ImGuiApi.BeginChild("##content", new Vector2(0f, 0f));
             if (_activeTab == 0) SettingsPage.Draw();
-            else tabs[_activeTab - 1].Draw();
+            else DrawModTab(tabs[_activeTab - 1]);
             ImGuiApi.EndChild();
+        }
+
+        private static void DrawModTab(Pylon.Mod.IModImGuiTab tab)
+        {
+            if (BrokenTabs.Contains(tab))
+            {
+                DrawTabError(tab, null);
+                return;
+            }
+
+            try
+            {
+                tab.Draw();
+            }
+            catch (Exception e) when (IsTabLoadFailure(e))
+            {
+                // 装载失败发生在进入 Draw 之前，窗口栈没动，可以安全地画错误提示。
+                BrokenTabs.Add(tab);
+                ReportFrameErrorOnce(e);
+                DrawTabError(tab, e);
+            }
+        }
+
+        private static bool IsTabLoadFailure(Exception e) =>
+            e is TypeLoadException or MissingMethodException or MissingFieldException
+                or FileNotFoundException or FileLoadException or BadImageFormatException;
+
+        private static void DrawTabError(Pylon.Mod.IModImGuiTab tab, Exception error)
+        {
+            ImGuiApi.SeparatorText("Mod Tab 无法加载");
+            ImGuiApi.Text($"{SafeTitle(tab)} 与当前 Pylon.ImGui 不兼容。");
+            ImGuiApi.Text("请使用当前版本的 Pylon.ImGui 重新编译该 Mod。");
+            if (error != null) ImGuiApi.Text($"{error.GetType().Name}: {error.Message}");
+        }
+
+        private static string SafeTitle(Pylon.Mod.IModImGuiTab tab)
+        {
+            try { return string.IsNullOrEmpty(tab.Title) ? "Mod" : tab.Title; }
+            catch { return "Mod"; }
         }
 
         private static void DrawBall()
@@ -172,7 +231,7 @@ namespace Pylon.ModLoader.UI
                         ImGuiWindowFlags.AlwaysAutoResize;
             if (ImGuiApi.Begin("##pylonBall", ref open, flags))
             {
-                if (ImGuiApi.Button("☰", new Vector2(36f, 36f)))
+                if (ImGuiApi.Button("☰", new Vector2(BallSize, BallSize)))
                 {
                     _menuOpen = true;
                 }

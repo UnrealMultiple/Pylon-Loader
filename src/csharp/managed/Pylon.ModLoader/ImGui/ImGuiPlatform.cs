@@ -3,15 +3,8 @@ using System;
 namespace Pylon.ModLoader.UI
 {
     /// <summary>
-    /// 覆盖层的安卓侧搭建（反射链全在这里，内核只负责 Surface → ANativeWindow 与 Vulkan）：
-    /// Unity 的 Activity → WindowManager 上挂一个全屏 SurfaceView → 从它的 SurfaceHolder 上
-    /// 读 mSurface 字段拿到 Surface → 交给内核。
-    ///
-    /// 两个要点：
-    /// · 走 WindowManager.addView 而不是 decorView.addView：后者只能在 Android 的 main 线程动，
-    ///   而 Unity 的渲染线程叫 UnityMain，直接改会抛 CalledFromWrongThreadException。
-    /// · Surface 用**字段**读，不用 SurfaceHolder.getSurface()：那个方法的 JNI 查找在本机一直失败；
-    ///   读 mSurface 与原 C++ 实现（NativeWindowProvider 读 ViewRootImpl.mSurface）是同一手法。
+    /// 覆盖层的 Android 侧：WindowManager 上挂 SurfaceView，把 Surface 交给内核。
+    /// Surface 会在切后台时销毁、回前台时重建，所以必须定期复验 isValid。
     /// </summary>
     internal static class ImGuiPlatform
     {
@@ -29,20 +22,24 @@ namespace Pylon.ModLoader.UI
             FlagNotFocusable | FlagNotTouchable | FlagNotTouchModal |
             FlagLayoutInScreen | FlagFullscreen | FlagHardwareAccel;
 
+        private const int SurfaceHealthIntervalFrames = 10;
+
         private static JniObject _windowManager;
         private static JniObject _view;
         private static JniObject _holder;
         private static bool _added;
         private static bool _attached;
-        private static int _attempts;
-        private static int _probeFrames;
-        private static int _fieldProbes;
+        private static bool _pauseHooked;
+        private static int _healthCountdown;
+        private static bool _missingSurfaceLogged;
+        private static string _lastPendingReason;
 
         internal static bool Attached => _attached;
 
-        /// <summary>建 View 并挂到窗口（幂等）。返回是否可用。</summary>
+        /// <summary>建 View 并挂到窗口（幂等）。</summary>
         internal static bool EnsureView()
         {
+            InstallPauseHook();
             if (_added) return true;
 
             using var activity = FindActivity();
@@ -63,20 +60,25 @@ namespace Pylon.ModLoader.UI
                 return false;
             }
 
+            // WindowManager.addView 可以在 UnityMain 上调；decorView.addView 不行。
             _view = JniObject.New("android/view/SurfaceView",
                 "(Landroid/content/Context;)V", activity.AsArg());
             if (_view == null)
             {
                 ModUI.Logger?.Warn("建 SurfaceView 失败：" + Jni.LastError);
+                ReleaseView();
                 return false;
             }
             _view.Call("setZOrderOnTop", "(Z)V", true);
             _holder = _view.CallObject("getHolder", "()Landroid/view/SurfaceHolder;");
-            // 半透明像素格式，否则这层 SurfaceView 会把整块游戏画面遮成黑屏。
             _holder?.Call("setFormat", "(I)V", FormatTranslucent);
 
             using var lp = BuildLayoutParams();
-            if (lp == null) return false;
+            if (lp == null)
+            {
+                ReleaseView();
+                return false;
+            }
 
             Jni.ClearError();
             _windowManager.Call("addView",
@@ -85,6 +87,7 @@ namespace Pylon.ModLoader.UI
             if (Jni.LastError.Length != 0)
             {
                 ModUI.Logger?.Warn("挂 SurfaceView 失败：" + Jni.LastError);
+                ReleaseView();
                 return false;
             }
 
@@ -93,60 +96,155 @@ namespace Pylon.ModLoader.UI
             return true;
         }
 
-        /// <summary>每帧轮询：拿到 Surface 后交给内核。返回是否已接管。</summary>
+        /// <summary>每帧轮询有效 Surface 并交给内核。</summary>
         internal static bool TryAttachSurface()
         {
-            if (_attached) return true;
-            if (!_added || _holder == null) return false;
+            if (!_added || _holder == null || _view == null) return false;
 
-            // 字段名按对象实际实现的类来找：先 SurfaceView 自身，再它的 SurfaceHolder。
-            // 签名是 android.view.Surface —— 这套 ROM 里 Surface 就在这个包下（原 C++ 用的也是它）。
-            var surface = _view.GetFieldObject("mSurface", "Landroid/view/Surface;")
-                          ?? _holder.GetFieldObject("mSurface", "Landroid/view/Surface;");
+            if (_attached && ++_healthCountdown < SurfaceHealthIntervalFrames) return true;
+            _healthCountdown = 0;
+
+            var surface = ReadSurface();
             if (surface == null)
             {
-                if (++_fieldProbes == 1) ModUI.Logger?.Warn("取 mSurface 失败：" + Jni.LastError);
+                if (!_missingSurfaceLogged)
+                {
+                    _missingSurfaceLogged = true;
+                    ModUI.Logger?.Warn("取 mSurface 失败：" + Jni.LastError);
+                }
+                DetachNative();
                 return false;
             }
 
-            if (ImGuiNativeApi.AttachSurface(surface.Handle) != 0)
+            using (surface)
+            {
+                if (!IsSurfaceValid(surface))
+                {
+                    DetachNative();
+                    return false;
+                }
+                if (!AttachSurface(surface))
+                {
+                    DetachNative();
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static JniObject ReadSurface()
+        {
+            // 不用 SurfaceHolder.getSurface()：本机 JNI 查找失败，读字段与原 C++ 实现一致。
+            return _view.GetFieldObject("mSurface", "Landroid/view/Surface;")
+                   ?? _holder.GetFieldObject("mSurface", "Landroid/view/Surface;");
+        }
+
+        private static bool IsSurfaceValid(JniObject surface)
+        {
+            try
+            {
+                return surface.CallBool("isValid", "()Z");
+            }
+            catch (Exception e)
+            {
+                ModUI.Logger?.Warn("Surface.isValid 调用失败：" + e.Message);
+                return false;
+            }
+        }
+
+        private static bool AttachSurface(JniObject surface)
+        {
+            bool attached;
+            try
+            {
+                attached = ImGuiNativeApi.AttachSurface(surface.Handle) != 0;
+            }
+            catch (Exception e)
+            {
+                ModUI.Logger?.Warn("覆盖层绑定表面失败：" + e.Message);
+                return false;
+            }
+
+            if (!attached) return false;
+
+            if (!_attached)
             {
                 _attached = true;
+                _missingSurfaceLogged = false;
+                _lastPendingReason = null;
                 ModUI.Logger?.Info("覆盖层 Surface 已交给渲染器");
             }
-            return _attached;
+            return true;
+        }
+
+        /// <summary>只释放内核表面，不摘 SurfaceView。</summary>
+        private static void DetachNative()
+        {
+            if (!_attached) return;
+            _attached = false;
+            try { ImGuiNativeApi.DetachSurface(); }
+            catch (Exception e) { ModUI.Logger?.Warn("覆盖层释放表面失败：" + e.Message); }
+        }
+
+        private static void InstallPauseHook()
+        {
+            if (_pauseHooked) return;
+            _pauseHooked = true;
+            try
+            {
+                On.XNAUnityRunner.OnApplicationPause += OnApplicationPausePostfix;
+                ModUI.Logger?.Info("覆盖层：后台暂停钩子已挂");
+            }
+            catch (Exception e)
+            {
+                ModUI.Logger?.Warn("覆盖层后台钩子失败：" + e.Message);
+            }
+        }
+
+        private static void OnApplicationPausePostfix(On.XNAUnityRunner.orig_OnApplicationPause orig,
+                                                      XNAUnityRunner self, bool paused)
+        {
+            orig(self, paused);
+            if (paused && _attached) DetachNative();
         }
 
         internal static void LogPendingState()
         {
-            if (++_probeFrames != 1 && _probeFrames % 300 != 0) return;
-            var why = !_added ? "视图未挂载" : _holder == null ? "取不到 SurfaceHolder" : "Surface 尚未就绪";
-            ModUI.Logger?.Warn($"覆盖层未接管（第 {_probeFrames} 帧）：{why}；{Jni.LastError}");
+            var why = !_added ? "视图未挂载"
+                : _holder == null ? "取不到 SurfaceHolder"
+                : "Surface 尚未就绪或绑定失败";
+            if (why == _lastPendingReason) return;
+            _lastPendingReason = why;
+            ModUI.Logger?.Warn($"覆盖层未接管：{why}；{Jni.LastError}");
         }
 
         internal static void Detach()
         {
-            if (_attached)
-            {
-                try { ImGuiNativeApi.DetachSurface(); } catch { }
-                _attached = false;
-            }
+            DetachNative();
             if (_added && _windowManager != null && _view != null)
             {
                 try { _windowManager.Call("removeView", "(Landroid/view/View;)V", _view.AsArg()); }
                 catch { }
-                _added = false;
             }
+            ReleaseView();
+            _healthCountdown = 0;
+            _lastPendingReason = null;
+        }
+
+        private static void ReleaseView()
+        {
             _holder?.Dispose(); _holder = null;
             _view?.Dispose(); _view = null;
             _windowManager?.Dispose(); _windowManager = null;
+            _added = false;
+            _attached = false;
+            _missingSurfaceLogged = false;
         }
 
-        // ------------------------------------------------------------------
-
-        /// <summary>不设 token：交给 WindowManagerImpl 用 Activity 的默认 token，自己填容易拿到失效的那个。</summary>
         private static JniObject BuildLayoutParams()
         {
+            // 不设 token：交给 WindowManagerImpl 用 Activity 的默认 token。
             var lp = JniObject.New("android/view/WindowManager$LayoutParams", "()V");
             if (lp == null) return null;
 

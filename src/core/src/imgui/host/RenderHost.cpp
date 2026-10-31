@@ -47,6 +47,14 @@ void ReleaseWindowLocked()
     g_window = nullptr;
 }
 
+// 表面不可用：后端、窗口、重建标记一起清掉。
+void DropSurfaceLocked()
+{
+    DestroyBackendLocked();
+    ReleaseWindowLocked();
+    g_rebuild = false;
+}
+
 }  // namespace
 
 extern "C" {
@@ -54,11 +62,6 @@ extern "C" {
 int32_t PylonImgui_AttachSurface(jobject surface)
 {
     if (surface == nullptr) return 0;
-
-    {
-        std::lock_guard<std::mutex> lock(g_mutex);
-        if (g_window != nullptr) return 1;   // 已接管
-    }
 
     JNIEnv* env = AndroidPlatform::EnsureEnv();
     if (env == nullptr)
@@ -74,14 +77,25 @@ int32_t PylonImgui_AttachSurface(jobject surface)
         return 0;
     }
 
-    LOGI(kStage, "拿到表面 %dx%d", ANativeWindow_getWidth(window), ANativeWindow_getHeight(window));
-
     std::lock_guard<std::mutex> lock(g_mutex);
-    if (g_window != nullptr)
+
+    // 按指针判断换没换表面；切后台回来时 SurfaceView 会换一块新 Surface。
+    if (g_window == window)
     {
         ANativeWindow_release(window);
         return 1;
     }
+
+    const bool replacing = (g_window != nullptr);
+    if (replacing)
+    {
+        LOGI(kStage, "检测到新表面，重建渲染器（旧表面已失效）");
+        DestroyBackendLocked();
+        ReleaseWindowLocked();
+    }
+
+    LOGI(kStage, "拿到表面 %p %dx%d", static_cast<void*>(window),
+         ANativeWindow_getWidth(window), ANativeWindow_getHeight(window));
     g_window = window;
     g_rebuild = true;
     return 1;
@@ -89,9 +103,7 @@ int32_t PylonImgui_AttachSurface(jobject surface)
 void PylonImgui_DetachSurface()
 {
     std::lock_guard<std::mutex> lock(g_mutex);
-    DestroyBackendLocked();
-    ReleaseWindowLocked();
-    g_rebuild = false;
+    DropSurfaceLocked();
     LOGI(kStage, "surface detached");
 }
 
@@ -115,7 +127,13 @@ int32_t PylonImgui_BeginFrame()
 
     const int32_t width = ANativeWindow_getWidth(g_window);
     const int32_t height = ANativeWindow_getHeight(g_window);
-    if (width <= 0 || height <= 0) return 0;
+    if (width <= 0 || height <= 0)
+    {
+        // 后台/旋转瞬间 Surface 可能已被收回；继续建交换链会让 Vulkan 驱动 abort。
+        LOGI(kStage, "表面尺寸无效（%dx%d），等待新表面", width, height);
+        DropSurfaceLocked();
+        return 0;
+    }
 
     if (g_rebuild)
     {
@@ -151,8 +169,17 @@ int32_t PylonImgui_BeginFrame()
     }
     else if (!g_backend->IsReady())
     {
-        DestroyBackendLocked();
-        g_rebuild = true;
+        // Surface 丢失时窗口也可能一起失效，释放后由 Java 侧重新 AttachSurface。
+        if (g_backend->RequiresSurfaceRebuild())
+        {
+            DropSurfaceLocked();
+            LOGI(kStage, "Surface 丢失，等待重新接管");
+        }
+        else
+        {
+            DestroyBackendLocked();
+            g_rebuild = true;
+        }
         return 0;
     }
 

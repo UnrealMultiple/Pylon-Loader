@@ -145,7 +145,7 @@ namespace Pylon.ModLoader.UI
 
         private static void CloseKeyboard()
         {
-            try { if (_keyboard != null) _keyboard.active = false; } catch { }
+            _keyboard?.active = false;
             _keyboard = null;
             _lastKeyboardText = null;
             _pendingWrite = null;

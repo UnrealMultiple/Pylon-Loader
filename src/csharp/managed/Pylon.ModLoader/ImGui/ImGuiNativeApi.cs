@@ -11,7 +11,6 @@ namespace Pylon.ModLoader.UI
     {
         private const string Lib = "pylon";
 
-        /// <summary>绑定一块 Java Surface（jobject 全局引用句柄）。1 = 已接管。</summary>
         [DllImport(Lib, EntryPoint = "PylonImgui_AttachSurface")]
         internal static extern int AttachSurface(IntPtr surface);
 
@@ -24,14 +23,12 @@ namespace Pylon.ModLoader.UI
         [DllImport(Lib, EntryPoint = "PylonImgui_PixelSize")]
         internal static extern void PixelSize(out int width, out int height);
 
-        /// <summary>取帧 + ImGui Vulkan 后端 NewFrame。1 = 本帧可绘制。</summary>
         [DllImport(Lib, EntryPoint = "PylonImgui_BeginFrame")]
         internal static extern int BeginFrame();
 
         [DllImport(Lib, EntryPoint = "PylonImgui_EndFrame")]
         internal static extern void EndFrame();
 
-        /// <summary>软键盘弹出窗口会 adjustResize，这段时间内不重建交换链。</summary>
         [DllImport(Lib, EntryPoint = "PylonImgui_SetKeyboardGuardMs")]
         internal static extern void SetKeyboardGuardMs(int ms);
 

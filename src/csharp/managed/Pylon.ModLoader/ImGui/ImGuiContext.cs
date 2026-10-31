@@ -36,7 +36,16 @@ namespace Pylon.ModLoader.UI
             if (!LoadFont()) return false;
             ImGuiApi.StyleColorsDark();
             ApplyScale(UiSettings.Scale);
+            EnableErrorRecovery();
             return true;
+        }
+
+        /// <summary>让 EndFrame 能恢复第三方 Tab 留下的未平衡窗口栈。</summary>
+        private static void EnableErrorRecovery()
+        {
+            var io = ImGuiApi.GetIO();
+            io.ConfigErrorRecovery = true;
+            io.ConfigErrorRecoveryEnableDebugLog = true;
         }
 
         internal static void Destroy()
@@ -44,6 +53,7 @@ namespace Pylon.ModLoader.UI
             if (_context == IntPtr.Zero) return;
             ImGuiApi.DestroyContext(_context);
             _context = IntPtr.Zero;
+            _appliedScale = 1f;   // 新上下文的样式是默认值，下次 ApplyScale 必须重新施加
             if (_fontPin.IsAllocated) { _fontPin.Free(); }
         }
 
