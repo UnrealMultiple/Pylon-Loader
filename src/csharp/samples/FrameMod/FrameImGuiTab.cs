@@ -161,7 +161,7 @@ namespace FrameMod
                 }
             }
             _texId = ImGuiApi.UploadTexture(rgba, w, h);
-            if (_texId == 0) ImGuiApi.Text("纹理上传失败（Vulkan 未就绪？）");
+            if (_texId == 0) ImGuiApi.Text("纹理上传失败（GL 未就绪？）");
         }
     }
 }

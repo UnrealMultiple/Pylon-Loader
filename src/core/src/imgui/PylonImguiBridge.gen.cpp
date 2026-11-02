@@ -1,7 +1,7 @@
 // GENERATED FILE — do not edit. See tools/imgui-gen/
 #include "imgui.h"
 #include "imgui_internal.h"
-#include "render/VulkanTexture.h"
+#include "imgui/overlay/Textures.h"
 #include <cstdint>
 #include <cstdarg>
 #include <cstring>
@@ -680,16 +680,16 @@ PYLON_IMGUI_EXPORT void ImGuiTextBuffer_destroy(ImGuiTextBuffer* self) { IM_DELE
 PYLON_IMGUI_EXPORT void ImGuiTextFilter_destroy(ImGuiTextFilter* self) { IM_DELETE(self); }
 PYLON_IMGUI_EXPORT void ImGuiViewport_destroy(ImGuiViewport* self) { IM_DELETE(self); }
 
-// Vulkan texture upload/destroy — Pylon host integration, not part of imgui API.
+// GL texture upload/destroy — Pylon host integration, not part of imgui API.
+// 名字池在渲染线程生成，像素排队到下一个 eglSwapBuffers 之前上传（见 overlay/Textures.h）。
 PYLON_IMGUI_EXPORT uint64_t igCreateTexture(const uint8_t* rgba, int32_t width, int32_t height)
 {
-    if (!rgba || width <= 0 || height <= 0 || !VulkanTexture::IsReady()) return 0;
-    return static_cast<uint64_t>(VulkanTexture::CreateTexture(rgba, width, height));
+    return Textures::Create(rgba, width, height);
 }
 
 PYLON_IMGUI_EXPORT void igDestroyTexture(uint64_t id)
 {
-    VulkanTexture::DestroyTexture(static_cast<ImTextureID>(id));
+    Textures::Destroy(id);
 }
 // ===================== variadic text functions (Pylon text-safe) =====================
 PYLON_IMGUI_EXPORT void igText(const char* fmt) { ImGui::TextUnformatted(fmt); }

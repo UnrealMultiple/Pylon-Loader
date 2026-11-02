@@ -78,7 +78,7 @@ $common = @(
     "-I$(Join-Path $PSScriptRoot 'include')",
     "-I$srcRoot",
     "-I$(Join-Path $srcRoot 'imgui')",
-    "-I$(Join-Path (Join-Path $srcRoot 'imgui') 'render')",
+    "-I$(Join-Path (Join-Path $srcRoot 'imgui') 'vendor')",
     "-I$(Join-Path $srcRoot 'jni')"
 )
 
@@ -120,8 +120,10 @@ $linkLog = Join-Path $buildDir 'link.log'
 #   --exclude-libs,ALL     把"来自静态库"的符号全部降为隐藏（我们自己的对象文件不受影响，
 #                          所以 PYLON_MOD_EXPORT / JNIEXPORT 照旧可见）
 #   --gc-sections + -ffunction-sections/-fdata-sections  顺手丢掉没被用到的代码
+# 覆盖层（ImGui）现在画在游戏自己的 GLES 上下文里，所以链 GLESv3 而不是 vulkan：
+# imgui_impl_opengl3 在 Android 上自动走 ES3 分支（<GLES3/gl3.h>），不需要额外的 -D。
 & $clang @common '-ffunction-sections' '-fdata-sections' '-shared' '-o' $outSo $objects `
-    '-static-libstdc++' '-llog' '-ldl' '-lvulkan' '-landroid' `
+    '-static-libstdc++' '-llog' '-ldl' '-lGLESv3' '-landroid' `
     '-Wl,--exclude-libs,ALL' '-Wl,--gc-sections' '-Wl,-z,max-page-size=16384' > $linkLog 2>&1
 if ($LASTEXITCODE -ne 0) {
     Write-Host (Get-Content $linkLog -Raw)
@@ -148,7 +150,9 @@ if (Test-Path $readelf) {
     # 结果就是 APK 装得上、一启动却 "cannot locate symbol"，内核整个起不来。
     # 已经踩过一次：桥接层导出了 imgui_demo.cpp 独有、而该文件从未编进内核的 5 个函数。
     # 弱未定义（WEAK）绑定到 0，不属于问题，这里跳过。
-    $systemPrefix = '^(vk|ANativeWindow|AAsset|__android_log)'
+    # 由系统库在加载时满足的符号：gl*/egl* 来自 libGLESv3（覆盖层画在游戏自己的上下文里，
+    # imgui_impl_opengl3 直接调 GLES3），vk* 是上一个 Vulkan 覆盖层留下的白名单。
+    $systemPrefix = '^(vk|gl|egl|ANativeWindow|AAsset|__android_log)'
     $strongUndef = @(& $readelf --dyn-syms --wide $outSo |
         Select-String ' UND ' |
         Where-Object { $_.Line -notmatch '\bWEAK\b' } |

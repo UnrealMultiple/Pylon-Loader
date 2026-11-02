@@ -33,7 +33,7 @@ internal object RuntimeDeploy {
      * 改动 assets 里的 BCL / 托管入口 / 代理程序集后必须 +1：标记里存的是版本号 + 两棵树的
      * 文件数，对不上就重解（只比版本会漏掉"忘了 +1"，只比个数会漏掉"换了个同名 dll"）。
      */
-    private const val DEPLOY_VERSION = 22
+    private const val DEPLOY_VERSION = 24
 
     /** 随包内容（示例 Mod 等）按它判断"加载器升级了"。 */
     const val DEPLOY_VERSION_TAG = "version=$DEPLOY_VERSION"

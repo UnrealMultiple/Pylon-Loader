@@ -28,6 +28,9 @@ internal static class ImGuiContext
             ModUI.Logger?.Error("ImGui.CreateContext 失败");
             return false;
         }
+        // 渲染线程的"当前上下文"是 thread_local：内核要用这个指针在渲染线程上把它挂起来，
+        // 否则上屏时每个 ImGui::GetIO() 都会撞断言。
+        ImGuiNativeApi.AttachContext(_context);
 
         if (!LoadFont()) return false;
         ImGuiApi.StyleColorsDark();
@@ -48,6 +51,9 @@ internal static class ImGuiContext
     internal static void Destroy()
     {
         if (_context == IntPtr.Zero) return;
+        // 必须先撤覆盖层：后端的 GL 对象（shader/VBO/字体纹理）要趁上下文还在才能销毁。
+        try { ImGuiNativeApi.Reset(); }
+        catch (Exception e) { ModUI.Logger?.Warn("覆盖层撤销失败：" + e.Message); }
         ImGuiApi.DestroyContext(_context);
         _context = IntPtr.Zero;
         _appliedScale = 1f;   // 新上下文的样式是默认值，下次 ApplyScale 必须重新施加

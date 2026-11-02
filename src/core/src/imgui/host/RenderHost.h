@@ -1,34 +1,30 @@
-// 层：内核层 / imgui —— 覆盖层渲染面，也是 C# 侧唯一的 P/Invoke 入口（PylonImgui_*）
+// 层：内核层 / imgui —— 覆盖层对托管侧的唯一 C 出口（PylonImgui_*）
 //
-// 边界：C++ 只负责"一块能画的表面 + Vulkan 取帧/呈现"。
-// ImGui 上下文、字体、样式、布局、触摸与键盘全部在 C# 侧，这里不碰 ImGui 的状态机，
-// 所以本文件不出现任何 ImGui 类型：换 UI 框架时 C++ 不用动。
+// 边界：托管侧拥有 ImGui 上下文、字体、样式、布局与输入；内核只负责"把这一帧画到
+// 游戏自己的 GLES 表面上"。所以这里没有任何 Android Surface 概念。
 //
-// 约定：布尔用 int32_t（0/1），尺寸单位是物理像素，全部在游戏线程调用
-// （AttachSurface 例外，它由 Java UI 线程回调）。调用前 C# 必须已 CreateContext。
+// 线程：AttachContext / PixelSize / BeginFrame / EndFrame / Reset 都在游戏线程；
+// 绘制发生在渲染线程的 eglSwapBuffers 之前（见 overlay/Present）。
 #pragma once
 
-#include <jni.h>
 #include <cstdint>
 
 #define PYLON_IMGUI_EXPORT extern "C" __attribute__((visibility("default")))
 
-/// 绑定一块 Java Surface（传 jobject 的全局引用句柄）。反射/建 View 全在 C# 侧，
-/// 这里只做 Surface → ANativeWindow 与后续 Vulkan 呈现。返回 1 = 已接管，0 = 表面无效。
-PYLON_IMGUI_EXPORT int32_t PylonImgui_AttachSurface(jobject surface);
-
-/// 解绑并立即销毁 Vulkan 对象（会等 GPU 空闲）。
-PYLON_IMGUI_EXPORT void PylonImgui_DetachSurface();
-
-/// 表面是否可画。
+/// 覆盖层是否可画：后端已在渲染线程初始化，且见过至少一次表面尺寸。
 PYLON_IMGUI_EXPORT int32_t PylonImgui_IsReady();
+
+/// 把托管侧刚 CreateContext 出来的上下文交给内核（渲染线程要挂同一个）。
+PYLON_IMGUI_EXPORT void PylonImgui_AttachContext(void* context);
 
 /// 表面物理像素尺寸；未就绪写 0。
 PYLON_IMGUI_EXPORT void PylonImgui_PixelSize(int32_t* width, int32_t* height);
 
-/// 取帧 + 通知 ImGui Vulkan 后端开始新帧。返回 1 表示调用方应绘制并调用 EndFrame。
+/// 开始一帧：返回 1 = 调用方可以 NewFrame。成功后必须配对 EndFrame。
 PYLON_IMGUI_EXPORT int32_t PylonImgui_BeginFrame();
+
+/// 结束一帧：把这一帧拷成快照交给渲染线程，下个 eglSwapBuffers 之前上屏。
 PYLON_IMGUI_EXPORT void PylonImgui_EndFrame();
 
-/// 软键盘弹出会让窗口 adjustResize：这段时间内不重建交换链，避免连续重建。
-PYLON_IMGUI_EXPORT void PylonImgui_SetKeyboardGuardMs(int32_t ms);
+/// 撤销覆盖层。必须在 DestroyContext 之前调用：后端的 GL 对象要趁上下文还在才能销毁。
+PYLON_IMGUI_EXPORT void PylonImgui_Reset();

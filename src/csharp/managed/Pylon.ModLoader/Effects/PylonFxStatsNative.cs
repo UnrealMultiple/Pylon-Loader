@@ -6,12 +6,12 @@ namespace Pylon.ModLoader.Effects;
 [StructLayout(LayoutKind.Sequential)]
 internal struct PylonFxStatsNative
 {
+    public long Frames, Draws, BoxPixels, CpuNs;
+    public long GpuNs, GpuSamples;
+    public long WorldFrames, ScreenFrames, MarkersIssued, MarkerHits;
     public long WorldPostRender, UiPostRender, OtherPostRender;
-    public long Draws, Frames, MarkersIssued, MarkerHits, ScreenFrames;
-    public long RenderCpuNs, MarkerCpuNs, GpuNs, GpuSamples, GpuFrameNs, GpuFrameSamples;
-    public long ShadowChecks, ShadowMismatches, BoxPixels;
-    public int DrawFbo, ReadFbo;
+    public int DrawFbo;
     [MarshalAs(UnmanagedType.ByValArray, SizeConst = 4)] public int[] Viewport;
-    public int Samples, BlitError, CopyFallbacks;
-    public int HookInstalled, HasContext, MarkerReady, GpuTimer;
+    public int Samples;
+    public int Installed, WorldLayer, Overlay, GpuTimer;
 }

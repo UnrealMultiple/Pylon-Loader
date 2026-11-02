@@ -43,7 +43,7 @@ internal static class ImGuiOverlay
     private const float BallDragThreshold = 3f;
 
     private static bool _started;
-    private static bool _viewReady;
+    private static string? _lastPendingReason;
     private static bool _menuOpen = true;
     private static int _activeTab;
     private static bool _frameOpen;
@@ -79,7 +79,6 @@ internal static class ImGuiOverlay
                 _started = false;
                 return;
             }
-            _viewReady = ImGuiPlatform.EnsureView();
             ImGuiTouchRouter.RequestInstall();
             ModUI.Logger?.Info("ImGui 覆盖层已初始化");
         }
@@ -94,7 +93,7 @@ internal static class ImGuiOverlay
     {
         if (!_started) return;
         _started = false;
-        _viewReady = false;
+        _lastPendingReason = null;
         _frameOpen = false;
         _layoutReady = false;
         _windowDragging = false;
@@ -105,11 +104,7 @@ internal static class ImGuiOverlay
         _ballDragMoved = false;
         ReportedFrameErrors.Clear();
         BrokenTabs.Clear();
-        try
-        {
-            ImGuiPlatform.Detach();
-            ImGuiContext.Destroy();
-        }
+        try { ImGuiContext.Destroy(); }
         catch (Exception) { }
     }
 
@@ -121,10 +116,11 @@ internal static class ImGuiOverlay
 
         try
         {
-            if (!_viewReady) _viewReady = ImGuiPlatform.EnsureView();
-            if (!ImGuiPlatform.TryAttachSurface())
+            // 覆盖层画在游戏自己的 GLES 上下文里：内核在渲染线程的 eglSwapBuffers 之前上屏，
+            // 这里只判断后端是否已经在那边初始化完成。
+            if (ImGuiNativeApi.IsReady() == 0)
             {
-                ImGuiPlatform.LogPendingState();
+                LogPendingState();
                 return;
             }
             if (ImGuiNativeApi.BeginFrame() == 0) return;
@@ -165,6 +161,15 @@ internal static class ImGuiOverlay
             catch (Exception) { try { ImGuiApi.EndFrame(); } catch (Exception) { } }
         }
         try { ImGuiNativeApi.EndFrame(); } catch (Exception) { }
+    }
+
+    /// <summary>还没接管时按"为什么"去重打一条日志（原来在 ImGuiPlatform 里）。</summary>
+    private static void LogPendingState()
+    {
+        const string why = "内核 GLES 后端尚未在渲染线程初始化（等第一次 eglSwapBuffers）";
+        if (_lastPendingReason == why) return;
+        _lastPendingReason = why;
+        ModUI.Logger?.Warn("覆盖层未接管：" + why);
     }
 
     private static void ReportFrameErrorOnce(Exception e)

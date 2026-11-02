@@ -79,7 +79,7 @@ public override bool Shoot(Item item, Player player, Vector2 position, Vector2 v
 
 1. **启动器**（`:app`，Kotlin）：从已安装游戏导入运行时并逐文件校验，然后拉起宿主进程。
 2. **宿主**（`:game`）：`GameActivity` 是真正的 `Activity`（Unity 的 `instanceof Activity` 与游戏 C# 的 JNI 名字查找都依赖它）；注入游戏的 `classes.dex`，从导入目录加载游戏库（并把目录追加进 classloader 的 native 搜索路径），挂载所选游戏 APK 的 assets，创建 `UnityPlayer` 并对齐生命周期。
-3. **内核**（`libpylon.so`，C++20）：等引擎稳定后才碰 IL2CPP；按名字解析类/字段/方法并逐条校验，任一必需引用失败就停用 Mod（游戏照常跑）；Dobby 提供原生 detour，CoreCLR 跑托管层，ImGui 走 Vulkan 覆盖层。
+3. **内核**（`libpylon.so`，C++20）：等引擎稳定后才碰 IL2CPP；按名字解析类/字段/方法并逐条校验，任一必需引用失败就停用 Mod（游戏照常跑）；Dobby 提供原生 detour，CoreCLR 跑托管层，ImGui 画在游戏自己的 GLES 上下文里（帧末在 `eglSwapBuffers` 之前上屏，不需要第二块表面，也不需要 Java 的 `Surface`）。
 4. **Mod 层**（C#，net10.0）：CoreCLR 由内核启动并调用托管入口；`Pylon.Managed` 实现
    `DetourBackend`（接内核 Dobby）并按依赖加载 Mod；`Pylon.ModLoader` 是内容框架；
    Il2CppInterop 提供游戏类型代理，**`On.*` 钩子直接生成在代理程序集里**。

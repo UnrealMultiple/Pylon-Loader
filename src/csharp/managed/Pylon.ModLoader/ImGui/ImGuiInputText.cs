@@ -131,8 +131,7 @@ internal static class ImGuiInputText
             _keyboard = TouchScreenKeyboard.Open(seed, TouchScreenKeyboardType.Default,
                 false, false, false, false, string.Empty, 0);
             _lastKeyboardText = seed;
-            _openAttempts++;
-            ImGuiNativeApi.SetKeyboardGuardMs(1500);   // 键盘动画期间别重建交换链
+            _openAttempts++;   // 覆盖层不再有交换链，键盘弹起引起的 resize 只是画布变窄，不用防抖
         }
         catch (Exception e)
         {

@@ -47,7 +47,7 @@ export function emitBridgeCpp(model, outPath) {
   W('// GENERATED FILE — do not edit. See tools/imgui-gen/');
   W('#include "imgui.h"');
   W('#include "imgui_internal.h"');
-  W('#include "render/VulkanTexture.h"');
+  W('#include "imgui/overlay/Textures.h"');
   W('#include <cstdint>');
   W('#include <cstdarg>');
   W('#include <cstring>');
@@ -169,16 +169,18 @@ export function emitBridgeCpp(model, outPath) {
   W('');
 
   // ===================== Pylon host-only exports (no imgui equivalent) =====================
-  W('// Vulkan texture upload/destroy — Pylon host integration, not part of imgui API.');
+  // 纹理走 Textures 的名字池：托管侧在游戏线程领一个渲染线程预生成的 GL 名字，
+  // 像素排队到下一个 eglSwapBuffers 之前上传。名字本身就是 ImTextureID，后端不用翻译。
+  W('// GL texture upload/destroy — Pylon host integration, not part of imgui API.');
+  W('// 名字池在渲染线程生成，像素排队到下一个 eglSwapBuffers 之前上传（见 overlay/Textures.h）。');
   W('PYLON_IMGUI_EXPORT uint64_t igCreateTexture(const uint8_t* rgba, int32_t width, int32_t height)');
   W('{');
-  W('    if (!rgba || width <= 0 || height <= 0 || !VulkanTexture::IsReady()) return 0;');
-  W('    return static_cast<uint64_t>(VulkanTexture::CreateTexture(rgba, width, height));');
+  W('    return Textures::Create(rgba, width, height);');
   W('}');
   W('');
   W('PYLON_IMGUI_EXPORT void igDestroyTexture(uint64_t id)');
   W('{');
-  W('    VulkanTexture::DestroyTexture(static_cast<ImTextureID>(id));');
+  W('    Textures::Destroy(id);');
   W('}');
 
   W('// ===================== variadic text functions (Pylon text-safe) =====================');

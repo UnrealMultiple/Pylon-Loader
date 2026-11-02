@@ -17,37 +17,30 @@ constexpr int32_t kPylonFxTexNone = 0;
 constexpr int32_t kPylonFxTexScreen = -1;   // uScreen：已画好的画面拷贝
 constexpr int32_t kPylonFxTexHistory = -2;  // 上一帧世界（已含效果）
 
-/// 统计（布局与 RenderStats 一致；顺序字段，C# 直接 Sequential 封送）。
+/// 统计（顺序字段，C# 按 Sequential 封送）。
 struct PylonFxStats {
-    // 相机计数 / 帧计数 / 累计时间
+    int64_t frames;
+    int64_t draws;
+    int64_t boxPixels;
+    int64_t cpuNs;
+    int64_t gpuNs;
+    int64_t gpuSamples;
+    int64_t worldFrames;
+    int64_t screenFrames;
+    int64_t markersIssued;
+    int64_t markerHits;
+    // 相机计数：世界 / 界面 / 其它
     int64_t worldPostRender;
     int64_t uiPostRender;
     int64_t otherPostRender;
-    int64_t draws;
-    int64_t frames;
-    int64_t markersIssued;
-    int64_t markerHits;
-    int64_t screenFrames;
-    int64_t renderCpuNs;
-    int64_t markerCpuNs;
-    int64_t gpuNs;
-    int64_t gpuSamples;
-    int64_t gpuFrameNs;
-    int64_t gpuFrameSamples;
-    int64_t shadowChecks;
-    int64_t shadowMismatches;
-    int64_t boxPixels;
     // GL 现场
     int32_t drawFbo;
-    int32_t readFbo;
     int32_t viewport[4];
     int32_t samples;
-    int32_t blitError;
-    int32_t copyFallbacks;
     // 标志
-    int32_t hookInstalled;
-    int32_t hasContext;
-    int32_t markerReady;
+    int32_t installed;
+    int32_t worldLayer;
+    int32_t overlay;
     int32_t gpuTimer;
 };
 
