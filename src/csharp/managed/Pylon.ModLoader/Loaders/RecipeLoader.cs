@@ -172,7 +172,7 @@ internal sealed class RecipeLoader : ILoaderModule
         }
         if (kept.Count == count) return;
 
-        // 托管数组一次赋值（interop 逐元素写 struct 数组会炸，见 migration-map §6）。
+        // 托管数组一次赋值（interop 逐元素写 struct 数组会炸）。
         var grown = new int[available.Length];
         for (var i = 0; i < kept.Count; i++) grown[i] = kept[i];
         for (var i = kept.Count; i < available.Length; i++) grown[i] = available[i];

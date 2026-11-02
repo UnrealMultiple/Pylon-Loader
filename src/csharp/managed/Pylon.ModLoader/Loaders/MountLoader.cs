@@ -76,7 +76,7 @@ internal sealed class MountLoader : ILoaderModule
         return true;
     }
 
-    /// <summary>诊断用：硬编码订阅清单（run-test 里显示）。</summary>
+    /// <summary>诊断用：硬编码订阅清单（启动日志里显示）。</summary>
     internal static List<string> MissingTargets()
     {
         var missing = new List<string>();

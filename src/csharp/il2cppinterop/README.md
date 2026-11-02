@@ -1,54 +1,20 @@
-<p align="center">
-    <img src="logo/logo_big.svg" width="300">
-</p>
+# Il2CppInterop（仓库内副本）
 
-[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/BepInEx/Il2CppInterop/dotnet.yml)](https://github.com/BepInEx/Il2CppInterop/actions/workflows/dotnet.yml)
-[![GitHub release (latest by date)](https://img.shields.io/github/v/release/BepInEx/Il2CppInterop)](https://github.com/BepInEx/Il2CppInterop/releases)
+本目录是 [BepInEx/Il2CppInterop](https://github.com/BepInEx/Il2CppInterop) 的源码副本，用来在本地生成游戏程序集的代理与 `On.*` 钩子，并随运行时一起编译。
 
-|                            | CLI                                                                                                                                                                                                                           | Generator                                                                                                                                                                                                                                       | Runtime                                                                                                                                                                                                                                   | HarmonySupport                                                                                                                                                                                                                                                 |
-|----------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **NuGet.org** (release)    | [![BepInEx NuGet (CLI)](https://img.shields.io/nuget/v/Il2CppInterop.CLI?label=NuGet)](https://www.nuget.org/packages/Il2CppInterop.CLI)                                                                                      | [![BepInEx NuGet (Generator)](https://img.shields.io/nuget/v/Il2CppInterop.Generator?label=NuGet)](https://www.nuget.org/packages/Il2CppInterop.Generator)                                                                                      | [![BepInEx NuGet (Runtime)](https://img.shields.io/nuget/v/Il2CppInterop.Runtime?label=NuGet)](https://www.nuget.org/packages/Il2CppInterop.Runtime)                                                                                      | [![BepInEx NuGet (HarmonySupport )](https://img.shields.io/nuget/v/Il2CppInterop.HarmonySupport?label=NuGet)](https://www.nuget.org/packages/Il2CppInterop.HarmonySupport )                                                                                    |
-| **nuget.bepinex.dev** (CI) | [![BepInEx NuGet (CLI)](https://img.shields.io/endpoint?color=blue&label=NuGet&url=https://shields.kzu.io/vpre/Il2CppInterop.CLI?feed=nuget.bepinex.dev/v3/index.json)](https://nuget.bepinex.dev/packages/Il2CppInterop.CLI) | [![BepInEx NuGet (Generator)](https://img.shields.io/endpoint?color=blue&label=NuGet&url=https://shields.kzu.io/vpre/Il2CppInterop.Generator?feed=nuget.bepinex.dev/v3/index.json)](https://nuget.bepinex.dev/packages/Il2CppInterop.Generator) | [![BepInEx NuGet (Runtime)](https://img.shields.io/endpoint?color=blue&label=NuGet&url=https://shields.kzu.io/vpre/Il2CppInterop.Runtime?feed=nuget.bepinex.dev/v3/index.json)](https://nuget.bepinex.dev/packages/Il2CppInterop.Runtime) | [![BepInEx NuGet (HarmonySupport)](https://img.shields.io/endpoint?color=blue&label=NuGet&url=https://shields.kzu.io/vpre/Il2CppInterop.HarmonySupport?feed=nuget.bepinex.dev/v3/index.json)](https://nuget.bepinex.dev/packages/Il2CppInterop.HarmonySupport) |
+- 来源、提交、补丁与许可：[VENDOR.md](VENDOR.md)
+- 离线编译所需的本地 NuGet 源：[local-feed](local-feed/README.md)
+- 生成代理的完整流程：[构建](../../../docs/build.md) 第 2.3 节
 
-***
+## 我们改了什么
 
-> **BepInEx fork of Il2CppAssemblyUnhollower is now Il2CppInterop!**
->
-> Looking for old README and guides? Check out [`legacy-unhollower` branch](https://github.com/BepInEx/Il2CppInterop/tree/legacy-unhollower).
+只保留生成与运行所需的部分，并为 ARM64 / Android 打了上游补丁（`il2cppinterop-arm64-disarm.patch`）。除补丁外不修改上游逻辑；升级上游时按 VENDOR.md 的流程整份替换。
 
-Il2CppInterop is a framework for bridging together Unity's Il2Cpp and .NET's CoreCLR runtimes. The framework various interoperability tools:
+## 常用命令
 
-* A tool to generate .NET assemblies from [Cpp2IL](https://github.com/SamboyCoding/Cpp2IL)'s output.
-* A runtime library to work with Il2Cpp objects in CoreCLR.
-* Libraries to integrate other tools with Il2Cpp.
+```powershell
+dotnet build src/csharp/il2cppinterop/Il2CppInterop.CLI/Il2CppInterop.CLI.csproj -c Release -m:1
+dotnet src/csharp/il2cppinterop/bin/Il2CppInterop.CLI/net10.0/Il2CppInterop.CLI.dll generate --input <DummyDll> --output interop/generated
+```
 
-The framework allows the use of Il2Cpp domain and objects in it from a managed .NET domain.
-This includes generic types and methods, arrays, and new object creation.
-
-This project started out as fork of [knah/Il2CppAssemblyUnhollower](https://github.com/knah/Il2CppAssemblyUnhollower)
-but has been since been modified with new API and fixes to be a standalone project.
-
-## Getting started
-
-For plugin developers:
-
-* [Class injection](https://github.com/BepInEx/Il2CppInterop/blob/master/Documentation/Class-Injection.md)
-* [Implementing interfaces](https://github.com/BepInEx/Il2CppInterop/blob/master/Documentation/Implementing-Interfaces.md)
-* [Components and AssetBundles](https://github.com/BepInEx/Il2CppInterop/blob/master/Documentation/Injected-Components-In-Asset-Bundles.md)
-
-For tool integrators and advanced user:
-
-* [Using the command line tool](https://github.com/BepInEx/Il2CppInterop/blob/master/Documentation/Command-Line-Usage.md)
-* [Generating assemblies and bootstrapping runtime](https://github.com/BepInEx/Il2CppInterop/blob/master/Documentation/Integration-API.md)
-
-
-## Used libraries
-
-Bundled into output files:
-
-* [iced](https://github.com/0xd4d/iced) by 0xd4d, an x86 disassembler used for xref scanning and possibly more in the
-  future
-
-Used by generator itself:
-
-* [Mono.Cecil](https://github.com/jbevain/cecil) by jbevain, the main tool to produce assemblies
+日常不需要手敲这些命令：`pwsh -File src/csharp/tools/pylon.ps1 interop -DummyDir <DummyDll>` 已经封装了编译、生成与 hookgen。

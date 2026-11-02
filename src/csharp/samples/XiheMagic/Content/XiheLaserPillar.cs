@@ -101,7 +101,7 @@ namespace XiheMagic
             var light = Math.Min(1.5f, proj.scale * 0.5f);
             Lighting.AddLight(proj.Center, 1.2f * light, 0.95f * light, 0.4f * light);
 
-            // Pylon 的战斗命中管线未接（migration-map：StrikeNPC/Hurt 缺），mod 弹幕的
+            // Pylon 的战斗命中管线未接（见 docs/roadmap.md：命中/受伤管线），mod 弹幕的
             // Projectile.Damage 打不到 NPC。这里按 MEAC 的 Colliding 规则直接结算：
             // |NPC中心X - 柱心X| < scale*90（整柱竖直贯通），用 NPC.immune 做 3 tick 间隔。
             if (proj.scale > 0.2f && proj.owner == Main.myPlayer)
