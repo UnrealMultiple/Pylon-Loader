@@ -53,7 +53,7 @@ internal data class LauncherState(
         get() = mods.count { it.enabled }
 
     val gameVersionMatches: Boolean
-        get() = gameInstalled && gameVersionCode == RuntimeLayout.GAME_VERSION_CODE
+        get() = gameInstalled && RuntimeLayout.isSupportedVersion(gameVersionName)
 
     /** 清单必须是给"当前选中的游戏"导入的；换游戏后要重新导入。 */
     val manifestMatchesSelection: Boolean
@@ -62,7 +62,8 @@ internal data class LauncherState(
 
     val manifestValid: Boolean
         get() = manifest != null &&
-            manifest.gameVersionCode == RuntimeLayout.GAME_VERSION_CODE &&
+            RuntimeLayout.isSupportedVersion(manifest.gameVersionName) &&
+            !manifest.pairip &&
             manifest.abi == RuntimeLayout.ABI
 
     val checks: List<FileCheck>

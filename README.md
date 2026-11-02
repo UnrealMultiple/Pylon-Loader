@@ -165,13 +165,14 @@ public sealed class MyMod : Pylon.ModLoader.Mod
 ## 纪律与边界
 
 - **不提供游戏文件**：仓库、Release、CI artifact 都不含游戏二进制或由游戏派生的代理；`refs/`、`runtime/`、`interop/generated/` 被 `.gitignore` 排除。
-- **必须使用自己的正版**：导入与生成都以你设备上已安装的 `com.and.games505.Terraria` 1.4.5.8.6 为准；本项目不绕过任何购买或校验流程。
+- **必须使用自己的正版**：导入与生成都以你设备上已安装的 `com.and.games505.Terraria` 为准（1.4.5 系列都可，开发基线 1.4.5.8.6）；本项目不绕过任何购买或校验流程。
+- **不支持 PairIP 构建**：`libunity.so` 依赖 `libpairipcore.so` 的 Google Play 版在导入阶段就会被拒（它的字符串解密无法在别的进程里合法完成），请用无校验的构建（亚马逊版 / 整合版）。
 - **名称与商标**：产品名不含 "Terraria"；只在描述里写 "for Terraria Mobile"。图标不使用游戏美术。
 - **不复制上游代码**：[Bunny Loader](https://github.com/JonataOliveiraa/Bunny-Loader.git) 采用 PolyForm Noncommercial，与本项目不兼容；只借鉴其技术路线与实测结论，代码为独立实现。
 - **按名字解析**：不硬编码游戏偏移；解析失败就停用 Mod 并写日志，不要静默。
 - **hook 只有一套**：`Il2CppInterop.RuntimeDetour`（引擎）+ Pylon 的 `DobbyDetourBackend`；
   不要重新引入 Harmony、MonoMod 或第二套 detour。
-- 目标平台：`com.and.games505.Terraria` 1.4.5.8.6（Unity 2021.3.56f2，arm64-v8a）。
+- 目标平台：`com.and.games505.Terraria` 1.4.5 系列（开发基线 1.4.5.8.6，Unity 2021.3.56f2，arm64-v8a）。
 
 ## 许可证
 

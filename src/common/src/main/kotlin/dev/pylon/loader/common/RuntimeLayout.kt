@@ -9,9 +9,11 @@ object RuntimeLayout {
     /** 目标游戏包名（docs/01：第一阶段只针对这一份构建）。 */
     const val GAME_PACKAGE: String = "com.and.games505.Terraria"
 
-    /** 目标版本；libil2cpp.so 与 global-metadata.dat 必须同构建，版本不符直接拒绝导入。 */
-    const val GAME_VERSION_CODE: Long = 301729L
-    const val GAME_VERSION_NAME: String = "1.4.5.8.6"
+    /** 只认这条线（开发基线 1.4.5.8.6）：小版本放开，游戏打补丁不用改代码。 */
+    const val GAME_VERSION_LINE: String = "1.4.5"
+
+    fun isSupportedVersion(versionName: String?): Boolean =
+        versionName != null && versionName.trim().split('.').take(3).joinToString(".") == GAME_VERSION_LINE
 
     /** 只保留 arm64-v8a。 */
     const val ABI: String = "arm64-v8a"

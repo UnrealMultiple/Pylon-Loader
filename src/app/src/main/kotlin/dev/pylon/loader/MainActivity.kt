@@ -244,8 +244,7 @@ class MainActivity : Activity(), LauncherScreen.Listener {
         dialog = PylonDialog(
             host = this,
             title = "选择已安装的游戏",
-            message = "只支持 Terraria ${RuntimeLayout.GAME_VERSION_NAME}" +
-                "（${RuntimeLayout.GAME_VERSION_CODE}）· ${RuntimeLayout.ABI}。\n" +
+            message = "只支持 Terraria ${RuntimeLayout.GAME_VERSION_LINE} 系列 · ${RuntimeLayout.ABI}。\n" +
                 "导入会从所选游戏的 APK 解出关键文件，不读取打包产物。",
             content = scroller,
             positiveLabel = "关闭",
@@ -277,7 +276,7 @@ class MainActivity : Activity(), LauncherScreen.Listener {
         return pool.mapNotNull { info ->
             val pkg = runCatching { pm.getPackageInfo(info.packageName, 0) }.getOrNull()
                 ?: return@mapNotNull null
-            val versionOk = pkg.longVersionCode == RuntimeLayout.GAME_VERSION_CODE
+            val versionOk = RuntimeLayout.isSupportedVersion(pkg.versionName)
             val abiOk = info.nativeLibraryDir?.contains("/arm64") == true
             GameChoice(
                 packageName = info.packageName,
@@ -287,7 +286,7 @@ class MainActivity : Activity(), LauncherScreen.Listener {
                 icon = runCatching { info.loadIcon(pm) }.getOrNull(),
                 supported = versionOk && abiOk,
                 reason = when {
-                    !versionOk -> "版本 ${pkg.versionName ?: pkg.longVersionCode} 不支持"
+                    !versionOk -> "版本 ${pkg.versionName ?: pkg.longVersionCode} 不在 ${RuntimeLayout.GAME_VERSION_LINE} 线"
                     !abiOk -> "不是 arm64-v8a"
                     else -> null
                 },
@@ -614,8 +613,7 @@ class MainActivity : Activity(), LauncherScreen.Listener {
                     "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})",
             )
             appendLine(
-                "target    : Terraria ${RuntimeLayout.GAME_VERSION_NAME} " +
-                    "(${RuntimeLayout.GAME_VERSION_CODE}) · ${RuntimeLayout.ABI}",
+                "target    : Terraria ${RuntimeLayout.GAME_VERSION_LINE} line · ${RuntimeLayout.ABI}",
             )
             appendLine("selected  : ${state.selectedPackage} (${state.gameLabel ?: "?"})")
             appendLine(

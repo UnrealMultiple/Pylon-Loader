@@ -15,6 +15,7 @@ class ImportManifest(
     val abi: String,
     val gameSourceDir: String,
     val importedAtEpochMs: Long,
+    val pairip: Boolean,
     val nativeLibs: Map<String, FileEntry>,
     val dataFiles: Map<String, FileEntry>,
 ) {
@@ -43,6 +44,7 @@ class ImportManifest(
         setProperty(KEY_ABI, abi)
         setProperty(KEY_SOURCE_DIR, gameSourceDir)
         setProperty(KEY_IMPORTED_AT, importedAtEpochMs.toString())
+        setProperty(KEY_PAIRIP, pairip.toString())
         nativeLibs.forEach { (name, entry) -> setProperty("$NATIVE_PREFIX$name", entry.toValue()) }
         dataFiles.forEach { (path, entry) -> setProperty("$DATA_PREFIX$path", entry.toValue()) }
     }
@@ -58,6 +60,7 @@ class ImportManifest(
         private const val KEY_ABI = "game.abi"
         private const val KEY_SOURCE_DIR = "game.sourceDir"
         private const val KEY_IMPORTED_AT = "imported.at"
+        private const val KEY_PAIRIP = "game.pairip"
         private const val NATIVE_PREFIX = "native."
         private const val DATA_PREFIX = "data."
 
@@ -83,6 +86,7 @@ class ImportManifest(
                     abi = props.getProperty(KEY_ABI) ?: "",
                     gameSourceDir = props.getProperty(KEY_SOURCE_DIR) ?: "",
                     importedAtEpochMs = props.getProperty(KEY_IMPORTED_AT)?.toLongOrNull() ?: 0L,
+                    pairip = props.getProperty(KEY_PAIRIP)?.toBoolean() ?: false,
                     nativeLibs = natives,
                     dataFiles = datas,
                 )

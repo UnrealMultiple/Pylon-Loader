@@ -2,6 +2,7 @@ package dev.pylon.loader.game
 
 import android.content.Context
 import android.content.pm.ApplicationInfo
+import dev.pylon.loader.common.ElfDeps
 import dev.pylon.loader.common.ImportManifest
 import dev.pylon.loader.common.RuntimeLayout
 import dev.pylon.loader.game.core.PylonCore
@@ -42,8 +43,15 @@ internal class GameRuntimeLoader(private val context: Context) {
         val manifest = ImportManifest.readFrom(File(runtimeDir, RuntimeLayout.MANIFEST_FILE_NAME))
             ?: return fail("没有可用的导入清单：$runtimeDir/${RuntimeLayout.MANIFEST_FILE_NAME}")
 
-        if (manifest.gameVersionCode != RuntimeLayout.GAME_VERSION_CODE) {
-            return fail("导入的运行时版本不符：清单 ${manifest.gameVersionCode}，需要 ${RuntimeLayout.GAME_VERSION_CODE}")
+        if (!RuntimeLayout.isSupportedVersion(manifest.gameVersionName)) {
+            return fail("导入的运行时不在 ${RuntimeLayout.GAME_VERSION_LINE} 线：清单 ${manifest.gameVersionName}")
+        }
+        val unityLib = File(runtimeDir, "${RuntimeLayout.NATIVE_SUBDIR}/libunity.so")
+        if (manifest.pairip || ElfDeps.dependsOn(unityLib, ElfDeps.PAIRIP_LIB)) {
+            return fail(
+                "导入的运行时来自带 PairIP 的 Google Play 构建（libunity.so 依赖 ${ElfDeps.PAIRIP_LIB}），" +
+                    "本加载器无法启动它；请换无校验的构建重新导入"
+            )
         }
         if (manifest.gamePackage.isNotEmpty() && manifest.gamePackage != gamePackage) {
             return fail("导入的运行时来自 ${manifest.gamePackage}，当前选择的是 $gamePackage（请重新导入）")

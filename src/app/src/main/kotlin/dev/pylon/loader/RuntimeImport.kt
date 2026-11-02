@@ -2,6 +2,7 @@ package dev.pylon.loader
 
 import android.content.Context
 import android.content.pm.PackageManager
+import dev.pylon.loader.common.ElfDeps
 import dev.pylon.loader.common.ImportManifest
 import dev.pylon.loader.common.RuntimeLayout
 import java.io.File
@@ -95,12 +96,8 @@ object RuntimeImport {
         val sourceDir = pkgInfo.applicationInfo?.sourceDir
             ?: return fail("包 $gamePackage 没有 sourceDir")
 
-        // 版本不符就拒绝：混版本不会立刻报错，只会损坏存档（docs/01 硬约束）。
-        if (versionCode != RuntimeLayout.GAME_VERSION_CODE) {
-            return fail(
-                "安装包版本不匹配：需要 ${RuntimeLayout.GAME_VERSION_NAME}(${RuntimeLayout.GAME_VERSION_CODE})，" +
-                    "实际 ${pkgInfo.versionName}($versionCode)"
-            )
+        if (!RuntimeLayout.isSupportedVersion(pkgInfo.versionName)) {
+            return fail("安装包不在 ${RuntimeLayout.GAME_VERSION_LINE} 线：实际 ${pkgInfo.versionName}($versionCode)")
         }
 
         val runtimeDir = runtimeDir(context)
@@ -142,6 +139,17 @@ object RuntimeImport {
                     )
                 }
 
+                // PairIP 构建的 libunity.so 链接 libpairipcore.so：托管进来只会黑屏或自杀，导入阶段就拒绝。
+                val unityDeps = ElfDeps.needed(File(nativeDir, "libunity.so"))
+                Log.stage("import", "libunity.so 依赖：${unityDeps.joinToString(" ") { it }}")
+                val pairip = unityDeps.any { it == ElfDeps.PAIRIP_LIB }
+                if (pairip) {
+                    return fail(
+                        "这是 Google Play 的 PairIP 构建（libunity.so 依赖 ${ElfDeps.PAIRIP_LIB}），本加载器无法启动它。" +
+                            "请改用无校验的构建（亚马逊版 / 整合版）后重新导入。"
+                    )
+                }
+
                 val dataFiles = importDataFiles(zip, dataDir, scan.dataFileCount, reporter)
                 if (dataFiles.isEmpty()) {
                     return fail("未从 APK 解出任何 ${RuntimeLayout.APK_ASSETS_PREFIX} 下的资源")
@@ -155,6 +163,7 @@ object RuntimeImport {
                     abi = RuntimeLayout.ABI,
                     gameSourceDir = sourceDir,
                     importedAtEpochMs = System.currentTimeMillis(),
+                    pairip = pairip,
                     nativeLibs = nativeLibs,
                     dataFiles = dataFiles,
                 )

@@ -61,7 +61,7 @@ Write-Host "`n== ① 游戏 dump：refs/（从**你自己的正版** APK 解，�
 Check "refs/lib/arm64-v8a/libil2cpp.so" (Has 'refs\lib\arm64-v8a\libil2cpp.so') `
     "adb shell pm path com.and.games505.Terraria + unzip（完整命令见 refs/README.md）"
 Check "refs/assets/bin/Data/Managed/Metadata/global-metadata.dat" (Has 'refs\assets\bin\Data\Managed\Metadata\global-metadata.dat') `
-    "同上；版本必须是 1.4.5.8.6，且与 libil2cpp.so 同一次构建"
+    "同上；建议用开发基线 1.4.5.8.6，且与 libil2cpp.so 同一次构建"
 Check "refs/assets/bin/Data（分析/可选 -PpylonStageRefs=true；默认不再打进 APK）" (Has 'refs\assets\bin\Data') `
     "同上；默认运行由启动器从已安装游戏导入，缺它不影响正式链路，只影响本地回退"
 Check "refs/dump.cs（Il2CppDumper 输出，按名解析/查签名用）" (Has 'refs\dump.cs') `

@@ -25,6 +25,7 @@ import dev.pylon.loader.BuildConfig
 import dev.pylon.loader.FileCheck
 import dev.pylon.loader.LauncherState
 import dev.pylon.loader.R
+import dev.pylon.loader.common.ElfDeps
 import dev.pylon.loader.common.RuntimeLayout
 import kotlin.math.roundToInt
 
@@ -793,7 +794,7 @@ internal class LauncherScreen(
             title = "已选游戏版本不受支持",
             subtitle = "${state.gameLabel ?: state.selectedPackage} 是 " +
                 "${state.gameVersionName ?: "未知版本"}（${state.gameVersionCode ?: "?"}）。" +
-                "本版本需要 ${RuntimeLayout.GAME_VERSION_NAME}（${RuntimeLayout.GAME_VERSION_CODE}）。",
+                "只支持 ${RuntimeLayout.GAME_VERSION_LINE} 系列。",
             badge = "版本不符",
             color = Palette.Warning,
         )
@@ -803,6 +804,14 @@ internal class LauncherScreen(
             subtitle = "将从 ${state.gameLabel ?: state.selectedPackage} 的安装包解出关键文件并逐文件校验。" +
                 "只需一次，约 175 MB。",
             badge = "未就绪",
+            color = Palette.Warning,
+        )
+
+        state.manifest?.pairip == true -> StatusCopy(
+            title = "运行时不支持该构建",
+            subtitle = "这份运行时来自 Google Play 的 PairIP 构建（libunity.so 依赖 ${ElfDeps.PAIRIP_LIB}），" +
+                "本加载器无法启动它。请换用无校验的构建（亚马逊版 / 整合版）重新导入。",
+            badge = "不支持",
             color = Palette.Warning,
         )
 
