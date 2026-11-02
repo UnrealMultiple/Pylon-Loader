@@ -1,5 +1,5 @@
 // 层：内核层 / mod —— **给 Mod 用的导出 ABI**（P/Invoke 目标层）
-// 方向：Mod → libpylon.so → IL2CPP（与 il2cpp/Call.h 的 C++ → C# 是两条不同的路）。
+// 方向：Mod → libpylon.so → IL2CPP（与 il2cpp/Invoke.h 的 C++ → C# 是两条不同的路）。
 // 原生 Mod（C/C++/Rust…）：`#include "pylon/mod/ModApi.h"` + link libpylon.so；
 // C# Mod：NativeAOT 编成 .so 后 `[DllImport("pylon")]` 调这些符号（进程里不需要再塞运行时）。
 // 四条纪律（别破坏）：① 按名字解析，不传偏移（跨版本靠引用校验兜底）；② 失败返回 0/null，
@@ -43,7 +43,7 @@ PYLON_MOD_EXPORT void* PylonMod_FindType(const char* qualifiedName);
 
 /// `"Terraria.Main"`+`"DrawMenu"`+argc → 该方法的**原生代码指针**（Dobby 挂钩用）。
 /// 失败返回 nullptr，原因见 LastError。这是给"原生 detour 直调跳板"（对齐上游 hook 模型）
-/// 用的，不是拿来直调 C#：C# 异常在 IL2CPP 里是 C++ 异常，越过托管帧会崩（见 il2cpp/Call.h 的说明）。
+/// 用的，不是拿来直调 C#：C# 异常是 C++ 异常，越过托管帧会崩（见 il2cpp/Invoke.h）。
 PYLON_MOD_EXPORT void* PylonMod_MethodPointer(const char* qualifiedName, const char* method,
                                               int32_t argc);
 

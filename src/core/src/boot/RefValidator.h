@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 
+#include "il2cpp/Domain.h"
 #include "pylon/Status.h"
 
 namespace pylon::boot {
@@ -46,8 +47,8 @@ public:
 private:
     /// `call:` 条目：只能在**游戏线程**上执行。探测线程上遇到它时记为"未执行（跳过）"，
     /// 而不是判失败 —— 否则清单里出现一条 call: 就会把全部 Mod 停用。
-    static void ValidateCall(RefResult& result, RefReport& report, const std::string& type_part,
-                             const std::string& method_name, int argc, bool arity_given);
+    static void ValidateCall(const il2cpp::Session& session, RefResult& result, RefReport& report,
+                             const std::string& type_part, const std::string& method_name, int argc);
 };
 
 }  // namespace pylon::boot

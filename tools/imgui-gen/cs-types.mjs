@@ -52,6 +52,14 @@ export function csType(cpp) {
   return mapped + '*'.repeat(stars);
 }
 
+// 参数位专用：ImTextureRef 在 C ABI 上就是一个 ImTextureID（64 位整数）。
+// 托管侧只传纹理名，native 桥用 ImTextureRef(ImTextureID) 的隐式构造补出 16 字节结构体，
+// 所以这里按 ulong 传，既不丢信息也不用在 C# 里手拼结构体。
+export function csParamType(cpp) {
+  if (normType(cpp) === 'ImTextureRef') return 'ulong';
+  return csType(cpp);
+}
+
 // pure element type (drop trailing *) for array/vector element mapping
 export function csElem(cpp) {
   const t = normType(cpp).replace(/\*+$/, '').replace(/&$/, '').trim();

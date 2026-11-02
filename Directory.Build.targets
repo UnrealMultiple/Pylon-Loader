@@ -37,6 +37,10 @@
       <HintPath>$(PylonInteropDir)UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="UnityEngine.AndroidJNIModule">
+      <HintPath>$(PylonInteropDir)UnityEngine.AndroidJNIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="UnityEngine.InputLegacyModule">
       <HintPath>$(PylonInteropDir)UnityEngine.InputLegacyModule.dll</HintPath>
       <Private>false</Private>

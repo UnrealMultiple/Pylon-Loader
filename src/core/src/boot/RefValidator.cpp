@@ -4,8 +4,8 @@
 #include <cstdarg>
 #include <cstdio>
 
-#include "il2cpp/Call.h"
-#include "il2cpp/Il2CppRuntime.h"
+#include "il2cpp/Domain.h"
+#include "il2cpp/Invoke.h"
 #include "pylon/Log.h"
 
 namespace pylon::boot {
@@ -88,32 +88,30 @@ std::string RefReport::Describe() const {
     return text;
 }
 
-void RefValidator::ValidateCall(RefResult& result, RefReport& report, const std::string& type_part,
-                                const std::string& method_name, int argc, bool arity_given) {
-    // 托管方法只能在游戏线程上调（Call.cpp 里有守卫）。探测线程上跑到 call: 条目时
-    // 记为"跳过"而不是失败：否则清单里只要出现一条 call:，整份清单失败、所有 Mod 被停用。
-    if (!il2cpp::Runtime::Instance().IsGameThread()) {
+void RefValidator::ValidateCall(const il2cpp::Session& session, RefResult& result, RefReport& report,
+                                const std::string& type_part, const std::string& method_name, int argc) {
+    // 探测线程上记为"跳过"而不是失败：一条 call: 失败会把所有 Mod 停用。
+    if (!il2cpp::Domain::OnGameThread()) {
         result.detail = "跳过：call: 只能在游戏线程(UnityMain)上执行（探测阶段不满足）";
         report.items.push_back(std::move(result));
         return;
     }
 
-    // 只支持静态方法（清单里没有 this 可给）。参数个数照 method: 的规则解析。
-    auto resolved = arity_given ? il2cpp::MethodRef::Resolve(type_part, method_name, argc)
-                                : il2cpp::MethodRef::Resolve(type_part, method_name, -1);
+    // 只支持静态方法（清单里没有 this 可给）。参数个数照 method: 的规则解析（-1 = 探测）。
+    auto resolved = il2cpp::Method::Resolve(session, type_part, method_name, argc);
     if (!resolved) {
         result.detail = resolved.reason;
         report.items.push_back(std::move(result));
         return;
     }
-    if (!resolved.value.is_static()) {
-        result.detail = "call: 只支持静态方法（实例调用由代码走 InvokeInstance1）";
+    if (!resolved.value.IsStatic()) {
+        result.detail = "call: 只支持静态方法（清单里没有 this 可给）";
         report.items.push_back(std::move(result));
         return;
     }
 
     il2cpp::CallArgs args;
-    const auto called = resolved.value.Invoke(nullptr, args);
+    const auto called = resolved.value.Invoke(session, nullptr, args);
     if (!called.invoked) {
         result.detail = called.error;
     } else if (called.threw) {
@@ -127,7 +125,16 @@ void RefValidator::ValidateCall(RefResult& result, RefReport& report, const std:
 
 RefReport RefValidator::Validate(const std::vector<std::string>& specs) {
     RefReport report;
-    auto& runtime = il2cpp::Runtime::Instance();
+
+    // 探测线程走到这里时已经 attach 过；再取一次票据是幂等的。
+    auto session = il2cpp::Domain::Attach();
+    if (!session) {
+        RefResult failed;
+        failed.spec = "(attach)";
+        failed.detail = session.reason;
+        report.items.push_back(std::move(failed));
+        return report;
+    }
 
     for (const auto& raw : specs) {
         const std::string spec = Trim(raw);
@@ -159,7 +166,7 @@ RefReport RefValidator::Validate(const std::vector<std::string>& specs) {
         std::string class_name;
         SplitNamespace(type_part, &namespaze, &class_name);
 
-        auto klass = runtime.FindClass(namespaze, class_name);
+        auto klass = session.value.FindClass(namespaze, class_name);
         if (!klass) {
             result.detail = klass.reason;
             report.items.push_back(std::move(result));
@@ -168,20 +175,19 @@ RefReport RefValidator::Validate(const std::vector<std::string>& specs) {
 
         if (kind == "class") {
             result.ok = true;
-            result.detail = "解析为 " + runtime.ClassName(klass.value);
+            result.detail = "解析为 " + session.value.ClassName(klass.value);
         } else if (kind == "field") {
-            auto field = runtime.FindField(klass.value, member_part);
+            auto field = il2cpp::Field::Resolve(session.value, klass.value, member_part);
             if (!field) {
-                result.detail = field.reason + "（类 " + runtime.ClassName(klass.value) + "）";
+                result.detail = field.reason + "（类 " + session.value.ClassName(klass.value) + "）";
             } else {
                 result.ok = true;
                 // 标出 static/instance：静态字段的 offset 是**静态块内**偏移（实测 dayTime=1152），
                 // 不是实例偏移，混在一起看会把"这个字段能不能这样读"判断错。
-                const bool is_static = runtime.FieldIsStatic(field.value);
-                result.detail = Format("%s offset=%zu 类=%s",
-                                       is_static ? "static" : "instance",
-                                       runtime.FieldOffset(field.value),
-                                       runtime.ClassName(klass.value).c_str());
+                result.detail = Format("%s offset=%zu 宽度=%zu 类=%s",
+                                       field.value.IsStatic() ? "static" : "instance",
+                                       session.value.raw().field_get_offset(field.value.info()),
+                                       field.value.Size(), session.value.ClassName(klass.value).c_str());
             }
         } else if (kind == "method" || kind == "call") {
             // 参数个数可写可不写：写了是严格匹配（推荐，能钉住重载）；不写就按 0..8 探一遍。
@@ -207,21 +213,20 @@ RefReport RefValidator::Validate(const std::vector<std::string>& specs) {
             }
 
             if (kind == "call") {
-                ValidateCall(result, report, type_part, method_name, argc, arity_given);
+                ValidateCall(session.value, result, report, type_part, method_name, argc);
                 continue;  // ValidateCall 自己把结果放进了 report
             }
 
-            auto method = arity_given ? runtime.FindMethod(klass.value, method_name, argc)
-                                      : runtime.FindMethodAnyArity(klass.value, method_name, &argc);
+            auto method = il2cpp::Method::Resolve(session.value, type_part, method_name, argc);
             if (!method) {
-                result.detail = method.reason + "（类 " + runtime.ClassName(klass.value) + "）";
+                result.detail = method.reason + "（类 " + session.value.ClassName(klass.value) + "）";
             } else {
                 result.ok = true;
                 result.detail = Format("MethodInfo=%p argc=%d%s 类=%s",
-                                       static_cast<const void*>(method.value),
-                                       runtime.MethodParamCount(method.value),
+                                       static_cast<const void*>(method.value.info()),
+                                       method.value.ArgCount(),
                                        arity_given ? "" : "（探测所得，清单里可写死）",
-                                       runtime.ClassName(klass.value).c_str());
+                                       session.value.ClassName(klass.value).c_str());
             }
         } else {
             result.detail = "未知类型 '" + kind + "'（只支持 class/field/method/call）";

@@ -30,6 +30,10 @@
       <HintPath>..\..\..\..\interop\generated\UnityEngine.CoreModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
+    <Reference Include="UnityEngine.AndroidJNIModule">
+      <HintPath>..\..\..\..\interop\generated\UnityEngine.AndroidJNIModule.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
     <Reference Include="UnityEngine.InputLegacyModule">
       <HintPath>..\..\..\..\interop\generated\UnityEngine.InputLegacyModule.dll</HintPath>
       <Private>false</Private>

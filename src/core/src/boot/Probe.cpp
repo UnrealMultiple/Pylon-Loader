@@ -8,7 +8,7 @@
 
 #include "boot/Boot.h"
 #include "boot/EngineInitHook.h"
-#include "il2cpp/Il2CppRuntime.h"
+#include "il2cpp/Domain.h"
 #include "pylon/Log.h"
 
 namespace pylon::boot {
@@ -112,12 +112,11 @@ void Probe::ThreadMain(std::vector<std::string> refs, ProbeConfig config) {
         return;
     }
 
-    auto& runtime = il2cpp::Runtime::Instance();
     ProbeResult result;
 
     // ② 稀疏轮询。每一步都在"已经过了静置期"之后，且间隔足够大。
     for (int attempt = 1; attempt <= config.attempts; ++attempt) {
-        if (runtime.EngineLooksReady()) {
+        if (il2cpp::Domain::Ready()) {
             char signal[256];
             std::snprintf(signal, sizeof(signal),
                           "探测命中 il2cpp_domain_get() != null（il2cpp_init 返回后第 %d 次尝试）",

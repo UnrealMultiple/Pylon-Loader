@@ -89,15 +89,6 @@ internal object PylonCore {
     fun report(): String = if (started) runCatching { nativeReport() }.getOrDefault("") else ""
 
     /**
-     * C# 方法绑定自检：真的调几个托管方法（值类型返回、字符串参数与返回、故意抛异常），
-     * 拼成多行文本。**必须在引用校验通过之后调**（那时才 attach 过）。
-     * 理由："能解析到方法"和"能把方法调起来、把返回值拿回来"是两件事，后者要单独证明，
-     * 后面 M3/M4 才敢直接往上盖。
-     */
-    fun bindSelfTest(): String =
-        if (started) runCatching { nativeBindSelfTest() }.getOrDefault("") else "内核未加载"
-
-    /**
      * 测试 Mod 探针：调独立 .so（tools/testmod）的入口，它用**导出 ABI** 反过来调内核——
      * "Mod → C++"方向的端到端证据（动态库 → 动态链接器解析符号 → IL2CPP）。
      * **只能在游戏线程上调**（托管方法/字符串的限制）。
@@ -190,7 +181,6 @@ internal object PylonCore {
     private external fun nativeStart(refs: Array<String>, settleMs: Int): Boolean
     private external fun nativeAwaitReport(timeoutMs: Int): String?
     private external fun nativeReport(): String
-    private external fun nativeBindSelfTest(): String
     private external fun nativeTestModProbe(): String
     private external fun nativeMarkGameThread()
     private external fun nativeIsGameThread(): Boolean

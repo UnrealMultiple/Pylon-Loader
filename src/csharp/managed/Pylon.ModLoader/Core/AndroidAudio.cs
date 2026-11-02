@@ -4,10 +4,10 @@ using System.Collections.Generic;
 namespace Pylon.ModLoader;
 
 /// <summary>
-/// Mod 音频的 Android 层：经内核 JNI 反射桥调 Java（SoundPool / MediaPlayer），不碰 Unity 的
+/// Mod 音频的 Android 层：经 Jni（UnityEngine.AndroidJNI）调 Java（SoundPool / MediaPlayer），不碰 Unity 的
 /// AndroidJavaObject（这版 IL2CPP 泛型 Call&lt;T&gt; 未实例化会抛 "not fully instantiated"）。
 /// 音效：SoundPool 异步解码（play 返回 0 = 未就绪/被拒）；音乐：MediaPlayer 异步准备（getDuration 轮询）。
-/// 全部调用在游戏线程（hook 都在游戏线程）；内核自动 attach。
+/// 全部调用在游戏线程（hook 都在游戏线程）；Jni 在每线程第一次调用时 attach。
 /// </summary>
 internal static class AndroidAudio
 {
@@ -54,8 +54,8 @@ internal static class AndroidAudio
                 Safe.Once("audio.pool.builder", "AndroidAudio: SoundPool$Builder 建不起来（" + Jni.LastError + "）", true);
                 return;
             }
-            builder.Call("setMaxStreams", "(I)V", 32);
-            builder.Call("setAudioAttributes", "(Landroid/media/AudioAttributes;)V", attributes.AsArg());
+            builder.Chain("setMaxStreams", "(I)Landroid/media/SoundPool$Builder;", 32);
+            builder.Chain("setAudioAttributes", "(Landroid/media/AudioAttributes;)Landroid/media/SoundPool$Builder;", attributes.AsArg());
             _pool = builder.CallObject("build", "()Landroid/media/SoundPool;");
             attributes.Dispose();
             _ok = _pool != null;
@@ -72,8 +72,8 @@ internal static class AndroidAudio
     {
         var builder = JniObject.New(AudioAttributesBuilderClass, "()V");
         if (builder == null) return null;
-        builder.Call("setUsage", "(I)V", UsageGame);
-        builder.Call("setContentType", "(I)V", contentType);
+        builder.Chain("setUsage", "(I)Landroid/media/AudioAttributes$Builder;", UsageGame);
+        builder.Chain("setContentType", "(I)Landroid/media/AudioAttributes$Builder;", contentType);
         var attributes = builder.CallObject("build", "()Landroid/media/AudioAttributes;");
         builder.Dispose();
         return attributes;
@@ -223,7 +223,7 @@ internal static class AndroidAudio
 
         if (!track.Prepared)
         {
-            // prepareAsync 没回调：getDuration 在准备好之前是 0（或抛，内核已清异常返回 0）。
+            // prepareAsync 没回调：getDuration 在准备好之前是 0（或抛，Jni 已清异常返回 0）。
             var duration = 0;
             try { duration = track.Player.CallInt("getDuration", "()I"); }
             catch (Exception e)

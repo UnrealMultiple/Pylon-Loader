@@ -1,13 +1,10 @@
 // 层：内核层 / graphics —— 相机钩子实现
 #include "graphics/CameraHook.h"
 
-#include <cstring>
-#include <mutex>
-
 #include "graphics/Hook.h"
 #include "graphics/Marker.h"
 #include "graphics/Pipe.h"
-#include "il2cpp/Il2CppRuntime.h"
+#include "il2cpp/Domain.h"
 #include "pylon/Log.h"
 #include "pylon/mod/ModApi.h"
 
@@ -19,44 +16,53 @@ using FireFn = void (*)(il2cpp::Il2CppObject* camera, const il2cpp::MethodInfo* 
 
 FireFn g_original = nullptr;
 bool g_installed = false;
-
-il2cpp::FieldInfo* g_runnerInstance = nullptr;
-int32_t g_worldSettingsOffset = -1, g_uiSettingsOffset = -1;
-int32_t g_worldCameraOffset = -1, g_uiCameraOffset = -1;
 bool g_logged = false;
+
+il2cpp::Field g_runnerInstance;
+int32_t g_worldSettingsOffset = -1;
+int32_t g_uiSettingsOffset = -1;
+int32_t g_worldCameraOffset = -1;
+int32_t g_uiCameraOffset = -1;
 
 il2cpp::Il2CppObject* readRef(il2cpp::Il2CppObject* object, int32_t offset) {
     if (object == nullptr || offset < 0) return nullptr;
     return *reinterpret_cast<il2cpp::Il2CppObject**>(reinterpret_cast<char*>(object) + offset);
 }
 
+// 安装时已验证可读，逐帧不再看返回值。
 il2cpp::Il2CppObject* runner() {
     il2cpp::Il2CppObject* instance = nullptr;
-    il2cpp::Runtime::Instance().api().field_static_get_value(g_runnerInstance, &instance);
+    g_runnerInstance.Read(nullptr, &instance);
     return instance;
 }
 
-bool resolveCameras() {
-    auto& runtime = il2cpp::Runtime::Instance();
-    const auto runnerClass = runtime.FindClass("", "XNAUnityRunner");
-    const auto worldClass = runtime.FindClass("", "XNAWorldCameraSettings");
-    const auto uiClass = runtime.FindClass("", "XNAUICameraSettings");
+Outcome<int32_t> FieldOffset(const il2cpp::Session& session, il2cpp::Il2CppClass* klass, const char* field) {
+    auto found = il2cpp::Field::Resolve(session, klass, field);
+    if (!found) return Outcome<int32_t>::Bad(found.reason);
+    return Outcome<int32_t>::Good(static_cast<int32_t>(session.raw().field_get_offset(found.value.info())));
+}
+
+bool resolveCameras(const il2cpp::Session& session) {
+    const auto runnerClass = session.FindClass("", "XNAUnityRunner");
+    const auto worldClass = session.FindClass("", "XNAWorldCameraSettings");
+    const auto uiClass = session.FindClass("", "XNAUICameraSettings");
     if (!runnerClass || !worldClass || !uiClass) return false;
 
-    const auto runnerInstance = runtime.FindField(runnerClass.value, "_instance");
-    const auto worldSettings = runtime.FindField(runnerClass.value, "WorldCameraSettings");
-    const auto uiSettings = runtime.FindField(runnerClass.value, "UICameraSettings");
-    const auto worldCamera = runtime.FindField(worldClass.value, "Camera");
-    const auto uiCamera = runtime.FindField(uiClass.value, "Camera");
-    if (!runnerInstance || !worldSettings || !uiSettings || !worldCamera || !uiCamera) return false;
+    auto instanceField = il2cpp::Field::Resolve(session, runnerClass.value, "_instance");
+    if (!instanceField) return false;
+    g_runnerInstance = instanceField.value;
 
-    g_runnerInstance = runnerInstance.value;
-    g_worldSettingsOffset = static_cast<int32_t>(runtime.FieldOffset(worldSettings.value));
-    g_uiSettingsOffset = static_cast<int32_t>(runtime.FieldOffset(uiSettings.value));
-    g_worldCameraOffset = static_cast<int32_t>(runtime.FieldOffset(worldCamera.value));
-    g_uiCameraOffset = static_cast<int32_t>(runtime.FieldOffset(uiCamera.value));
-    return g_worldSettingsOffset >= 0 && g_uiSettingsOffset >= 0 && g_worldCameraOffset >= 0 &&
-           g_uiCameraOffset >= 0;
+    const auto worldSettings = FieldOffset(session, runnerClass.value, "WorldCameraSettings");
+    const auto uiSettings = FieldOffset(session, runnerClass.value, "UICameraSettings");
+    const auto worldCamera = FieldOffset(session, worldClass.value, "Camera");
+    const auto uiCamera = FieldOffset(session, uiClass.value, "Camera");
+    if (!worldSettings || !uiSettings || !worldCamera || !uiCamera) return false;
+
+    g_worldSettingsOffset = worldSettings.value;
+    g_uiSettingsOffset = uiSettings.value;
+    g_worldCameraOffset = worldCamera.value;
+    g_uiCameraOffset = uiCamera.value;
+    return true;
 }
 
 void hookFireOnPostRender(il2cpp::Il2CppObject* camera, const il2cpp::MethodInfo* method) {
@@ -83,22 +89,28 @@ void hookFireOnPostRender(il2cpp::Il2CppObject* camera, const il2cpp::MethodInfo
 }  // namespace
 
 bool InstallCameraHook() {
-    auto& runtime = il2cpp::Runtime::Instance();
-    runtime.Attach();
-    auto& api = runtime.api();
+    auto attached = il2cpp::Domain::Attach();
+    if (!attached) {
+        LOGE("fx", "attach 失败，相机钩子不安装：%s", attached.reason.c_str());
+        return false;
+    }
+    const il2cpp::Session& session = attached.value;
 
-    if (!resolveCameras()) {
+    if (!resolveCameras(session)) {
         LOGE("fx", "XNAUnityRunner 的相机没找齐：屏幕效果不可用");
         return false;
     }
 
-    const auto cameraClass = runtime.FindClass("UnityEngine", "Camera");
-    const il2cpp::MethodInfo* fire =
-        cameraClass ? api.class_get_method_from_name(cameraClass.value, "FireOnPostRender", 1) : nullptr;
-    auto target = reinterpret_cast<FireFn>(
-        fire != nullptr ? PylonMod_MethodPointer("UnityEngine.Camera", "FireOnPostRender", 1) : nullptr);
+    // 读不动就别装钩子：每帧都读一次，失败会被埋在渲染线程里。
+    il2cpp::Il2CppObject* probe = nullptr;
+    if (Status read = g_runnerInstance.Read(nullptr, &probe); !read) {
+        LOGE("fx", "XNAUnityRunner._instance 读不到：%s", read.reason.c_str());
+        return false;
+    }
+
+    auto target = reinterpret_cast<FireFn>(PylonMod_MethodPointer("UnityEngine.Camera", "FireOnPostRender", 1));
     if (target == nullptr) {
-        LOGE("fx", "拿不到 Camera.FireOnPostRender");
+        LOGE("fx", "拿不到 Camera.FireOnPostRender：%s", PylonMod_LastError());
         return false;
     }
     if (!Hook(target, &hookFireOnPostRender, &g_original)) return false;

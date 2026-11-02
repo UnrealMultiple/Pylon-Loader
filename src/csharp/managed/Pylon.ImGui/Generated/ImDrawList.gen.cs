@@ -62,7 +62,7 @@ namespace Pylon.ImGui
         {
             ImGuiNative.ImDrawList_PopClipRect((ImDrawList*)(NativePtr));
         }
-        public void PushTexture(IntPtr tex_ref)
+        public void PushTexture(ulong tex_ref)
         {
             ImGuiNative.ImDrawList_PushTexture((ImDrawList*)(NativePtr), tex_ref);
         }
@@ -254,15 +254,15 @@ namespace Pylon.ImGui
         {
             ImGuiNative.ImDrawList_AddConcavePolyFilled((ImDrawList*)(NativePtr), points, num_points, col);
         }
-        public void AddImage(IntPtr tex_ref, Vector2 p_min, Vector2 p_max, Vector2 uv_min, Vector2 uv_max, uint col)
+        public void AddImage(ulong tex_ref, Vector2 p_min, Vector2 p_max, Vector2 uv_min, Vector2 uv_max, uint col)
         {
             ImGuiNative.ImDrawList_AddImage((ImDrawList*)(NativePtr), tex_ref, p_min, p_max, uv_min, uv_max, col);
         }
-        public void AddImageQuad(IntPtr tex_ref, Vector2 p1, Vector2 p2, Vector2 p3, Vector2 p4, Vector2 uv1, Vector2 uv2, Vector2 uv3, Vector2 uv4, uint col)
+        public void AddImageQuad(ulong tex_ref, Vector2 p1, Vector2 p2, Vector2 p3, Vector2 p4, Vector2 uv1, Vector2 uv2, Vector2 uv3, Vector2 uv4, uint col)
         {
             ImGuiNative.ImDrawList_AddImageQuad((ImDrawList*)(NativePtr), tex_ref, p1, p2, p3, p4, uv1, uv2, uv3, uv4, col);
         }
-        public void AddImageRounded(IntPtr tex_ref, Vector2 p_min, Vector2 p_max, Vector2 uv_min, Vector2 uv_max, uint col, float rounding, ImDrawFlags flags = (ImDrawFlags)0)
+        public void AddImageRounded(ulong tex_ref, Vector2 p_min, Vector2 p_max, Vector2 uv_min, Vector2 uv_max, uint col, float rounding, ImDrawFlags flags = (ImDrawFlags)0)
         {
             ImGuiNative.ImDrawList_AddImageRounded((ImDrawList*)(NativePtr), tex_ref, p_min, p_max, uv_min, uv_max, col, rounding, flags);
         }
@@ -371,7 +371,7 @@ namespace Pylon.ImGui
         {
             ImGuiNative.ImDrawList_PrimVtx((ImDrawList*)(NativePtr), pos, uv, col);
         }
-        public void PushTextureID(IntPtr tex_ref)
+        public void PushTextureID(ulong tex_ref)
         {
             ImGuiNative.ImDrawList_PushTextureID((ImDrawList*)(NativePtr), tex_ref);
         }
@@ -411,7 +411,7 @@ namespace Pylon.ImGui
         {
             ImGuiNative.ImDrawList__OnChangedVtxOffset((ImDrawList*)(NativePtr));
         }
-        public void _SetTexture(IntPtr tex_ref)
+        public void _SetTexture(ulong tex_ref)
         {
             ImGuiNative.ImDrawList__SetTexture((ImDrawList*)(NativePtr), tex_ref);
         }

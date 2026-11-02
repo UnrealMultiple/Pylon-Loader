@@ -6,6 +6,7 @@
 
 #include <cstring>
 
+
 #include "graphics/GlState.h"
 #include "graphics/Gles.h"
 #include "graphics/Guard.h"

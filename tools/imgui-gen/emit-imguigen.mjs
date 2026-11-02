@@ -2,7 +2,7 @@
  * Emit ImGui.gen.cs — friendly static ImGui class (ImGui.NET style marshalling).
  */
 import { writeFileSync, mkdirSync } from 'fs';
-import { normType, csType, PTR_WRAP } from './cs-types.mjs';
+import { normType, csType, csParamType, PTR_WRAP } from './cs-types.mjs';
 
 const KEYWORDS = new Set(['ref','object','event','base','params','lock','fixed','in','out','is','as','string','int','bool','float','uint','void','char','byte','short','long','double','decimal','new','return','this','null','true','false','if','else','for','foreach','while','do','switch','case','break','continue','goto','throw','try','catch','finally','default','delegate','enum','interface','namespace','operator','struct','class','const','static','public','private','protected','internal','readonly','override','virtual','sealed','abstract','using','var','async','await','where','when','yield','sizeof','typeof','stackalloc','nameof','global','partial','record']);
 const UDT = { ImVec2: 'Vector2', ImVec4: 'Vector4', ImColor: 'ImColor' };
@@ -84,7 +84,11 @@ function emitFriendlyFn(fn, P) {
     else if (e === 'sizeof(float)') v = '4';
     else if (/^"([^"]*)"$/.test(e)) v = e;
     else if (e.startsWith('ImVec2(') || e.startsWith('ImVec4(')) {
-      v = 'default'; // Vector2/Vector4 default params must be compile-time constants in C#
+      // C# 的默认参数必须是编译期常量，而 Vector2/Vector4 只能用 default（全 0）。
+      // 所以只有全 0 的默认值能如实落地；非 0（比如 ImVec2(1,1)）宁可让参数必填，
+      // 也不能悄悄变成 (0,0)——否则 Image 画出来是空的。
+      const nums = e.slice(e.indexOf('(') + 1, -1).split(',').map(s => s.trim());
+      v = nums.every(n => /^[-+]?0*(\.0*)?$/.test(n)) ? 'default' : null;
     }
     else if (/^[-+0-9.eEfFuUlL]+$/.test(e)) v = ft === 'IntPtr' ? 'default' : (/^Im[A-Z]/.test(ft) ? '(' + ft + ')' + e : e);
     else v = null; // unsupported -> no default
@@ -105,7 +109,7 @@ function emitFriendlyFn(fn, P) {
       else if (PTR_WRAP[base]) ft = PTR_WRAP[base];
       else if (['int','uint','float','double','byte','ushort','short','long','ulong'].includes(csType(base))) ft = 'ref ' + csType(base);
       else ft = csType(t); // struct ptr stays raw pointer (ImFontAtlas*)
-    } else ft = csType(t);
+    } else ft = csParamType(t);
     return ft + ' ' + name + csDefault(t, p);
   }).join(', ');
   const finalSig = (() => {

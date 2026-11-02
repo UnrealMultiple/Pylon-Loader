@@ -2,7 +2,7 @@
  * Emit ImGuiNative.gen.cs — DllImport declarations, mirroring ImGui.NET.
  */
 import { writeFileSync, mkdirSync } from 'fs';
-import { normType, csType, PTR_WRAP } from './cs-types.mjs';
+import { normType, csType, csParamType, PTR_WRAP } from './cs-types.mjs';
 
 const UDT = new Set(['ImVec2','ImVec4','ImColor']);
 
@@ -52,7 +52,7 @@ export function emitNativeGen(model, outDir) {
       : (isRefRet ? csType(baseRet) + '*' : csType(rawRet));
     const pOut = isUdt ? { name: 'pOut', type: csType(baseRet) + '*' } : null;
     const params = (fn.params || []).filter(p => p.type.trim() && p.type.trim() !== '...');
-    const decl = [pOut, ...params.map((p, i) => ({ name: canonical(p.name, i), type: 'void*' === csType(p.type) ? 'void*' : csType(p.type) }))]
+    const decl = [pOut, ...params.map((p, i) => ({ name: canonical(p.name, i), type: 'void*' === csParamType(p.type) ? 'void*' : csParamType(p.type) }))]
       .filter(Boolean)
       .map(a => a.type + ' ' + a.name).join(', ');
     emitOne(exportName, ret, decl);
@@ -80,10 +80,10 @@ export function emitNativeGen(model, outDir) {
       const pOutType = isUdt ? csType(baseRet) + '*' : null;
       // pOut first per cimgui: ImFont_CalcTextSizeA(Vector2* pOut, ImFont* self, ...)
       if (isUdt) {
-        const ordered = [{ name: 'pOut', type: pOutType }, { name: 'self', type: s.name + '*' }, ...params.map((p, i) => ({ name: canonical(p.name, i), type: csType(p.type) }))];
+        const ordered = [{ name: 'pOut', type: pOutType }, { name: 'self', type: s.name + '*' }, ...params.map((p, i) => ({ name: canonical(p.name, i), type: csParamType(p.type) }))];
         emitOne(exportName, 'void', ordered.map(a => a.type + ' ' + a.name).join(', '));
       } else {
-        const decl = [{ name: 'self', type: s.name + '*' }, ...params.map((p, i) => ({ name: canonical(p.name, i), type: csType(p.type) }))]
+        const decl = [{ name: 'self', type: s.name + '*' }, ...params.map((p, i) => ({ name: canonical(p.name, i), type: csParamType(p.type) }))]
           .map(a => a.type + ' ' + a.name).join(', ');
         emitOne(exportName, ret, decl);
       }

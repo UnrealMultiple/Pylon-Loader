@@ -28,6 +28,9 @@ function norm(t) {
 function bridgeType(cpp) {
   const t = norm(cpp);
   if (t.includes('(')) return t;
+  // ImTextureRef 按 ImTextureID 收：它自带 ImTextureRef(ImTextureID) 隐式构造，
+  // 于是 C ABI 上只是一个 64 位整数，托管侧传 ImTextureID 即可，不必拼 16 字节结构。
+  if (t === 'ImTextureRef') return 'ImTextureID';
   // References are flattened to values in the C ABI; 'const' kept for pointer params
   // so calls into ImGui are const-correct (e.g. const char** remaining).
   return t.replace(/\s*&$/, ''); // drop trailing ref, keep everything else

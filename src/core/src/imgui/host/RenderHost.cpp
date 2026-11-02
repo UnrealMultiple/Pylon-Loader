@@ -1,6 +1,7 @@
 #include "RenderHost.h"
 
 #include "graphics/Pipe.h"
+#include "imgui.h"
 #include "imgui/overlay/Present.h"
 #include "imgui/overlay/Session.h"
 

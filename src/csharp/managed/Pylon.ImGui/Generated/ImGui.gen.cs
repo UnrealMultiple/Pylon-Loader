@@ -1342,7 +1342,7 @@ namespace Pylon.ImGui
             return ret != 0;
         }
 
-        public static void ProgressBar(float fraction, Vector2 size_arg = default, string overlay = null)
+        public static void ProgressBar(float fraction, Vector2 size_arg, string overlay = null)
         {
             byte* native_overlay;
             int overlay_byteCount = 0;
@@ -1452,17 +1452,17 @@ namespace Pylon.ImGui
             return ret != 0;
         }
 
-        public static void Image(IntPtr tex_ref, Vector2 image_size, Vector2 uv0 = default, Vector2 uv1 = default)
+        public static void Image(ulong tex_ref, Vector2 image_size, Vector2 uv0, Vector2 uv1)
         {
             ImGuiNative.igImage(tex_ref, image_size, uv0, uv1);
         }
 
-        public static void ImageWithBg(IntPtr tex_ref, Vector2 image_size, Vector2 uv0 = default, Vector2 uv1 = default, Vector4 bg_col = default, Vector4 tint_col = default)
+        public static void ImageWithBg(ulong tex_ref, Vector2 image_size, Vector2 uv0, Vector2 uv1, Vector4 bg_col, Vector4 tint_col)
         {
             ImGuiNative.igImageWithBg(tex_ref, image_size, uv0, uv1, bg_col, tint_col);
         }
 
-        public static bool ImageButton(string str_id, IntPtr tex_ref, Vector2 image_size, Vector2 uv0 = default, Vector2 uv1 = default, Vector4 bg_col = default, Vector4 tint_col = default)
+        public static bool ImageButton(string str_id, ulong tex_ref, Vector2 image_size, Vector2 uv0, Vector2 uv1, Vector4 bg_col, Vector4 tint_col)
         {
             byte* native_str_id;
             int str_id_byteCount = 0;
@@ -4834,7 +4834,7 @@ namespace Pylon.ImGui
             return ret != 0;
         }
 
-        public static bool BeginTable(string str_id, int columns, ImGuiTableFlags flags = (ImGuiTableFlags)0, Vector2 outer_size = default, float inner_width = 0.0f)
+        public static bool BeginTable(string str_id, int columns, ImGuiTableFlags flags, Vector2 outer_size, float inner_width)
         {
             byte* native_str_id;
             int str_id_byteCount = 0;

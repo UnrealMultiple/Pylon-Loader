@@ -84,7 +84,7 @@ foreach ($name in $Samples) {
     $manifest = Join-Path $root "src\csharp\samples\$name\manifest.json"
     if (-not (Test-Path $manifest)) {
         $names = @{
-            FrameMod = '框架示例：五条管线自检（坐骑/Buff/NPC/配方/前缀）+ ImGui Tab + ModConfig'
+            FrameMod = '最小 UI 示例：一页 ImGui（游戏纹理 + 输入框）'
         }
         $json = @{ id = $name; name = $names[$name]; version = '1.0.0'; enabled = $true } | ConvertTo-Json
         $tmp = Join-Path $out "$name-manifest.json"

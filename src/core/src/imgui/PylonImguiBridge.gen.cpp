@@ -132,9 +132,9 @@ PYLON_IMGUI_EXPORT void igProgressBar(float fraction, const ImVec2 size_arg, con
 PYLON_IMGUI_EXPORT void igBullet() { ImGui::Bullet(); }
 PYLON_IMGUI_EXPORT bool igTextLink(const char * label) { return ImGui::TextLink(label); }
 PYLON_IMGUI_EXPORT bool igTextLinkOpenURL(const char * label, const char * url) { return ImGui::TextLinkOpenURL(label, url); }
-PYLON_IMGUI_EXPORT void igImage(ImTextureRef tex_ref, const ImVec2 image_size, const ImVec2 uv0, const ImVec2 uv1) { ImGui::Image(tex_ref, image_size, uv0, uv1); }
-PYLON_IMGUI_EXPORT void igImageWithBg(ImTextureRef tex_ref, const ImVec2 image_size, const ImVec2 uv0, const ImVec2 uv1, const ImVec4 bg_col, const ImVec4 tint_col) { ImGui::ImageWithBg(tex_ref, image_size, uv0, uv1, bg_col, tint_col); }
-PYLON_IMGUI_EXPORT bool igImageButton(const char * str_id, ImTextureRef tex_ref, const ImVec2 image_size, const ImVec2 uv0, const ImVec2 uv1, const ImVec4 bg_col, const ImVec4 tint_col) { return ImGui::ImageButton(str_id, tex_ref, image_size, uv0, uv1, bg_col, tint_col); }
+PYLON_IMGUI_EXPORT void igImage(ImTextureID tex_ref, const ImVec2 image_size, const ImVec2 uv0, const ImVec2 uv1) { ImGui::Image(tex_ref, image_size, uv0, uv1); }
+PYLON_IMGUI_EXPORT void igImageWithBg(ImTextureID tex_ref, const ImVec2 image_size, const ImVec2 uv0, const ImVec2 uv1, const ImVec4 bg_col, const ImVec4 tint_col) { ImGui::ImageWithBg(tex_ref, image_size, uv0, uv1, bg_col, tint_col); }
+PYLON_IMGUI_EXPORT bool igImageButton(const char * str_id, ImTextureID tex_ref, const ImVec2 image_size, const ImVec2 uv0, const ImVec2 uv1, const ImVec4 bg_col, const ImVec4 tint_col) { return ImGui::ImageButton(str_id, tex_ref, image_size, uv0, uv1, bg_col, tint_col); }
 PYLON_IMGUI_EXPORT bool igBeginCombo(const char * label, const char * preview_value, ImGuiComboFlags flags) { return ImGui::BeginCombo(label, preview_value, flags); }
 PYLON_IMGUI_EXPORT void igEndCombo() { ImGui::EndCombo(); }
 PYLON_IMGUI_EXPORT bool igCombo(const char * label, int * current_item, const char** items, int items_count, int popup_max_height_in_items) { return ImGui::Combo(label, current_item, items, items_count, popup_max_height_in_items); }
@@ -445,7 +445,7 @@ PYLON_IMGUI_EXPORT void ImDrawListSplitter_SetCurrentChannel(ImDrawListSplitter*
 PYLON_IMGUI_EXPORT void ImDrawList_PushClipRect(ImDrawList* self, const ImVec2 clip_rect_min, const ImVec2 clip_rect_max, bool intersect_with_current_clip_rect) { self->PushClipRect(clip_rect_min, clip_rect_max, intersect_with_current_clip_rect); }
 PYLON_IMGUI_EXPORT void ImDrawList_PushClipRectFullScreen(ImDrawList* self) { self->PushClipRectFullScreen(); }
 PYLON_IMGUI_EXPORT void ImDrawList_PopClipRect(ImDrawList* self) { self->PopClipRect(); }
-PYLON_IMGUI_EXPORT void ImDrawList_PushTexture(ImDrawList* self, ImTextureRef tex_ref) { self->PushTexture(tex_ref); }
+PYLON_IMGUI_EXPORT void ImDrawList_PushTexture(ImDrawList* self, ImTextureID tex_ref) { self->PushTexture(tex_ref); }
 PYLON_IMGUI_EXPORT void ImDrawList_PopTexture(ImDrawList* self) { self->PopTexture(); }
 PYLON_IMGUI_EXPORT void ImDrawList_GetClipRectMin(ImVec2* pOut, ImDrawList* self) { *pOut = self->GetClipRectMin(); }
 PYLON_IMGUI_EXPORT void ImDrawList_GetClipRectMax(ImVec2* pOut, ImDrawList* self) { *pOut = self->GetClipRectMax(); }
@@ -470,9 +470,9 @@ PYLON_IMGUI_EXPORT void ImDrawList_AddBezierQuadratic(ImDrawList* self, const Im
 PYLON_IMGUI_EXPORT void ImDrawList_AddPolyline(ImDrawList* self, const ImVec2 * points, int num_points, ImU32 col, ImDrawFlags flags, float thickness) { self->AddPolyline(points, num_points, col, flags, thickness); }
 PYLON_IMGUI_EXPORT void ImDrawList_AddConvexPolyFilled(ImDrawList* self, const ImVec2 * points, int num_points, ImU32 col) { self->AddConvexPolyFilled(points, num_points, col); }
 PYLON_IMGUI_EXPORT void ImDrawList_AddConcavePolyFilled(ImDrawList* self, const ImVec2 * points, int num_points, ImU32 col) { self->AddConcavePolyFilled(points, num_points, col); }
-PYLON_IMGUI_EXPORT void ImDrawList_AddImage(ImDrawList* self, ImTextureRef tex_ref, const ImVec2 p_min, const ImVec2 p_max, const ImVec2 uv_min, const ImVec2 uv_max, ImU32 col) { self->AddImage(tex_ref, p_min, p_max, uv_min, uv_max, col); }
-PYLON_IMGUI_EXPORT void ImDrawList_AddImageQuad(ImDrawList* self, ImTextureRef tex_ref, const ImVec2 p1, const ImVec2 p2, const ImVec2 p3, const ImVec2 p4, const ImVec2 uv1, const ImVec2 uv2, const ImVec2 uv3, const ImVec2 uv4, ImU32 col) { self->AddImageQuad(tex_ref, p1, p2, p3, p4, uv1, uv2, uv3, uv4, col); }
-PYLON_IMGUI_EXPORT void ImDrawList_AddImageRounded(ImDrawList* self, ImTextureRef tex_ref, const ImVec2 p_min, const ImVec2 p_max, const ImVec2 uv_min, const ImVec2 uv_max, ImU32 col, float rounding, ImDrawFlags flags) { self->AddImageRounded(tex_ref, p_min, p_max, uv_min, uv_max, col, rounding, flags); }
+PYLON_IMGUI_EXPORT void ImDrawList_AddImage(ImDrawList* self, ImTextureID tex_ref, const ImVec2 p_min, const ImVec2 p_max, const ImVec2 uv_min, const ImVec2 uv_max, ImU32 col) { self->AddImage(tex_ref, p_min, p_max, uv_min, uv_max, col); }
+PYLON_IMGUI_EXPORT void ImDrawList_AddImageQuad(ImDrawList* self, ImTextureID tex_ref, const ImVec2 p1, const ImVec2 p2, const ImVec2 p3, const ImVec2 p4, const ImVec2 uv1, const ImVec2 uv2, const ImVec2 uv3, const ImVec2 uv4, ImU32 col) { self->AddImageQuad(tex_ref, p1, p2, p3, p4, uv1, uv2, uv3, uv4, col); }
+PYLON_IMGUI_EXPORT void ImDrawList_AddImageRounded(ImDrawList* self, ImTextureID tex_ref, const ImVec2 p_min, const ImVec2 p_max, const ImVec2 uv_min, const ImVec2 uv_max, ImU32 col, float rounding, ImDrawFlags flags) { self->AddImageRounded(tex_ref, p_min, p_max, uv_min, uv_max, col, rounding, flags); }
 PYLON_IMGUI_EXPORT void ImDrawList_PathClear(ImDrawList* self) { self->PathClear(); }
 PYLON_IMGUI_EXPORT void ImDrawList_PathLineTo(ImDrawList* self, const ImVec2 pos) { self->PathLineTo(pos); }
 PYLON_IMGUI_EXPORT void ImDrawList_PathLineToMergeDuplicate(ImDrawList* self, const ImVec2 pos) { self->PathLineToMergeDuplicate(pos); }
@@ -499,7 +499,7 @@ PYLON_IMGUI_EXPORT void ImDrawList_PrimQuadUV(ImDrawList* self, const ImVec2 a, 
 PYLON_IMGUI_EXPORT void ImDrawList_PrimWriteVtx(ImDrawList* self, const ImVec2 pos, const ImVec2 uv, ImU32 col) { self->PrimWriteVtx(pos, uv, col); }
 PYLON_IMGUI_EXPORT void ImDrawList_PrimWriteIdx(ImDrawList* self, ImDrawIdx idx) { self->PrimWriteIdx(idx); }
 PYLON_IMGUI_EXPORT void ImDrawList_PrimVtx(ImDrawList* self, const ImVec2 pos, const ImVec2 uv, ImU32 col) { self->PrimVtx(pos, uv, col); }
-PYLON_IMGUI_EXPORT void ImDrawList_PushTextureID(ImDrawList* self, ImTextureRef tex_ref) { self->PushTextureID(tex_ref); }
+PYLON_IMGUI_EXPORT void ImDrawList_PushTextureID(ImDrawList* self, ImTextureID tex_ref) { self->PushTextureID(tex_ref); }
 PYLON_IMGUI_EXPORT void ImDrawList_PopTextureID(ImDrawList* self) { self->PopTextureID(); }
 PYLON_IMGUI_EXPORT void ImDrawList__SetDrawListSharedData(ImDrawList* self, ImDrawListSharedData * data) { self->_SetDrawListSharedData(data); }
 PYLON_IMGUI_EXPORT void ImDrawList__ResetForNewFrame(ImDrawList* self) { self->_ResetForNewFrame(); }
@@ -509,7 +509,7 @@ PYLON_IMGUI_EXPORT void ImDrawList__TryMergeDrawCmds(ImDrawList* self) { self->_
 PYLON_IMGUI_EXPORT void ImDrawList__OnChangedClipRect(ImDrawList* self) { self->_OnChangedClipRect(); }
 PYLON_IMGUI_EXPORT void ImDrawList__OnChangedTexture(ImDrawList* self) { self->_OnChangedTexture(); }
 PYLON_IMGUI_EXPORT void ImDrawList__OnChangedVtxOffset(ImDrawList* self) { self->_OnChangedVtxOffset(); }
-PYLON_IMGUI_EXPORT void ImDrawList__SetTexture(ImDrawList* self, ImTextureRef tex_ref) { self->_SetTexture(tex_ref); }
+PYLON_IMGUI_EXPORT void ImDrawList__SetTexture(ImDrawList* self, ImTextureID tex_ref) { self->_SetTexture(tex_ref); }
 PYLON_IMGUI_EXPORT int ImDrawList__CalcCircleAutoSegmentCount(ImDrawList* self, float radius) { return self->_CalcCircleAutoSegmentCount(radius); }
 PYLON_IMGUI_EXPORT void ImDrawList__PathArcToFastEx(ImDrawList* self, const ImVec2 center, float radius, int a_min_sample, int a_max_sample, int a_step) { self->_PathArcToFastEx(center, radius, a_min_sample, a_max_sample, a_step); }
 PYLON_IMGUI_EXPORT void ImDrawList__PathArcToN(ImDrawList* self, const ImVec2 center, float radius, float a_min, float a_max, int num_segments) { self->_PathArcToN(center, radius, a_min, a_max, num_segments); }
@@ -551,7 +551,7 @@ PYLON_IMGUI_EXPORT bool ImFontAtlas_Build(ImFontAtlas* self) { return self->Buil
 PYLON_IMGUI_EXPORT void ImFontAtlas_GetTexDataAsAlpha8(ImFontAtlas* self, unsigned char** out_pixels, int * out_width, int * out_height, int * out_bytes_per_pixel) { self->GetTexDataAsAlpha8(out_pixels, out_width, out_height, out_bytes_per_pixel); }
 PYLON_IMGUI_EXPORT void ImFontAtlas_GetTexDataAsRGBA32(ImFontAtlas* self, unsigned char** out_pixels, int * out_width, int * out_height, int * out_bytes_per_pixel) { self->GetTexDataAsRGBA32(out_pixels, out_width, out_height, out_bytes_per_pixel); }
 PYLON_IMGUI_EXPORT void ImFontAtlas_SetTexID(ImFontAtlas* self, ImTextureID id) { self->SetTexID(id); }
-PYLON_IMGUI_EXPORT void ImFontAtlas_SetTexID_ImTextureRefArg(ImFontAtlas* self, ImTextureRef id) { self->SetTexID(id); }
+PYLON_IMGUI_EXPORT void ImFontAtlas_SetTexID_ImTextureRefArg(ImFontAtlas* self, ImTextureID id) { self->SetTexID(id); }
 PYLON_IMGUI_EXPORT bool ImFontAtlas_IsBuilt(ImFontAtlas* self) { return self->IsBuilt(); }
 PYLON_IMGUI_EXPORT const ImWchar * ImFontAtlas_GetGlyphRangesDefault(ImFontAtlas* self) { return self->GetGlyphRangesDefault(); }
 PYLON_IMGUI_EXPORT const ImWchar * ImFontAtlas_GetGlyphRangesGreek(ImFontAtlas* self) { return self->GetGlyphRangesGreek(); }

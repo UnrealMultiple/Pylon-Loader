@@ -264,11 +264,11 @@ namespace Pylon.ImGui
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
         public static extern byte igTextLinkOpenURL(byte* label, byte* url);
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void igImage(IntPtr tex_ref, Vector2 image_size, Vector2 uv0, Vector2 uv1);
+        public static extern void igImage(ulong tex_ref, Vector2 image_size, Vector2 uv0, Vector2 uv1);
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void igImageWithBg(IntPtr tex_ref, Vector2 image_size, Vector2 uv0, Vector2 uv1, Vector4 bg_col, Vector4 tint_col);
+        public static extern void igImageWithBg(ulong tex_ref, Vector2 image_size, Vector2 uv0, Vector2 uv1, Vector4 bg_col, Vector4 tint_col);
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
-        public static extern byte igImageButton(byte* str_id, IntPtr tex_ref, Vector2 image_size, Vector2 uv0, Vector2 uv1, Vector4 bg_col, Vector4 tint_col);
+        public static extern byte igImageButton(byte* str_id, ulong tex_ref, Vector2 image_size, Vector2 uv0, Vector2 uv1, Vector4 bg_col, Vector4 tint_col);
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
         public static extern byte igBeginCombo(byte* label, byte* preview_value, ImGuiComboFlags flags);
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
@@ -890,7 +890,7 @@ namespace Pylon.ImGui
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
         public static extern void ImDrawList_PopClipRect(ImDrawList* self);
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void ImDrawList_PushTexture(ImDrawList* self, IntPtr tex_ref);
+        public static extern void ImDrawList_PushTexture(ImDrawList* self, ulong tex_ref);
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
         public static extern void ImDrawList_PopTexture(ImDrawList* self);
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
@@ -940,11 +940,11 @@ namespace Pylon.ImGui
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
         public static extern void ImDrawList_AddConcavePolyFilled(ImDrawList* self, Vector2* points, int num_points, uint col);
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void ImDrawList_AddImage(ImDrawList* self, IntPtr tex_ref, Vector2 p_min, Vector2 p_max, Vector2 uv_min, Vector2 uv_max, uint col);
+        public static extern void ImDrawList_AddImage(ImDrawList* self, ulong tex_ref, Vector2 p_min, Vector2 p_max, Vector2 uv_min, Vector2 uv_max, uint col);
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void ImDrawList_AddImageQuad(ImDrawList* self, IntPtr tex_ref, Vector2 p1, Vector2 p2, Vector2 p3, Vector2 p4, Vector2 uv1, Vector2 uv2, Vector2 uv3, Vector2 uv4, uint col);
+        public static extern void ImDrawList_AddImageQuad(ImDrawList* self, ulong tex_ref, Vector2 p1, Vector2 p2, Vector2 p3, Vector2 p4, Vector2 uv1, Vector2 uv2, Vector2 uv3, Vector2 uv4, uint col);
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void ImDrawList_AddImageRounded(ImDrawList* self, IntPtr tex_ref, Vector2 p_min, Vector2 p_max, Vector2 uv_min, Vector2 uv_max, uint col, float rounding, ImDrawFlags flags);
+        public static extern void ImDrawList_AddImageRounded(ImDrawList* self, ulong tex_ref, Vector2 p_min, Vector2 p_max, Vector2 uv_min, Vector2 uv_max, uint col, float rounding, ImDrawFlags flags);
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
         public static extern void ImDrawList_PathClear(ImDrawList* self);
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
@@ -998,7 +998,7 @@ namespace Pylon.ImGui
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
         public static extern void ImDrawList_PrimVtx(ImDrawList* self, Vector2 pos, Vector2 uv, uint col);
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void ImDrawList_PushTextureID(ImDrawList* self, IntPtr tex_ref);
+        public static extern void ImDrawList_PushTextureID(ImDrawList* self, ulong tex_ref);
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
         public static extern void ImDrawList_PopTextureID(ImDrawList* self);
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
@@ -1018,7 +1018,7 @@ namespace Pylon.ImGui
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
         public static extern void ImDrawList__OnChangedVtxOffset(ImDrawList* self);
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void ImDrawList__SetTexture(ImDrawList* self, IntPtr tex_ref);
+        public static extern void ImDrawList__SetTexture(ImDrawList* self, ulong tex_ref);
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
         public static extern int ImDrawList__CalcCircleAutoSegmentCount(ImDrawList* self, float radius);
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
@@ -1102,7 +1102,7 @@ namespace Pylon.ImGui
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
         public static extern void ImFontAtlas_SetTexID(ImFontAtlas* self, IntPtr id);
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void ImFontAtlas_SetTexID_ImTextureRefArg(ImFontAtlas* self, IntPtr id);
+        public static extern void ImFontAtlas_SetTexID_ImTextureRefArg(ImFontAtlas* self, ulong id);
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]
         public static extern byte ImFontAtlas_IsBuilt(ImFontAtlas* self);
         [DllImport("pylon", CallingConvention = CallingConvention.Cdecl)]

@@ -89,7 +89,6 @@ internal class HostBootstrap(
             Runnable {
                 PylonCore.markGameThread()
                 Log.stage("boot", "内核位于游戏线程上：isGameThread=${PylonCore.isGameThread()}")
-                if (options.bindTest) Log.stage("boot", PylonCore.bindSelfTest())
                 if (options.modProbe) Log.stage("boot", PylonCore.testModProbe())
             }
         )

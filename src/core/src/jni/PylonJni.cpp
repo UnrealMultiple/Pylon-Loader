@@ -7,11 +7,10 @@
 #include <string>
 #include <vector>
 
-#include "boot/BindSelfTest.h"
 #include "boot/Boot.h"
 #include "boot/Probe.h"
 #include "dotnet/CoreClrHost.h"
-#include "il2cpp/Il2CppRuntime.h"
+#include "il2cpp/Domain.h"
 #include "pylon/Log.h"
 
 namespace {
@@ -157,7 +156,7 @@ JNIEXPORT void JNICALL
 Java_dev_pylon_loader_game_core_PylonCore_nativeMarkGameThread(JNIEnv* env, jobject thiz) {
     (void)env;
     (void)thiz;
-    pylon::il2cpp::Runtime::Instance().NoteGameThread();
+    pylon::il2cpp::Domain::MarkGameThread();
 }
 
 /// 当前线程是不是已登记的游戏线程。
@@ -165,7 +164,7 @@ JNIEXPORT jboolean JNICALL
 Java_dev_pylon_loader_game_core_PylonCore_nativeIsGameThread(JNIEnv* env, jobject thiz) {
     (void)env;
     (void)thiz;
-    return pylon::il2cpp::Runtime::Instance().IsGameThread() ? JNI_TRUE : JNI_FALSE;
+    return pylon::il2cpp::Domain::OnGameThread() ? JNI_TRUE : JNI_FALSE;
 }
 
 /// 起 CoreCLR 并调用托管入口；参数都是绝对路径（Kotlin 从 assets 解到 filesDir 后传入）。幂等。
@@ -222,15 +221,6 @@ Java_dev_pylon_loader_game_core_PylonCore_nativePhase(JNIEnv* env, jobject thiz)
     (void)env;
     (void)thiz;
     return static_cast<jint>(pylon::boot::Boot::Instance().phase());
-}
-
-/// C# 方法绑定自检：真调几个托管方法拼成多行文本；须在 attach 之后调用（探测已命中），未就绪时只返回一行说明。
-JNIEXPORT jstring JNICALL
-Java_dev_pylon_loader_game_core_PylonCore_nativeBindSelfTest(JNIEnv* env, jobject thiz) {
-    (void)thiz;
-    const std::string report = pylon::boot::RunBindSelfTest();
-    LOGI("core", "绑定自检完成：\n%s", report.c_str());
-    return env->NewStringUTF(report.c_str());
 }
 
 /// 进程退出前调用。**刻意不 dlclose**：句柄是 RTLD_NOLOAD 拿到的 libil2cpp.so，卸掉等于拆了 Unity 还在用的库，只记一笔。

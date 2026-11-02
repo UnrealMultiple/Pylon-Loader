@@ -14,7 +14,6 @@ param(
     [string]$WaitFor = 'Mod 加载完成|托管入口返回|✗',
     [int]$TimeoutSec = 60,
     [int]$SettleMs = 1500,
-    [switch]$BindTest,
     [string]$PushMod,
     [string]$PushModName,
     [string]$PushManaged,
@@ -56,7 +55,6 @@ Start-Sleep -Milliseconds 800
 Adb logcat -c | Out-Null
 
 $extras = @('--ez', 'launch', 'true', '--ei', 'settleMs', $SettleMs, '--ez', 'coreclr', 'true')
-if ($BindTest) { $extras += @('--ez', 'bindTest', 'true') }
 Adb shell am start -S -n $activity -a "$pkg.action.IMPORT" @extras | Out-Null
 
 $sw = [Diagnostics.Stopwatch]::StartNew()

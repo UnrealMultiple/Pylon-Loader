@@ -1,4 +1,3 @@
-using System.Text;
 using Pylon.ImGui;
 using UnityEngine;
 using ImGuiApi = Pylon.ImGui.ImGui;
@@ -6,162 +5,86 @@ using ImGuiApi = Pylon.ImGui.ImGui;
 namespace Pylon.ModLoader.UI;
 
 /// <summary>
-/// 中文输入的关键：输入框只做只读展示，真正的编辑交给系统软键盘（TouchScreenKeyboard），
-/// 每帧把键盘里的整串文本回写进 ImGui 的缓冲区。
-/// 这样拼音候选、选词、串中插入、选中替换都由系统输入法负责，ImGui 这边不需要模拟
-/// 逐字增量与退格——旧实现正是逐字补 igAddInputCharactersUTF8/退格才在中文下崩。
-/// 每个控件用按 ImGuiID 固定的字节缓冲（跨帧稳定，不能是每帧新建的栈缓冲）。
+/// 软键盘（TouchScreenKeyboard）的唯一入口。输入框的外观与点击都在 <see cref="TerrariaUI.TextInput"/> 里，
+/// 这里只管两件事：谁的键盘、键盘里现在这一串文本。
+///
+/// 为什么不用 igInputText 收字：安卓上没有硬件键盘，ImGui 自己收不到字符，只能借系统输入法；
+/// 而 ReadOnly 的 InputText 被点中后 ActiveId 不会自己放开，内部还留着光标与横向滚动位置，
+/// 外部整串回写文本时它按旧光标算，删字后文字会飘到框中间——两件事都得反着跟它斗。
+/// 所以输入框干脆自己画：点一下弹键盘，每帧把键盘里的整串文本镜像进 value，收键盘就结束。
+/// （旧实现逐字补 igAddInputCharactersUTF8 / 退格，中文下还会崩。）
+///
+/// 开键盘只认"用户点了这个框"；收键盘只认"点了别处"或"这个框这一帧没画出来"。
+/// 绝不能拿"控件是否 active"当"想输入"的信号，否则用户收起键盘后会被立刻再判成想输入，
+/// 键盘弹起→收起→弹起，停不下来。
 /// </summary>
 internal static class ImGuiInputText
 {
-    private const int Capacity = 4096;
-    private const int CloseCooldownFrames = 30;
-    private const int MaxOpenAttempts = 8;
-
-    private static readonly Dictionary<uint, byte[]> Buffers = new();
-    private static uint _activeId;
-    private static byte[]? _activeBuffer;
-    private static string? _pendingWrite;
-
     private static TouchScreenKeyboard? _keyboard;
-    private static string? _lastKeyboardText;
-    private static int _openAttempts;
-    private static int _cooldown;
-    private static bool _usedThisFrame;
+    private static uint _editing;   // 正在编辑的输入框 id；0 = 没有
+    private static bool _drawn;     // 本帧画过输入框
 
-    internal static bool KeyboardOpen => _keyboard is { active: true };
-
-    /// <summary>只读输入框（点击即弹系统键盘）。返回文本是否变化。</summary>
-    internal static unsafe bool Draw(string label, ref string value)
+    /// <summary>输入框的点击处理：点了它 → 弹键盘（种子是当前文本）；点了别处 → 收起键盘。</summary>
+    internal static void HandleClick(uint id, bool clicked, string text)
     {
-        value ??= string.Empty;
-        var id = ImGuiApi.GetID(label);
-        if (!Buffers.TryGetValue(id, out var buf))
+        _drawn = true;
+        if (clicked)
         {
-            buf = new byte[Capacity];
-            Buffers[id] = buf;
+            Open(id, text);
+            return;
         }
-
-        if (id != _activeId)
-            WriteUtf8(buf, value);             // 非活动：外部值覆盖缓冲
-        else if (_pendingWrite is not null)
-        {
-            WriteUtf8(buf, _pendingWrite);     // 活动：键盘整串回写
-            _pendingWrite = null;
-        }
-
-        bool changed;
-        var labelBytes = Encoding.UTF8.GetBytes(label + "\0");
-        fixed (byte* lp = labelBytes)
-        fixed (byte* bp = buf)
-        {
-            changed = ImGuiNative.igInputText(lp, bp, (uint)buf.Length,
-                ImGuiInputTextFlags.ReadOnly | ImGuiInputTextFlags.NoUndoRedo,
-                IntPtr.Zero, null) != 0;
-        }
-
-        if (ImGuiNative.igIsItemActive() != 0)
-        {
-            _activeId = id;
-            _activeBuffer = buf;
-            _usedThisFrame = true;
-        }
-
-        var text = ReadUtf8(buf);
-        if (!string.Equals(text, value, StringComparison.Ordinal))
-        {
-            value = text;
-            changed = true;
-        }
-        return changed;
+        if (_editing != id && ImGuiApi.IsMouseClicked(ImGuiMouseButton.Left))
+            Close();
     }
 
-    /// <summary>NewFrame 之后、绘制之前：把键盘文本同步成待回写。</summary>
-    internal static void TickKeyboard()
+    /// <summary>键盘里这一串文本；这个框没在编辑（或用户已收起键盘）返回 null。</summary>
+    internal static string? Pull(uint id)
     {
-        if (!ImGuiContext.Created) return;
-        if (_cooldown > 0) _cooldown--;
-
-        if (_activeId == 0)
-        {
-            if (_keyboard != null) CloseKeyboard();
-            return;
-        }
-        if (_keyboard == null)
-        {
-            if (_cooldown == 0 && _openAttempts < MaxOpenAttempts) OpenKeyboard();
-            return;
-        }
-        if (!_keyboard.active)
-        {
-            // 用户/系统自行收起：结束本次编辑，允许重新点开
-            _openAttempts = 0;
-            CloseKeyboard();
-            _activeId = 0;
-            return;
-        }
-
-        string current;
-        try { current = _keyboard.text ?? string.Empty; }
-        catch (Exception) { return; }
-        if (!string.Equals(current, _lastKeyboardText, StringComparison.Ordinal))
-        {
-            _pendingWrite = current;
-            _lastKeyboardText = current;
-        }
+        if (!IsEditing(id)) return null;
+        try { return _keyboard!.text; }
+        catch (Exception) { return null; }
     }
 
-    /// <summary>绘制结束：本帧没有活动输入框就收尾。</summary>
+    /// <summary>这个框正在编辑（键盘确实弹着，用来画高亮）。</summary>
+    internal static bool IsEditing(uint id) => id == _editing && IsKeyboardActive();
+
+    /// <summary>一帧画完：这一帧没有输入框被画出来（换页、关窗口、绘制出错），收起键盘。</summary>
     internal static void EndFrame()
     {
-        if (!_usedThisFrame && _activeId != 0)
-        {
-            _activeId = 0;
-            _activeBuffer = null;
-            if (_keyboard != null) CloseKeyboard();
-        }
-        _usedThisFrame = false;
+        if (_drawn) { _drawn = false; return; }
+        if (_editing != 0) Close();
     }
 
-    private static void OpenKeyboard()
+    private static void Open(uint id, string text)
     {
-        var seed = _activeBuffer is null ? string.Empty : ReadUtf8(_activeBuffer);
+        Close();                        // 同一个框再点一下也走这里：先收掉上一次
         try
         {
-            _keyboard = TouchScreenKeyboard.Open(seed, TouchScreenKeyboardType.Default,
+            _keyboard = TouchScreenKeyboard.Open(text, TouchScreenKeyboardType.Default,
                 false, false, false, false, string.Empty, 0);
-            _lastKeyboardText = seed;
-            _openAttempts++;   // 覆盖层不再有交换链，键盘弹起引起的 resize 只是画布变窄，不用防抖
+            _editing = _keyboard == null ? 0 : id;
         }
         catch (Exception e)
         {
-            ModUI.Logger?.Warn("打开软键盘失败：" + e.Message);
             _keyboard = null;
+            _editing = 0;
+            ModUI.Logger?.Warn("打开软键盘失败：" + e.Message);
         }
     }
 
-    private static void CloseKeyboard()
+    private static void Close()
     {
-        if (_keyboard != null) _keyboard.active = false;
+        if (_keyboard != null)
+        {
+            try { _keyboard.active = false; } catch (Exception) { }
+        }
         _keyboard = null;
-        _lastKeyboardText = null;
-        _pendingWrite = null;
-        _openAttempts = 0;
-        _cooldown = CloseCooldownFrames;
+        _editing = 0;
     }
 
-    private static void WriteUtf8(byte[] buffer, string text)
+    private static bool IsKeyboardActive()
     {
-        var bytes = Encoding.UTF8.GetBytes(text);
-        var length = Math.Min(bytes.Length, buffer.Length - 1);
-        Array.Copy(bytes, buffer, length);
-        buffer[length] = 0;
-    }
-
-    private static string ReadUtf8(byte[] buffer)
-    {
-        var length = Array.IndexOf(buffer, (byte)0);
-        if (length < 0) length = buffer.Length;
-        return Encoding.UTF8.GetString(buffer, 0, length);
+        try { return _keyboard is { active: true }; }
+        catch (Exception) { return false; }
     }
 }

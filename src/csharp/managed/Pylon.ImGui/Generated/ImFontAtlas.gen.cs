@@ -234,6 +234,10 @@ namespace Pylon.ImGui
         {
             ImGuiNative.ImFontAtlas_SetTexID((ImFontAtlas*)(NativePtr), id);
         }
+        public void SetTexID(ulong id)
+        {
+            ImGuiNative.ImFontAtlas_SetTexID_ImTextureRefArg((ImFontAtlas*)(NativePtr), id);
+        }
         public bool IsBuilt()
         {
             byte ret = ImGuiNative.ImFontAtlas_IsBuilt((ImFontAtlas*)(NativePtr));

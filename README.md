@@ -138,7 +138,7 @@ public sealed class MyMod : Pylon.ModLoader.Mod
 }
 ```
 
-物品等内容的写法与 tModLoader 的使用习惯一致（`ModItem` 的 `SetDefaults` / `Shoot` / `UseItem`，`ModProjectile` 的 `AI` / `OnKill` 等）。完整示例在 [`src/csharp/samples/FrameMod`](src/csharp/samples/FrameMod)，包含物品、弹幕、NPC、Buff、坐骑、前缀、稀有度、配方、配置、触屏按钮与 ImGui Tab。
+物品等内容的写法与 tModLoader 的使用习惯一致（`ModItem` 的 `SetDefaults` / `Shoot` / `UseItem`，`ModProjectile` 的 `AI` / `OnKill` 等）。内容示例见 [`src/csharp/samples/XiheBoss`](src/csharp/samples/XiheBoss) 与 [`src/csharp/samples/XiheMagic`](src/csharp/samples/XiheMagic)；[`src/csharp/samples/FrameMod`](src/csharp/samples/FrameMod) 是最小 UI 示例——只挂一页 ImGui：画一张游戏自带的 `Texture2D`（走 GPU 抓取，不要求纹理可读）加一个输入框。
 
 安装：把编译产物放进设备的
 `/storage/emulated/0/Android/data/dev.pylon.loader/Mods/<id>/`（`mod.dll` + 可选 `manifest.json` / `assets/` / `lib/`），或直接把单个 dll 丢进 `Mods/`。该目录是应用专属外部目录，不需要额外存储权限；改完重启游戏生效。

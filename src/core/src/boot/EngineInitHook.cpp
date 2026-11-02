@@ -3,7 +3,7 @@
 
 #include <string>
 
-#include "il2cpp/Il2CppRuntime.h"
+#include "il2cpp/Domain.h"
 #include "pylon/Log.h"
 #include "pylon/mod/ModApi.h"
 
@@ -29,7 +29,7 @@ int InitReplacement(const char* domain_name) {
 Status InstallEngineInitHook() {
     if (g_installed.load()) return Status::Ok();
 
-    auto& api = il2cpp::Runtime::Instance().api();
+    const il2cpp::Symbols& api = il2cpp::Domain::symbols();
     if (api.init == nullptr) {
         return Status::Fail("没有绑定 il2cpp_init（这个构建无法确定初始化时机）");
     }

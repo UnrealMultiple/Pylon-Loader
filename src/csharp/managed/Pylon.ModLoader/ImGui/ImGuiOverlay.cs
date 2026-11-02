@@ -136,7 +136,6 @@ internal static class ImGuiOverlay
             ImGuiApi.NewFrame();
             _frameOpen = true;
             ImGuiTouchRouter.BeginFrame();
-            ImGuiInputText.TickKeyboard();
             ImGuiInput.Feed();
             Draw();
             ImGuiApi.Render();
@@ -491,6 +490,14 @@ internal static class ImGuiOverlay
             BrokenTabs.Add(tab);
             ReportFrameErrorOnce(e);
             DrawTabError(tab, e);
+        }
+        catch (Exception e)
+        {
+            // 其它异常可能发生在窗口栈中途（比如它刚 BeginChild 就炸了），
+            // 这时再往里画会把 ImGui 的栈越搞越乱 —— 直接放弃这一页，
+            // 否则异常会一路穿透回去，触发 ImGui 的 Missing EndChild() 断言把游戏带走。
+            BrokenTabs.Add(tab);
+            ReportFrameErrorOnce(e);
         }
     }
 

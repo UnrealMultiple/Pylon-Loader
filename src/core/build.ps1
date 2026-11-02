@@ -78,11 +78,10 @@ $common = @(
     "-I$(Join-Path $PSScriptRoot 'include')",
     "-I$srcRoot",
     "-I$(Join-Path $srcRoot 'imgui')",
-    "-I$(Join-Path (Join-Path $srcRoot 'imgui') 'vendor')",
-    "-I$(Join-Path $srcRoot 'jni')"
+    "-I$(Join-Path (Join-Path $srcRoot 'imgui') 'vendor')"
 )
 
-# 源文件：*.cpp 之外还有 *.S（graphics/GuardedCall.S 的受保护调用 trampoline，走集成汇编器）。
+# 源文件：*.cpp 之外还有 *.S（il2cpp/Guard.S 的受保护调用 trampoline，走集成汇编器）。
 $cppSources = Get-ChildItem $srcRoot -Recurse -Filter '*.cpp' | Where-Object { $_.Name -notmatch '\.hold$' }
 $asmSources = Get-ChildItem $srcRoot -Recurse -Filter '*.S' | Where-Object { $_.Name -notmatch '\.hold$' }
 $sources = @($cppSources + $asmSources) | Sort-Object FullName
@@ -95,7 +94,7 @@ Write-Host "[pylon] 源文件    : $($sources.Count) 个"
 $objects = @()
 foreach ($source in $sources) {
     $relative = $source.FullName.Substring($srcRoot.Length + 1) -replace '[\\/]', '_'
-    # 对象名带原扩展：GuardedCall.cpp 与 GuardedCall.S 不能同名（否则互相覆盖）。
+    # 对象名带原扩展：Guard.cpp 与 Guard.S 不能同名（否则互相覆盖）。
     $object = Join-Path $buildDir ($relative -replace '\.(cpp|S)$', '_$1.o')
     $objects += $object
     $log = "$object.log"

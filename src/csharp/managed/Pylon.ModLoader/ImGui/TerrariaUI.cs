@@ -327,6 +327,43 @@ public static class TerrariaUI
 
     public static void Status(string text) => TextColored(text, TerrariaTheme.Success);
 
+    /// <summary>
+    /// 文本输入框：外观自己画（和其他控件一样），编辑交给系统软键盘（见 <see cref="ImGuiInputText"/>）。
+    /// 不走 igInputText：它在 ReadOnly 下仍会记光标和横向滚动位置，外部整串回写文本时按旧光标算，
+    /// 删字后文字就飘到框中间；它的 ActiveId 也收不回来。自己画就只有"左对齐 + 超宽贴右"两种状态。
+    /// </summary>
+    public static bool TextInput(string label, ref string value)
+    {
+        value ??= string.Empty;
+        var text = DisplayLabel(label);
+        if (!string.IsNullOrEmpty(text)) DimText(text);
+
+        var width = MathF.Max(ImGuiApi.GetContentRegionAvail().X, 1f);
+        var height = MathF.Max(ImGuiApi.GetTextLineHeight() + TerrariaTheme.Px(12f + BorderWidth * 2f),
+            TerrariaTheme.Px(34f));
+
+        ImGuiApi.PushID(WidgetId("##" + label));
+        try
+        {
+            var id = ImGuiApi.GetID("##field");
+            var clicked = ImGuiApi.InvisibleButton("##field", new Vector2(width, height), ImGuiButtonFlags.EnableNav);
+            ImGuiInputText.HandleClick(id, clicked, value);
+
+            // 键盘里的整串文本就是这一帧的值（拼音候选、选词都由系统输入法负责）
+            var typed = ImGuiInputText.Pull(id);
+            var changed = typed is not null && !string.Equals(typed, value, StringComparison.Ordinal);
+            if (changed) value = typed!;
+
+            DrawTextField(ImGuiApi.GetItemRectMin(), ImGuiApi.GetItemRectMax(), value,
+                ImGuiInputText.IsEditing(id), ImGuiApi.IsItemHovered() || ImGuiApi.IsItemFocused());
+            return changed;
+        }
+        finally
+        {
+            ImGuiApi.PopID();
+        }
+    }
+
     private static void DrawButton(ImDrawListPtr dl, Vector2 min, Vector2 max, string text, bool hovered, bool held)
     {
         TerrariaTheme.ButtonGradient(hovered, held, out var top, out var mid, out var bottom);
@@ -391,6 +428,40 @@ public static class TerrariaUI
         dl.AddLine(p2, p3, TerrariaTheme.U32(TerrariaTheme.Border), width + TerrariaTheme.Px(2f));
         dl.AddLine(p1, p2, TerrariaTheme.U32(TerrariaTheme.GoldBright), width);
         dl.AddLine(p2, p3, TerrariaTheme.U32(TerrariaTheme.GoldBright), width);
+    }
+
+    /// <summary>凹陷的输入框 + 文字：左对齐，文字比框宽就贴着右边显示（打字时能看见末尾）。</summary>
+    private static void DrawTextField(Vector2 min, Vector2 max, string text, bool editing, bool hovered)
+    {
+        var dl = ImGuiApi.GetWindowDrawList();
+        TerrariaTheme.Sunken(dl, min, max, TerrariaTheme.FieldTop, TerrariaTheme.FieldMid,
+            TerrariaTheme.FieldBottom, TerrariaTheme.Px(BorderWidth), TerrariaTheme.Px(BorderWidth));
+
+        if (editing || hovered)
+        {
+            var inset = TerrariaTheme.Px(2f);
+            TerrariaTheme.Outline(dl, min + new Vector2(inset), max - new Vector2(inset),
+                TerrariaTheme.Alpha(TerrariaTheme.Gold, editing ? 0.75f : 0.40f), TerrariaTheme.Px(1.5f));
+        }
+
+        var border = TerrariaTheme.Px(BorderWidth);
+        var insetX = TerrariaTheme.Px(10f);
+        var textSize = ImGuiApi.CalcTextSize(text);
+        var visible = MathF.Max(max.X - min.X - insetX * 2f - border * 2f, 1f);
+        var x = min.X + border + insetX - MathF.Max(textSize.X - visible, 0f);
+        var textY = min.Y + (max.Y - min.Y - textSize.Y) * 0.5f;
+
+        TextClipped(dl, new Vector2(min.X + border, min.Y), new Vector2(max.X - border, max.Y),
+            new Vector2(x, textY), TerrariaTheme.TextMain, text);
+
+        // 光标：跟在文字末尾，闪烁（约每秒一次）
+        if (editing && (ImGuiApi.GetFrameCount() / 30) % 2 == 0)
+        {
+            var caretW = TerrariaTheme.Px(2f);
+            var caretX = MathF.Min(x + textSize.X, max.X - border - insetX * 0.5f - caretW);
+            TerrariaTheme.Fill(dl, new Vector2(caretX, textY), new Vector2(caretX + caretW, textY + textSize.Y),
+                TerrariaTheme.TextMain);
+        }
     }
 
     private static void DrawSlider(ImDrawListPtr dl, Vector2 trackMin, Vector2 trackMax, float ratio, bool active)

@@ -15,13 +15,15 @@ Mod 能力可以没有，游戏必须照常跑：任何必需引用解析失败�
 | `include/pylon/dotnet/HostContract.h` | C++ 与托管入口之间的契约 |
 | `src/jni/PylonJni.cpp` | 唯一的 JNI 边界（`Java_dev_pylon_loader_game_core_PylonCore_*`） |
 | `src/boot/*` | 阶段状态机（KernelLoaded → EngineReady → RefsValidated / Failed）、就绪探测、引用校验与报告 |
-| `src/il2cpp/Il2CppApi.*` | `il2cpp_*` 函数指针表（`dlsym` 绑定，不认识具体游戏） |
-| `src/il2cpp/Il2CppRuntime.*` | 域/线程 attach、按名解析、缓存；**唯一允许触碰 IL2CPP 的地方** |
-| `src/il2cpp/Call.*` | 跨 C++/托管边界的调用与转换（一律走 `il2cpp_runtime_invoke`） |
+| `src/il2cpp/Symbols.*` | `il2cpp_*` 符号表：一行一个符号，声明/绑定/计数都由它生成（`dlsym`，不认识具体游戏） |
+| `src/il2cpp/Domain.*` | 符号表、域、`Session` 票据（`Attach` 是唯一来源）、游戏线程登记 |
+| `src/il2cpp/Session.cpp` | 按名找类（缓存 + 扫全部程序集）、类名、程序集列表 |
+| `src/il2cpp/Metadata.*` | `Field`：宽度、静态性、读写（规则只在这里实现一次） |
+| `src/il2cpp/Invoke.*` | `Method`：按名/按类型解析、参数、`runtime_invoke` 与返回值解箱 |
 | `src/hook/HookApi.cpp` | Dobby 的 `DobbyHook` / `DobbyDestroy` 出口，托管侧的 detour provider 用它 |
 | `src/dotnet/CoreClrHost.cpp` | 在游戏进程里起 CoreCLR、调入口、把入口跑在独立大栈线程上 |
 | `src/mod/ModApi.cpp` | `PylonMod_*` 的实现（线程内错误缓冲、按名解析、字段读写、调用） |
-| `src/il2cpp/GuardedCall.*` | 跨回游戏代码的调用要能被 C++ 异常穿过的 trampoline |
+| `src/il2cpp/Guard.*` | 跨回游戏代码的调用要能被 C++ 异常穿过的 trampoline（`Guard.S` + 自定义 personality） |
 | `src/graphics/Gles.*` | GLES/EGL 入口表：一次解析，缺一个就整套图形关闭 |
 | `src/graphics/Capture.*` | GL hooks：状态镜像、世界层分界（`glViewport(0,0,17,3)`）、帧末上屏 |
 | `src/graphics/GlState.*` | Unity 的 GL 状态镜像与还原；建对象时用 `ScopedState` 问驱动一次 |

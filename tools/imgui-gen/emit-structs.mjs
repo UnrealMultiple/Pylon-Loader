@@ -2,7 +2,7 @@
  * Emit per-struct gen files: raw layout struct + Ptr wrapper (ImGui.NET style).
  */
 import { writeFileSync, mkdirSync } from 'fs';
-import { normType, csType, csElem, PTR_WRAP } from './cs-types.mjs';
+import { normType, csType, csParamType, csElem, PTR_WRAP } from './cs-types.mjs';
 
 const LEGAL_FIXED = new Set(['byte','sbyte','short','ushort','int','uint','long','ulong','float','double']);
 
@@ -173,7 +173,7 @@ function emitOne(name, fields, methods, model) {
     {
     const seen = new Set();
     for (const m of methods) {
-      const csParams = (m.params || []).filter(p => p.type.trim() && p.type.trim() !== '...').map(p => csType(normType(p.type)));
+      const csParams = (m.params || []).filter(p => p.type.trim() && p.type.trim() !== '...').map(p => csParamType(normType(p.type)));
       const key = m.name + '|' + csParams.join(',');
       if (seen.has(key)) continue;
       seen.add(key);
@@ -238,7 +238,7 @@ function emitMethod(m, structName, P) {
       sigType = csType(t);
       call = name;
     } else {
-      const cs = csType(t);
+      const cs = csParamType(t);
       if (cs === 'void*' || rawT === 'void*') {
         sigType = 'IntPtr';
         call = name + '.ToPointer()';
@@ -282,7 +282,11 @@ function emitMethod(m, structName, P) {
       else if (e === 'true' || e === 'false') dv = e;
       else if (e === 'FLT_MAX') dv = 'float.MaxValue';
       else if (/^"([^"]*)"$/.test(e)) dv = e;
-      else if (e.startsWith('ImVec2(') || e.startsWith('ImVec4(')) dv = 'default';
+      else if (e.startsWith('ImVec2(') || e.startsWith('ImVec4(')) {
+        // 同 emit-imguigen：全 0 才能用 default，非 0 的默认值改成必填。
+        const nums = e.slice(e.indexOf('(') + 1, -1).split(',').map(s => s.trim());
+        dv = nums.every(n => /^[-+]?0*(\.0*)?$/.test(n)) ? 'default' : null;
+      }
       else if (/^[-+0-9.eEfFuUlL]+$/.test(e)) dv = /^Im[A-Z]/.test(sigType) ? '(' + sigType + ')' + e : (sigType === 'IntPtr' ? 'default' : e);
       if (dv != null) def = ' = ' + dv;
     }

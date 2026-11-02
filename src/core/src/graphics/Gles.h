@@ -11,6 +11,7 @@ namespace pylon::graphics {
 
 #define PYLON_GL_FUNCS(X)                                                     \
     X(GetIntegerv) X(GetBooleanv) X(GetString) X(IsEnabled)                    \
+    X(GetFramebufferAttachmentParameteriv)                                      \
     X(Enable) X(Disable) X(ColorMask) X(Viewport) X(Scissor)                   \
     X(UseProgram) X(ActiveTexture) X(BindTexture) X(BindSampler)               \
     X(BindBuffer) X(BindVertexArray) X(BindFramebuffer)                        \
@@ -18,7 +19,8 @@ namespace pylon::graphics {
     X(GenSamplers) X(SamplerParameteri) X(DeleteSamplers) X(PixelStorei)       \
     X(GenFramebuffers) X(DeleteFramebuffers)                                   \
     X(FramebufferTexture2D) X(CheckFramebufferStatus) X(BlitFramebuffer)       \
-    X(GenVertexArrays) X(GenBuffers) X(BufferData) X(VertexAttribPointer)      \
+    X(GenVertexArrays) X(GenBuffers) X(BufferData)                             \
+    X(VertexAttribPointer)                                                     \
     X(EnableVertexAttribArray)                                                 \
     X(CreateShader) X(ShaderSource) X(CompileShader) X(GetShaderiv)            \
     X(GetShaderInfoLog) X(DeleteShader) X(CreateProgram) X(AttachShader)       \

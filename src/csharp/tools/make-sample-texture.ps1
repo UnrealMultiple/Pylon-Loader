@@ -3,7 +3,7 @@
 
   用法：
     pwsh -File src/csharp/tools/make-sample-texture.ps1 -Out src/csharp/samples/TextureMod/assets/pylon.png
-    pwsh -File src/csharp/tools/make-sample-texture.ps1 -Out src/csharp/samples/FrameMod/assets/npcs/TestNpc.png -Size 32 -Style slime
+    pwsh -File src/csharp/tools/make-sample-texture.ps1 -Out src/csharp/samples/XiheBoss/assets/npcs/TestNpc.png -Size 32 -Style slime
     pwsh -File tools/make-sample-texture.ps1 -Transparent1x1 -Hex   # 内建常量用
 #>
 [CmdletBinding(DefaultParameterSetName = 'Sample')]

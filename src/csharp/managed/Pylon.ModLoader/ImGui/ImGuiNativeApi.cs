@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace Pylon.ModLoader.UI;
 
 /// <summary>
-/// libpylon 侧覆盖层画布的 P/Invoke（5 个导出，见 core/src/imgui/host/RenderHost.h）。
+/// libpylon 侧覆盖层画布的 P/Invoke（见 core/src/imgui/host/RenderHost.h）。
 /// 覆盖层画在**游戏自己的 GLES 上下文**里：没有 SurfaceView、没有 Surface、没有交换链，
 /// 所以这里也没有 AttachSurface / DetachSurface。
 /// </summary>

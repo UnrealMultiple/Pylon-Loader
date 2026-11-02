@@ -4,7 +4,7 @@
 #include <mutex>
 #include <unistd.h>
 
-#include "il2cpp/Il2CppRuntime.h"
+#include "il2cpp/Domain.h"
 #include "pylon/Log.h"
 
 namespace pylon::boot {
@@ -45,7 +45,7 @@ Status Boot::OnKernelLoaded() {
     if (phase_ == Phase::Failed) return Status::Fail(failure_reason_);
     if (phase_ != Phase::Idle) return Status::Ok();  // 幂等
 
-    Status bound = il2cpp::Runtime::Instance().Bind();
+    Status bound = il2cpp::Domain::Bind();
     if (!bound) {
         Fail("il2cpp 符号绑定失败：" + bound.reason + "（停用 Mod，不继续解析）");
         return Status::Fail(failure_reason_);
@@ -69,7 +69,7 @@ Status Boot::OnEngineReady(const std::string& signal) {
     LOGI("boot", "引擎就绪信号：%s", signal.c_str());
 
     // 到这里才允许第一次调 IL2CPP API（docs/02 §6：il2cpp_init 期间调用会 SIGSEGV）。
-    Status attached = il2cpp::Runtime::Instance().Attach();
+    auto attached = il2cpp::Domain::Attach();
     if (!attached) {
         Fail("attach 到 IL2CPP 域失败：" + attached.reason);
         return Status::Fail(failure_reason_);
@@ -78,7 +78,7 @@ Status Boot::OnEngineReady(const std::string& signal) {
     phase_ = Phase::EngineReady;
     LOGI("boot", "阶段=EngineReady（已 attach，可以按名解析）");
 
-    auto images = il2cpp::Runtime::Instance().Images();
+    auto images = attached.value.Images();
     LOGI("core", "已加载程序集 %zu 个", images.size());
     for (size_t i = 0; i < images.size() && i < 8; ++i) {
         LOGI("core", "  image[%zu] %s", i, images[i].c_str());

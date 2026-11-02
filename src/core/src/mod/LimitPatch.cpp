@@ -6,8 +6,8 @@
 #include <cstdint>
 #include <cstring>
 
-#include "il2cpp/Call.h"
-#include "il2cpp/Il2CppRuntime.h"
+#include "il2cpp/Domain.h"
+#include "il2cpp/Invoke.h"
 
 namespace pylon::mod {
 
@@ -23,7 +23,7 @@ void* MethodPointerOf(const il2cpp::MethodInfo* method) {
 
 /// 方法体的结束位置：同类的下一个方法开头（IL2CPP 按类顺序生成代码）。
 uintptr_t MethodEnd(const il2cpp::MethodInfo* method, uintptr_t start) {
-    auto& api = il2cpp::Runtime::Instance().api();
+    const il2cpp::Symbols& api = il2cpp::Domain::symbols();
     uintptr_t end = start + kMaxMethodBytes;
     if (api.method_get_class == nullptr || api.class_get_methods == nullptr) return end;
 
