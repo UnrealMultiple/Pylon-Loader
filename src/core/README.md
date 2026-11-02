@@ -21,7 +21,7 @@ Mod 能力可以没有，游戏必须照常跑：任何必需引用解析失败�
 | `src/il2cpp/Metadata.*` | `Field`：宽度、静态性、读写（规则只在这里实现一次） |
 | `src/il2cpp/Invoke.*` | `Method`：按名/按类型解析、参数、`runtime_invoke` 与返回值解箱 |
 | `src/hook/HookApi.cpp` | Dobby 的 `DobbyHook` / `DobbyDestroy` 出口，托管侧的 detour provider 用它 |
-| `src/dotnet/CoreClrHost.cpp` | 在游戏进程里起 CoreCLR、调入口、把入口跑在独立大栈线程上 |
+| `src/dotnet/CoreClrHost.cpp` | 起 CoreCLR 并解析入口（与 IL2CPP 无关，可与引擎启动并行）、执行入口（跑在独立大栈线程上） |
 | `src/mod/ModApi.cpp` | `PylonMod_*` 的实现（线程内错误缓冲、按名解析、字段读写、调用） |
 | `src/il2cpp/Guard.*` | 跨回游戏代码的调用要能被 C++ 异常穿过的 trampoline（`Guard.S` + 自定义 personality） |
 | `src/graphics/Gles.*` | GLES/EGL 入口表：一次解析，缺一个就整套图形关闭 |

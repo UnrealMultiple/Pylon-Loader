@@ -16,7 +16,7 @@ $job = Start-Job -ScriptBlock {
 Start-Sleep -Seconds 2
 
 & $adb shell am start -n dev.pylon.loader/.MainActivity -a dev.pylon.loader.action.IMPORT `
-    --ez launch true --ei settleMs 1500 --ez coreclr true | Out-Null
+    --ez launch true --ez coreclr true | Out-Null
 
 # 100 秒足够跑到内容就绪 + 纹理上传 + 崩溃
 Start-Sleep -Seconds 100

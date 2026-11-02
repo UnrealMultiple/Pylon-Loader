@@ -193,7 +193,7 @@ if ($Install) {
     & $adb -s $Serial install -r -d $apk 2>&1 | Select-Object -Last 1
     if ($LASTEXITCODE -ne 0) { Fail '安装失败（设备未连接/签名冲突）' }
     & $adb -s $Serial shell am force-stop dev.pylon.loader | Out-Null
-    & $adb -s $Serial shell am start -n dev.pylon.loader/.MainActivity -a dev.pylon.loader.action.IMPORT --ez launch true --ei settleMs 1500 --ez coreclr true | Out-Null
+    & $adb -s $Serial shell am start -n dev.pylon.loader/.MainActivity -a dev.pylon.loader.action.IMPORT --ez launch true --ez coreclr true | Out-Null
     Ok '已安装并启动（日志：adb logcat -s PylonLoader）'
 }
 

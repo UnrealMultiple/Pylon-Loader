@@ -35,7 +35,6 @@ internal class GameRuntimeLoader(private val context: Context) {
 
     fun load(
         refSpecs: List<String> = emptyList(),
-        settleMs: Int = PylonCore.DEFAULT_SETTLE_MS,
         probe: Boolean = false,
         gamePackage: String = RuntimeLayout.GAME_PACKAGE,
     ): Outcome {
@@ -123,8 +122,7 @@ internal class GameRuntimeLoader(private val context: Context) {
         }
 
         // 内核进场：游戏 .so 已按序加载完、Unity 还没起；内核只绑定 il2cpp 符号并起探测线程。
-        // probe=false 不启动探测：时机靠固定静置猜测，落在 il2cpp_init 窗口内会 SIGSEGV（docs/15）。
-        val kernelStarted = probe && PylonCore.start(refSpecs, settleMs)
+        val kernelStarted = probe && PylonCore.start(refSpecs)
         if (!probe) Log.w("本次不启动内核探测（HostOptions.probe=false）：Mod 能力关闭，游戏照常跑")
         if (!kernelStarted) {
             // 内核没起来不算宿主失败：游戏照常跑，只是没有 Mod 能力（M2 的语义是"停用"）。

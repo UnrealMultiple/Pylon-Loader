@@ -98,7 +98,7 @@ Step "④ 重启一次并抓 $Seconds 秒日志"
 & $adb shell am force-stop $pkg | Out-Null
 Start-Sleep -Milliseconds 800
 & $adb logcat -c
-& $adb shell am start -n "$pkg/.MainActivity" -a "$pkg.action.IMPORT" --ez launch true --ei settleMs 1500 --ez coreclr true | Out-Null
+& $adb shell am start -n "$pkg/.MainActivity" -a "$pkg.action.IMPORT" --ez launch true --ez coreclr true | Out-Null
 Start-Sleep -Seconds $Seconds
 & $adb shell "logcat -d -v time > /data/local/tmp/pylon-managed-log.txt"
 $logFile = Join-Path $out 'run.txt'

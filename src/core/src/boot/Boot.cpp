@@ -1,7 +1,5 @@
-// 层：内核层 / boot —— 实现
 #include "boot/Boot.h"
 
-#include <mutex>
 #include <unistd.h>
 
 #include "il2cpp/Domain.h"
@@ -9,7 +7,13 @@
 
 namespace pylon::boot {
 namespace {
+
 std::mutex g_mutex;
+
+constexpr int kRetryAttempts = 8;
+constexpr int kRetryFirstGapMs = 50;
+constexpr int kRetryMaxGapMs = 400;
+
 }  // namespace
 
 const char* PhaseName(Phase phase) {
@@ -28,7 +32,6 @@ Boot& Boot::Instance() {
     return instance;
 }
 
-/// 失败原因可能在探测线程上被改写，所以按值返回并在同一把锁下拷贝。
 std::string Boot::FailureReason() const {
     std::lock_guard<std::mutex> lock(g_mutex);
     return failure_reason_;
@@ -43,9 +46,9 @@ void Boot::Fail(const std::string& reason) {
 Status Boot::OnKernelLoaded() {
     std::lock_guard<std::mutex> lock(g_mutex);
     if (phase_ == Phase::Failed) return Status::Fail(failure_reason_);
-    if (phase_ != Phase::Idle) return Status::Ok();  // 幂等
+    if (phase_ != Phase::Idle) return Status::Ok();
 
-    Status bound = il2cpp::Domain::Bind();
+    const Status bound = il2cpp::Domain::Bind();
     if (!bound) {
         Fail("il2cpp 符号绑定失败：" + bound.reason + "（停用 Mod，不继续解析）");
         return Status::Fail(failure_reason_);
@@ -68,8 +71,7 @@ Status Boot::OnEngineReady(const std::string& signal) {
 
     LOGI("boot", "引擎就绪信号：%s", signal.c_str());
 
-    // 到这里才允许第一次调 IL2CPP API（docs/02 §6：il2cpp_init 期间调用会 SIGSEGV）。
-    auto attached = il2cpp::Domain::Attach();
+    const auto attached = il2cpp::Domain::Attach();
     if (!attached) {
         Fail("attach 到 IL2CPP 域失败：" + attached.reason);
         return Status::Fail(failure_reason_);
@@ -78,7 +80,7 @@ Status Boot::OnEngineReady(const std::string& signal) {
     phase_ = Phase::EngineReady;
     LOGI("boot", "阶段=EngineReady（已 attach，可以按名解析）");
 
-    auto images = attached.value.Images();
+    const auto images = attached.value.Images();
     LOGI("core", "已加载程序集 %zu 个", images.size());
     for (size_t i = 0; i < images.size() && i < 8; ++i) {
         LOGI("core", "  image[%zu] %s", i, images[i].c_str());
@@ -94,32 +96,19 @@ Status Boot::ValidateRefs(const std::vector<std::string>& specs, RefReport* repo
                             std::string(PhaseName(phase_)) + "）");
     }
 
-    // 镜像注册与 il2cpp_init 返回之间有个小窗口：域已就绪但 Assembly-CSharp 还没注册，
-    // 一次校验会整批失败、把 Mod 全停（实测：装完 APK 的第一次冷启动偶发）。重试到镜像就绪。
-    constexpr int kAttempts = 10;
-    constexpr int kGapMs = 200;
+    // 域就绪与镜像注册之间有个小窗口，冷启动偶发整批解析失败。
     RefReport result;
-    for (int attempt = 1; attempt <= kAttempts; ++attempt) {
+    int gap = kRetryFirstGapMs;
+    for (int attempt = 1; attempt <= kRetryAttempts; ++attempt) {
         result = RefValidator::Validate(specs);
-        if (result.AllOk()) break;
-        if (attempt < kAttempts) {
-            LOGW("refs", "第 %d 次校验未过（失败 %zu 条）：镜像可能还没就绪，%dms 后重试",
-                 attempt, result.FailCount(), kGapMs);
-            usleep(static_cast<useconds_t>(kGapMs) * 1000);
-        }
+        if (result.AllOk() || attempt == kRetryAttempts) break;
+        LOGW("refs", "第 %d 次校验未过（失败 %zu 条），%dms 后重试", attempt, result.FailCount(), gap);
+        usleep(static_cast<useconds_t>(gap) * 1000);
+        gap = gap * 2 < kRetryMaxGapMs ? gap * 2 : kRetryMaxGapMs;
     }
     if (report != nullptr) *report = result;
 
-    for (const auto& item : result.items) {
-        if (item.ok) {
-            LOGI("refs", "✓ %s —— %s", item.spec.c_str(), item.detail.c_str());
-        } else {
-            LOGE("refs", "✗ %s —— %s", item.spec.c_str(), item.detail.c_str());
-        }
-    }
-
     if (!result.AllOk()) {
-        // 逐条原因已经在上面的 ✗ 日志里了，这里只留一句汇总，避免日志重复一大段。
         Fail("引用校验失败 " + std::to_string(result.FailCount()) + " 条（共 " +
              std::to_string(result.items.size()) + " 条）");
         return Status::Fail(failure_reason_);

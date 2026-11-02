@@ -30,7 +30,7 @@ Step '⑤ 清日志、只启动一次'
 Start-Sleep -Milliseconds 800
 & $adb logcat -c
 & $adb shell am start -n dev.pylon.loader/.MainActivity -a dev.pylon.loader.action.IMPORT `
-    --ez launch true --ei settleMs 1500 --ez coreclr true | Out-Null
+    --ez launch true --ez coreclr true | Out-Null
 
 Step '⑥ 等崩溃后 dump（25s）'
 Start-Sleep -Seconds 25

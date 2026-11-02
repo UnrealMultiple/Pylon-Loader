@@ -1,6 +1,3 @@
-// 层：内核层 / jni —— 唯一的 JNI 边界
-// 约定：内核不猜时机。Java 侧只交"要校验哪些名字"（数据）和之后来取结果；**何时能碰 IL2CPP**
-// 由内核自己的探测线程按"静置 + 稀疏轮询"决定（见 boot/Probe.h），这条硬约束只有一个地方能破坏。
 #include <jni.h>
 #include <dlfcn.h>
 
@@ -22,7 +19,7 @@ jlong EncodeVersion() {
     return (static_cast<jlong>(kVersionMajor) << 16) | kVersionMinor;
 }
 
-/// 读 jstring；失败（OOM 或未决异常）时**清异常**并返回 false——带未决异常继续调 JNI 是未定义行为。
+/// 读 jstring；失败时清掉未决异常（带着它继续调 JNI 是未定义行为）。
 bool ToString(JNIEnv* env, jstring value, std::string* out) {
     out->clear();
     if (value == nullptr) return true;
@@ -52,6 +49,18 @@ bool ToStringList(JNIEnv* env, jobjectArray array, std::vector<std::string>* out
     return true;
 }
 
+bool ReadHostConfig(JNIEnv* env, jstring entryAssemblyPath, jstring coreDir, jstring dotnetDir,
+                    jstring entryAssemblyName, jstring entryType, jstring entryMethod, jstring logDir,
+                    jstring modsDir, jstring interopDir, pylon::dotnet::HostConfig* config) {
+    return ToString(env, entryAssemblyPath, &config->entry_assembly_path) &&
+           ToString(env, coreDir, &config->core_dir) && ToString(env, dotnetDir, &config->dotnet_dir) &&
+           ToString(env, entryAssemblyName, &config->entry_assembly_name) &&
+           ToString(env, entryType, &config->entry_type) &&
+           ToString(env, entryMethod, &config->entry_method) &&
+           ToString(env, logDir, &config->log_dir) && ToString(env, modsDir, &config->mods_dir) &&
+           ToString(env, interopDir, &config->interop_dir);
+}
+
 }  // namespace
 
 extern "C" {
@@ -59,8 +68,8 @@ extern "C" {
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
     (void)vm;
     (void)reserved;
-    LOGI("core", "libpylon.so JNI_OnLoad, 内核版本 %d.%d（此时不碰 IL2CPP）",
-         kVersionMajor, kVersionMinor);
+    LOGI("core", "libpylon.so JNI_OnLoad, 内核版本 %d.%d（此时不碰 IL2CPP）", kVersionMajor,
+         kVersionMinor);
     return JNI_VERSION_1_6;
 }
 
@@ -70,17 +79,16 @@ JNIEXPORT void JNICALL JNI_OnUnload(JavaVM* vm, void* reserved) {
     LOGI("core", "libpylon.so JNI_OnUnload");
 }
 
-JNIEXPORT jlong JNICALL
-Java_dev_pylon_loader_game_core_PylonCore_nativeVersion(JNIEnv* env, jobject thiz) {
+JNIEXPORT jlong JNICALL Java_dev_pylon_loader_game_core_PylonCore_nativeVersion(JNIEnv* env,
+                                                                               jobject thiz) {
     (void)env;
     (void)thiz;
     return EncodeVersion();
 }
 
-/// 游戏 .so 已加载、UnityPlayer 未创建时调用：绑定 il2cpp 符号（不调 API）并用给的清单启动探测线程。
-JNIEXPORT jboolean JNICALL
-Java_dev_pylon_loader_game_core_PylonCore_nativeStart(JNIEnv* env, jobject thiz,
-                                                     jobjectArray refs, jint settleMs) {
+JNIEXPORT jboolean JNICALL Java_dev_pylon_loader_game_core_PylonCore_nativeStart(JNIEnv* env,
+                                                                               jobject thiz,
+                                                                               jobjectArray refs) {
     (void)thiz;
 
     const auto status = pylon::boot::Boot::Instance().OnKernelLoaded();
@@ -89,16 +97,14 @@ Java_dev_pylon_loader_game_core_PylonCore_nativeStart(JNIEnv* env, jobject thiz,
         return JNI_FALSE;
     }
 
-    pylon::boot::ProbeConfig config;
-    if (settleMs > 0) config.settle_ms = settleMs;
-
     std::vector<std::string> specs;
     if (!ToStringList(env, refs, &specs)) {
         LOGE("core", "nativeStart：引用清单转换失败（JNI 读取字符串出错）");
         return JNI_FALSE;
     }
     LOGI("core", "nativeStart：待校验引用 %zu 条", specs.size());
-    const auto started = pylon::boot::Probe::Instance().Start(specs, config);
+
+    const auto started = pylon::boot::Probe::Instance().Start(specs, pylon::boot::ProbeConfig{});
     if (!started) {
         LOGE("core", "启动就绪探测失败：%s", started.reason.c_str());
         return JNI_FALSE;
@@ -106,23 +112,20 @@ Java_dev_pylon_loader_game_core_PylonCore_nativeStart(JNIEnv* env, jobject thiz,
     return JNI_TRUE;
 }
 
-/// 阻塞等待探测结束。返回 null = 引用校验全部通过；否则返回"停用 Mod"的原因。
-JNIEXPORT jstring JNICALL
-Java_dev_pylon_loader_game_core_PylonCore_nativeAwaitReport(JNIEnv* env, jobject thiz,
-                                                           jint timeoutMs) {
+JNIEXPORT jstring JNICALL Java_dev_pylon_loader_game_core_PylonCore_nativeAwaitReport(JNIEnv* env,
+                                                                                     jobject thiz,
+                                                                                     jint timeoutMs) {
     (void)thiz;
     pylon::boot::ProbeResult result;
-    const bool finished = pylon::boot::Probe::Instance().AwaitResult(timeoutMs, &result);
-    if (!finished) {
+    if (!pylon::boot::Probe::Instance().AwaitResult(timeoutMs, &result)) {
         return env->NewStringUTF("等待内核探测超时（引擎可能一直没到稳定态）");
     }
     if (result.ok) return nullptr;
     return env->NewStringUTF(result.failure_reason.c_str());
 }
 
-/// 逐条结果文本（多行），随时可调；用于日志与（M3 之后的）内置 UI。
-JNIEXPORT jstring JNICALL
-Java_dev_pylon_loader_game_core_PylonCore_nativeReport(JNIEnv* env, jobject thiz) {
+JNIEXPORT jstring JNICALL Java_dev_pylon_loader_game_core_PylonCore_nativeReport(JNIEnv* env,
+                                                                                jobject thiz) {
     (void)thiz;
     const auto snapshot = pylon::boot::Probe::Instance().Snapshot();
     std::string text = snapshot.report;
@@ -131,7 +134,6 @@ Java_dev_pylon_loader_game_core_PylonCore_nativeReport(JNIEnv* env, jobject thiz
     return env->NewStringUTF(text.c_str());
 }
 
-/// 测试 Mod 探针：dlopen 那个**独立**的 Mod .so 并调用，证明导出 ABI 外部可用；其 DT_NEEDED 指向 libpylon.so，符号由动态链接器解析。
 JNIEXPORT jstring JNICALL
 Java_dev_pylon_loader_game_core_PylonCore_nativeTestModProbe(JNIEnv* env, jobject thiz) {
     (void)thiz;
@@ -143,65 +145,61 @@ Java_dev_pylon_loader_game_core_PylonCore_nativeTestModProbe(JNIEnv* env, jobjec
                  (err != nullptr ? err : "unknown")).c_str());
     }
     auto run = reinterpret_cast<const char* (*)()>(dlsym(handle, "PylonTestMod_Run"));
-    if (run == nullptr) {
-        return env->NewStringUTF("✗ 测试 Mod 里没有 PylonTestMod_Run");
-    }
+    if (run == nullptr) return env->NewStringUTF("✗ 测试 Mod 里没有 PylonTestMod_Run");
     const char* report = run();
     return env->NewStringUTF(report != nullptr ? report : "(测试 Mod 返回空)");
 }
 
-/// 登记游戏线程：宿主经 UnityPlayer.queueGLThreadEvent 投递小任务到 UnityMain 后调此函数。
-/// 托管方法只允许在这个线程上调。
-JNIEXPORT void JNICALL
-Java_dev_pylon_loader_game_core_PylonCore_nativeMarkGameThread(JNIEnv* env, jobject thiz) {
+JNIEXPORT void JNICALL Java_dev_pylon_loader_game_core_PylonCore_nativeMarkGameThread(JNIEnv* env,
+                                                                                     jobject thiz) {
     (void)env;
     (void)thiz;
     pylon::il2cpp::Domain::MarkGameThread();
 }
 
-/// 当前线程是不是已登记的游戏线程。
-JNIEXPORT jboolean JNICALL
-Java_dev_pylon_loader_game_core_PylonCore_nativeIsGameThread(JNIEnv* env, jobject thiz) {
+JNIEXPORT jboolean JNICALL Java_dev_pylon_loader_game_core_PylonCore_nativeIsGameThread(JNIEnv* env,
+                                                                                       jobject thiz) {
     (void)env;
     (void)thiz;
     return pylon::il2cpp::Domain::OnGameThread() ? JNI_TRUE : JNI_FALSE;
 }
 
-/// 起 CoreCLR 并调用托管入口；参数都是绝对路径（Kotlin 从 assets 解到 filesDir 后传入）。幂等。
-JNIEXPORT jboolean JNICALL
-Java_dev_pylon_loader_game_core_PylonCore_nativeStartCoreClr(
+JNIEXPORT jboolean JNICALL Java_dev_pylon_loader_game_core_PylonCore_nativePrepareCoreClr(
         JNIEnv* env, jobject thiz, jstring entryAssemblyPath, jstring coreDir, jstring dotnetDir,
         jstring entryAssemblyName, jstring entryType, jstring entryMethod, jstring logDir,
         jstring modsDir, jstring interopDir) {
     (void)thiz;
-    if (pylon::dotnet::Started()) return JNI_TRUE;
+    if (pylon::dotnet::Prepared()) return JNI_TRUE;
 
     pylon::dotnet::HostConfig config;
-    const bool params_ok =
-            ToString(env, entryAssemblyPath, &config.entry_assembly_path) &&
-            ToString(env, coreDir, &config.core_dir) && ToString(env, dotnetDir, &config.dotnet_dir) &&
-            ToString(env, entryAssemblyName, &config.entry_assembly_name) &&
-            ToString(env, entryType, &config.entry_type) &&
-            ToString(env, entryMethod, &config.entry_method) && ToString(env, logDir, &config.log_dir) &&
-            ToString(env, modsDir, &config.mods_dir) &&
-            ToString(env, interopDir, &config.interop_dir);
-    if (!params_ok) {
+    if (!ReadHostConfig(env, entryAssemblyPath, coreDir, dotnetDir, entryAssemblyName, entryType,
+                        entryMethod, logDir, modsDir, interopDir, &config)) {
         LOGE("dotnet", "启动参数转换失败（JNI 读取字符串出错）");
         return JNI_FALSE;
     }
 
-    const auto status = pylon::dotnet::Start(config);
+    const auto status = pylon::dotnet::Prepare(config);
     if (!status) {
-        LOGE("dotnet", "启动 CoreCLR 失败：%s", status.reason.c_str());
+        LOGE("dotnet", "准备 CoreCLR 失败：%s", status.reason.c_str());
         return JNI_FALSE;
     }
     return JNI_TRUE;
 }
 
-/// 在**调用者线程**上调用托管入口的静态无参方法（Java 把 Mod 的 Load() 投到 UnityMain 后用；托管代码碰 IL2CPP 只能在该线程）。
-JNIEXPORT jboolean JNICALL
-Java_dev_pylon_loader_game_core_PylonCore_nativeCallManagedEntry(JNIEnv* env, jobject thiz,
-                                                                jstring method) {
+JNIEXPORT jboolean JNICALL Java_dev_pylon_loader_game_core_PylonCore_nativeRunCoreClrEntry(
+        JNIEnv* env, jobject thiz) {
+    (void)env;
+    (void)thiz;
+    const auto status = pylon::dotnet::RunEntry();
+    if (!status) {
+        LOGE("dotnet", "执行托管入口失败：%s", status.reason.c_str());
+        return JNI_FALSE;
+    }
+    return JNI_TRUE;
+}
+
+JNIEXPORT jboolean JNICALL Java_dev_pylon_loader_game_core_PylonCore_nativeCallManagedEntry(
+        JNIEnv* env, jobject thiz, jstring method) {
     (void)thiz;
     std::string name;
     if (!ToString(env, method, &name) || name.empty()) {
@@ -216,19 +214,19 @@ Java_dev_pylon_loader_game_core_PylonCore_nativeCallManagedEntry(JNIEnv* env, jo
     return JNI_TRUE;
 }
 
-JNIEXPORT jint JNICALL
-Java_dev_pylon_loader_game_core_PylonCore_nativePhase(JNIEnv* env, jobject thiz) {
+JNIEXPORT jint JNICALL Java_dev_pylon_loader_game_core_PylonCore_nativePhase(JNIEnv* env,
+                                                                            jobject thiz) {
     (void)env;
     (void)thiz;
     return static_cast<jint>(pylon::boot::Boot::Instance().phase());
 }
 
-/// 进程退出前调用。**刻意不 dlclose**：句柄是 RTLD_NOLOAD 拿到的 libil2cpp.so，卸掉等于拆了 Unity 还在用的库，只记一笔。
-JNIEXPORT void JNICALL
-Java_dev_pylon_loader_game_core_PylonCore_nativeShutdown(JNIEnv* env, jobject thiz) {
+/// 刻意不 dlclose：句柄是 RTLD_NOLOAD 拿到的 libil2cpp.so，卸掉等于拆了 Unity 还在用的库。
+JNIEXPORT void JNICALL Java_dev_pylon_loader_game_core_PylonCore_nativeShutdown(JNIEnv* env,
+                                                                               jobject thiz) {
     (void)env;
     (void)thiz;
-    LOGI("core", "nativeShutdown：保留 libil2cpp 句柄（不能卸 Unity 正在用的库）");
+    LOGI("core", "nativeShutdown：保留 libil2cpp 句柄");
 }
 
 }  // extern "C"

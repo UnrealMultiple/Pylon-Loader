@@ -9,7 +9,7 @@ Write-Host "[imgui-test] 安装 $Apk ..."
 & $adb -s $Serial install -r -d $Apk 2>&1 | Select-Object -Last 1
 Write-Host "[imgui-test] 清日志并启动 ..."
 & $adb -s $Serial logcat -c | Out-Null
-& $adb -s $Serial shell am start -n dev.pylon.loader/.MainActivity -a dev.pylon.loader.action.IMPORT --ez launch true --ei settleMs 1500 --ez coreclr true | Out-Null
+& $adb -s $Serial shell am start -n dev.pylon.loader/.MainActivity -a dev.pylon.loader.action.IMPORT --ez launch true --ez coreclr true | Out-Null
 Write-Host "[imgui-test] 等待 45 秒进游戏 ..."
 Start-Sleep -Seconds 45
 $log = & $adb -s $Serial logcat -d -v time -s PylonLoader 2>&1

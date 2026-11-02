@@ -13,7 +13,6 @@ param(
     # 注意：pwsh -File 传不了数组，所以这里是一个**正则**（多个标记用 | 分隔）
     [string]$WaitFor = 'Mod 加载完成|托管入口返回|✗',
     [int]$TimeoutSec = 60,
-    [int]$SettleMs = 1500,
     [string]$PushMod,
     [string]$PushModName,
     [string]$PushManaged,
@@ -54,7 +53,7 @@ Adb shell am force-stop $pkg | Out-Null
 Start-Sleep -Milliseconds 800
 Adb logcat -c | Out-Null
 
-$extras = @('--ez', 'launch', 'true', '--ei', 'settleMs', $SettleMs, '--ez', 'coreclr', 'true')
+$extras = @('--ez', 'launch', 'true', '--ez', 'coreclr', 'true')
 Adb shell am start -S -n $activity -a "$pkg.action.IMPORT" @extras | Out-Null
 
 $sw = [Diagnostics.Stopwatch]::StartNew()
