@@ -11,23 +11,26 @@ public sealed class SoundStyle
     /// <summary>Mod 声音标记的 SoundId 命名空间：LegacySoundPlayer 的 hook 靠它认出 Mod 声音。</summary>
     private const int ModSoundId = 1000;
 
-    /// <summary>构造选项。</summary>
+    /// <summary>
+    /// 构造选项。必须保持**公共字段**：老 Mod 是按字段编译的，
+    /// 改成属性会让已发布的 Mod 在运行时抛 MissingFieldException（真机验证过）。
+    /// </summary>
     public sealed class Options
     {
         /// <summary>音量 0~1。</summary>
-        public float Volume { get; set; } = 1f;
+        public float Volume = 1f;
 
         /// <summary>音高，八度为单位（1 = 高一个八度）。</summary>
-        public float Pitch { get; set; }
+        public float Pitch;
 
         /// <summary>每次播放的随机音高抖动（八度）；0.2 = 上下最多 0.1。</summary>
-        public float PitchVariance { get; set; }
+        public float PitchVariance;
 
         /// <summary>同时播放上限；0 = 不限。</summary>
-        public int MaxInstances { get; set; } = 1;
+        public int MaxInstances = 1;
 
         /// <summary>超限行为：0 = IgnoreNew，1 = ReplaceOldest。</summary>
-        public int SoundLimitBehavior { get; set; } = 1;
+        public int SoundLimitBehavior = 1;
     }
 
     public SoundStyle(string path, Options? options = null)

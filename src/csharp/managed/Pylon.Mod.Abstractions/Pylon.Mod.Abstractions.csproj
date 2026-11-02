@@ -13,5 +13,7 @@
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <!-- CA1716：Pylon.Mod 是已发布的 Mod 契约命名空间，改名会破坏所有 Mod 的源码兼容。 -->
     <NoWarn>$(NoWarn);CA1716</NoWarn>
+    <!-- 本工程已零警告：任何新警告都当作错误，防止回潮 -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 </Project>

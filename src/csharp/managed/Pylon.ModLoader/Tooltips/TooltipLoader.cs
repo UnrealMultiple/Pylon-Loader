@@ -56,7 +56,7 @@ internal static class TooltipLoader
         catch (Exception e)
         {
             _broken = true;
-            try { _logger?.Warn($"[tooltip] mod tooltip 绘制失败，退回游戏绘制：{e}\n{e.StackTrace}"); } catch { }
+            _logger?.Warn($"[tooltip] mod tooltip 绘制失败，退回游戏绘制：{e}\n{e.StackTrace}");
             orig(self, info, rare, diff, X, Y);
         }
     }
@@ -86,7 +86,7 @@ internal static class TooltipLoader
             catch (Exception e)
             {
                 _broken = true;
-                try { _logger?.Warn($"[tooltip] 指南弹窗行失败：{e.Message}"); } catch { }
+                _logger?.Warn($"[tooltip] 指南弹窗行失败：{e.Message}");
             }
         }
         orig(item, ref yoyoLogo, ref researchLine, ref materialsLine, oldKB, ref numLines,

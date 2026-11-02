@@ -66,7 +66,7 @@ internal sealed class ProjectileSetDefaultsPatch : ILoaderModule
         }
         catch (Exception e)
         {
-            try { Error?.Invoke($"Projectile.SetDefaults 自定义分支异常：{e.Message}"); } catch { }
+            Error?.Invoke($"Projectile.SetDefaults 自定义分支异常：{e.Message}");
         }
     }
 
@@ -83,7 +83,7 @@ internal sealed class ProjectileSetDefaultsPatch : ILoaderModule
             if (table is not null && proj.type >= 0 && proj.type < table.Length && table[proj.type] > 0)
                 frames = table[proj.type];
         }
-        catch { }
+        catch { /* 表还没建好：按 1 帧处理，下面的尺寸计算只是尽力而为 */ }
 
         // 作者没写宽高时，按贴图尺寸补（多帧贴图按帧数除高）。
         try
@@ -96,7 +96,7 @@ internal sealed class ProjectileSetDefaultsPatch : ILoaderModule
                 if (proj.height <= 0) proj.height = texHeight / frames;
             }
         }
-        catch { }
+        catch { /* 贴图可能还没上传：尺寸留 0 由游戏自己兜底 */ }
 
         // SetDefaults_End：尺寸乘 scale；maxPenetrate 跟 penetrate 走（否则穿透弹幕退化成单体）。
         var scale = proj.scale <= 0 ? 1f : proj.scale;

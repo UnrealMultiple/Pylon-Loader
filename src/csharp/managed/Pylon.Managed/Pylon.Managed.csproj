@@ -17,6 +17,8 @@
     <!-- 进 TPA 后由 CoreCLR 直接加载，不打成单文件、不裁 BCL -->
     <PublishTrimmed>false</PublishTrimmed>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- 本工程已零警告：任何新警告都当作错误，防止回潮 -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>

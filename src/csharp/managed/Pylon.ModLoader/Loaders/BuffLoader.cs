@@ -12,49 +12,39 @@ namespace Pylon.ModLoader;
 /// <summary>ModBuff / GlobalBuff 的钩子接线。</summary>
 internal sealed class BuffLoader : ILoaderModule
 {
-    public BuffLoader(ModLogger logger)
-    {
-        _logger = logger;
-    }
+    public BuffLoader(ModLogger logger) => _logger = logger;
 
     public string Name => "buff";
 
     public int Order => 400;
 
-    private static ModLogger _logger;
+    // 静态字段只能由构造函数注入，确定赋值分析不跟踪跨实例赋值
+    private static IModLog _logger = NullLog.Instance;
 
+    /// <summary>注册期装一次（幂等）：第一个 mod 注册 buff 时由管线调。</summary>
     public bool Install()
     {
         // 一次装全所有钩子（后来的 mod 也能被覆盖到），分派处再用 OverridePlan/注册表按需跳过。
-        // ---- 每帧 ----
         On.Terraria.Player.UpdateBuffs += PlayerBuffs;
         On.Terraria.NPC.UpdateNPC_BuffSetFlags += NpcBuffs;
-
-        // ---- 加 buff ----
-        // 玩家 buff：ApplyPlayer 在 AddBuff_ActuallyTryToAddTheBuff 之后、ReApplyPlayer 在续时间处。
+        // 玩家 buff：ApplyPlayer 在 ActuallyTryToAddTheBuff 之后、ReApplyPlayer 在续时间处。
         On.Terraria.Player.AddBuff_ActuallyTryToAddTheBuff += AppliedPlayer;
         On.Terraria.Player.AddBuff_TryUpdatingExistingBuffTime += ReApplyPlayer;
         On.Terraria.NPC.AddBuff += NpcAddBuff;
-
-        // ---- 文本 ----
         On.Terraria.Lang.GetBuffName += GetBuffName;
         On.Terraria.Main.GetBuffTooltip += GetBuffTooltip;
-
-        // ---- 条上图标 ----
         On.GUIBuffs.ItemDraw += ItemDraw;
-
-        // ---- 点图标取消 ----
         On.GUIBuffs.RemoveBuff_1 += RemoveBuff;
 
-        // ---- 宿主槽位（Pylon 专有，见文件头 ①）----
+        // 宿主槽位（Pylon 专有）：原版 Draw/UpdateBuffNavigation 里有编译期 BuffID.Count 比较。
         On.GUIBuffs.Draw += SwapDraw;
         On.GUIBuffs.UpdateBuffNavigation += SwapNavigation;
 
-        _logger?.Info("[buff] BuffLoader 已挂（更新/加/文本/图标/取消）");
+        _logger.Info("[buff] BuffLoader 已挂（更新/加/文本/图标/取消）");
         return true;
     }
 
-    private static ModBuff Of(int type) => ModContent.Find(ContentKind.Buff, type) as ModBuff;
+    private static ModBuff? Of(int type) => ModContent.Find(ContentKind.Buff, type) as ModBuff;
 
     private static bool HasModBuffs() => ModContent.Count(ContentKind.Buff) > 0;
 
@@ -77,7 +67,7 @@ internal sealed class BuffLoader : ILoaderModule
             if (npcs != null)
                 for (var i = 0; i < npcs.Length; i++) GrowImmune(npcs[i], need);
         }
-        catch (Exception e) { _logger?.Warn($"[buff] buffImmune 扩容失败：{e.Message}"); }
+        catch (Exception e) { _logger.Warn($"[buff] buffImmune 扩容失败：{e.Message}"); }
     }
 
     // 后建的实例由 AddBuff 前的这两条再补一次。
@@ -108,7 +98,7 @@ internal sealed class BuffLoader : ILoaderModule
 
     // ⚠ 不能 new Il2CppStructArray<T>(len) 再逐元素写：interop 的 setref 在 ARM64 上直接 SIGSEGV
     // （PC=0x7cf774，真机踩过）。托管数组 + 隐式转换（内部原生拷贝）才安全。
-    private static bool[] Grow(Il2CppStructArray<bool> old, int need)
+    private static bool[] Grow(Il2CppStructArray<bool>? old, int need)
     {
         var grown = new bool[need];
         if (old != null) for (var i = 0; i < old.Length && i < need; i++) grown[i] = old[i];
@@ -143,7 +133,7 @@ internal sealed class BuffLoader : ILoaderModule
 
     // ModBuff：取完 type 再查有没有被移掉——移掉了前移一格要回头重跑；玩家/NPC 回调不同、遍历共用。
     private static void UpdateModBuffs(Il2CppStructArray<int> types, Il2CppStructArray<int> times,
-                                       Player player, NPC npc)
+                                       Player? player, NPC? npc)
     {
         if (!HasModBuffs()) return;
         var hook = player != null ? "UpdatePlayer" : "UpdateNPC";
@@ -156,7 +146,7 @@ internal sealed class BuffLoader : ILoaderModule
             try
             {
                 if (player != null) mod.UpdatePlayer(player, k);
-                else mod.UpdateNPC(npc, k);
+                else mod.UpdateNPC(npc!, k);   // 玩家/NPC 二选一，调用方保证缺的那个是 null
             }
             catch (Exception e) { Safe.Report($"{mod.Name}.{hook}", e); }
             if (types[k] != type) k--;
@@ -165,7 +155,7 @@ internal sealed class BuffLoader : ILoaderModule
 
     // GlobalBuff：所有 buff（含原版）；type == 0 就是列表到头。
     private static void UpdateGlobalBuffs(Il2CppStructArray<int> types, Il2CppStructArray<int> times,
-                                          Player player, NPC npc)
+                                          Player? player, NPC? npc)
     {
         var hook = player != null ? "UpdatePlayer" : "UpdateNPC";
         var globals = GlobalBuffRegistry.For(hook);
@@ -182,7 +172,7 @@ internal sealed class BuffLoader : ILoaderModule
                 try
                 {
                     if (player != null) g.UpdatePlayer(type, player, ref index);
-                    else g.UpdateNPC(type, npc, ref index);
+                    else g.UpdateNPC(type, npc!, ref index);
                 }
                 catch (Exception e) { Safe.Report($"{g.Name}.{hook}", e); }
             }
@@ -243,14 +233,14 @@ internal sealed class BuffLoader : ILoaderModule
     /// <summary>NPC.AddBuff 的一次调用；prefix 挂、postfix 摘（成对，除非 prefix 抛错——它不会）。</summary>
     private sealed class NpcAddBuffFrame
     {
-        public NPC Npc;
+        public NPC? Npc;
         public int Type;
         public int Time;
         public bool Apply;   // 原版真的加上去了才调 ApplyNPC
-        public NpcAddBuffFrame Outer;
+        public NpcAddBuffFrame? Outer;
     }
 
-    private static NpcAddBuffFrame _npcAddBuff;
+    private static NpcAddBuffFrame? _npcAddBuff;
 
     private static void NpcAddBuff(On.Terraria.NPC.orig_AddBuff orig, NPC self, int type, int time, bool quiet)
     {
@@ -260,7 +250,7 @@ internal sealed class BuffLoader : ILoaderModule
         var go = true;
         try
         {
-            GrowImmune(self, BuffCount());   // Pylon 专有 ②
+            GrowImmune(self, BuffCount());   // Pylon 专有：新 NPC 的免疫表也得先补长
 
             var index = self.FindBuffIndex(type);
 
@@ -299,9 +289,10 @@ internal sealed class BuffLoader : ILoaderModule
         if (!end.Apply) return;
         try
         {
-            if (end.Npc == null || end.Npc.FindBuffIndex(end.Type) < 0) return;
+            var npc = end.Npc;
+            if (npc == null || npc.FindBuffIndex(end.Type) < 0) return;
             var mod = Of(end.Type);
-            if (mod != null) mod.ApplyNPC(end.Npc, end.Time);
+            if (mod != null) mod.ApplyNPC(npc, end.Time);
         }
         catch (Exception e) { Safe.Report("buff.ApplyNPC", e); }
     }
@@ -382,15 +373,15 @@ internal sealed class BuffLoader : ILoaderModule
 
     private sealed class DrawFrame
     {
-        public ModBuff Mod;
+        public ModBuff? Mod;
         public int Type;
         public int BuffIndex;
-        public BuffDrawParams Params;
+        public BuffDrawParams Params = null!;   // 与 Dispatch 同批写入，Dispatch 为假时 postfix 不读
         public bool Dispatch;   // 分派过了（否则 postfix 什么都不做）
-        public DrawFrame Outer;
+        public DrawFrame? Outer;
     }
 
-    private static DrawFrame _draw;
+    private static DrawFrame? _draw;
 
     private static void ItemDraw(On.GUIBuffs.orig_ItemDraw orig, GUIBuffs self, ItemGrid_Layout gridLayout,
                                   int index, Vector2 position, float scale)
@@ -412,8 +403,8 @@ internal sealed class BuffLoader : ILoaderModule
 
             var buffIndex = activeBuffs[index];   // 条上第 index 格 = 玩家列表里的第 buffIndex 个
             var player = Main.player[Main.myPlayer];
-            var types = player != null ? player.buffType : null;
-            if (types == null || buffIndex < 0 || buffIndex >= types.Length) { orig(self, gridLayout, index, position, scale); return; }
+            if (player == null || player.buffType is not { } types ||
+                buffIndex < 0 || buffIndex >= types.Length) { orig(self, gridLayout, index, position, scale); return; }
 
             var type = RealType(player, buffIndex);
             if (type <= 0) { orig(self, gridLayout, index, position, scale); return; }
@@ -430,7 +421,7 @@ internal sealed class BuffLoader : ILoaderModule
                 try { if (!g.PreDraw(Main.spriteBatch, type, buffIndex, drawParams)) draw = false; }
                 catch (Exception e) { Safe.Report($"{g.Name}.PreDraw", e); }
             }
-            if (draw && modPre)
+            if (draw && modPre && mod != null)
             {
                 try { draw = mod.PreDraw(Main.spriteBatch, buffIndex, drawParams); }
                 catch (Exception e) { Safe.Report($"{mod.Name}.PreDraw", e); draw = true; }   // 出错不算 false
@@ -455,10 +446,11 @@ internal sealed class BuffLoader : ILoaderModule
         if (!end.Dispatch) return;
         try
         {
-            if (end.Mod != null && end.Mod.Plan.Has("PostDraw"))
+            var mod = end.Mod;
+            if (mod != null && mod.Plan.Has("PostDraw"))
             {
-                try { end.Mod.PostDraw(Main.spriteBatch, end.BuffIndex, end.Params); }
-                catch (Exception e) { Safe.Report($"{end.Mod.Name}.PostDraw", e); }
+                try { mod.PostDraw(Main.spriteBatch, end.BuffIndex, end.Params); }
+                catch (Exception e) { Safe.Report($"{mod.Name}.PostDraw", e); }
             }
             foreach (var g in GlobalBuffRegistry.For("PostDraw"))
             {
@@ -483,7 +475,8 @@ internal sealed class BuffLoader : ILoaderModule
 
         return new BuffDrawParams
         {
-            Texture = texture,
+            // 贴图表可能还没有这张图（mod 贴图晚到），BuffDrawParams.Texture 只是声明成非空
+            Texture = texture!,
             Position = position,
             TextPosition = position,
             SourceRectangle = new Rectangle(0, 0, width, height),
@@ -492,7 +485,7 @@ internal sealed class BuffLoader : ILoaderModule
         };
     }
 
-    private static Texture2D BuffTexture(int type)
+    private static Texture2D? BuffTexture(int type)
     {
         try
         {
@@ -507,14 +500,14 @@ internal sealed class BuffLoader : ILoaderModule
 
     private sealed class RemoveFrame
     {
-        public Player Player;
+        public Player? Player;
         public int Type;
         public int Index;
         public int Time;
-        public RemoveFrame Outer;
+        public RemoveFrame? Outer;
     }
 
-    private static RemoveFrame _remove;
+    private static RemoveFrame? _remove;
 
     private static void RemoveBuff(On.GUIBuffs.orig_RemoveBuff_1 orig, GUIBuffs self, int buff)
     {
@@ -526,10 +519,11 @@ internal sealed class BuffLoader : ILoaderModule
         {
             var player = Main.player[Main.myPlayer];
             frame.Player = player;
-            var types = player != null ? player.buffType : null;
-            var times = player != null ? player.buffTime : null;
-            if (types == null || times == null) { orig(self, buff); return; }
-            if (buff < 0 || buff >= types.Length || buff >= times.Length) { orig(self, buff); return; }
+            if (player == null) { orig(self, buff); return; }
+            var types = player.buffType;
+            var times = player.buffTime;
+            if (types == null || times == null || buff < 0 || buff >= types.Length || buff >= times.Length)
+            { orig(self, buff); return; }
 
             var type = RealType(player, buff);   // 换槽期间这里是宿主类型
             frame.Type = type;
@@ -604,7 +598,7 @@ internal sealed class BuffLoader : ILoaderModule
 
     private sealed class SwapFrame
     {
-        public Player Player;
+        public Player? Player;
         public readonly List<TypeSwap> Types = new();
         public readonly List<(int Host, Asset<Texture2D> Saved)> Assets = new();
         public readonly List<(int Host, bool Saved)> Debuffs = new();
@@ -614,7 +608,7 @@ internal sealed class BuffLoader : ILoaderModule
         public readonly List<(int Host, Terraria.Localization.LocalizedText Saved)> Descriptions = new();
     }
 
-    private static SwapFrame _swap;
+    private static SwapFrame? _swap;
     private static int _swapDepth;
 
     private static void SwapDraw(On.GUIBuffs.orig_Draw orig, GUIBuffs self)
@@ -639,8 +633,9 @@ internal sealed class BuffLoader : ILoaderModule
         try
         {
             var player = Main.player[Main.myPlayer];
-            var types = player != null ? player.buffType : null;
-            var times = player != null ? player.buffTime : null;
+            if (player == null) return;
+            var types = player.buffType;
+            var times = player.buffTime;
             if (types == null || times == null) return;
 
             // 宿主候选 = 这个玩家身上没有的原版 buff（宿主类型在列表里唯一，还原才能按值做）。

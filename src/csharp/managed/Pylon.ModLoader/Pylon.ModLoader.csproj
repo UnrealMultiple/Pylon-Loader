@@ -8,6 +8,8 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PublishTrimmed>false</PublishTrimmed>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- 本工程已零警告：任何新警告都当作错误，防止回潮 -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>

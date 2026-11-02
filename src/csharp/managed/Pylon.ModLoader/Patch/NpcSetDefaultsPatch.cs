@@ -60,7 +60,7 @@ internal sealed class NpcSetDefaultsPatch : ILoaderModule
         }
         catch (Exception e)
         {
-            try { Error?.Invoke($"NPC.SetDefaults 自定义分支异常：{e.Message}"); } catch { }
+            Error?.Invoke($"NPC.SetDefaults 自定义分支异常：{e.Message}");
         }
     }
 

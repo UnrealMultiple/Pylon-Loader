@@ -14,12 +14,15 @@ internal static class LoaderBootstrap
 
     public static void Install(ModLogger logger)
     {
+        var firstRun = _modules is null;
         var modules = _modules ??= Discover(logger);
         if (modules.Length == 0)
         {
             logger.Warn("[loader] 没有发现任何内容管线");
             return;
         }
+
+        if (firstRun) logger.Info($"[loader] 发现 {modules.Length} 个内容管线：{string.Join(", ", modules.Select(m => m.Name))}");
 
         foreach (var module in modules)
         {
@@ -51,6 +54,13 @@ internal static class LoaderBootstrap
         modules.Sort(static (left, right) => left.Order != right.Order
             ? left.Order.CompareTo(right.Order)
             : string.CompareOrdinal(left.Name, right.Name));
+
+        // 顺序只由 Order 决定：撞号会导致安装顺序随实现变化，早发现比线上查容易。
+        var orders = new HashSet<int>();
+        foreach (var module in modules)
+        {
+            if (!orders.Add(module.Order)) Safe.Warn($"[loader] Order {module.Order} 被多个管线占用（{module.Name}）");
+        }
 
         return [.. modules];
     }

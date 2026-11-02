@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | `Pylon.Mod.Abstractions` | 给 Mod 作者的最小契约（`IPylonMod` / `IModContext` / `IModImGuiTab`） | ✅ 已重构 |
 | `Pylon.Managed` | CoreCLR 入口：原生解析、hook 后端、Il2CppInterop 启动、Mod 发现与加载 | ✅ 已重构 |
-| `Pylon.ModLoader` | Mod 内容框架（tModLoader 风格的 API、内容管线、UI） | 🚧 Core / Content / Contracts / Globals / UI / ImGui / Effects / Textures / Tooltips / Patch 已完成；`Loaders/` 保留原实现（重构未完成，已回滚以保证可编译） |
+| `Pylon.ModLoader` | Mod 内容框架（tModLoader 风格的 API、内容管线、UI） | ✅ 已重构（含 `Loaders/`；全工程 0 warning，已开启 `TreatWarningsAsErrors`） |
 
 `Pylon.ImGui` 是机器生成的绑定，不参与本规范。
 
@@ -21,6 +21,9 @@
 - **命名**：类型/公开成员 PascalCase；私有字段 `_camelCase`；局部变量/参数 camelCase；
   接口以 `I` 开头。成员访问不写 `this.`。
 - **不写无意义的分支**：例如 `if (result) return true;` 一律合并为 `return result || ...`。
+- **已发布 API 不改字段/属性形态**：Mod 是按成员形态编译的，属性改字段（或反过来）会让老 Mod
+  运行时抛 `MissingFieldException` / `MissingMethodException`。重构只允许改可空标注与实现，
+  例如 `SoundStyle.Options` 必须保持公共字段（真机踩过）。
 - **每个工程一个 csproj 职责**：不把宿主逻辑塞进框架，也不让框架反向依赖宿主。
 
 ## 2. 注释规范
@@ -61,22 +64,64 @@ Pylon.ModLoader/
   Content/                内容基类（ModItem / ModNpc / ...）
   Contracts/              值类型契约（NetReader、Condition、...）
   Globals/                Global* 基类
-  Loaders/                各内容管线
+  Loaders/                各内容管线（ILoaderModule）+ 触屏按钮
+                           LoaderBootstrap 反射发现并按 Order 安装
   Patch/                  原版方法补丁
   Textures/ Tooltips/ Effects/ UI/ ImGui/
 ```
 
-## 5. 性能约定
+## 5. 内容管线模块（ILoaderModule）
+
+每个内容管线（Item/Npc/Tile/...）都是一个实现 `ILoaderModule` 的类，由
+`LoaderBootstrap` **反射发现并用首个 Mod 的日志构造**，按 `Order` 升序安装：
+
+```csharp
+internal sealed class ItemLoader : ILoaderModule
+{
+    public ItemLoader(ModLogger logger) => _logger = logger;   // 日志只在这一处注入
+
+    public string Name => "item";
+    public int Order => 100;
+
+    public bool Install()            // false = 内容还没出现，下次 Mod 注册再试
+    {
+        On.Terraria.Player.ItemCheck_CheckCanUse_Inner += CanUse;
+        return true;
+    }
+}
+```
+
+约定：
+
+- **安装状态只在 `LoaderBootstrap`**（`Installed` 集合）。Loader 里不要再写 `_installed` 标志。
+- **不要写转发方法**（`void ILoaderModule.Install(...) => Install(...)`）；接口方法直接就是唯一的入口。
+- 需要每次 Mod 注册后刷新缓存的模块额外实现 `ILoaderModuleRefresh.Refresh()`
+  （目前只有 `NpcLoader`：要重算"有没有 Global 覆写这套钩子"）。
+- 新增管线 = 写一个实现类，`LoaderBootstrap` 不用改。
+- 只有 `Order` 决定顺序，反射返回顺序不参与；SetDefaults 补丁必须早于对应的类型分派 Loader。
+
+## 6. 性能约定
 
 - 每帧/每实体路径上不分配闭包与字符串；错误标签按「出事时才拼」。
 - 分派前先判定「有没有人覆写」（`OverridePlan` / `AnyWith`），没有就整段跳过。
 - 热路径复用静态空列表，不每帧 `new List<T>()`。
 - 表扩容只在内容就绪时做一次，不在帧循环里查长度。
 
-## 6. 构建
+## 7. 构建
 
 本机沙箱下 MSBuild 的多进程节点不可用，必须单节点构建：
 
 ```powershell
 dotnet build src/csharp/managed/Pylon.ModLoader/Pylon.ModLoader.csproj -c Release -m:1 -nodeReuse:false
+```
+
+三个工程都开了 `TreatWarningsAsErrors`（零警告基线）。离线时 NuGet 漏洞审计的 `NU1900`
+不算错误（见 `Directory.Build.props`），在线时照常显示。
+
+真机冒烟（托管 DLL 热替换，不重编 APK）：
+
+```powershell
+pwsh -File src/csharp/tools/push-managed.ps1        # 推 4 个 DLL
+adb shell am force-stop dev.pylon.loader
+adb logcat -c; adb shell am start -n dev.pylon.loader/.MainActivity -a dev.pylon.loader.action.IMPORT --ez launch true --ez coreclr true
 ```

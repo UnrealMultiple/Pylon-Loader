@@ -177,7 +177,7 @@ public static class TypeTables
                     return image;
             }
         }
-        catch { }
+        catch { /* il2cpp 镜像列表还不稳定：扫不到就当没找到，调用方会再试 */ }
         return IntPtr.Zero;
     }
 

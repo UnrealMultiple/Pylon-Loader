@@ -1,33 +1,24 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using Pylon.ModLoader.Textures;
+using Pylon.ModLoader.UI;
 using Terraria;
 using GameTexture2D = Il2CppMicrosoft.Xna.Framework.Graphics.Texture2D;
 using ReLogic.Content;
-using Pylon.ModLoader.Textures;
-
-using Pylon.ModLoader.UI;
 
 namespace Pylon.ModLoader;
 
-/// <summary>一个触屏按钮的注册记录。</summary>
 /// <summary>触屏按钮的注册表与状态机。</summary>
 public sealed class TouchButtonLoader : ILoaderModule
 {
-    public TouchButtonLoader(ModLogger logger) => _logger = logger;
+    private const int QuickBase = 100;   // 第一个 mod 的 QuickActionControl 号（离游戏的 35 远远的）
 
-    public string Name => "touchbutton";
-
-    public int Order => 850;
-
-    private static readonly List<TouchButtonEntry> Entries = new();
+    private static readonly List<TouchButtonEntry> Entries = [];
     private static readonly Dictionary<string, TouchButtonEntry> ByKeyMap = new(StringComparer.Ordinal);
-    private static ModLogger? _logger;
+    private static IModLog _logger = NullLog.Instance;
     private static IdsData? _ids;
     private static long _tick = -1;
-
-    // 第一个 mod 的 QuickActionControl 号（离游戏的 35 远远的）
-    private const int QuickBase = 100;
 
     private sealed class IdsData
     {
@@ -37,6 +28,12 @@ public sealed class TouchButtonLoader : ILoaderModule
         public int FirstQuick;
         public int FirstControl;
     }
+
+    public TouchButtonLoader(ModLogger logger) => _logger = logger;
+
+    public string Name => "touchbutton";
+
+    public int Order => 850;
 
     /// <summary>RegisterButton。</summary>
     public static ModTouchButton RegisterButton(Mod mod, string name, TouchButtonOptions? options = null)
@@ -63,17 +60,12 @@ public sealed class TouchButtonLoader : ILoaderModule
         entry.TextureResolved = false;
         entry.TextureValue = null;
 
-        if (entry.Button == null)
-        {
-            entry.Button = new ModTouchButton(entry, name);
-        }
+        if (entry.Button == null) entry.Button = new ModTouchButton(entry, name);
 
         // 注册在内容就绪之后（PostSetupContent）：已经可以套用保存的布局
         if (TouchButtonHooks.Applied) TouchButtonHooks.ApplySaved();
         return entry.Button;
     }
-
-    // ---- 编号 ----
 
     private static IdsData Ids
     {
@@ -104,33 +96,35 @@ public sealed class TouchButtonLoader : ILoaderModule
         return fallback;
     }
 
-    // 给 Hooks / Layouts 用的内部访问器
-    internal static int UnboundValue() => Ids.Unbound;
-    internal static int QuickUnboundValue() => Ids.QuickUnbound;
-
     private static bool IsInteger(int value) => value != int.MinValue;
+
+    internal static int UnboundValue() => Ids.Unbound;
+
+    internal static int QuickUnboundValue() => Ids.QuickUnbound;
 
     public static int Count => Entries.Count;
 
     /// <summary>全部条目（注册顺序）。</summary>
     public static IReadOnlyList<TouchButtonEntry> All => Entries;
 
-    // 编号换算
     public static int ActionOf(TouchButtonEntry entry) => Ids.FirstAction + entry.Index;
+
     public static int QuickOf(TouchButtonEntry entry) => Ids.FirstQuick + entry.Index;
+
     public static int ControlOf(TouchButtonEntry entry) => Ids.FirstControl + entry.Index;
+
     public static int LastAction => Ids.FirstAction + Count - 1;
 
     public static TouchButtonEntry? ByKey(string key) =>
         key != null && ByKeyMap.TryGetValue(key, out var entry) ? entry : null;
 
-    public static TouchButtonEntry ByAction(int action)
+    public static TouchButtonEntry? ByAction(int action)
     {
         var i = action - Ids.FirstAction;
         return i >= 0 && i < Count ? Entries[i] : null;
     }
 
-    public static TouchButtonEntry ByQuick(int quick)
+    public static TouchButtonEntry? ByQuick(int quick)
     {
         var i = quick - Ids.FirstQuick;
         return i >= 0 && i < Count ? Entries[i] : null;
@@ -139,11 +133,9 @@ public sealed class TouchButtonLoader : ILoaderModule
     /// <summary>这个动作是不是 mod 的（本 boot 的或退出的 mod 留下的）。</summary>
     public static bool IsModded(int action) => action >= Ids.FirstAction;
 
-    // ---- 文本 / 图标 / 状态 ----
-
     public static string Label(TouchButtonEntry entry)
     {
-        string own = null;
+        string? own = null;
         try
         {
             if (entry.LabelFunc != null)
@@ -167,22 +159,22 @@ public sealed class TouchButtonLoader : ILoaderModule
     }
 
     /// <summary>图标的 Texture2D（解析一次并缓存；没有就给 null）。</summary>
-    public static GameTexture2D Texture(TouchButtonEntry entry)
+    public static GameTexture2D? Texture(TouchButtonEntry entry)
     {
-        TouchButtonLoader.Log("[touch-trace] Texture enter resolved=" + entry.TextureResolved);
+        Log("[touch-trace] Texture enter resolved=" + entry.TextureResolved);
         if (entry.TextureResolved) return entry.TextureValue;
         entry.TextureResolved = true;
         try
         {
-            entry.TextureValue = Resolve(entry) ?? null;
+            entry.TextureValue = Resolve(entry);
         }
         catch (Exception e)
         {
             Log("TouchButtonLoader: 图标出错：" + ModUI.Flatten(e));
             entry.TextureValue = null;
-            TouchButtonLoader.Log("[touch-trace] Texture exception");
+            Log("[touch-trace] Texture exception");
         }
-        TouchButtonLoader.Log("[touch-trace] Texture done value=" + (entry.TextureValue != null));
+        Log("[touch-trace] Texture done value=" + (entry.TextureValue != null));
         return entry.TextureValue;
     }
 
@@ -229,21 +221,22 @@ public sealed class TouchButtonLoader : ILoaderModule
         if (Main.gameMenu || !Enabled(entry)) return;
         entry.Latch = true;
         if (entry.OnPress == null) return;
-        Player player = null;
+        Player? player = null;
         try { player = Main.player[Main.myPlayer]; } catch { }
-        try { entry.OnPress(player); }
+        // 菜单/加载阶段可能还取不到玩家；回调契约收 Player，运行时允许 null
+        try { entry.OnPress(player!); }
         catch (Exception e) { Log("TouchButtonLoader: onPress 出错：" + ModUI.Flatten(e)); }
     }
 
     /// <summary>当前活动的触屏控制器。</summary>
-    public static GUIVirtualInputController Controller()
+    public static GUIVirtualInputController? Controller()
     {
         try { return GUIInstance.Active.GUIVirtualInputController; }
         catch { return null; }
     }
 
     /// <summary>当前的布局样式实例。</summary>
-    public static VirtualControlsStyles_Layout Styles()
+    public static VirtualControlsStyles_Layout? Styles()
     {
         try { return VirtualControlsStyles_Layout.Instance; }
         catch { return null; }
@@ -253,15 +246,16 @@ public sealed class TouchButtonLoader : ILoaderModule
     public static bool IsBound(TouchButtonEntry entry)
     {
         var action = ActionOf(entry);
-        var profile = SafeRead(() => Styles() != null ? Styles().ActiveProfile : null);
+        var styles = Styles();
+        var profile = styles != null ? SafeRead(() => styles.ActiveProfile) : null;
         var controls = profile != null ? SafeRead(() => profile.Controls) : null;
-        for (int i = 0; controls != null && i < controls.Length; i++)
+        for (var i = 0; controls != null && i < controls.Length; i++)
         {
             var binding = controls[i];
             if (binding == null) continue;
             if (SafeAction(binding) == action) return true;
             var groups = SafeGroups(binding);
-            for (int j = 0; groups != null && j < groups.Length; j++)
+            for (var j = 0; groups != null && j < groups.Length; j++)
             {
                 if (SafeGroup(groups, j) == action) return true;
             }
@@ -276,28 +270,22 @@ public sealed class TouchButtonLoader : ILoaderModule
         return true;
     }
 
-    internal static void Log(string message) => _logger?.Warn(message);
+    internal static void Log(string message) => _logger.Warn(message);
 
-    // ---- 本地化（Lang.Localized / Lang.Pick 的薄包装）----
-
-    private static string[] LangLocalized(string section, string key)
+    private static string[]? LangLocalized(string section, string key)
     {
         try
         {
-            foreach (var prefix in new[] { "TouchButtons", "Keybinds" })
-            {
-                _ = prefix;
-            }
             var candidate = "TouchButtons." + key;
-            if (Terraria.Localization.Language.Exists(candidate)) return new[] { candidate };
+            if (Terraria.Localization.Language.Exists(candidate)) return [candidate];
             candidate = "Keybinds." + key;
-            if (Terraria.Localization.Language.Exists(candidate)) return new[] { candidate };
+            if (Terraria.Localization.Language.Exists(candidate)) return [candidate];
         }
         catch { }
         return null;
     }
 
-    private static string PickLocalized(string key)
+    private static string? PickLocalized(string key)
     {
         try
         {
@@ -308,28 +296,25 @@ public sealed class TouchButtonLoader : ILoaderModule
         catch { return null; }
     }
 
-    // ---- 图标解析 ----
-
-    private static GameTexture2D Resolve(TouchButtonEntry entry)
+    private static GameTexture2D? Resolve(TouchButtonEntry entry)
     {
         var icon = entry.IconFunc != null ? entry.IconFunc() : null;
-        if (icon == null)
+        if (icon != null) return icon;
+        var mod = entry.Mod;
+        if (mod != null)
         {
             // Assets/TouchButtons/<Name>.png，再没有就用包 icon.png
-            var file = entry.Mod != null ? FindModTexture(entry.Mod, "Assets/TouchButtons/" + entry.Name) : null;
-            if (file != null) return entry.Mod.LoadTexture(file);
-            var packIcon = !string.IsNullOrEmpty(entry.Mod?.Directory)
-                ? System.IO.Path.Combine(entry.Mod.Directory, "icon.png")
-                : null;
-            if (packIcon != null && System.IO.File.Exists(packIcon)) return entry.Mod.LoadTexture("icon.png");
-            // 兜底：框架内置图标；注意**不能返回 null**（游戏的绘制代码拿 null 纹理去 Draw 会空指针崩）。
-            try { return Pylon.ModLoader.UI.ModConfigMenu.BuiltinIcon(); }
-            catch { return null; }
+            var file = FindModTexture(mod, "Assets/TouchButtons/" + entry.Name);
+            if (file != null) return mod.LoadTexture(file);
+            var packIcon = !string.IsNullOrEmpty(mod.Directory) ? System.IO.Path.Combine(mod.Directory, "icon.png") : null;
+            if (packIcon != null && System.IO.File.Exists(packIcon)) return mod.LoadTexture("icon.png");
         }
-        return icon;
+        // 兜底：框架内置图标（游戏的绘制代码拿 null 纹理去 Draw 会空指针崩）。
+        try { return Pylon.ModLoader.UI.ModConfigMenu.BuiltinIcon(); }
+        catch { return null; }
     }
 
-    private static string FindModTexture(Mod mod, string relative)
+    private static string? FindModTexture(Mod mod, string relative)
     {
         // 项目里贴图按相对路径解析（PylonTexture.Resolve）；这里只做存在性检查
         try
@@ -340,12 +325,11 @@ public sealed class TouchButtonLoader : ILoaderModule
         catch { return null; }
     }
 
-    // ---- 读游戏侧 field/数组的安全助手 ----
-
     internal static T SafeRead<T>(Func<T> fn)
     {
+        // interop 读游戏侧成员失败时给 default（引用类型即 null），调用点都自己判空
         try { return fn(); }
-        catch { return default; }
+        catch { return default!; }
     }
 
     internal static bool SafeIndex(Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<bool> array, int i)
@@ -360,7 +344,7 @@ public sealed class TouchButtonLoader : ILoaderModule
         catch { return -1; }
     }
 
-    internal static Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<VirtualControlsHardwareConfigurationMapping_Layout.ContolType> SafeGroups(VirtualControlsBinding_Layout binding)
+    internal static Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<VirtualControlsHardwareConfigurationMapping_Layout.ContolType>? SafeGroups(VirtualControlsBinding_Layout binding)
     {
         try { return binding.GroupActions; }
         catch { return null; }

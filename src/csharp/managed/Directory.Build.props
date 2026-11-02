@@ -8,5 +8,10 @@
   <PropertyGroup>
     <LangVersion>latest</LangVersion>
     <Deterministic>true</Deterministic>
+    <!--
+      漏洞审计告警（NU1900）不升级为错误：本机/CI 常常离线，连不上 nuget.org 时
+      它只是一条"拿不到审计数据"的提示，不该阻断编译。在线时警告照常显示。
+    -->
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);NU1900</WarningsNotAsErrors>
   </PropertyGroup>
 </Project>

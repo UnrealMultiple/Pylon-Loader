@@ -54,7 +54,7 @@ internal sealed class ItemSetDefaultsPatch : ILoaderModule
         }
         catch (Exception e)
         {
-            try { Error?.Invoke($"Item.SetDefaults 自定义分支异常：{e.Message}"); } catch { }
+            Error?.Invoke($"Item.SetDefaults 自定义分支异常：{e.Message}");
         }
     }
 }

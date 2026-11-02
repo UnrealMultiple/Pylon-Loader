@@ -4,6 +4,7 @@ using GameTexture2D = Il2CppMicrosoft.Xna.Framework.Graphics.Texture2D;
 
 namespace Pylon.ModLoader;
 
+/// <summary>一个触屏按钮的注册记录：注册时填一次元数据，之后由状态机逐帧维护状态。</summary>
 public sealed class TouchButtonEntry
 {
     internal TouchButtonEntry(string key, int index)
@@ -12,23 +13,30 @@ public sealed class TouchButtonEntry
         Index = index;
     }
 
-    public string Key { get; }            // 'mod/Name'
-    public int Index { get; }             // 注册序号（决定动作编号）
-    public Mod Mod { get; internal set; }
-    public string Name { get; internal set; }
+    /// <summary>'mod/Name'。</summary>
+    public string Key { get; }
 
-    // 显示
-    internal string TextKey;              // 'Mods.<id>.TouchButtons.<Name>.DisplayName'
-    internal string[] Texts;              // 本地化候选（TouchButtons.<Name>.DisplayName / Keybinds.<Name>.DisplayName）
-    internal Func<string> LabelFunc;      // options.label（函数或文本）
-    internal Func<GameTexture2D> IconFunc;
-    internal GameTexture2D TextureValue;  // 缓存（resolve 一次）
+    /// <summary>注册序号，决定动作编号。</summary>
+    public int Index { get; }
+
+    public Mod? Mod { get; internal set; }
+
+    public string Name { get; internal set; } = string.Empty;
+
+    /// <summary>'Mods.&lt;id&gt;.TouchButtons.&lt;Name&gt;.DisplayName'。</summary>
+    internal string TextKey = string.Empty;
+
+    /// <summary>本地化候选（TouchButtons.&lt;Name&gt; / Keybinds.&lt;Name&gt;）。</summary>
+    internal string[]? Texts;
+
+    internal Func<string>? LabelFunc;
+    internal Func<GameTexture2D>? IconFunc;
+    internal GameTexture2D? TextureValue;
     internal bool TextureResolved;
 
-    // 选项
-    internal Func<bool> VisibleFunc;
-    internal Func<bool> EnabledFunc;
-    internal Action<Player> OnPress;
+    internal Func<bool>? VisibleFunc;
+    internal Func<bool>? EnabledFunc;
+    internal Action<Player>? OnPress;
 
     // 状态（由 Tick 按帧算）
     internal bool Current;
@@ -38,5 +46,5 @@ public sealed class TouchButtonEntry
     internal bool Latch;
 
     /// <summary>按钮本体（Mod 手里那个）。</summary>
-    public ModTouchButton Button { get; internal set; }
+    public ModTouchButton? Button { get; internal set; }
 }
