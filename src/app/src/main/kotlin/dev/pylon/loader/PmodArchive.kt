@@ -28,7 +28,26 @@ internal object PmodArchive {
     data class Entry(val path: String, val flags: Byte, val rawSize: Int, val dataOffset: Long, val storedSize: Int)
 
     fun isArchive(file: File): Boolean =
-        runCatching { RandomAccessFile(file, "r").use { it.readInt() == MAGIC } }.getOrDefault(false)
+        runCatching { RandomAccessFile(file, "r").use { readLeInt(it) == MAGIC } }.getOrDefault(false)
+
+    // RandomAccessFile 的 readInt/readLong 是大端；容器是小端，统一走这里的 LE 读取。
+    private fun readLeInt(raf: RandomAccessFile): Int {
+        val b1 = raf.read(); val b2 = raf.read(); val b3 = raf.read(); val b4 = raf.read()
+        if (b4 < 0) throw java.io.EOFException()
+        return b1 or (b2 shl 8) or (b3 shl 16) or (b4 shl 24)
+    }
+
+    private fun readLeLong(raf: RandomAccessFile): Long {
+        var v = 0L
+        for (i in 0 until 8) v = v or ((raf.read().toLong() and 0xFF) shl (8 * i))
+        return v
+    }
+
+    private fun readLeShort(raf: RandomAccessFile): Int {
+        val b1 = raf.read(); val b2 = raf.read()
+        if (b2 < 0) throw java.io.EOFException()
+        return b1 or (b2 shl 8)
+    }
 
     /** 只读解析器。按 TOC 偏移随机直读，不解整包；用完 close。 */
     class Reader(file: File) : Closeable {
@@ -37,20 +56,20 @@ internal object PmodArchive {
 
         init {
             try {
-                if (raf.readInt() != MAGIC) throw IllegalArgumentException("pmod 格式不正确（v2 起为自研容器，zip 不再支持）：请重新打包")
-                val version = raf.readInt()
+                if (readLeInt(raf) != MAGIC) throw IllegalArgumentException("pmod 格式不正确（v2 起为自研容器，zip 不再支持）：请重新打包")
+                val version = readLeInt(raf)
                 if (version != VERSION) throw IllegalArgumentException("pmod 版本不支持：" + version + "（当前 " + VERSION + "）")
-                val count = raf.readInt()
+                val count = readLeInt(raf)
                 if (count < 0 || count > 4096) throw IllegalArgumentException("TOC 条目异常：" + count)
                 val map = LinkedHashMap<String, Entry>(count)
                 repeat(count) {
-                    val pathLen = raf.readShort().toInt() and 0xFFFF
+                    val pathLen = readLeShort(raf)
                     val flags = raf.readByte()
                     val bytes = ByteArray(pathLen)
                     raf.readFully(bytes)
-                    val rawSize = raf.readInt()
-                    val dataOffset = raf.readLong()
-                    val storedSize = raf.readInt()
+                    val rawSize = readLeInt(raf)
+                    val dataOffset = readLeLong(raf)
+                    val storedSize = readLeInt(raf)
                     val path = String(bytes, Charsets.UTF_8)
                     if (path.isEmpty() || path.startsWith('/') || path.contains('\\') || path.contains("//") ||
                         path.split('/').any { it == "." || it == ".." }) {
