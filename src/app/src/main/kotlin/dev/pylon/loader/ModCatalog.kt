@@ -11,7 +11,7 @@ internal enum class ModKind { FOLDER, LOOSE_DLL, PACKAGE }
 
 /**
  * 一个可加载的 Mod。字段与 `Pylon.Managed/ModLoader.cs` 的发现规则一致：
- * 主程序集优先 `mod.dll`、同名 dll、目录里唯一 dll；根下松散 dll 用文件名当 id；
+ * 主程序集优先同名 dll、目录里唯一 dll；根下松散 dll 用文件名当 id；
  * `.pmod` 是 zip 包，宿主启动时解到缓存目录。`icon` 仅供启动器列表展示，为空用文件夹图标。
  */
 internal data class ModInfo(
@@ -212,7 +212,7 @@ internal object ModCatalog {
 
                 icon = loadZipIcon(zip, iconPath, fallbackId)
                 if (findPackageDll(zip, fallbackId) == null) {
-                    error = "包内没有主程序集（mod.dll / 同名 dll / 唯一 dll）"
+                    error = "包内没有主程序集（同名 dll / 唯一 dll）"
                 }
             }
         } catch (t: Throwable) {
@@ -237,9 +237,6 @@ internal object ModCatalog {
 
     /** 与 C# 侧 `FindModDll` 同一套优先级；导入/打包校验也用它。 */
     internal fun findMainDll(dir: File): File? {
-        val preferred = File(dir, "mod.dll")
-        if (preferred.isFile) return preferred
-
         val named = File(dir, "${dir.name}.dll")
         if (named.isFile) return named
 
@@ -263,7 +260,6 @@ internal object ModCatalog {
             .map { it.name }
             .toList()
         return when {
-            "mod.dll" in rootDlls -> "mod.dll"
             "$fallbackId.dll" in rootDlls -> "$fallbackId.dll"
             rootDlls.size == 1 -> rootDlls[0]
             else -> null

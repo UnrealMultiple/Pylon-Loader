@@ -8,7 +8,7 @@ import java.io.File
  * 层：宿主层 / Mod 目录（:game 与 :app 共用同一套规则）
  *
  *   /storage/emulated/0/Android/data/dev.pylon.loader/Mods/
- *       <modId>/mod.dll + manifest.json (+ assets/)
+ *       <modId>/<modId>.dll + manifest.json (+ assets/)
  *       <任意名>.dll        也支持直接把 dll 丢在 Mods/ 下（文件名当 id）
  *
  * 放 app 专属外部目录：用户可直接丢文件、不需要任何权限（共享存储根在 Android 11+ 要权限）。
@@ -47,10 +47,10 @@ internal object ModStore {
         return folders to loose
     }
 
-    /** 优先 `mod.dll`，否则取排序后第一个 `*.dll`。 */
+    /** 优先与目录同名的 dll，否则取排序后第一个 `*.dll`。 */
     fun findDll(folder: File): File? {
-        val preferred = File(folder, "mod.dll")
-        if (preferred.isFile) return preferred
+        val named = File(folder, folder.name + ".dll")
+        if (named.isFile) return named
         return folder.listFiles { f -> f.isFile && f.extension.equals("dll", ignoreCase = true) }
             ?.sortedBy { it.name }
             ?.firstOrNull()
@@ -70,14 +70,14 @@ internal object ModStore {
 
             Mods/
               MyMod/
-                MyMod.dll        主程序集：与目录同名，或叫 mod.dll
+                MyMod.dll        主程序集：与目录同名
                 manifest.json    可选：元数据（没有代码坐标，入口靠接口发现）
                 lib/             可选：Mod 的私有依赖（宿主只共享自己的程序集）
                 assets/          可选：Mod 自己的资源
 
         也可以把单个 dll 直接丢在 Mods/ 下面（用文件名当 id）。
 
-        单文件包：把 .pmod 直接放进 Mods/（zip：manifest.json + mod.dll + 可选 icon.png/assets/lib）。
+        单文件包：把 .pmod 直接放进 Mods/（zip：manifest.json + 主程序集 dll + 可选 icon.png/assets/lib）。
         宿主启动时会把 .pmod 解到内部缓存再交给同一个加载器，和文件夹 Mod 走同一套规则。
         Mod 图标：Mod 根目录 icon.png（或 assets/icon.png，或 manifest 的 icon 字段）。
 

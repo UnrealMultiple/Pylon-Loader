@@ -45,7 +45,7 @@ internal object ModPackageCache {
                 val root = flattenRoot(temp)
                 ensureManifest(root, pkg)
                 if (findMainDll(root, pkg.nameWithoutExtension) == null) {
-                    throw IllegalStateException("包内没有主程序集（mod.dll / 同名 dll / 唯一 dll）")
+                    throw IllegalStateException("包内没有主程序集（同名 dll / 唯一 dll）")
                 }
                 if (!root.renameTo(target)) {
                     throw IllegalStateException("无法把解包缓存换入 $target")
@@ -128,8 +128,6 @@ internal object ModPackageCache {
     }
 
     private fun findMainDll(dir: File, fallbackId: String): File? {
-        val preferred = File(dir, "mod.dll")
-        if (preferred.isFile) return preferred
         val named = File(dir, "$fallbackId.dll")
         if (named.isFile) return named
         // manifest 里的 id 可能与包文件名不同。

@@ -83,12 +83,9 @@ internal sealed class ModCatalog
         }
     }
 
-    /// <summary>在 Mod 目录里找主程序集。</summary>
+    /// <summary>在 Mod 目录里找主程序集：优先与目录同名的 dll，唯一 dll 直接采用。</summary>
     private static string? FindModAssembly(string directory)
     {
-        var preferred = Path.Combine(directory, "mod.dll");
-        if (File.Exists(preferred)) return preferred;
-
         var named = Path.Combine(directory, Path.GetFileName(directory) + ".dll");
         if (File.Exists(named)) return named;
 
@@ -103,7 +100,7 @@ internal sealed class ModCatalog
         HostLog.Write(
             $"{Path.GetFileName(directory)} 里有 {libraries.Length} 个 dll，无法判断哪个是 Mod 本体：" +
             $"{string.Join(", ", libraries.Select(Path.GetFileName))}；" +
-            "请把主程序集命名为 mod.dll 或与目录同名，私有依赖放进 lib/");
+            "请把主程序集命名为与目录同名，私有依赖放进 lib/");
         return null;
     }
 

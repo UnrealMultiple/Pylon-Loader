@@ -28,7 +28,7 @@ internal data class ModPackResult(
 /**
  * 把一个 Mod 文件夹打包成单个 `.pmod`（zip 容器），格式就是"Mod 目录的 zip"：
  *   manifest.json  必需（源目录没有时生成 id/name/version/1.0.0）
- *   mod.dll        主程序集（或同名 dll / 唯一 dll）
+ *   <id>.dll       主程序集（或唯一 dll）
  *   icon.png       可选，显示在 Mod 管理页
  *   assets/ lib/   可选，原样保留
  * 输出到 `Mods/<id>.pmod`；宿主启动时解到内部缓存再交给托管加载器，与文件夹 Mod 并存、同一套选择逻辑。
@@ -66,13 +66,12 @@ internal object ModPackager {
                 !it.isDirectory && !it.path.contains('/') && it.path.endsWith(".dll", ignoreCase = true)
             }.map { it.path }
             val mainDll = when {
-                "mod.dll" in rootDlls -> "mod.dll"
                 "$id.dll" in rootDlls -> "$id.dll"
                 rootDlls.size == 1 -> rootDlls[0]
                 else -> return ModPackResult(
                     false,
                     null,
-                    "根目录没有主程序集：需要 mod.dll、$id.dll，或唯一的 dll",
+                    "根目录没有主程序集：需要 $id.dll，或唯一的 dll",
                 )
             }
             if (mainDll.isEmpty()) return ModPackResult(false, null, "主程序集为空")

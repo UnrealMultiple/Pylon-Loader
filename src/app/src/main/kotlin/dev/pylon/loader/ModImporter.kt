@@ -87,7 +87,7 @@ internal object ModImporter {
                     throw IllegalArgumentException("包内缺少 manifest.json")
                 }
                 if (ModCatalog.findPackageDll(zip, base) == null) {
-                    throw IllegalArgumentException("包内没有主程序集（mod.dll / 同名 dll / 唯一 dll）")
+                    throw IllegalArgumentException("包内没有主程序集（同名 dll / 唯一 dll）")
                 }
             }
 
@@ -111,7 +111,7 @@ internal object ModImporter {
         target.mkdirs()
         try {
             context.contentResolver.openInputStream(uri)?.use { input ->
-                File(target, "mod.dll").outputStream().use { output -> input.copyTo(output) }
+                File(target, base + ".dll").outputStream().use { output -> input.copyTo(output) }
             } ?: throw IllegalStateException("无法打开所选文件")
             return validateAndFinish(modsDir, target, base)
         } catch (t: Throwable) {
@@ -153,7 +153,7 @@ internal object ModImporter {
             return ModImportResult(
                 false,
                 name,
-                "没有找到主程序集：需要 mod.dll、与目录同名的 dll，或目录里唯一的 dll",
+                "没有找到主程序集：需要与目录同名的 dll，或目录里唯一的 dll",
             )
         }
         return ModImportResult(true, name, "已导入 $name")

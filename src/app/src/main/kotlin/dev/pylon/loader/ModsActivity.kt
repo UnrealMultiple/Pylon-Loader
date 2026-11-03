@@ -156,7 +156,7 @@ class ModsActivity : Activity() {
 
         content.addView(
             bodyText(
-                "支持 .dll / .zip / .pmod，或包含 mod.dll 的整个文件夹。" +
+                "支持 .dll / .zip / .pmod，或包含主程序集的整个文件夹。" +
                     "打包会把文件夹收成单个 .pmod，宿主启动时解到内部缓存再加载；没有图标会自动生成占位图。",
                 10.5f,
                 Palette.TextTertiary,

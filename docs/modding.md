@@ -136,7 +136,7 @@ RegisterImGuiTab(new MyTab());                        // 或者实现 IModImGuiT
 
 | 形态 | 结构 |
 |---|---|
-| 文件夹 Mod | `Mods/<id>/mod.dll`（或与 id 同名的 dll）+ 可选 `manifest.json`、`assets/`、`lib/`、`icon.png` |
+| 文件夹 Mod | `Mods/<id>/<id>.dll` + 可选 `manifest.json`、`assets/`、`lib/`、`icon.png` |
 | 单文件包 | `Mods/<id>.pmod`：同结构的 zip |
 | 单个 dll | 直接放 `Mods/xxx.dll`（无资源时最省事） |
 
