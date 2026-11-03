@@ -18,7 +18,9 @@ internal sealed class ModCatalog
         {
             foreach (var root in roots) Collect(root, entries);
 
-            // 选择文件永远放用户 Mods 目录（roots[0]）；包解包缓存读同一份。
+            // 同 id 只留第一个：文件夹与 .pmod 并存、或残留副本时不至于各加载一份。
+            entries = Deduplicate(entries);
+
             var selectionRoot = roots.FirstOrDefault(Directory.Exists) ?? roots[0];
             ApplySelection(selectionRoot, entries);
         }
@@ -45,6 +47,27 @@ internal sealed class ModCatalog
         // 松散放在根目录下的 dll 也算一个 Mod。
         foreach (var assemblyPath in Directory.GetFiles(root, "*.dll"))
             entries.Add(ModEntry.Discover(assemblyPath, Path.GetFileNameWithoutExtension(assemblyPath)));
+
+        // .pmod v2 包：内存加载，不再需要启动器预解包。
+        foreach (var packagePath in Directory.GetFiles(root, "*.pmod"))
+            entries.Add(ModEntry.DiscoverPackage(packagePath, Path.GetFileNameWithoutExtension(packagePath)));
+    }
+
+    private static List<ModEntry> Deduplicate(List<ModEntry> entries)
+    {
+        var seen = new Dictionary<string, ModEntry>(StringComparer.OrdinalIgnoreCase);
+        var unique = new List<ModEntry>(entries.Count);
+        foreach (var entry in entries)
+        {
+            if (seen.TryGetValue(entry.Id, out var first))
+            {
+                HostLog.Write($"重复 id：{entry.Id} 的 {entry.Source} 已忽略（先到的是 {first.Source}）");
+                continue;
+            }
+            seen[entry.Id] = entry;
+            unique.Add(entry);
+        }
+        return unique;
     }
 
     /// <summary>启动器写下的勾选结果（Mods/.pylon/selection.json），优先于各 Mod 清单的 enabled。</summary>

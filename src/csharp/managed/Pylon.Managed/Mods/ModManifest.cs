@@ -13,7 +13,22 @@ internal sealed record ModManifest(string Id, string Version, bool Enabled, IRea
         error = null;
         try
         {
-            using var document = JsonDocument.Parse(File.ReadAllText(path));
+            return Parse(File.ReadAllText(path), fallbackId, out error);
+        }
+        catch (Exception e)
+        {
+            error = "manifest.json 解析失败：" + e.Message;
+            return Default(fallbackId);
+        }
+    }
+
+    /// <summary>解析清单文本（磁盘文件与 .pmod 包内共用）；字段非法时退回默认值并给出 error。</summary>
+    public static ModManifest Parse(string text, string fallbackId, out string? error)
+    {
+        error = null;
+        try
+        {
+            using var document = JsonDocument.Parse(text);
             var root = document.RootElement;
             return new ModManifest(
                 GetString(root, "id") ?? fallbackId,

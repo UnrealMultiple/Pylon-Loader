@@ -7,7 +7,6 @@ import android.provider.OpenableColumns
 import java.io.File
 import java.io.InputStream
 import java.util.UUID
-import java.util.zip.ZipFile
 import java.util.zip.ZipInputStream
 
 internal data class ModImportResult(
@@ -82,11 +81,14 @@ internal object ModImporter {
                 tmp.outputStream().use { output -> input.copyTo(output) }
             } ?: throw IllegalStateException("无法打开所选文件")
 
-            ZipFile(tmp).use { zip ->
-                if (zip.getEntry(ModCatalog.MANIFEST_NAME) == null) {
+            if (!PmodArchive.isArchive(tmp)) {
+                throw IllegalArgumentException("pmod 格式不正确（v2 起为自研容器，zip 不再支持）：请重新打包")
+            }
+            PmodArchive.Reader(tmp).use { reader ->
+                if (!reader.contains(ModCatalog.MANIFEST_NAME)) {
                     throw IllegalArgumentException("包内缺少 manifest.json")
                 }
-                if (ModCatalog.findPackageDll(zip, base) == null) {
+                if (ModCatalog.findPackageDll(reader, base) == null) {
                     throw IllegalArgumentException("包内没有主程序集（同名 dll / 唯一 dll）")
                 }
             }

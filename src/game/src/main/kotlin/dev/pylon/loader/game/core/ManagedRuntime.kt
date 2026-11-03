@@ -32,11 +32,8 @@ internal class ManagedRuntime private constructor() {
             val (folders, loose) = ModStore.inventory(modsDir)
             Log.stage("mods", "Mod 目录：$modsDir（子目录 ${folders.size} 个，松散 dll ${loose.size} 个）")
 
-            val packageCacheRoot = ModPackageCache.prepare(context, modsDir)
-            val modsRoots = buildList {
-                add(modsDir.absolutePath)
-                packageCacheRoot?.let { add(it.absolutePath) }
-            }.joinToString(File.pathSeparator)
+            // .pmod v2 由托管加载器直接内存加载，不再需要启动前解包；扫描根只有用户 Mods 目录。
+            val modsRoots = modsDir.absolutePath
             Log.stage("mods", "托管扫描根：$modsRoots")
 
             val started = PylonCore.prepareCoreClr(

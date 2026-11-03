@@ -72,6 +72,12 @@ public static class PylonTexture
         height = texture.UnityTextureHeight;
     }
 
+    /// <summary>
+    /// Mod 目录下的相对文件在磁盘上不存在时的兜底回调（root, relativePath）。
+    /// 宿主用它给 .pmod 包做惰性解包：Mod 代码照旧按路径读文件，包内容按需落到缓存。
+    /// </summary>
+    public static Action<string, string>? ContentResolver { get; set; }
+
     /// <summary>绝对路径原样；相对路径按 Mod 目录解析，且不许跑出该目录。</summary>
     public static string Resolve(Mod? owner, string path)
     {
@@ -84,6 +90,7 @@ public static class PylonTexture
         var prefix = root.EndsWith(Path.DirectorySeparatorChar) ? root : root + Path.DirectorySeparatorChar;
         if (!full.StartsWith(prefix, StringComparison.Ordinal))
             throw new PylonTextureException($"相对路径不能跑出 Mod 目录：{path}");
+        if (!File.Exists(full)) ContentResolver?.Invoke(root, Path.GetRelativePath(root, full));
         return full;
     }
 

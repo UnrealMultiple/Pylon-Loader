@@ -137,8 +137,12 @@ RegisterImGuiTab(new MyTab());                        // 或者实现 IModImGuiT
 | 形态 | 结构 |
 |---|---|
 | 文件夹 Mod | `Mods/<id>/<id>.dll` + 可选 `manifest.json`、`assets/`、`lib/`、`icon.png` |
-| 单文件包 | `Mods/<id>.pmod`：同结构的 zip |
+| 单文件包 | `Mods/<id>.pmod`：同结构的 v2 自研容器（PYPM，见下） |
 | 单个 dll | 直接放 `Mods/xxx.dll`（无资源时最省事） |
+
+`.pmod` v2 不是 zip：自带 TOC 的二进制容器（magic `PYPM`，条目可选 deflate）。加载器**直接从包里内存加载**程序集，
+不预解包、不驻留整包内存；只有 native `.so` 与资源文件按需解到 `Mods/.pylon/cache/`（包一变缓存即失效，可随时整删）。
+旧 zip 格式的 `.pmod` 不再支持，会得到"请重新打包"的明确报错；启动器的 Mod 管理页可以把包解包回文件夹。
 
 - 设备路径：`/storage/emulated/0/Android/data/dev.pylon.loader/Mods/`，应用专属外部目录，无需存储权限。
 - 可写数据目录：`Mods/_data/<id>/`，升级 Mod 不会清掉，适合存档与缓存。

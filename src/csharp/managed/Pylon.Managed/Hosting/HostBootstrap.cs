@@ -18,6 +18,13 @@ internal static class HostBootstrap
         Il2CppRuntimeBootstrap.Start();
         HostLog.Write($"CoreCLR 已起：{RuntimeInformation.FrameworkDescription}");
 
+        // .pmod 包内容按需解包：Mod 代码照旧按路径读文件（贴图、音效等），包内容惰性落到缓存。
+        Pylon.ModLoader.Textures.PylonTexture.ContentResolver = (root, relative) =>
+        {
+            if (PackageContent.CacheRoots.TryGetValue(root, out var packagePath))
+                PackageContent.EnsureContentFile(packagePath, relative);
+        };
+
         // 框架 UI / ImGui 是加载器能力：没有 Mod 时也要起。
         var roots = ParseRoots(Environment.GetEnvironmentVariable(ModsDirectoryVariable));
         var hostDirectory = roots.Length > 0 ? roots[0] : AppContext.BaseDirectory;

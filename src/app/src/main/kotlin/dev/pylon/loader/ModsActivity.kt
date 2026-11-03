@@ -402,6 +402,19 @@ class ModsActivity : Activity() {
         }
         row.addView(toggle, LinearLayout.LayoutParams(dp(46), dp(28)))
 
+        if (mod.kind == ModKind.PACKAGE && mod.error == null) {
+            val unpack = ImageView(this).apply {
+                setImageResource(R.drawable.ic_archive)
+                setColorFilter(Palette.TextSecondary)
+                contentDescription = "解包 ${mod.name.ifBlank { mod.id }} 为文件夹"
+                isClickable = true
+                isFocusable = true
+                background = rippleCircle(Color.TRANSPARENT, Color.TRANSPARENT)
+                setOnClickListener { confirmUnpack(mod) }
+            }
+            row.addView(unpack, LinearLayout.LayoutParams(dp(40), dp(40)).apply { marginStart = dp(4) })
+        }
+
         val delete = ImageView(this).apply {
             setImageResource(R.drawable.ic_trash)
             setColorFilter(Palette.Danger)
@@ -524,6 +537,36 @@ class ModsActivity : Activity() {
                 if (result.success) showSuccess(result.message) else showError(result.message)
             }
         }, "pylon-mod-pack").start()
+    }
+
+    private fun confirmUnpack(mod: ModInfo) {
+        if (busy) return
+        PylonDialog(
+            host = this,
+            title = "解包 ${mod.id}？",
+            message = "会把 ${mod.source} 展开成 Mods/${mod.id}/ 文件夹并删除原包；之后可直接改文件。重启游戏后生效。",
+            positiveLabel = "解包",
+            onPositive = { unpack(mod) },
+        ).show()
+    }
+
+    private fun unpack(mod: ModInfo) {
+        showBusy("正在解包…")
+        val appContext = applicationContext
+        Thread({
+            val result = try {
+                val name = ModCatalog.unpack(modsDir, mod)
+                ModImportResult(true, name, "已解包为文件夹：$name（原包已删除）")
+            } catch (t: Throwable) {
+                ModImportResult(false, mod.id, "解包失败：${t.message}")
+            }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                hideBusy()
+                refresh()
+                if (result.success) showSuccess(result.message) else showError(result.message)
+            }
+        }, "pylon-mod-unpack").start()
     }
 
     private fun confirmDelete(mod: ModInfo) {

@@ -5,7 +5,6 @@ import android.graphics.BitmapFactory
 import org.json.JSONObject
 import java.io.File
 import java.util.Locale
-import java.util.zip.ZipFile
 
 internal enum class ModKind { FOLDER, LOOSE_DLL, PACKAGE }
 
@@ -90,6 +89,33 @@ internal object ModCatalog {
         val removed = if (target.isDirectory) target.deleteRecursively() else target.delete()
         if (removed) forget(modsDir, mod.id)
         return removed
+    }
+
+    /**
+     * 把 .pmod 解包为文件夹 Mod（v2 容器 → 真实目录）。成功后删除原包，返回目标目录名。
+     * 解包是"解包功能"而不是加载必需步骤：加载永远走内存，这里只是给想改文件的用户一个出口。
+     */
+    fun unpack(modsDir: File, mod: ModInfo): String {
+        val packageFile = mod.packageFile ?: throw IllegalArgumentException("不是单文件包")
+        val target = File(modsDir, mod.id)
+        if (target.exists()) throw IllegalStateException("已存在同名目录：${mod.id}")
+
+        PmodArchive.Reader(packageFile).use { reader ->
+            for ((path, entry) in reader.entries) {
+                val dest = File(target, path)
+                if (!dest.canonicalPath.startsWith(target.canonicalPath + File.separator)) {
+                    throw IllegalArgumentException("包内包含越界路径：$path")
+                }
+                dest.parentFile?.mkdirs()
+                dest.writeBytes(reader.read(path))
+            }
+        }
+        if (!packageFile.delete()) {
+            // 包删不掉（被占用等）：目录保留，提示用户手动删。
+            throw IllegalStateException("已解包到 ${mod.id}/，但原包删除失败（可手动删除）")
+        }
+        forget(modsDir, mod.id)
+        return mod.id
     }
 
     fun forget(modsDir: File, id: String) {
@@ -196,23 +222,26 @@ internal object ModCatalog {
         var error: String? = null
 
         try {
-            ZipFile(packageFile).use { zip ->
-                val manifestEntry = zip.getEntry(MANIFEST_NAME)
-                if (manifestEntry != null) {
-                    val text = zip.getInputStream(manifestEntry).bufferedReader().use { it.readText() }
-                    val root = JSONObject(text)
-                    root.optString("id").takeIf { it.isNotBlank() }?.let { id = it }
-                    root.optString("name").takeIf { it.isNotBlank() }?.let { name = it }
-                    root.optString("version").takeIf { it.isNotBlank() }?.let { version = it }
-                    root.optString("icon").takeIf { it.isNotBlank() }?.let { iconPath = it }
-                    if (root.has("enabled")) manifestEnabled = root.optBoolean("enabled", true)
-                } else {
-                    error = "包内缺少 manifest.json"
-                }
+            if (!PmodArchive.isArchive(packageFile)) {
+                error = "pmod 格式不正确（v2 起为自研容器，zip 不再支持）：请重新打包"
+            } else {
+                PmodArchive.Reader(packageFile).use { reader ->
+                    val text = if (reader.contains(MANIFEST_NAME)) String(reader.read(MANIFEST_NAME), Charsets.UTF_8) else null
+                    if (text != null) {
+                        val root = JSONObject(text)
+                        root.optString("id").takeIf { it.isNotBlank() }?.let { id = it }
+                        root.optString("name").takeIf { it.isNotBlank() }?.let { name = it }
+                        root.optString("version").takeIf { it.isNotBlank() }?.let { version = it }
+                        root.optString("icon").takeIf { it.isNotBlank() }?.let { iconPath = it }
+                        if (root.has("enabled")) manifestEnabled = root.optBoolean("enabled", true)
+                    } else {
+                        error = "包内缺少 manifest.json"
+                    }
 
-                icon = loadZipIcon(zip, iconPath, fallbackId)
-                if (findPackageDll(zip, fallbackId) == null) {
-                    error = "包内没有主程序集（同名 dll / 唯一 dll）"
+                    icon = loadPackageIcon(reader, iconPath, fallbackId)
+                    if (findPackageDll(reader, fallbackId) == null) {
+                        error = "包内没有主程序集（同名 dll / 唯一 dll）"
+                    }
                 }
             }
         } catch (t: Throwable) {
@@ -254,11 +283,9 @@ internal object ModCatalog {
         }
     }
 
-    internal fun findPackageDll(zip: ZipFile, fallbackId: String): String? {
-        val rootDlls = zip.entries().asSequence()
-            .filter { !it.isDirectory && it.name.endsWith(".dll", ignoreCase = true) && !it.name.contains('/') }
-            .map { it.name }
-            .toList()
+    internal fun findPackageDll(reader: PmodArchive.Reader, fallbackId: String): String? {
+        val rootDlls = reader.entries.keys
+            .filter { it.endsWith(".dll", ignoreCase = true) && !it.contains('/') }
         return when {
             "$fallbackId.dll" in rootDlls -> "$fallbackId.dll"
             rootDlls.size == 1 -> rootDlls[0]
@@ -277,16 +304,16 @@ internal object ModCatalog {
         }
     }
 
-    private fun loadZipIcon(zip: ZipFile, manifestIcon: String?, fallbackId: String): Bitmap? {
+    private fun loadPackageIcon(reader: PmodArchive.Reader, manifestIcon: String?, fallbackId: String): Bitmap? {
         val candidates = buildList {
             manifestIcon?.let { add(it) }
             add("icon.png")
             add("assets/icon.png")
         }
         for (path in candidates) {
-            val entry = zip.getEntry(path) ?: continue
+            if (!reader.contains(path)) continue
             runCatching {
-                zip.getInputStream(entry).use { BitmapFactory.decodeStream(it) }
+                BitmapFactory.decodeByteArray(reader.read(path), 0, reader.entries.getValue(path).rawSize)
             }.getOrNull()?.let { return it }
         }
         return null

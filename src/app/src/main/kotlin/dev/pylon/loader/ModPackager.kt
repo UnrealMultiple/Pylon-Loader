@@ -15,9 +15,6 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.Locale
 import java.util.UUID
-import java.util.zip.ZipEntry
-import java.util.zip.ZipFile
-import java.util.zip.ZipOutputStream
 
 internal data class ModPackResult(
     val success: Boolean,
@@ -26,12 +23,12 @@ internal data class ModPackResult(
 )
 
 /**
- * 把一个 Mod 文件夹打包成单个 `.pmod`（zip 容器），格式就是"Mod 目录的 zip"：
+ * 把一个 Mod 文件夹打包成单个 `.pmod`（v2 自研容器，见 PmodArchive）：
  *   manifest.json  必需（源目录没有时生成 id/name/version/1.0.0）
  *   <id>.dll       主程序集（或唯一 dll）
  *   icon.png       可选，显示在 Mod 管理页
  *   assets/ lib/   可选，原样保留
- * 输出到 `Mods/<id>.pmod`；宿主启动时解到内部缓存再交给托管加载器，与文件夹 Mod 并存、同一套选择逻辑。
+ * 输出到 `Mods/<id>.pmod`；托管加载器直接内存加载包内程序集（不再预解包），与文件夹 Mod 并存、同一套选择逻辑。
  */
 internal object ModPackager {
 
@@ -98,36 +95,28 @@ internal object ModPackager {
             val tmpDir = File(File(modsDir, ".pylon"), "tmp").apply { mkdirs() }
             val tmp = File(tmpDir, "pack-" + UUID.randomUUID() + ".pmod")
             try {
-                ZipOutputStream(tmp.outputStream().buffered()).use { zip ->
-                    zip.putNextEntry(ZipEntry(ModCatalog.MANIFEST_NAME))
-                    zip.write(manifest.toString(2).toByteArray(Charsets.UTF_8))
-                    zip.closeEntry()
-
-                    for (entry in entries) {
-                        if (entry.isDirectory) continue
-                        if (entry.path == ModCatalog.MANIFEST_NAME) continue
-                        val input = context.contentResolver.openInputStream(entry.uri)
+                val items = mutableListOf<Pair<String, () -> java.io.InputStream>>()
+                items += ModCatalog.MANIFEST_NAME to { manifest.toString(2).toByteArray(Charsets.UTF_8).inputStream() }
+                for (entry in entries) {
+                    if (entry.isDirectory) continue
+                    if (entry.path == ModCatalog.MANIFEST_NAME) continue
+                    val uri = entry.uri
+                    items += entry.path to {
+                        context.contentResolver.openInputStream(uri)
                             ?: throw IllegalStateException("无法读取 ${entry.path}")
-                        input.use {
-                            zip.putNextEntry(ZipEntry(entry.path))
-                            it.copyTo(zip)
-                            zip.closeEntry()
-                        }
-                    }
-
-                    // 没有 icon.png / assets/icon.png 时生成占位图标，保证每个 .pmod 都有图标。
-                    if (!hasIcon) {
-                        zip.putNextEntry(ZipEntry("icon.png"))
-                        zip.write(generateIcon(name))
-                        zip.closeEntry()
                     }
                 }
 
-                ZipFile(tmp).use { zip ->
-                    if (zip.getEntry(ModCatalog.MANIFEST_NAME) == null ||
-                        zip.entries().asSequence().none {
-                            !it.isDirectory && it.name.endsWith(".dll", ignoreCase = true)
-                        }
+                // 没有 icon.png / assets/icon.png 时生成占位图标，保证每个 .pmod 都有图标。
+                if (!hasIcon) {
+                    items += "icon.png" to { generateIcon(name).inputStream() }
+                }
+
+                PmodArchive.write(tmp, items)
+
+                PmodArchive.Reader(tmp).use { reader ->
+                    if (!reader.contains(ModCatalog.MANIFEST_NAME) ||
+                        reader.entries.keys.none { it.endsWith(".dll", ignoreCase = true) }
                     ) {
                         throw IllegalStateException("生成的包校验失败")
                     }

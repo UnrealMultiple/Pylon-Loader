@@ -78,7 +78,7 @@ internal object ModStore {
         也可以把单个 dll 直接丢在 Mods/ 下面（用文件名当 id）。
 
         单文件包：把 .pmod 直接放进 Mods/（zip：manifest.json + 主程序集 dll + 可选 icon.png/assets/lib）。
-        宿主启动时会把 .pmod 解到内部缓存再交给同一个加载器，和文件夹 Mod 走同一套规则。
+        托管加载器直接从 .pmod 内存加载程序集（资源按需解到 .pylon/cache/），和文件夹 Mod 走同一套规则。
         Mod 图标：Mod 根目录 icon.png（或 assets/icon.png，或 manifest 的 icon 字段）。
 
         启动器里的「Mod 管理」开关会写 Mods/.pylon/selection.json：
