@@ -1,6 +1,6 @@
 using System;
 using System.Numerics;
-using Pylon.ImGui;
+using Pylon.NaviteAPI.ImGui;
 
 // Consumer-style smoke test: proves the ImGui.NET-style surface compiles and works.
 internal static class Smoke

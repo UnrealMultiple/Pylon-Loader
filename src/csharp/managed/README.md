@@ -7,7 +7,7 @@
 | `Pylon.Mod.Abstractions` | 给 Mod 作者的最小契约：`IPylonMod` / `IModContext` / `IModImGuiTab` / `ImGuiTabRegistry` |
 | `Pylon.Managed` | CoreCLR 入口：原生解析、Dobby 后端、Il2CppInterop 启动、Mod 发现与加载 |
 | `Pylon.ModLoader` | 内容框架：`Mod` 基类、内容管线、`Global*`、配置、UI、效果 |
-| `Pylon.ImGui` | 由内核导出符号生成的 ImGui 绑定（机器生成，不手改） |
+| `Pylon.NaviteAPI` | 内核导出面的唯一 C# 绑定（ImGui / 特效 / 宿主）；全工程只有这里声明 `LibraryImport` |
 
 ## 目录
 
@@ -26,6 +26,11 @@ Pylon.ModLoader/
   Globals/                Global* 基类
   Loaders/                各内容管线（ILoaderModule）与触屏按钮
   Patch/  Textures/  Tooltips/  Effects/  UI/  ImGui/
+Pylon.NaviteAPI/          内核导出面的唯一绑定（全工程只有这里写 P/Invoke）
+  ImGui/                  namespace Pylon.NaviteAPI.ImGui：ig* / PylonImgui_*
+    Generated/            机器生成（tools/imgui-gen），不手改
+  Effects/                namespace Pylon.NaviteAPI.Effects：PylonFx_*
+  Host/                   namespace Pylon.NaviteAPI.Host：PylonMod_*（日志 / hook / 线程 / 指令改写）
 ```
 
 ## 规范
@@ -34,6 +39,8 @@ Pylon.ModLoader/
 - 注释只写"为什么"（时序约束、平台坑、非直觉取舍），公开 API 一行 `<summary>` 足够。
 - **已发布 API 不改成员形态**：属性与字段互换会让老 Mod 抛 `MissingFieldException` / `MissingMethodException`。重构只改可空标注与实现。
 - 工程职责不交叉：宿主逻辑不进框架，框架不反向依赖宿主。
+- **P/Invoke 只许写在 `Pylon.NaviteAPI`**：内核导出面变了一处改；其他工程不再出现 `DllImport` / `LibraryImport`。
+  绑定统一用源生成的 `LibraryImport`（运行期编组的 `DllImport` 不再新增）。
 
 ## 错误边界
 

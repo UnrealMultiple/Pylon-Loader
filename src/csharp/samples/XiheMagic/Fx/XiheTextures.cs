@@ -1,8 +1,6 @@
 using System;
 using System.IO;
 using System.IO.Compression;
-using System.Reflection;
-using System.Runtime.InteropServices;
 using Pylon.ModLoader;
 using Pylon.ModLoader.Effects;
 using Pylon.ModLoader.Textures;
@@ -11,12 +9,6 @@ namespace XiheMagic
 {
     internal static class XiheTextures
     {
-        [DllImport("pylon", EntryPoint = "PylonFx_TextureLoad")]
-        private static extern int TextureLoad(string key, int width, int height,
-            [In] byte[] rgba, int linear, int repeat, out int outWidth, out int outHeight);
-
-        private static ConstructorInfo _ctor;
-
         internal static ScreenTexture Load(Mod mod, string path, bool repeat)
         {
             var full = PylonTexture.Resolve(mod, path);
@@ -25,20 +17,8 @@ namespace XiheMagic
         }
 
         /// <summary>把已解好的 RGBA 交给内核（行序 v=0 在底部）。</summary>
-        internal static ScreenTexture LoadRaw(string key, int width, int height, byte[] rgba, bool repeat)
-        {
-            var id = TextureLoad(key, width, height, rgba, 1, repeat ? 1 : 0, out var ow, out var oh);
-            if (id == 0) throw new InvalidOperationException($"效果纹理登记失败：{key}");
-
-            _ctor ??= typeof(ScreenTexture).GetConstructor(
-                BindingFlags.Instance | BindingFlags.NonPublic,
-                null,
-                new[] { typeof(int), typeof(int), typeof(int) },
-                null);
-            if (_ctor == null) throw new MissingMethodException("ScreenTexture(int,int,int) 找不到");
-
-            return (ScreenTexture)_ctor.Invoke(new object[] { id, ow, oh });
-        }
+        internal static ScreenTexture LoadRaw(string key, int width, int height, byte[] rgba, bool repeat) =>
+            ScreenGraphics.Texture(key, width, height, rgba, true, repeat);
 
         // ---------------- 最小 PNG 解码 ----------------
 

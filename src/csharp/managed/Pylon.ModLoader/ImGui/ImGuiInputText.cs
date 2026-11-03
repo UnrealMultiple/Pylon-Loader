@@ -1,6 +1,5 @@
-using Pylon.ImGui;
+using Pylon.NaviteAPI.ImGui;
 using UnityEngine;
-using ImGuiApi = Pylon.ImGui.ImGui;
 
 namespace Pylon.ModLoader.UI;
 
@@ -33,7 +32,7 @@ internal static class ImGuiInputText
             Open(id, text);
             return;
         }
-        if (_editing != id && ImGuiApi.IsMouseClicked(ImGuiMouseButton.Left))
+        if (_editing != id && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
             Close();
     }
 

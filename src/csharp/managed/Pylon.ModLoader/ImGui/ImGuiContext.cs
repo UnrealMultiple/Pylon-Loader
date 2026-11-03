@@ -1,8 +1,7 @@
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
-using Pylon.ImGui;
-using ImGuiApi = Pylon.ImGui.ImGui;
+using Pylon.NaviteAPI.ImGui;
 
 namespace Pylon.ModLoader.UI;
 
@@ -22,7 +21,7 @@ internal static class ImGuiContext
     {
         if (_context != IntPtr.Zero) return true;
 
-        _context = ImGuiApi.CreateContext();
+        _context = ImGui.CreateContext();
         if (_context == IntPtr.Zero)
         {
             ModUI.Logger?.Error("ImGui.CreateContext 失败");
@@ -33,7 +32,7 @@ internal static class ImGuiContext
         ImGuiNativeApi.AttachContext(_context);
 
         if (!LoadFont()) return false;
-        ImGuiApi.StyleColorsDark();
+        ImGui.StyleColorsDark();
         TerrariaTheme.Apply();
         ApplyScale(UiSettings.Scale);
         EnableErrorRecovery();
@@ -43,7 +42,7 @@ internal static class ImGuiContext
     /// <summary>让 EndFrame 能恢复第三方 Tab 留下的未平衡窗口栈。</summary>
     private static void EnableErrorRecovery()
     {
-        var io = ImGuiApi.GetIO();
+        var io = ImGui.GetIO();
         io.ConfigErrorRecovery = true;
         io.ConfigErrorRecoveryEnableDebugLog = true;
     }
@@ -54,7 +53,7 @@ internal static class ImGuiContext
         // 必须先撤覆盖层：后端的 GL 对象（shader/VBO/字体纹理）要趁上下文还在才能销毁。
         try { ImGuiNativeApi.Reset(); }
         catch (Exception e) { ModUI.Logger?.Warn("覆盖层撤销失败：" + e.Message); }
-        ImGuiApi.DestroyContext(_context);
+        ImGui.DestroyContext(_context);
         _context = IntPtr.Zero;
         _appliedScale = 1f;   // 新上下文的样式是默认值，下次 ApplyScale 必须重新施加
         if (_fontPin.IsAllocated) _fontPin.Free();
@@ -67,8 +66,8 @@ internal static class ImGuiContext
         var target = Math.Clamp(scale, UiSettings.MinScale, UiSettings.MaxScale);
         if (Math.Abs(target - _appliedScale) < 0.0001f) return;
 
-        ImGuiApi.GetStyle().ScaleAllSizes(target / _appliedScale);
-        ImGuiApi.GetIO().FontGlobalScale = target;
+        ImGui.GetStyle().ScaleAllSizes(target / _appliedScale);
+        ImGui.GetIO().FontGlobalScale = target;
         _appliedScale = target;
     }
 
@@ -94,7 +93,7 @@ internal static class ImGuiContext
         }
 
         _fontPin = GCHandle.Alloc(ttf, GCHandleType.Pinned);
-        var atlas = ImGuiApi.GetIO().Fonts;
+        var atlas = ImGui.GetIO().Fonts;
         // 中文字形范围（含全角符号），一次给全，避免运行时缺字
         var ranges = atlas.GetGlyphRangesChineseFull();
 

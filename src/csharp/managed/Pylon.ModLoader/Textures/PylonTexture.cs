@@ -1,19 +1,15 @@
-using System.Runtime.InteropServices;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using ReLogic.Content;
 using UnityEngine;
 using GameTexture2D = Il2CppMicrosoft.Xna.Framework.Graphics.Texture2D;
 using UnityTexture2D = UnityEngine.Texture2D;
+using Pylon.NaviteAPI.Host;
 
 namespace Pylon.ModLoader.Textures;
 
 /// <summary>PNG/JPG → 游戏贴图。只能游戏线程调：别的线程上建 Unity 对象是 abort 进程。</summary>
 public static class PylonTexture
 {
-    [DllImport("pylon")] private static extern int PylonMod_IsGameThread();
-    [DllImport("pylon")] private static extern long PylonMod_GameThreadId();
-    [DllImport("pylon")] private static extern long PylonMod_CurrentThreadId();
-
     internal static ModLogger? Logger { get; set; }
 
     /// <summary>当前线程是不是游戏线程；问不到内核时一律当作"不是"。</summary>
@@ -21,7 +17,7 @@ public static class PylonTexture
     {
         get
         {
-            try { return PylonMod_IsGameThread() != 0; }
+            try { return ThreadNative.IsGameThread() != 0; }
             catch { return false; }
         }
     }
@@ -100,7 +96,7 @@ public static class PylonTexture
         if (IsGameThread) return;
         throw new PylonTextureException(
             $"{what} 只能在游戏线程(UnityMain)上做：别的线程上建 Unity 对象会 abort 进程。" +
-            $"当前 tid={TryNative(PylonMod_CurrentThreadId)}，游戏线程 tid={TryNative(PylonMod_GameThreadId)}；" +
+            $"当前 tid={TryNative(ThreadNative.CurrentThreadId)}，游戏线程 tid={TryNative(ThreadNative.GameThreadId)}；" +
             "贴图请放到 SetupContent 或 hook 里加载。");
     }
 

@@ -24,7 +24,7 @@ export function emitImGuiGen(model, outDir) {
   P('using System.Numerics;');
   P('using System.Text;');
   P('');
-  P('namespace Pylon.ImGui');
+  P('namespace Pylon.NaviteAPI.ImGui');
   P('{');
   P('    public static unsafe partial class ImGui');
   P('    {');

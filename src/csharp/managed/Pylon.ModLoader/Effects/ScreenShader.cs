@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text;
+using Pylon.NaviteAPI.Effects;
 
 namespace Pylon.ModLoader.Effects;
 
@@ -24,25 +25,10 @@ public sealed class ScreenShader
     public int Id { get; private set; }
 
     /// <summary>'pending'（还没编译）/ 'ready' / 'failed'。</summary>
-    public ScreenShaderStatus Status
-    {
-        get
-        {
-            ScreenEffectsNative.ShaderStatus(Id, out var state, null, 0);
-            return (ScreenShaderStatus)state;
-        }
-    }
+    public ScreenShaderStatus Status => (ScreenShaderStatus)ScreenEffectStatus.State(Id);
 
     /// <summary>编译错误（带 Mod 文件行号），失败时才有内容。</summary>
-    public string Error
-    {
-        get
-        {
-            var sb = new StringBuilder(2048);
-            ScreenEffectsNative.ShaderStatus(Id, out _, sb, sb.Capacity);
-            return sb.ToString();
-        }
-    }
+    public string Error => ScreenEffectStatus.Error(Id);
 
     /// <summary>GLSL 源码构造（name 只用于日志/去重）。</summary>
     public ScreenShader(string name, string source)

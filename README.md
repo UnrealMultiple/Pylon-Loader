@@ -87,7 +87,7 @@ src/app/     启动器（外部 UI）：导入运行时、Mod 管理、拉起 :g
 src/game/    宿主（:game）：dex 注入、运行时装载、UnityPlayer、崩溃日志
 src/common/  契约：运行时目录布局、清单格式、哈希
 src/core/    C++ 内核 libpylon.so（boot / il2cpp / hook / dotnet / mod / graphics / imgui / jni）
-src/csharp/  托管层与示例：Pylon.Managed / Pylon.ModLoader / Pylon.Mod.Abstractions / Pylon.ImGui
+src/csharp/  托管层与示例：Pylon.Managed / Pylon.ModLoader / Pylon.Mod.Abstractions / Pylon.NaviteAPI
 interop/     Il2CppInterop 代理程序集（由你的游戏文件生成，不进 git）
 external/    外部依赖（git 子模块，只有源码）
 refs/        本地游戏 dump（不进 git）

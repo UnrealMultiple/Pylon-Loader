@@ -1,6 +1,5 @@
-using Pylon.ImGui;
+using Pylon.NaviteAPI.ImGui;
 using UnityEngine;
-using ImGuiApi = Pylon.ImGui.ImGui;
 
 namespace Pylon.ModLoader.UI;
 
@@ -24,7 +23,7 @@ internal static class ImGuiInput
     internal static void Feed()
     {
         if (!ImGuiContext.Created) return;
-        var io = ImGuiApi.GetIO();
+        var io = ImGui.GetIO();
 
         int count;
         try { count = Input.touchCount; }

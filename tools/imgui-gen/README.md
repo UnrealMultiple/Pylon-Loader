@@ -6,8 +6,8 @@
 
 | 产出 | 位置 | 说明 |
 |---|---|---|
-| C++ 桥接 | `src/core/src/imgui/PylonImguiBridge.gen.cpp` | 每个导出都是 `extern "C" PYLON_IMGUI_EXPORT`，命名与 C# 侧 `DllImport` 对应；布尔按 int32 传递，UDT 返回走出参，重载加 `_Str` / `_FontPtr` 后缀 |
-| C# 绑定 | `src/csharp/managed/Pylon.ImGui/Generated/*.gen.cs` | `ImGuiNative`（`DllImport("pylon")`）、`ImGui`（字符串 / ref / span 编组的友好层）、结构体原生布局与指针包装、枚举 |
+| C++ 桥接 | `src/core/src/imgui/PylonImguiBridge.gen.cpp` | 每个导出都是 `extern "C" PYLON_IMGUI_EXPORT`，命名与 C# 侧 `LibraryImport` 对应；布尔按 int32 传递，UDT 返回走出参，重载加 `_Str` / `_FontPtr` 后缀 |
+| C# 绑定 | `src/csharp/managed/Pylon.NaviteAPI/ImGui/Generated/*.gen.cs` | `ImGuiNative`（`LibraryImport("pylon")`）、`ImGui`（字符串 / ref / span 编组的友好层）、结构体原生布局与指针包装、枚举 |
 
 输入头文件：`imgui.h`、`imgui_internal.h`、`imstb_textedit.h`。
 

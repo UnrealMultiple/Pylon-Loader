@@ -63,7 +63,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Pylon.ImGui\Pylon.ImGui.csproj" />
+    <!-- 内核导出面的唯一绑定层：ig* / PylonFx_* / PylonMod_* 全在那边声明 -->
+    <ProjectReference Include="..\Pylon.NaviteAPI\Pylon.NaviteAPI.csproj" />
   </ItemGroup>
 
   <ItemGroup>

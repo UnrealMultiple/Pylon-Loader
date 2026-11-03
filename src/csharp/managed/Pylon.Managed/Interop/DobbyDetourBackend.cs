@@ -1,4 +1,5 @@
 using Il2CppInterop.RuntimeDetour;
+using Pylon.NaviteAPI.Host;
 
 namespace Pylon.Managed.Interop;
 

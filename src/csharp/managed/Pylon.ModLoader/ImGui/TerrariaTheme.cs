@@ -1,6 +1,5 @@
 using System.Numerics;
-using Pylon.ImGui;
-using ImGuiApi = Pylon.ImGui.ImGui;
+using Pylon.NaviteAPI.ImGui;
 
 namespace Pylon.ModLoader.UI;
 
@@ -79,19 +78,19 @@ public static class TerrariaTheme
 
     public static Vector4 Alpha(Vector4 color, float alpha) => new(color.X, color.Y, color.Z, alpha);
 
-    public static uint U32(Vector4 color) => ImGuiApi.ColorConvertFloat4ToU32(color);
+    public static uint U32(Vector4 color) => ImGui.ColorConvertFloat4ToU32(color);
 
     /// <summary>PushStyleVar 只暴露 float 版本，二维 padding/spacing 需要 X/Y 各压一次。</summary>
     internal static void PushVec2(ImGuiStyleVar index, Vector2 value)
     {
-        ImGuiApi.PushStyleVarX(index, value.X);
-        ImGuiApi.PushStyleVarY(index, value.Y);
+        ImGui.PushStyleVarX(index, value.X);
+        ImGui.PushStyleVarY(index, value.Y);
     }
 
     /// <summary>把 Terraria 配色施加到 ImGui 全局样式。<see cref="ImGuiContext.Create"/> 调用一次。</summary>
     internal static void Apply()
     {
-        var style = ImGuiApi.GetStyle();
+        var style = ImGui.GetStyle();
 
         style.WindowPadding = new Vector2(12f, 10f);
         style.FramePadding = new Vector2(12f, 6f);
@@ -176,7 +175,7 @@ public static class TerrariaTheme
         Set(ImGuiCol.ModalWindowDimBg, new Vector4(0f, 0f, 0f, 0.55f));
     }
 
-    private static void Set(ImGuiCol index, Vector4 color) => ImGuiApi.GetStyle().Colors[(int)index] = color;
+    private static void Set(ImGuiCol index, Vector4 color) => ImGui.GetStyle().Colors[(int)index] = color;
 
     public static void Fill(ImDrawListPtr dl, Vector2 min, Vector2 max, Vector4 color)
         => dl.AddRectFilled(min, max, U32(color));
@@ -267,7 +266,7 @@ public static class TerrariaTheme
                                     string text, float outline = BodyOutline)
     {
         if (string.IsNullOrEmpty(text)) return;
-        var size = ImGuiApi.CalcTextSize(text);
+        var size = ImGui.CalcTextSize(text);
         TextOutlined(dl, new Vector2(
             min.X + (max.X - min.X - size.X) * 0.5f,
             min.Y + (max.Y - min.Y - size.Y) * 0.5f), color, text, outline);
@@ -280,7 +279,7 @@ public static class TerrariaTheme
         if (string.IsNullOrEmpty(text)) return;
 
         var letters = text.Length;
-        var size = ImGuiApi.CalcTextSize(text);
+        var size = ImGui.CalcTextSize(text);
         var total = size.X + spacing * (letters - 1);
         var x = min.X + (max.X - min.X - total) * 0.5f;
         var y = min.Y + (max.Y - min.Y - size.Y) * 0.5f;
@@ -288,7 +287,7 @@ public static class TerrariaTheme
         {
             var glyph = text[i].ToString();
             TextOutlined(dl, new Vector2(x, y), color, glyph, outline);
-            x += ImGuiApi.CalcTextSize(glyph).X + spacing;
+            x += ImGui.CalcTextSize(glyph).X + spacing;
         }
     }
 
@@ -296,7 +295,7 @@ public static class TerrariaTheme
                                  string text, float outline = BodyOutline)
     {
         if (string.IsNullOrEmpty(text)) return;
-        var size = ImGuiApi.CalcTextSize(text);
+        var size = ImGui.CalcTextSize(text);
         TextOutlined(dl, new Vector2(
             max.X - size.X,
             min.Y + (max.Y - min.Y - size.Y) * 0.5f), color, text, outline);

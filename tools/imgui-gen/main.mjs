@@ -102,7 +102,7 @@ export function parseAll() {
 export function runAll(opts = {}) {
   const model = parseAll();
   const outBridge = opts.bridge || 'C:/Users/admin/Desktop/Pylon-Loader/src/core/src/imgui/PylonImguiBridge.gen.cpp';
-  const outCs = opts.cs || 'C:/Users/admin/Desktop/Pylon-Loader/src/csharp/managed/Pylon.ImGui/Generated/';
+  const outCs = opts.cs || 'C:/Users/admin/Desktop/Pylon-Loader/src/csharp/managed/Pylon.NaviteAPI/ImGui/Generated/';
   const nBridge = emitBridgeCpp(model, outBridge);
   const nNative = emitNativeGen(model, outCs);
   const nImGui = emitImGuiGen(model, outCs);

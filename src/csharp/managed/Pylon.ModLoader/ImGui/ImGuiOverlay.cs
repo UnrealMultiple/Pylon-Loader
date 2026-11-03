@@ -1,7 +1,6 @@
 using System.IO;
-using Pylon.ImGui;
+using Pylon.NaviteAPI.ImGui;
 using UnityEngine;
-using ImGuiApi = Pylon.ImGui.ImGui;
 using Vector2 = System.Numerics.Vector2;
 using Vector4 = System.Numerics.Vector4;
 
@@ -125,7 +124,7 @@ internal static class ImGuiOverlay
             }
             if (ImGuiNativeApi.BeginFrame() == 0) return;
 
-            var io = ImGuiApi.GetIO();
+            var io = ImGui.GetIO();
             var (pw, ph) = ImGuiNativeApi.DisplaySize;
             io.DisplaySize = new Vector2(pw, ph);
             io.DeltaTime = 1f / 60f;
@@ -133,12 +132,12 @@ internal static class ImGuiOverlay
             // 缩放必须赶在 NewFrame 之前应用：NewFrame 会读取 FontGlobalScale 计算本帧字体，
             // 迟一步就变成"样式放大、文字没放大"错位一帧，设到 1.5× 时看起来像完全没缩放。
             ImGuiContext.ApplyScale(UiSettings.Scale);
-            ImGuiApi.NewFrame();
+            ImGui.NewFrame();
             _frameOpen = true;
             ImGuiTouchRouter.BeginFrame();
             ImGuiInput.Feed();
             Draw();
-            ImGuiApi.Render();
+            ImGui.Render();
             _frameOpen = false;
             ImGuiNativeApi.EndFrame();
             ImGuiInputText.EndFrame();
@@ -156,8 +155,8 @@ internal static class ImGuiOverlay
         if (_frameOpen)
         {
             _frameOpen = false;
-            try { ImGuiApi.Render(); }
-            catch (Exception) { try { ImGuiApi.EndFrame(); } catch (Exception) { } }
+            try { ImGui.Render(); }
+            catch (Exception) { try { ImGui.EndFrame(); } catch (Exception) { } }
         }
         try { ImGuiNativeApi.EndFrame(); } catch (Exception) { }
     }
@@ -202,10 +201,10 @@ internal static class ImGuiOverlay
         var size = WindowSize(displayWidth, displayHeight);
         EnsureWindowPosition(displayWidth, displayHeight, size);
 
-        TerrariaTheme.DropShadow(ImGuiApi.GetBackgroundDrawList(), _windowPos, _windowPos + size);
+        TerrariaTheme.DropShadow(ImGui.GetBackgroundDrawList(), _windowPos, _windowPos + size);
 
-        ImGuiApi.SetNextWindowPos(_windowPos, ImGuiCond.Always);
-        ImGuiApi.SetNextWindowSize(size, ImGuiCond.Always);
+        ImGui.SetNextWindowPos(_windowPos, ImGuiCond.Always);
+        ImGui.SetNextWindowSize(size, ImGuiCond.Always);
         TerrariaTheme.PushVec2(ImGuiStyleVar.WindowPadding, Vector2.Zero);
 
         var open = true;
@@ -215,23 +214,23 @@ internal static class ImGuiOverlay
             ImGuiWindowFlags.NoSavedSettings | ImGuiWindowFlags.NoBackground |
             ImGuiWindowFlags.NoBringToFrontOnFocus;
 
-        if (ImGuiApi.Begin(MenuTitle, ref open, flags))
+        if (ImGui.Begin(MenuTitle, ref open, flags))
             DrawMenuBody(tabs, size);
 
-        ImGuiApi.End();
-        ImGuiApi.PopStyleVar(2);
+        ImGui.End();
+        ImGui.PopStyleVar(2);
 
         if (!open) _menuOpen = false;
     }
 
     private static void DrawMenuBody(IReadOnlyList<Pylon.Mod.IModImGuiTab> tabs, Vector2 size)
     {
-        var winPos = ImGuiApi.GetWindowPos();
-        var winSize = ImGuiApi.GetWindowSize();
+        var winPos = ImGui.GetWindowPos();
+        var winSize = ImGui.GetWindowSize();
         var winMax = winPos + winSize;
         var border = TerrariaTheme.Px(DesignBorder);
         var titleBarHeight = border + TerrariaTheme.Px(DesignTitleBarHeight);
-        var dl = ImGuiApi.GetWindowDrawList();
+        var dl = ImGui.GetWindowDrawList();
 
         TerrariaTheme.Raised(dl, winPos, winMax,
             TerrariaTheme.PanelTop, TerrariaTheme.PanelMid, TerrariaTheme.PanelBottom,
@@ -254,10 +253,10 @@ internal static class ImGuiOverlay
             DrawNavPanel(dl, winPos.X + border, winPos.X + border + _navWidth,
                 contentTop, contentBottom, border);
 
-        ImGuiApi.SetCursorScreenPos(new Vector2(winPos.X + border, contentTop));
+        ImGui.SetCursorScreenPos(new Vector2(winPos.X + border, contentTop));
         if (showNav) DrawNav(tabs, _navWidth - border, contentBottom - contentTop);
 
-        ImGuiApi.SetCursorScreenPos(new Vector2(contentLeft, contentTop));
+        ImGui.SetCursorScreenPos(new Vector2(contentLeft, contentTop));
         DrawContent(tabs, contentRight - contentLeft, contentBottom - contentTop);
 
         DrawWindowFrame(dl, winPos, winMax, border);
@@ -304,7 +303,7 @@ internal static class ImGuiOverlay
             return;
         }
 
-        var dt = MathF.Max(ImGuiApi.GetIO().DeltaTime, 1f / 240f);
+        var dt = MathF.Max(ImGui.GetIO().DeltaTime, 1f / 240f);
         var t = 1f - MathF.Exp(-dt / NavAnimationSeconds);
         _navWidth += (target - _navWidth) * t;
     }
@@ -342,12 +341,12 @@ internal static class ImGuiOverlay
     private static void HandleWindowDrag(Vector2 winPos, Vector2 winMax, float titleBarHeight,
                                          Vector2 foldMin, Vector2 foldMax, Vector2 closeMin, Vector2 closeMax)
     {
-        var mouse = ImGuiApi.GetMousePos();
+        var mouse = ImGui.GetMousePos();
         var titleMin = new Vector2(winPos.X, winPos.Y);
         var titleMax = new Vector2(winMax.X, winPos.Y + titleBarHeight);
 
-        if (!_windowDragging && ImGuiApi.IsMouseClicked(ImGuiMouseButton.Left) &&
-            ImGuiApi.IsWindowHovered() && InRect(mouse, titleMin, titleMax) &&
+        if (!_windowDragging && ImGui.IsMouseClicked(ImGuiMouseButton.Left) &&
+            ImGui.IsWindowHovered() && InRect(mouse, titleMin, titleMax) &&
             !InRect(mouse, foldMin, foldMax) && !InRect(mouse, closeMin, closeMax))
         {
             _windowDragging = true;
@@ -355,7 +354,7 @@ internal static class ImGuiOverlay
         }
 
         if (!_windowDragging) return;
-        if (!ImGuiApi.IsMouseDown(ImGuiMouseButton.Left))
+        if (!ImGui.IsMouseDown(ImGuiMouseButton.Left))
         {
             _windowDragging = false;
             return;
@@ -365,13 +364,13 @@ internal static class ImGuiOverlay
 
     private static bool TitleButton(string id, Vector2 pos, Vector2 size, TitleIcon icon)
     {
-        ImGuiApi.SetCursorScreenPos(pos);
-        var clicked = ImGuiApi.InvisibleButton(id, size, ImGuiButtonFlags.EnableNav);
-        var hovered = ImGuiApi.IsItemHovered() || ImGuiApi.IsItemFocused();
-        var held = ImGuiApi.IsItemActive();
-        var min = ImGuiApi.GetItemRectMin();
-        var max = ImGuiApi.GetItemRectMax();
-        var dl = ImGuiApi.GetWindowDrawList();
+        ImGui.SetCursorScreenPos(pos);
+        var clicked = ImGui.InvisibleButton(id, size, ImGuiButtonFlags.EnableNav);
+        var hovered = ImGui.IsItemHovered() || ImGui.IsItemFocused();
+        var held = ImGui.IsItemActive();
+        var min = ImGui.GetItemRectMin();
+        var max = ImGui.GetItemRectMax();
+        var dl = ImGui.GetWindowDrawList();
 
         TerrariaTheme.ButtonGradient(hovered, held, out var top, out var mid, out var bottom);
         TerrariaTheme.Raised(dl, min, max, top, mid, bottom,
@@ -429,11 +428,11 @@ internal static class ImGuiOverlay
     {
         TerrariaTheme.PushVec2(ImGuiStyleVar.WindowPadding,
             new Vector2(TerrariaTheme.Px(DesignNavPaddingX), TerrariaTheme.Px(DesignNavPaddingY)));
-        ImGuiApi.PushStyleVar(ImGuiStyleVar.ChildBorderSize, 0f);
+        ImGui.PushStyleVar(ImGuiStyleVar.ChildBorderSize, 0f);
         TerrariaTheme.PushVec2(ImGuiStyleVar.ItemSpacing, new Vector2(0f, TerrariaTheme.Px(DesignNavItemGap)));
 
         var childSize = new Vector2(MathF.Max(width, 1f), MathF.Max(height, 1f));
-        if (ImGuiApi.BeginChild("##pylonNav", childSize))
+        if (ImGui.BeginChild("##pylonNav", childSize))
         {
             if (TerrariaUI.NavButton("设置", _activeTab == 0, "##navSettings"))
                 ActivateTab(0);
@@ -444,32 +443,32 @@ internal static class ImGuiOverlay
                     ActivateTab(i + 1);
             }
         }
-        ImGuiApi.EndChild();
+        ImGui.EndChild();
 
-        ImGuiApi.PopStyleVar(5);
+        ImGui.PopStyleVar(5);
     }
 
     private static void DrawContent(IReadOnlyList<Pylon.Mod.IModImGuiTab> tabs, float width, float height)
     {
         TerrariaTheme.PushVec2(ImGuiStyleVar.WindowPadding,
             new Vector2(TerrariaTheme.Px(DesignContentPaddingX), TerrariaTheme.Px(DesignContentPaddingY)));
-        ImGuiApi.PushStyleVar(ImGuiStyleVar.ChildBorderSize, 0f);
+        ImGui.PushStyleVar(ImGuiStyleVar.ChildBorderSize, 0f);
 
         var childSize = new Vector2(MathF.Max(width, 1f), MathF.Max(height, 1f));
-        if (ImGuiApi.BeginChild("##pylonContent", childSize))
+        if (ImGui.BeginChild("##pylonContent", childSize))
         {
             if (_contentScrollReset)
             {
                 _contentScrollReset = false;
-                ImGuiApi.SetScrollY(0f);
+                ImGui.SetScrollY(0f);
             }
 
             if (_activeTab == 0) SettingsPage.Draw();
             else DrawModTab(tabs[_activeTab - 1]);
         }
-        ImGuiApi.EndChild();
+        ImGui.EndChild();
 
-        ImGuiApi.PopStyleVar(3);
+        ImGui.PopStyleVar(3);
     }
 
     private static void DrawModTab(Pylon.Mod.IModImGuiTab tab)
@@ -508,8 +507,8 @@ internal static class ImGuiOverlay
     private static void DrawTabError(Pylon.Mod.IModImGuiTab tab, Exception? error)
     {
         TerrariaUI.SeparatorText("Mod Tab 无法加载");
-        TerrariaUI.Text($"{SafeTitle(tab)} 与当前 Pylon.ImGui 不兼容。");
-        TerrariaUI.Text("请使用当前版本的 Pylon.ImGui 重新编译该 Mod。");
+        TerrariaUI.Text($"{SafeTitle(tab)} 与当前 Pylon.NaviteAPI 不兼容。");
+        TerrariaUI.Text("请使用当前版本的 Pylon.NaviteAPI 重新编译该 Mod。");
         if (error != null) TerrariaUI.DimText($"{error.GetType().Name}: {error.Message}");
     }
 
@@ -550,8 +549,8 @@ internal static class ImGuiOverlay
         }
         ClampBall(displayWidth, displayHeight, size);
 
-        ImGuiApi.SetNextWindowPos(_ballPos, ImGuiCond.Always);
-        ImGuiApi.SetNextWindowSize(size, ImGuiCond.Always);
+        ImGui.SetNextWindowPos(_ballPos, ImGuiCond.Always);
+        ImGui.SetNextWindowSize(size, ImGuiCond.Always);
         TerrariaTheme.PushVec2(ImGuiStyleVar.WindowPadding, Vector2.Zero);
 
         var open = true;
@@ -560,34 +559,34 @@ internal static class ImGuiOverlay
             ImGuiWindowFlags.NoBackground | ImGuiWindowFlags.NoFocusOnAppearing |
             ImGuiWindowFlags.NoBringToFrontOnFocus;
 
-        if (ImGuiApi.Begin("##pylonBall", ref open, flags))
+        if (ImGui.Begin("##pylonBall", ref open, flags))
         {
-            var clicked = ImGuiApi.InvisibleButton("##ball", size,
+            var clicked = ImGui.InvisibleButton("##ball", size,
                 ImGuiButtonFlags.MouseButtonLeft | ImGuiButtonFlags.EnableNav);
             HandleBallInput(clicked, size, displayWidth, displayHeight);
 
-            var min = ImGuiApi.GetItemRectMin();
-            var max = ImGuiApi.GetItemRectMax();
-            DrawBallSurface(ImGuiApi.GetWindowDrawList(), min, max,
-                ImGuiApi.IsItemHovered() || ImGuiApi.IsItemActive());
+            var min = ImGui.GetItemRectMin();
+            var max = ImGui.GetItemRectMax();
+            DrawBallSurface(ImGui.GetWindowDrawList(), min, max,
+                ImGui.IsItemHovered() || ImGui.IsItemActive());
 
-            RegisterHitRect(ImGuiApi.GetWindowPos(), ImGuiApi.GetWindowSize());
+            RegisterHitRect(ImGui.GetWindowPos(), ImGui.GetWindowSize());
         }
-        ImGuiApi.End();
-        ImGuiApi.PopStyleVar(2);
+        ImGui.End();
+        ImGui.PopStyleVar(2);
     }
 
     private static void HandleBallInput(bool clicked, Vector2 size, float displayWidth, float displayHeight)
     {
-        var mouse = ImGuiApi.GetMousePos();
-        if (ImGuiApi.IsItemActivated())
+        var mouse = ImGui.GetMousePos();
+        if (ImGui.IsItemActivated())
         {
             _ballPressPos = mouse;
             _ballGrabOffset = mouse - _ballPos;
             _ballDragMoved = false;
         }
 
-        if (ImGuiApi.IsItemActive() && ImGuiApi.IsMouseDown(ImGuiMouseButton.Left))
+        if (ImGui.IsItemActive() && ImGui.IsMouseDown(ImGuiMouseButton.Left))
         {
             if (!_ballDragMoved && (mouse - _ballPressPos).Length() > TerrariaTheme.Px(BallDragThreshold))
                 _ballDragMoved = true;

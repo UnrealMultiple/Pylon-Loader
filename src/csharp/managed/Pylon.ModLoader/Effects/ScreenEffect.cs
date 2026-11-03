@@ -1,4 +1,5 @@
 using UnityEngine;
+using Pylon.NaviteAPI.Effects;
 
 namespace Pylon.ModLoader.Effects;
 

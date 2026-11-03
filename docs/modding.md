@@ -9,7 +9,7 @@ Mod 是一个 .NET 10 类库，运行时被加载进游戏进程，与游戏共�
 | `Pylon.Mod.Abstractions` | 最小契约：`IPylonMod` / `IModContext` / `IModImGuiTab` |
 | `Pylon.ModLoader` | 内容框架：`Mod` 基类、内容类型、配置、UI、效果 |
 | `interop/generated/*.dll` | 游戏程序集的强类型代理（`Assembly-CSharp`、`Il2Cppmscorlib` 等） |
-| `Pylon.ImGui` | 需要自绘界面时引用（多数场景用 `IModImGuiTab` 就够） |
+| `Pylon.NaviteAPI` | 内核导出面的 C# 绑定；自绘界面用它的 `Pylon.NaviteAPI.ImGui`（多数场景用 `IModImGuiTab` 就够） |
 
 ```xml
 <TargetFramework>net10.0</TargetFramework>

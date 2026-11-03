@@ -3,6 +3,7 @@ using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Pylon.ModLoader.Textures;
 using Pylon.ModLoader.UI;
 using UnityEngine;
+using Pylon.NaviteAPI.Effects;
 
 namespace Pylon.ModLoader.Effects;
 
@@ -93,6 +94,32 @@ public static class ScreenGraphics
         catch (Exception e) { throw new ScreenEffectsException($"效果纹理登记失败：{full}（{e.Message}）"); }
         if (id == 0) throw new ScreenEffectsException($"效果纹理登记失败：{full}（参数无效）");
         return new ScreenTexture(id, width, height);
+    }
+
+    /// <summary>
+    /// 直接登记一张内存里的 RGBA 纹理（行序：v=0 在图像底部，与 shader 的 vUV 一致）。游戏线程调。
+    /// 同 key 同过滤复用同一 id；上传发生在渲染线程首次使用该纹理时。
+    /// </summary>
+    public static ScreenTexture Texture(string key, int width, int height, byte[] rgba,
+        bool linear = true, bool repeat = false)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(key);
+        ArgumentNullException.ThrowIfNull(rgba);
+        if (width <= 0 || height <= 0)
+            throw new ScreenEffectsException($"效果纹理 '{key}' 尺寸无效：{width}x{height}");
+        if (rgba.LongLength < (long)width * height * 4)
+            throw new ScreenEffectsException($"效果纹理 '{key}' 的 RGBA 数据不足 {width}x{height}");
+
+        int id, outWidth, outHeight;
+        try
+        {
+            id = ScreenEffectsNative.TextureLoad(key, width, height, rgba, linear ? 1 : 0, repeat ? 1 : 0,
+                out outWidth, out outHeight);
+        }
+        catch (Exception e) { throw new ScreenEffectsException($"效果纹理登记失败：{key}（{e.Message}）"); }
+        if (id == 0) throw new ScreenEffectsException($"效果纹理登记失败：{key}（参数无效）");
+        // 同 key 复用时内核回的是那张纹理的真实尺寸
+        return new ScreenTexture(id, outWidth > 0 ? outWidth : width, outHeight > 0 ? outHeight : height);
     }
 
     /// <summary>提交一帧（游戏线程）。没步骤的帧会被忽略。</summary>

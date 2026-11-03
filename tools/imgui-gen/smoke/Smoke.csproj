@@ -8,6 +8,6 @@
     <AssemblyName>Smoke</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\..\src\csharp\managed\Pylon.ImGui\Pylon.ImGui.csproj" />
+    <ProjectReference Include="..\..\..\src\csharp\managed\Pylon.NaviteAPI\Pylon.NaviteAPI.csproj" />
   </ItemGroup>
 </Project>

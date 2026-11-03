@@ -1,10 +1,10 @@
-using System.Runtime.InteropServices;
 using System.Text;
+using Pylon.NaviteAPI.Host;
 
 namespace Pylon.Managed.Hosting;
 
 /// <summary>托管层的唯一日志出口：写进内核 logcat。</summary>
-internal static partial class HostLog
+internal static class HostLog
 {
     private const string Prefix = "[managed] ";
 
@@ -13,7 +13,7 @@ internal static partial class HostLog
     {
         try
         {
-            NativeLog(Prefix + message);
+            LogNative.Write(Prefix + message);
         }
         catch (Exception)
         {
@@ -41,7 +41,4 @@ internal static partial class HostLog
         Write($"{label}：{Describe(exception)}");
         if (exception.StackTrace is { } stack) Write(stack.TrimEnd());
     }
-
-    [LibraryImport("pylon", EntryPoint = "PylonMod_Log", StringMarshalling = StringMarshalling.Utf8)]
-    private static partial void NativeLog(string message);
 }

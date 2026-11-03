@@ -1,7 +1,6 @@
 using System.Globalization;
 using System.Numerics;
-using Pylon.ImGui;
-using ImGuiApi = Pylon.ImGui.ImGui;
+using Pylon.NaviteAPI.ImGui;
 
 namespace Pylon.ModLoader.UI;
 
@@ -26,25 +25,25 @@ public static class TerrariaUI
     public static bool Button(string label, Vector2 size = default)
     {
         var text = DisplayLabel(label);
-        var textSize = ImGuiApi.CalcTextSize(text);
+        var textSize = ImGui.CalcTextSize(text);
         if (size.X <= 0f) size.X = textSize.X + TerrariaTheme.Px(ButtonPaddingX * 2f + BorderWidth * 2f);
         if (size.Y <= 0f)
             size.Y = MathF.Max(textSize.Y + TerrariaTheme.Px(ButtonPaddingY * 2f + BorderWidth * 2f),
                 TerrariaTheme.Px(34f));
 
-        ImGuiApi.PushID(WidgetId(label));
+        ImGui.PushID(WidgetId(label));
         try
         {
-            var clicked = ImGuiApi.InvisibleButton("##button", size, ImGuiButtonFlags.EnableNav);
-            var hovered = ImGuiApi.IsItemHovered() || ImGuiApi.IsItemFocused();
-            var held = ImGuiApi.IsItemActive();
-            DrawButton(ImGuiApi.GetWindowDrawList(), ImGuiApi.GetItemRectMin(), ImGuiApi.GetItemRectMax(),
+            var clicked = ImGui.InvisibleButton("##button", size, ImGuiButtonFlags.EnableNav);
+            var hovered = ImGui.IsItemHovered() || ImGui.IsItemFocused();
+            var held = ImGui.IsItemActive();
+            DrawButton(ImGui.GetWindowDrawList(), ImGui.GetItemRectMin(), ImGui.GetItemRectMax(),
                 text, hovered, held);
             return clicked;
         }
         finally
         {
-            ImGuiApi.PopID();
+            ImGui.PopID();
         }
     }
 
@@ -52,19 +51,19 @@ public static class TerrariaUI
     public static bool NavButton(string label, bool selected, string? id = null)
     {
         var text = DisplayLabel(label);
-        var textSize = ImGuiApi.CalcTextSize(text);
+        var textSize = ImGui.CalcTextSize(text);
         var height = MathF.Max(textSize.Y + TerrariaTheme.Px(NavPaddingY * 2f + BorderWidth * 2f),
             TerrariaTheme.Px(34f));
-        var width = ImGuiApi.GetContentRegionAvail().X;
+        var width = ImGui.GetContentRegionAvail().X;
 
-        ImGuiApi.PushID(WidgetId(id ?? label));
+        ImGui.PushID(WidgetId(id ?? label));
         try
         {
-            var clicked = ImGuiApi.InvisibleButton("##nav", new Vector2(width, height), ImGuiButtonFlags.EnableNav);
-            var hovered = ImGuiApi.IsItemHovered() || ImGuiApi.IsItemFocused();
-            var min = ImGuiApi.GetItemRectMin();
-            var max = ImGuiApi.GetItemRectMax();
-            var dl = ImGuiApi.GetWindowDrawList();
+            var clicked = ImGui.InvisibleButton("##nav", new Vector2(width, height), ImGuiButtonFlags.EnableNav);
+            var hovered = ImGui.IsItemHovered() || ImGui.IsItemFocused();
+            var min = ImGui.GetItemRectMin();
+            var max = ImGui.GetItemRectMax();
+            var dl = ImGui.GetWindowDrawList();
             var active = selected || hovered;
 
             TerrariaTheme.ButtonGradient(active, false, out var top, out var mid, out var bottom);
@@ -82,7 +81,7 @@ public static class TerrariaUI
         }
         finally
         {
-            ImGuiApi.PopID();
+            ImGui.PopID();
         }
     }
 
@@ -90,31 +89,31 @@ public static class TerrariaUI
     public static bool Checkbox(string label, ref bool value)
     {
         var text = DisplayLabel(label);
-        var textSize = ImGuiApi.CalcTextSize(text);
+        var textSize = ImGui.CalcTextSize(text);
         var box = TerrariaTheme.Px(CheckboxSize);
         var gap = TerrariaTheme.Px(CheckboxGap);
         var height = MathF.Max(box, textSize.Y);
         var width = box + gap + textSize.X;
 
-        ImGuiApi.PushID(WidgetId(label));
+        ImGui.PushID(WidgetId(label));
         try
         {
-            var clicked = ImGuiApi.InvisibleButton("##check", new Vector2(width, height), ImGuiButtonFlags.EnableNav);
+            var clicked = ImGui.InvisibleButton("##check", new Vector2(width, height), ImGuiButtonFlags.EnableNav);
             if (clicked) value = !value;
 
-            var hovered = ImGuiApi.IsItemHovered() || ImGuiApi.IsItemFocused();
-            var min = ImGuiApi.GetItemRectMin();
+            var hovered = ImGui.IsItemHovered() || ImGui.IsItemFocused();
+            var min = ImGui.GetItemRectMin();
             var boxMin = new Vector2(min.X, min.Y + (height - box) * 0.5f);
             var boxMax = boxMin + new Vector2(box, box);
-            DrawCheckbox(ImGuiApi.GetWindowDrawList(), boxMin, boxMax, value, hovered);
-            TerrariaTheme.TextOutlined(ImGuiApi.GetWindowDrawList(),
+            DrawCheckbox(ImGui.GetWindowDrawList(), boxMin, boxMax, value, hovered);
+            TerrariaTheme.TextOutlined(ImGui.GetWindowDrawList(),
                 new Vector2(boxMax.X + gap, min.Y + (height - textSize.Y) * 0.5f),
                 TerrariaTheme.TextMain, text);
             return clicked;
         }
         finally
         {
-            ImGuiApi.PopID();
+            ImGui.PopID();
         }
     }
 
@@ -126,8 +125,8 @@ public static class TerrariaUI
         if (max <= min) return false;
 
         var text = DisplayLabel(label);
-        var avail = MathF.Max(ImGuiApi.GetContentRegionAvail().X, 1f);
-        var textHeight = ImGuiApi.GetTextLineHeight();
+        var avail = MathF.Max(ImGui.GetContentRegionAvail().X, 1f);
+        var textHeight = ImGui.GetTextLineHeight();
         var rowHeight = MathF.Max(TerrariaTheme.Px(SliderKnob), textHeight);
         var gap = TerrariaTheme.Px(RowGap);
         var labelW = MathF.Min(TerrariaTheme.Px(labelWidth), avail * 0.45f);
@@ -145,9 +144,9 @@ public static class TerrariaUI
             trackW = avail;
         }
 
-        var start = ImGuiApi.GetCursorScreenPos();
+        var start = ImGui.GetCursorScreenPos();
         var trackLeft = start.X + (labelW > 0f ? labelW + gap : 0f);
-        var dl = ImGuiApi.GetWindowDrawList();
+        var dl = ImGui.GetWindowDrawList();
         if (labelW > 0f)
         {
             TextClipped(dl, new Vector2(start.X, start.Y),
@@ -156,22 +155,22 @@ public static class TerrariaUI
                 TerrariaTheme.TextMain, text);
         }
 
-        ImGuiApi.PushID(WidgetId(label));
+        ImGui.PushID(WidgetId(label));
         try
         {
-            ImGuiApi.SetCursorScreenPos(new Vector2(trackLeft, start.Y));
-            ImGuiApi.InvisibleButton("##track", new Vector2(trackW, rowHeight), ImGuiButtonFlags.MouseButtonLeft);
+            ImGui.SetCursorScreenPos(new Vector2(trackLeft, start.Y));
+            ImGui.InvisibleButton("##track", new Vector2(trackW, rowHeight), ImGuiButtonFlags.MouseButtonLeft);
 
             var changed = false;
             var trackMin = new Vector2(trackLeft, start.Y + (rowHeight - TerrariaTheme.Px(SliderTrack)) * 0.5f);
             var trackMax = new Vector2(trackMin.X + trackW, trackMin.Y + TerrariaTheme.Px(SliderTrack));
             var ratio = Math.Clamp((value - min) / (max - min), 0f, 1f);
 
-            if (ImGuiApi.IsItemActive() && ImGuiApi.IsMouseDown(ImGuiMouseButton.Left))
+            if (ImGui.IsItemActive() && ImGui.IsMouseDown(ImGuiMouseButton.Left))
             {
                 var innerWidth = MathF.Max(trackW - TerrariaTheme.Px(4f), 1f);
                 var nextRatio = Math.Clamp(
-                    (ImGuiApi.GetMousePos().X - trackMin.X - TerrariaTheme.Px(2f)) / innerWidth, 0f, 1f);
+                    (ImGui.GetMousePos().X - trackMin.X - TerrariaTheme.Px(2f)) / innerWidth, 0f, 1f);
                 var next = min + (max - min) * nextRatio;
                 if (MathF.Abs(next - value) > 0.0001f)
                 {
@@ -182,12 +181,12 @@ public static class TerrariaUI
             }
 
             DrawSlider(dl, trackMin, trackMax, ratio,
-                ImGuiApi.IsItemActive() || ImGuiApi.IsItemHovered());
+                ImGui.IsItemActive() || ImGui.IsItemHovered());
 
             if (valueW > 0f)
             {
                 var valueText = value.ToString(format, CultureInfo.InvariantCulture) + suffix;
-                var valueSize = ImGuiApi.CalcTextSize(valueText);
+                var valueSize = ImGui.CalcTextSize(valueText);
                 TextClipped(dl, new Vector2(start.X + avail - valueW, start.Y),
                     new Vector2(start.X + avail, start.Y + rowHeight),
                     new Vector2(start.X + avail - valueSize.X,
@@ -199,7 +198,7 @@ public static class TerrariaUI
         }
         finally
         {
-            ImGuiApi.PopID();
+            ImGui.PopID();
         }
     }
 
@@ -210,8 +209,8 @@ public static class TerrariaUI
         current = Math.Clamp(current, 0, items.Length - 1);
 
         var text = DisplayLabel(label);
-        var avail = MathF.Max(ImGuiApi.GetContentRegionAvail().X, 1f);
-        var textHeight = ImGuiApi.GetTextLineHeight();
+        var avail = MathF.Max(ImGui.GetContentRegionAvail().X, 1f);
+        var textHeight = ImGui.GetTextLineHeight();
         var rowHeight = MathF.Max(textHeight + TerrariaTheme.Px(14f + BorderWidth * 2f), TerrariaTheme.Px(34f));
         var gap = TerrariaTheme.Px(RowGap);
         var labelW = MathF.Min(TerrariaTheme.Px(labelWidth), avail * 0.35f);
@@ -222,8 +221,8 @@ public static class TerrariaUI
             headerW = MathF.Min(avail, TerrariaTheme.Px(150f));
         }
 
-        var start = ImGuiApi.GetCursorScreenPos();
-        var dl = ImGuiApi.GetWindowDrawList();
+        var start = ImGui.GetCursorScreenPos();
+        var dl = ImGui.GetWindowDrawList();
         if (labelW > 0f)
         {
             TextClipped(dl, new Vector2(start.X, start.Y),
@@ -233,51 +232,51 @@ public static class TerrariaUI
         }
 
         var headerMin = new Vector2(start.X + (labelW > 0f ? labelW + gap : 0f), start.Y);
-        ImGuiApi.PushID(WidgetId(label));
+        ImGui.PushID(WidgetId(label));
         try
         {
-            ImGuiApi.SetCursorScreenPos(headerMin);
-            if (ImGuiApi.InvisibleButton("##combo", new Vector2(headerW, rowHeight), ImGuiButtonFlags.EnableNav))
-                ImGuiApi.OpenPopup("##comboPopup");
+            ImGui.SetCursorScreenPos(headerMin);
+            if (ImGui.InvisibleButton("##combo", new Vector2(headerW, rowHeight), ImGuiButtonFlags.EnableNav))
+                ImGui.OpenPopup("##comboPopup");
 
-            var hovered = ImGuiApi.IsItemHovered() || ImGuiApi.IsItemFocused();
-            DrawComboHeader(ImGuiApi.GetWindowDrawList(), ImGuiApi.GetItemRectMin(), ImGuiApi.GetItemRectMax(),
+            var hovered = ImGui.IsItemHovered() || ImGui.IsItemFocused();
+            DrawComboHeader(ImGui.GetWindowDrawList(), ImGui.GetItemRectMin(), ImGui.GetItemRectMax(),
                 items[current], hovered);
 
             var changed = false;
             TerrariaTheme.PushVec2(ImGuiStyleVar.WindowPadding, new Vector2(TerrariaTheme.Px(4f)));
             try
             {
-                if (ImGuiApi.IsPopupOpen("##comboPopup"))
+                if (ImGui.IsPopupOpen("##comboPopup"))
                 {
                     // 只在弹层真的存在时设置 next-window 数据，否则会泄漏给本帧后创建的悬浮球窗口。
                     var popupWidth = headerW;
                     for (var i = 0; i < items.Length; i++)
                         popupWidth = MathF.Max(popupWidth,
-                            ImGuiApi.CalcTextSize(items[i]).X + TerrariaTheme.Px(44f));
+                            ImGui.CalcTextSize(items[i]).X + TerrariaTheme.Px(44f));
 
-                    ImGuiApi.SetNextWindowPos(new Vector2(headerMin.X, headerMin.Y + rowHeight + TerrariaTheme.Px(4f)),
+                    ImGui.SetNextWindowPos(new Vector2(headerMin.X, headerMin.Y + rowHeight + TerrariaTheme.Px(4f)),
                         ImGuiCond.Appearing);
-                    ImGuiApi.SetNextWindowSizeConstraints(new Vector2(popupWidth, 0f),
+                    ImGui.SetNextWindowSizeConstraints(new Vector2(popupWidth, 0f),
                         new Vector2(popupWidth, TerrariaTheme.Px(260f)), IntPtr.Zero, IntPtr.Zero);
                 }
 
-                if (ImGuiApi.BeginPopup("##comboPopup", ImGuiWindowFlags.NoSavedSettings))
+                if (ImGui.BeginPopup("##comboPopup", ImGuiWindowFlags.NoSavedSettings))
                 {
                     DrawComboPopup(items, ref current, ref changed);
-                    ImGuiApi.EndPopup();
+                    ImGui.EndPopup();
                 }
             }
             finally
             {
-                ImGuiApi.PopStyleVar(2);
+                ImGui.PopStyleVar(2);
             }
 
             return changed;
         }
         finally
         {
-            ImGuiApi.PopID();
+            ImGui.PopID();
         }
     }
 
@@ -285,12 +284,12 @@ public static class TerrariaUI
     public static void SeparatorText(string label)
     {
         var text = DisplayLabel(label);
-        var width = ImGuiApi.GetContentRegionAvail().X;
-        var textSize = ImGuiApi.CalcTextSize(text);
-        var dl = ImGuiApi.GetWindowDrawList();
+        var width = ImGui.GetContentRegionAvail().X;
+        var textSize = ImGui.CalcTextSize(text);
+        var dl = ImGui.GetWindowDrawList();
 
-        ImGuiApi.Dummy(new Vector2(0f, TerrariaTheme.Px(6f)));
-        var pos = ImGuiApi.GetCursorScreenPos();
+        ImGui.Dummy(new Vector2(0f, TerrariaTheme.Px(6f)));
+        var pos = ImGui.GetCursorScreenPos();
         var centerY = pos.Y + textSize.Y * 0.5f;
         var lineHeight = TerrariaTheme.Px(1f);
         var gap = TerrariaTheme.Px(10f);
@@ -309,18 +308,18 @@ public static class TerrariaUI
                 TerrariaTheme.GoldDeep, TerrariaTheme.Alpha(TerrariaTheme.GoldDeep, 0f));
 
         TerrariaTheme.TextOutlined(dl, new Vector2(textStart, pos.Y), TerrariaTheme.Gold, text);
-        ImGuiApi.Dummy(new Vector2(width, textSize.Y));
+        ImGui.Dummy(new Vector2(width, textSize.Y));
     }
 
     public static void Text(string text) => TextColored(text, TerrariaTheme.TextMain);
 
     public static void TextColored(string text, Vector4 color)
     {
-        var width = ImGuiApi.GetContentRegionAvail().X;
-        var dl = ImGuiApi.GetWindowDrawList();
-        var pos = ImGuiApi.GetCursorScreenPos();
+        var width = ImGui.GetContentRegionAvail().X;
+        var dl = ImGui.GetWindowDrawList();
+        var pos = ImGui.GetCursorScreenPos();
         var height = DrawWrappedText(dl, pos, width, color, text);
-        ImGuiApi.Dummy(new Vector2(width, height));
+        ImGui.Dummy(new Vector2(width, height));
     }
 
     public static void DimText(string text) => TextColored(text, TerrariaTheme.TextDim);
@@ -338,15 +337,15 @@ public static class TerrariaUI
         var text = DisplayLabel(label);
         if (!string.IsNullOrEmpty(text)) DimText(text);
 
-        var width = MathF.Max(ImGuiApi.GetContentRegionAvail().X, 1f);
-        var height = MathF.Max(ImGuiApi.GetTextLineHeight() + TerrariaTheme.Px(12f + BorderWidth * 2f),
+        var width = MathF.Max(ImGui.GetContentRegionAvail().X, 1f);
+        var height = MathF.Max(ImGui.GetTextLineHeight() + TerrariaTheme.Px(12f + BorderWidth * 2f),
             TerrariaTheme.Px(34f));
 
-        ImGuiApi.PushID(WidgetId("##" + label));
+        ImGui.PushID(WidgetId("##" + label));
         try
         {
-            var id = ImGuiApi.GetID("##field");
-            var clicked = ImGuiApi.InvisibleButton("##field", new Vector2(width, height), ImGuiButtonFlags.EnableNav);
+            var id = ImGui.GetID("##field");
+            var clicked = ImGui.InvisibleButton("##field", new Vector2(width, height), ImGuiButtonFlags.EnableNav);
             ImGuiInputText.HandleClick(id, clicked, value);
 
             // 键盘里的整串文本就是这一帧的值（拼音候选、选词都由系统输入法负责）
@@ -354,13 +353,13 @@ public static class TerrariaUI
             var changed = typed is not null && !string.Equals(typed, value, StringComparison.Ordinal);
             if (changed) value = typed!;
 
-            DrawTextField(ImGuiApi.GetItemRectMin(), ImGuiApi.GetItemRectMax(), value,
-                ImGuiInputText.IsEditing(id), ImGuiApi.IsItemHovered() || ImGuiApi.IsItemFocused());
+            DrawTextField(ImGui.GetItemRectMin(), ImGui.GetItemRectMax(), value,
+                ImGuiInputText.IsEditing(id), ImGui.IsItemHovered() || ImGui.IsItemFocused());
             return changed;
         }
         finally
         {
-            ImGuiApi.PopID();
+            ImGui.PopID();
         }
     }
 
@@ -383,7 +382,7 @@ public static class TerrariaUI
         }
 
         var color = hovered || held ? TerrariaTheme.GoldBright : TerrariaTheme.TextMain;
-        var textSize = ImGuiApi.CalcTextSize(text);
+        var textSize = ImGui.CalcTextSize(text);
         var textInset = TerrariaTheme.Px(BorderWidth);
         TextClipped(dl, min + new Vector2(textInset), max - new Vector2(textInset),
             new Vector2(min.X + (max.X - min.X - textSize.X) * 0.5f,
@@ -433,7 +432,7 @@ public static class TerrariaUI
     /// <summary>凹陷的输入框 + 文字：左对齐，文字比框宽就贴着右边显示（打字时能看见末尾）。</summary>
     private static void DrawTextField(Vector2 min, Vector2 max, string text, bool editing, bool hovered)
     {
-        var dl = ImGuiApi.GetWindowDrawList();
+        var dl = ImGui.GetWindowDrawList();
         TerrariaTheme.Sunken(dl, min, max, TerrariaTheme.FieldTop, TerrariaTheme.FieldMid,
             TerrariaTheme.FieldBottom, TerrariaTheme.Px(BorderWidth), TerrariaTheme.Px(BorderWidth));
 
@@ -446,7 +445,7 @@ public static class TerrariaUI
 
         var border = TerrariaTheme.Px(BorderWidth);
         var insetX = TerrariaTheme.Px(10f);
-        var textSize = ImGuiApi.CalcTextSize(text);
+        var textSize = ImGui.CalcTextSize(text);
         var visible = MathF.Max(max.X - min.X - insetX * 2f - border * 2f, 1f);
         var x = min.X + border + insetX - MathF.Max(textSize.X - visible, 0f);
         var textY = min.Y + (max.Y - min.Y - textSize.Y) * 0.5f;
@@ -455,7 +454,7 @@ public static class TerrariaUI
             new Vector2(x, textY), TerrariaTheme.TextMain, text);
 
         // 光标：跟在文字末尾，闪烁（约每秒一次）
-        if (editing && (ImGuiApi.GetFrameCount() / 30) % 2 == 0)
+        if (editing && (ImGui.GetFrameCount() / 30) % 2 == 0)
         {
             var caretW = TerrariaTheme.Px(2f);
             var caretX = MathF.Min(x + textSize.X, max.X - border - insetX * 0.5f - caretW);
@@ -500,7 +499,7 @@ public static class TerrariaUI
         TerrariaTheme.Raised(dl, min, max, top, mid, bottom,
             TerrariaTheme.Px(2f), TerrariaTheme.Px(2f));
 
-        var textSize = ImGuiApi.CalcTextSize(text);
+        var textSize = ImGui.CalcTextSize(text);
         var textMin = new Vector2(min.X + TerrariaTheme.Px(BorderWidth), min.Y);
         var textMax = new Vector2(MathF.Max(textMin.X, max.X - TerrariaTheme.Px(30f)), max.Y);
         TextClipped(dl, textMin, textMax,
@@ -520,25 +519,25 @@ public static class TerrariaUI
 
     private static void DrawComboPopup(string[] items, ref int current, ref bool changed)
     {
-        var winPos = ImGuiApi.GetWindowPos();
-        var winSize = ImGuiApi.GetWindowSize();
-        TerrariaTheme.Raised(ImGuiApi.GetWindowDrawList(), winPos, winPos + winSize,
+        var winPos = ImGui.GetWindowPos();
+        var winSize = ImGui.GetWindowSize();
+        TerrariaTheme.Raised(ImGui.GetWindowDrawList(), winPos, winPos + winSize,
             TerrariaTheme.PopupTop, TerrariaTheme.PopupMid, TerrariaTheme.PopupBottom,
             TerrariaTheme.Px(2f), TerrariaTheme.Px(2f));
 
-        var textHeight = ImGuiApi.GetTextLineHeight();
+        var textHeight = ImGui.GetTextLineHeight();
         var rowHeight = MathF.Max(textHeight + TerrariaTheme.Px(12f), TerrariaTheme.Px(30f));
-        var width = ImGuiApi.GetContentRegionAvail().X;
+        var width = ImGui.GetContentRegionAvail().X;
 
         for (var i = 0; i < items.Length; i++)
         {
-            ImGuiApi.PushID(i.ToString(CultureInfo.InvariantCulture));
-            var rowMin = ImGuiApi.GetCursorScreenPos();
-            var clicked = ImGuiApi.InvisibleButton("##item", new Vector2(width, rowHeight));
-            var hovered = ImGuiApi.IsItemHovered();
+            ImGui.PushID(i.ToString(CultureInfo.InvariantCulture));
+            var rowMin = ImGui.GetCursorScreenPos();
+            var clicked = ImGui.InvisibleButton("##item", new Vector2(width, rowHeight));
+            var hovered = ImGui.IsItemHovered();
             var selected = i == current;
             var rowMax = rowMin + new Vector2(width, rowHeight);
-            var dl = ImGuiApi.GetWindowDrawList();
+            var dl = ImGui.GetWindowDrawList();
 
             if (hovered || selected)
             {
@@ -556,7 +555,7 @@ public static class TerrariaUI
                 dl.AddLine(new Vector2(cx + size, cy), new Vector2(cx, cy + size), color, TerrariaTheme.Px(2f));
             }
 
-            var textSize = ImGuiApi.CalcTextSize(items[i]);
+            var textSize = ImGui.CalcTextSize(items[i]);
             TextClipped(dl, rowMin, rowMax,
                 new Vector2(rowMin.X + TerrariaTheme.Px(selected ? 22f : 14f),
                     rowMin.Y + (rowHeight - textSize.Y) * 0.5f),
@@ -566,17 +565,17 @@ public static class TerrariaUI
             {
                 current = i;
                 changed = true;
-                ImGuiApi.CloseCurrentPopup();
+                ImGui.CloseCurrentPopup();
             }
-            ImGuiApi.PopID();
+            ImGui.PopID();
         }
     }
 
     private static float DrawWrappedText(ImDrawListPtr dl, Vector2 pos, float width, Vector4 color, string text)
     {
-        var lineHeight = ImGuiApi.GetTextLineHeight();
+        var lineHeight = ImGui.GetTextLineHeight();
         if (string.IsNullOrEmpty(text)) return lineHeight;
-        if (width <= 0f || ImGuiApi.CalcTextSize(text).X <= width)
+        if (width <= 0f || ImGui.CalcTextSize(text).X <= width)
         {
             TerrariaTheme.TextOutlined(dl, pos, color, text);
             return lineHeight;
@@ -591,7 +590,7 @@ public static class TerrariaUI
             var lineWidth = 0f;
             while (end < text.Length && text[end] != '\n')
             {
-                var glyph = ImGuiApi.CalcTextSize(text.Substring(end, 1)).X;
+                var glyph = ImGui.CalcTextSize(text.Substring(end, 1)).X;
                 if (lineWidth + glyph > width && end > start) break;
                 lineWidth += glyph;
                 end++;

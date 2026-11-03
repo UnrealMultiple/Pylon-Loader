@@ -107,7 +107,7 @@ function emitOne(name, fields, methods, model) {
   P('using System.Runtime.CompilerServices;');
   P('using System.Text;');
   P('');
-  P('namespace Pylon.ImGui');
+  P('namespace Pylon.NaviteAPI.ImGui');
   P('{');
   P('    public unsafe partial struct ' + name);
   P('    {');

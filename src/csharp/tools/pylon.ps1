@@ -88,8 +88,8 @@ function Get-LogText($path) {
 }
 
 function Build-Managed {
-    foreach ($p in @('src\csharp\managed\Pylon.Mod.Abstractions', 'src\csharp\managed\Pylon.ModLoader',
-                     'src\csharp\managed\Pylon.Managed', 'src\csharp\managed\Pylon.ImGui')) {
+    foreach ($p in @('src\csharp\managed\Pylon.Mod.Abstractions', 'src\csharp\managed\Pylon.NaviteAPI',
+                     'src\csharp\managed\Pylon.ModLoader', 'src\csharp\managed\Pylon.Managed')) {
         if (Test-Path (Join-Path $root $p)) { Invoke-Dotnet $p @() }
     }
     Invoke-Dotnet 'src\csharp\managed\Pylon.Managed' @()
@@ -98,7 +98,7 @@ function Build-Managed {
 function Command-Push {
     if (-not $NoBuild) { Build-Managed }
     Step '推托管件到 files/pylon-managed'
-    foreach ($name in @('Pylon.ModLoader', 'Pylon.Managed', 'Pylon.Mod.Abstractions', 'Pylon.ImGui')) {
+    foreach ($name in @('Pylon.ModLoader', 'Pylon.Managed', 'Pylon.Mod.Abstractions', 'Pylon.NaviteAPI')) {
         $from = Join-Path $root "src\csharp\managed\$name\bin\$Configuration\net10.0\$name.dll"
         if (-not (Test-Path $from)) { Warn "跳过 $name.dll（没有产物）"; continue }
         Invoke-Adb push $from "/data/local/tmp/$name.dll" | Out-Null
@@ -324,7 +324,7 @@ function Command-Deploy {
     Build-Managed
     Remove-Item $assetManaged -Recurse -Force -ErrorAction SilentlyContinue
     New-Item -ItemType Directory -Force -Path $assetManaged | Out-Null
-    foreach ($name in @('Pylon.Managed', 'Pylon.Mod.Abstractions', 'Pylon.ModLoader', 'Pylon.ImGui')) {
+    foreach ($name in @('Pylon.Managed', 'Pylon.Mod.Abstractions', 'Pylon.ModLoader', 'Pylon.NaviteAPI')) {
         $dll = "src\csharp\managed\$name\bin\$Configuration\net10.0\$name.dll"
         if (Test-Path $dll) { Copy-Item $dll $assetManaged -Force } else { Warn "缺 $name.dll" }
     }

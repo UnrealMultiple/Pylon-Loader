@@ -28,6 +28,9 @@
     <!-- 框架：宿主必须能在 0 个 Mod 时也起 UI / ImGui，所以这里直接依赖它。 -->
     <ProjectReference Include="..\Pylon.ModLoader\Pylon.ModLoader.csproj" />
 
+    <!-- 内核导出面（hook / 日志的 P/Invoke 都在这里，宿主自己也要用） -->
+    <ProjectReference Include="..\Pylon.NaviteAPI\Pylon.NaviteAPI.csproj" />
+
     <!-- Hook 引擎（宿主实现 DetourBackend，把 detour 接到内核 Dobby）。 -->
     <ProjectReference Include="..\..\il2cppinterop\Il2CppInterop.RuntimeDetour\Il2CppInterop.RuntimeDetour.csproj" />
 

@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Pylon.NaviteAPI.Host;
 
 namespace Pylon.ModLoader;
 
@@ -6,7 +7,7 @@ namespace Pylon.ModLoader;
 /// 游戏把 <c>type &gt; 753</c> / <c>type &gt;= 754</c> 编进了 ARM64 指令里，反射与 hook 都改不到这些常量，
 /// 只能让内核改写立即数。名单按 1.4.5.8.6 的扫描结果核对过。
 /// </summary>
-internal static partial class LimitPatch
+internal static class LimitPatch
 {
     private const uint TileCount = 754;
 
@@ -43,13 +44,6 @@ internal static partial class LimitPatch
         new("Terraria.TileData", "GetTileDefinition", 8, TileCount, 0, Shifted: true),
     ];
 
-    [LibraryImport("pylon", EntryPoint = "PylonMod_PatchCompareLimit", StringMarshalling = StringMarshalling.Utf8)]
-    private static partial int PatchCompareLimit(string type, string method, int argc, uint oldLimit, uint newLimit,
-        int belowToo, int shifted);
-
-    [LibraryImport("pylon", EntryPoint = "PylonMod_LastError")]
-    private static partial IntPtr LastErrorPointer();
-
     /// <summary>把方块类型上限从 754 顶到 <paramref name="total"/>；返回失败的方法数。</summary>
     internal static int Apply(int total, ModLogger log)
     {
@@ -59,7 +53,7 @@ internal static partial class LimitPatch
         foreach (var entry in Entries)
         {
             var target = (uint)(total + entry.Offset);
-            var patched = PatchCompareLimit(entry.Type, entry.Method, entry.Argc, entry.Old, target,
+            var patched = PatchNative.CompareLimit(entry.Type, entry.Method, entry.Argc, entry.Old, target,
                 entry.BelowToo ? 1 : 0, entry.Shifted ? 1 : 0);
 
             if (patched > 0) continue;
@@ -75,7 +69,7 @@ internal static partial class LimitPatch
 
     private static string LastError()
     {
-        var pointer = LastErrorPointer();
+        var pointer = PatchNative.LastError();
         return pointer == IntPtr.Zero ? string.Empty : Marshal.PtrToStringUTF8(pointer) ?? string.Empty;
     }
 }

@@ -20,9 +20,10 @@ internal object RuntimeDeploy {
     const val MANAGED_DLL = "Pylon.Managed.dll"
     const val CONTRACT_DLL = "Pylon.Mod.Abstractions.dll"
     const val FRAMEWORK_DLL = "Pylon.ModLoader.dll"
+    const val NATIVE_API_DLL = "Pylon.NaviteAPI.dll"
 
     /// 改了 assets 里的东西就让版本号 +1，整树重解。
-    private const val DEPLOY_VERSION = 25
+    private const val DEPLOY_VERSION = 26
 
     private const val DEPTH_LIMIT = 8
 
@@ -125,7 +126,8 @@ internal object RuntimeDeploy {
     private fun Layout.hasEntry(): Boolean =
         entryAssembly.isFile &&
             File(managedDir, CONTRACT_DLL).isFile &&
-            File(managedDir, FRAMEWORK_DLL).isFile
+            File(managedDir, FRAMEWORK_DLL).isFile &&
+            File(managedDir, NATIVE_API_DLL).isFile
 
     private fun fingerprint(assets: AssetManager, assetPath: String, depth: Int = 0): String {
         if (depth > DEPTH_LIMIT) return "0:0"

@@ -1,4 +1,5 @@
-using ImGuiApi = Pylon.ImGui.ImGui;
+using Pylon.NaviteAPI.ImGui;
+
 
 namespace Pylon.ModLoader.UI;
 
@@ -17,7 +18,7 @@ internal static class SettingsPage
             // 否则同帧混用两套度量会花屏闪烁。
             UiSettings.Scale = scale;
         }
-        if (ImGuiApi.IsItemDeactivated()) UiSettings.Save();
+        if (ImGui.IsItemDeactivated()) UiSettings.Save();
 
         TerrariaUI.DimText("范围 0.75× – 1.5×，设置自动保存到 .pylon/ui.json");
     }

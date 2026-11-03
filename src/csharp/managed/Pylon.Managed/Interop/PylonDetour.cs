@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using Il2CppInterop.Runtime.Injection;
+using Pylon.NaviteAPI.Host;
 
 namespace Pylon.Managed.Interop;
 

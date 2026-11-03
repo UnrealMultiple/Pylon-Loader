@@ -7,7 +7,7 @@
     Il2Cppmscorlib / UnityEngine.*）原样注入到 Mod 工程。
 
     为什么需要它：SDK 风格工程里 ProjectReference 的"传递引用"只带被引用工程的
-    项目输出——所以 Pylon.ImGui / Pylon.Mod.Abstractions / Il2CppInterop.* 会
+    项目输出——所以 Pylon.NaviteAPI / Pylon.Mod.Abstractions / Il2CppInterop.* 会
     自动可用；但被引用工程的裸 &lt;Reference&gt;（HintPath 引的程序集）不会传给
     引用方，游戏代理必须显式补上。
 

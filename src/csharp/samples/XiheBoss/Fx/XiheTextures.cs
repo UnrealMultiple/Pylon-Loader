@@ -6,8 +6,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
-using System.Reflection;
-using System.Runtime.InteropServices;
 using Color = Il2CppMicrosoft.Xna.Framework.Graphics.Color;
 using Pylon.ModLoader;
 using Pylon.ModLoader.Effects;
@@ -64,12 +62,6 @@ namespace XiheBoss
 
     internal static class XiheTextures
     {
-        [DllImport("pylon", EntryPoint = "PylonFx_TextureLoad")]
-        private static extern int TextureLoad(string key, int width, int height,
-            [In] byte[] rgba, int linear, int repeat, out int outWidth, out int outHeight);
-
-        private static ConstructorInfo _ctor;
-
         /// <summary>图集在 shader 里的 sampler（uAtlas）。</summary>
         internal static ScreenTexture Atlas { get; private set; }
 
@@ -289,20 +281,7 @@ namespace XiheBoss
         }
 
         private static ScreenTexture Upload(string key, int width, int height, byte[] rgba, bool repeat,
-            bool linear = true)
-        {
-            var id = TextureLoad(key, width, height, rgba, linear ? 1 : 0, repeat ? 1 : 0, out var ow, out var oh);
-            if (id == 0) throw new InvalidOperationException($"效果纹理登记失败：{key}");
-
-            _ctor ??= typeof(ScreenTexture).GetConstructor(
-                BindingFlags.Instance | BindingFlags.NonPublic,
-                null,
-                new[] { typeof(int), typeof(int), typeof(int) },
-                null);
-            if (_ctor == null) throw new MissingMethodException("ScreenTexture(int,int,int) 找不到");
-
-            return (ScreenTexture)_ctor.Invoke(new object[] { id, ow, oh });
-        }
+            bool linear = true) => ScreenGraphics.Texture(key, width, height, rgba, linear, repeat);
 
         // ---------------- 最小 PNG 解码（RGBA，v=0 在底部） ----------------
 
