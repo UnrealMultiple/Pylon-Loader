@@ -54,6 +54,8 @@ internal static class LoaderRegistry
         ConfigPipeline.Instance,
         ConfigNetPipeline.Instance,
         TooltipPipeline.Instance,
+        InterfaceLayerPipeline.Instance,
+        SystemDrawPipeline.Instance,
     ];
 
     private static int _installed;

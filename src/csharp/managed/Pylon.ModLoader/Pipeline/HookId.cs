@@ -288,4 +288,9 @@ internal enum HookId
     GetFrame,
     UpdateFrameInEmoteMenu,
     GetFrameInEmoteMenu,
+
+    // ---- 内容：系统（界面层 / 绘制时机） ----
+    ModifyInterfaceLayers,
+    PostDrawInterface,
+    PostDrawTiles,
 }

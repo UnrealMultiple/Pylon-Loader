@@ -13,7 +13,6 @@ namespace Pylon.ModLoader.UI;
 public static class ModUI
 {
     private static bool _hooked;
-    private static bool _drawLogged;
     private static ModLogger? _logger;
     private static readonly List<ModPanel> Panels = [];
 
@@ -62,25 +61,22 @@ public static class ModUI
         On.Terraria.Main.UpdateUIStates += UpdateUIStatesHook;
         logger.Info("UI 驱动已挂：Main.UpdateUIStates(GameTime)");
 
-        On.Terraria.Main.DrawInterface_15_InvasionProgressBars += DrawNoArgsHook;
-        logger.Info("UI 绘制点已挂：Main.DrawInterface_15_InvasionProgressBars()");
+        // 绘制走界面层管线（和作者层同一条链，位置可调，不再占原版某个绘制点的钩子）。
+        InterfaceLayerPipeline.RegisterInternal(
+            new GameInterfaceLayer("Pylon: Loader UI", DrawLoaderUi, Terraria.UI.InterfaceScaleType.UI));
+        logger.Info("UI 绘制层已登记：Pylon: Loader UI");
+    }
+
+    private static bool DrawLoaderUi()
+    {
+        Draw(Main.spriteBatch, null);
+        return true;
     }
 
     private static void UpdateUIStatesHook(On.Terraria.Main.orig_UpdateUIStates orig, GameTime gameTime)
     {
         orig(gameTime);
         Update(gameTime);
-    }
-
-    private static void DrawNoArgsHook(On.Terraria.Main.orig_DrawInterface_15_InvasionProgressBars orig)
-    {
-        orig();
-        if (!_drawLogged)
-        {
-            _drawLogged = true;
-            _logger?.Info("UI 绘制点首次执行：面板开始绘制");
-        }
-        Draw(Main.spriteBatch, null);
     }
 
     /// <summary>把异常链压成一行：保留"谁抛的"，不刷堆栈。</summary>

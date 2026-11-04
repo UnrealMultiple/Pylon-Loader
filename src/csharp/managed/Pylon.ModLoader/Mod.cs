@@ -78,6 +78,20 @@ public abstract class Mod : IPylonMod
 
     public virtual void ResizeArrays() { }
 
+    // ===================== 系统时机（界面层 / 绘制） =====================
+
+    /// <summary>
+    /// 改界面层序列：在这份列表里增删、换序，把某层的 <see cref="GameInterfaceLayer.Active"/> 置 false 即隐藏。
+    /// 每帧调用一次；序列没变时管线不会重建游戏侧列表。
+    /// </summary>
+    public virtual void ModifyInterfaceLayers(List<GameInterfaceLayer> layers) { }
+
+    /// <summary>整块界面画完、鼠标提示之前。</summary>
+    public virtual void PostDrawInterface(SpriteBatch spriteBatch) { }
+
+    /// <summary>世界里的方块与投影都画完、界面之前。</summary>
+    public virtual void PostDrawTiles() { }
+
     public virtual void SetupContent() { }
 
     public virtual void AddRecipeGroups() { }

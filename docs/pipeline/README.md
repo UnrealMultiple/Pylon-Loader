@@ -76,6 +76,7 @@ Mod.Load(context)
 | [content-player](content-player.md) | `ModPlayer` 生命周期、存档、同步、绘制数据链 |
 | [content-playerdrawlayer](content-playerdrawlayer.md) | 两个层位 + 插入原版逐层链、隐藏层、`PlayerDrawSet` 五钩子、缩放 |
 | [content-tooltip](content-tooltip.md) | 提示行重建、`ModifyTooltips` 全局链、非悬停路径 |
+| [content-interface](content-interface.md) | 界面层插入/换序/隐藏、`PostDrawTiles` / `PostDrawInterface` |
 | [content-resourceoverlay](content-resourceoverlay.md) | 生命/魔力条覆盖、单颗资源、三种条样式 |
 | [content-menu](content-menu.md) | 菜单主题、logo/太阳/月亮、切换与持久化、菜单背景 |
 | [content-achievement](content-achievement.md) | 成就注册、条件、图标、完成通知、隐藏文本 |
