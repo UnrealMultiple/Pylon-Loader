@@ -50,6 +50,7 @@ internal class LauncherScreen(
         fun onCopyDiagnostics()
         fun onOpenMods()
         fun onViewCrash()
+        fun onCopyCrash()
         fun onClearCrash()
     }
 
@@ -686,6 +687,7 @@ internal class LauncherScreen(
         val crash = state.crash
         if (crash == null) {
             crashCard.visibility = View.GONE
+            crashCard.removeAllViews()
             return
         }
         crashCard.visibility = View.VISIBLE
@@ -701,37 +703,88 @@ internal class LauncherScreen(
         top.addView(
             ImageView(host).apply {
                 setImageResource(R.drawable.ic_alert)
-                setColorFilter(Palette.Warning)
+                setColorFilter(Palette.Danger)
             },
             LinearLayout.LayoutParams(context.dp(16), context.dp(16)),
         )
         top.addView(
-            uiText("宿主崩溃日志", 13f, Palette.TextPrimary, Fonts.medium).apply {
-                setPadding(context.dp(8), 0, 0, 0)
+            uiText("游戏崩溃了", 13f, Palette.TextPrimary, Fonts.medium).apply {
+                setPadding(context.dp(8), 0, context.dp(8), 0)
             },
             LinearLayout.LayoutParams(0, WRAP, 1f),
         )
-        top.addView(uiText(formatTime(crash.modifiedAt), 9.5f, Palette.TextTertiary))
+        top.addView(
+            chip(
+                text = crash.kind.label,
+                textColor = Palette.Danger,
+                bgColor = Palette.Danger.withAlpha(0.12f),
+                border = Palette.Danger.withAlpha(0.32f),
+                sizeSp = 9.5f,
+            ),
+        )
+        top.addView(
+            uiText(formatTime(crash.time), 9.5f, Palette.TextTertiary),
+            LinearLayout.LayoutParams(WRAP, WRAP).apply { marginStart = context.dp(8) },
+        )
         column.addView(top, LinearLayout.LayoutParams(MATCH, WRAP))
 
         column.addView(
+            uiText(crash.detail, 11.5f, Palette.TextSecondary).apply {
+                maxLines = 2
+                ellipsize = TextUtils.TruncateAt.END
+                setLineSpacing(context.dpf(3f), 1.2f)
+            },
+            topMargin(9),
+        )
+
+        if (crash.preview.isNotBlank()) {
+            column.addView(
+                uiText(crash.preview, 9.5f, Palette.TextSecondary, Fonts.mono).apply {
+                    maxLines = CRASH_PREVIEW_LINES
+                    ellipsize = TextUtils.TruncateAt.END
+                    setLineSpacing(context.dpf(2f), 1.15f)
+                    setTextIsSelectable(true)
+                    setPadding(context.dp(10), context.dp(8), context.dp(10), context.dp(8))
+                    background = GradientDrawable().apply {
+                        cornerRadius = context.dpf(10f)
+                        setColor(Palette.SurfaceInput)
+                        setStroke(context.dp(1), Palette.StrokeSoft)
+                    }
+                },
+                topMargin(10),
+            )
+        }
+
+        column.addView(
             uiText(
-                "${crash.file.name} · ${formatBytes(crash.size)} · 可查看后反馈给开发者。",
-                11f,
-                Palette.TextSecondary,
-            ).apply { setPadding(0, context.dp(8), 0, 0) },
+                "${crash.sources} · ${formatBytes(crash.size)} · 可直接复制反馈给开发者。",
+                10f,
+                Palette.TextTertiary,
+            ),
+            topMargin(8),
         )
 
         val actions = LinearLayout(host).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        actions.addView(linkText("查看内容", Palette.Accent) { listener.onViewCrash() })
+        actions.addView(linkText("查看完整日志", Palette.Accent) { listener.onViewCrash() })
         actions.addView(
-            linkText("清除", Palette.TextSecondary) { listener.onClearCrash() },
+            linkText("复制", Palette.TextSecondary) { listener.onCopyCrash() },
             LinearLayout.LayoutParams(WRAP, WRAP).apply { marginStart = context.dp(18) },
         )
-        column.addView(actions, topMargin(10))
+        actions.addView(
+            linkText("清除", Palette.TextTertiary) { listener.onClearCrash() },
+            LinearLayout.LayoutParams(WRAP, WRAP).apply { marginStart = context.dp(18) },
+        )
+        column.addView(actions, topMargin(6))
+    }
+
+    fun scrollToCrash() {
+        crashCard.post {
+            if (crashCard.visibility != View.VISIBLE) return@post
+            scroll.smoothScrollTo(0, (crashCard.top - scroll.paddingTop).coerceAtLeast(0))
+        }
     }
 
     private fun renderMods(state: LauncherState) {
@@ -1073,5 +1126,7 @@ internal class LauncherScreen(
         const val MATCH = LinearLayout.LayoutParams.MATCH_PARENT
         const val WRAP = LinearLayout.LayoutParams.WRAP_CONTENT
         const val MIN_IMPORT_OVERLAY_MS = 700L
+
+        const val CRASH_PREVIEW_LINES = 8
     }
 }

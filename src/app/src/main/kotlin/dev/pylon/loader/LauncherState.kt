@@ -25,12 +25,6 @@ internal data class FileCheck(
         }
 }
 
-internal data class CrashInfo(
-    val file: File,
-    val size: Long,
-    val modifiedAt: Long,
-)
-
 /**
  * 启动器一屏所需的全部事实，全部从磁盘/包管理器重新读，不缓存跨进程假设。
  * UI 层预先算"就绪"：用户点按钮前就知道文件齐不齐，而不是启动后才看到失败页。

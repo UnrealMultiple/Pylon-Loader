@@ -33,7 +33,15 @@ object RuntimeLayout {
     const val MANIFEST_FILE_NAME: String = "import-manifest.properties"
     const val NATIVE_SUBDIR: String = "lib"
     const val DATA_SUBDIR: String = "Data"
+    /** 宿主自己写的崩溃日志（Java 未捕获异常、启动失败）。 */
     const val CRASH_LOG_NAME: String = "crash-last.txt"
+
+    /** 启动器补记的进程异常退出（原生崩溃 / ANR），宿主来不及写日志时由 [ActivityManager] 的退出记录生成。 */
+    const val CRASH_EXIT_REPORT_NAME: String = "crash-exit.txt"
+
+    /** 宿主进程名后缀：GameActivity 在 :app manifest 里声明的是 android:process=":game"。 */
+    const val GAME_PROCESS_SUFFIX: String = ":game"
+
     const val LOG_TAG: String = "PylonLoader"
 
     /** 归一化成 `/` 分隔路径：Windows 上 relativeTo 给 `Data\...`，不归一化会让清单键跨平台静默不一致。 */

@@ -43,6 +43,8 @@ class MainActivity : Activity(), LauncherScreen.Listener {
     private lateinit var screen: LauncherScreen
     private var currentState: LauncherState? = null
     private var importing = false
+
+    private var checkingExit = false
     private val preferences by lazy { getSharedPreferences("pylon-launcher", MODE_PRIVATE) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,6 +60,7 @@ class MainActivity : Activity(), LauncherScreen.Listener {
         screen.render(state)
         screen.playEntrance()
         handleDebugIntent(intent)
+        inspectGameExit()
     }
 
     /** Activity 已存在时系统只发 onNewIntent，不重建；adb 驱动必须两条路都处理。 */
@@ -70,7 +73,11 @@ class MainActivity : Activity(), LauncherScreen.Listener {
     override fun onResume() {
         super.onResume()
         // 导入中不要用磁盘状态覆盖进度卡；结束后统一刷新。
-        if (!importing) refreshState()
+        if (!importing) {
+            refreshState()
+            // 从宿主回来时最可能这里发现崩溃：原生死掉的进程不会留下任何 Java 痕迹。
+            inspectGameExit()
+        }
     }
 
     private fun refreshState() {
@@ -155,12 +162,8 @@ class MainActivity : Activity(), LauncherScreen.Listener {
             )
         }
 
-        val crashFile = File(filesDir, RuntimeLayout.CRASH_LOG_NAME)
-        val crash = if (crashFile.isFile) {
-            CrashInfo(crashFile, crashFile.length(), crashFile.lastModified())
-        } else {
-            null
-        }
+        // 崩溃卡片要读文件头尾，这里只做小段读取（完整日志在用户点开时才读）。
+        val crash = CrashReports.inspect(this)
 
         return LauncherState(
             selectedPackage = selectedPackage,
@@ -425,33 +428,51 @@ class MainActivity : Activity(), LauncherScreen.Listener {
     }
 
     override fun onCopyDiagnostics() {
-        val clipboard = getSystemService(ClipboardManager::class.java)
-        clipboard?.setPrimaryClip(ClipData.newPlainText("Pylon Loader 诊断", buildDiagnostics()))
-        screen.showInfo("诊断信息已复制到剪贴板")
+        if (copyText("Pylon Loader 诊断", buildDiagnostics())) {
+            screen.showInfo("诊断信息已复制到剪贴板")
+        } else {
+            screen.showError("复制失败：剪贴板不可用")
+        }
     }
 
     override fun onOpenMods() {
         startActivity(Intent(this, ModsActivity::class.java))
     }
 
-    override fun onViewCrash() {
-        val file = File(filesDir, RuntimeLayout.CRASH_LOG_NAME)
-        if (!file.isFile) {
+    override fun onViewCrash() = showCrashLog()
+
+    override fun onCopyCrash() {
+        val text = CrashReports.readAll(this)
+        if (text.isBlank()) {
             screen.showInfo("没有崩溃日志")
             return
         }
-        val text = runCatching { file.readText() }.getOrElse {
-            screen.showError("读取崩溃日志失败：${it.javaClass.simpleName}")
+        if (copyText("Pylon Loader 崩溃日志", text)) {
+            screen.showInfo("崩溃日志已复制到剪贴板")
+        } else {
+            screen.showError("复制失败：剪贴板不可用")
+        }
+    }
+
+    override fun onClearCrash() {
+        PylonDialog(
+            host = this,
+            title = "清除崩溃日志？",
+            message = "会删除 crash-last.txt 与 crash-exit.txt，不影响运行时与 Mod。清除后本次记录不再弹出。",
+            positiveLabel = "清除",
+            positiveColor = Palette.Danger,
+            onPositive = { clearCrash() },
+        ).show()
+    }
+
+    private fun showCrashLog(title: String = "崩溃日志") {
+        val text = CrashReports.readAll(this)
+        if (text.isBlank()) {
+            screen.showInfo("没有崩溃日志")
             return
         }
-        val preview = if (text.length > MAX_CRASH_PREVIEW_CHARS) {
-            text.take(MAX_CRASH_PREVIEW_CHARS) + "\n\n…（日志过长，已截断）"
-        } else {
-            text
-        }
-
         val logView = TextView(this).apply {
-            this.text = preview
+            this.text = text
             typeface = Fonts.mono
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
             setTextColor(Palette.TextSecondary)
@@ -474,34 +495,43 @@ class MainActivity : Activity(), LauncherScreen.Listener {
 
         PylonDialog(
             host = this,
-            title = "宿主崩溃日志",
+            title = title,
+            message = "日志来自宿主进程与系统退出记录，可直接复制反馈给开发者。",
             content = scroller,
-            positiveLabel = "清除",
+            positiveLabel = "复制日志",
             negativeLabel = "关闭",
-            positiveColor = Palette.Danger,
-            onPositive = { clearCrash() },
-        ).show()
-    }
-
-    override fun onClearCrash() {
-        PylonDialog(
-            host = this,
-            title = "清除崩溃日志？",
-            message = "只删除宿主留下的 crash-last.txt，不影响运行时与 Mod。",
-            positiveLabel = "清除",
-            positiveColor = Palette.Danger,
-            onPositive = { clearCrash() },
+            onPositive = { onCopyCrash() },
         ).show()
     }
 
     private fun clearCrash() {
-        val file = File(filesDir, RuntimeLayout.CRASH_LOG_NAME)
-        if (file.exists() && !file.delete()) {
+        if (!CrashReports.clear(this)) {
             screen.showError("清除失败：文件无法删除")
             return
         }
         screen.showInfo("已清除崩溃日志")
         refreshState()
+    }
+
+    private fun inspectGameExit() {
+        if (checkingExit) return
+        checkingExit = true
+        val appContext = applicationContext
+        Thread({
+            val event = runCatching { ExitWatch.inspect(appContext) }
+                .onFailure { Log.w("检查宿主退出原因失败：${it.javaClass.simpleName}: ${it.message}") }
+                .getOrNull()
+            runOnUiThread {
+                checkingExit = false
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (event == null) return@runOnUiThread
+                refreshState()
+                screen.showError("游戏崩溃：${event.detail}")
+                screen.scrollToCrash()
+                // 崩溃刚发生就把日志摆到眼前：用户接着要做的就是看原因或复制反馈。
+                showCrashLog(title = "游戏崩溃日志")
+            }
+        }, "pylon-exit-watch").start()
     }
 
     // ------------------------------------------------------------------
@@ -602,6 +632,12 @@ class MainActivity : Activity(), LauncherScreen.Listener {
     // 诊断文本
     // ------------------------------------------------------------------
 
+    private fun copyText(label: String, text: String): Boolean {
+        val clipboard = getSystemService(ClipboardManager::class.java) ?: return false
+        clipboard.setPrimaryClip(ClipData.newPlainText(label, text))
+        return true
+    }
+
     private fun buildDiagnostics(): String {
         val state = currentState ?: readState()
         return buildString {
@@ -641,7 +677,8 @@ class MainActivity : Activity(), LauncherScreen.Listener {
                 "(${state.enabledModCount}/${state.mods.size} enabled)")
             appendLine(
                 "crash     : " + (state.crash?.let {
-                    "${it.file.absolutePath} (${it.size} B, ${formatTime(it.modifiedAt)})"
+                    "${it.kind.label} · ${it.detail} · ${formatTime(it.time)} · " +
+                        "${it.sources} (${it.size} B)"
                 } ?: "none"),
             )
         }
@@ -668,8 +705,6 @@ class MainActivity : Activity(), LauncherScreen.Listener {
         const val EXTRA_FORCE = "force"
         const val EXTRA_LAUNCH = "launch"
         const val KEY_SELECTED_GAME = "selectedGamePackage"
-
-        const val MAX_CRASH_PREVIEW_CHARS = 120_000
 
         /** docs/03 排查表点名的关键资源，缺了会黑屏，单独列出。 */
         val CRITICAL_DATA_PROBES = listOf(

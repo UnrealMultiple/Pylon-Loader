@@ -358,7 +358,13 @@ class GameActivity : Activity() {
 
     /** 启动失败：留痕 + 显示原因。故意不 finish，方便真机上看清原因。 */
     internal fun showStartupFailure(reason: String) {
-        CrashLog.write(this, Thread.currentThread(), IllegalStateException("宿主启动失败：$reason"))
+        CrashLog.write(
+            this,
+            Thread.currentThread(),
+            IllegalStateException("宿主启动失败：$reason"),
+            kind = "startup",
+            detail = "宿主启动失败：$reason",
+        )
         runCatching {
             setContentView(
                 android.widget.TextView(this).apply {

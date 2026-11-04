@@ -25,7 +25,7 @@ adb logcat -v time > log.txt                    # 全量（`pylon.ps1 run` 已�
 |---|---|---|
 | 启动即闪退，无本项目日志 | `adb logcat -s AndroidRuntime:E` | 宿主在建立进程时就失败了，通常是 dex 注入或 `.so` 装载 |
 | 有 `[boot]` 但没到 `RefsValidated` | 同上，注意 `Fatal signal` | IL2CPP 引用校验或探测崩了 |
-| 进入游戏后若干秒崩溃 | `files/crash-last.txt`、`[hook] applied` 日志 | 托管层异常，或 hook 目标签名不符 |
+| 进入游戏后若干秒崩溃 | `files/crash-last.txt` + `files/crash-exit.txt`（启动器补记的原生崩溃）、`[hook] applied` 日志 | 托管层异常，或 hook 目标签名不符 |
 | 游戏正常、Mod 全部失效 | `[boot]` 里的引用报告 | 引用校验失败即降级，属预期行为 |
 
 内核与托管层都按"Mod 可以没有、游戏必须能跑"设计，所以**游戏还能玩但 Mod 不生效**通常是引用校验失败，日志里会写清缺哪一条。
@@ -49,7 +49,8 @@ adb logcat -v time > log.txt                    # 全量（`pylon.ps1 run` 已�
 pwsh -File src/csharp/tools/pylon.ps1 check      # 环境与缺件
 pwsh -File src/csharp/tools/pylon.ps1 run         # 启动并抓日志
   adb shell run-as dev.pylon.loader ls files/runtime         # 导入结果
-  adb shell run-as dev.pylon.loader cat files/crash-last.txt # 上次崩溃
+  adb shell run-as dev.pylon.loader cat files/crash-last.txt # 上次 Java 崩溃/启动失败
+  adb shell run-as dev.pylon.loader cat files/crash-exit.txt  # 上次原生崩溃（含 backtrace 符号帧）
 ```
 
 `check` 报的缺件几乎覆盖了所有"编不过"与"跑不起来"的前置条件，先跑它再排查。
