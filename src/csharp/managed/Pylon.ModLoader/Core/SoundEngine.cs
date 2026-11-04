@@ -8,10 +8,10 @@ namespace Pylon.ModLoader;
 public static class SoundEngine
 {
     /// <summary>放一个 Mod 声音，按位置衰减；返回请求句柄，0 = 被拒。</summary>
-    public static int PlaySound(SoundStyle style, Vector2 position) => SoundLoader.Play(style, position);
+    public static int PlaySound(SoundStyle style, Vector2 position) => SoundPipeline.Instance.Play(style, position);
 
     /// <summary>放一个 Mod 声音，不按距离衰减；返回请求句柄，0 = 被拒。</summary>
-    public static int PlaySound(SoundStyle style) => SoundLoader.Play(style, null);
+    public static int PlaySound(SoundStyle style) => SoundPipeline.Instance.Play(style, null);
 
     public static SoundEffectInstance PlaySound(int type, Vector2 position) =>
         Terraria.Audio.SoundEngine.PlaySound(type, (int)Math.Floor(position.X), (int)Math.Floor(position.Y), 1, 1f, 0f);
@@ -26,10 +26,10 @@ public static class SoundEngine
         Terraria.Audio.SoundEngine.PlaySound(style, -1, -1, 0f, 1f);
 
     /// <summary>这个 Mod 声音现在有几个在响。</summary>
-    public static int FindActiveSound(SoundStyle style) => SoundLoader.FindActive(style);
+    public static int FindActiveSound(SoundStyle style) => SoundPipeline.Instance.FindActive(style);
 
     /// <summary>句柄状态：-1 失败、0 结束/未知、1 等待、2 播放、3 暂停、4 取消、5 超时丢弃。</summary>
-    public static int GetSoundState(int handle) => SoundLoader.State(handle);
+    public static int GetSoundState(int handle) => SoundPipeline.Instance.State(handle);
 
-    public static void StopSound(int handle) => SoundLoader.StopHandle(handle);
+    public static void StopSound(int handle) => SoundPipeline.Instance.StopHandle(handle);
 }

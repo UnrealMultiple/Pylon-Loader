@@ -41,8 +41,35 @@ public abstract class ModItem : ModType
     /// <summary>给一个新生实体造对应的实例（管线调）。</summary>
     public virtual ModItem NewInstance(Item entity) => CloneNewInstances ? Clone(entity) : this;
 
-    /// <summary>注册时一次（AddEquipTexture 之类放这里）。</summary>
+    /// <summary>注册时一次（AddEquipTexture 之类放这里）。安装期由装备管线调用，每个物品一次。</summary>
     public virtual void Load() { }
+
+    private List<EquipTexture>? _equipTextures;
+
+    /// <summary>这件武器的伤害类别（null = 不参与伤害类别乘区）。</summary>
+    public virtual ModDamageClass? DamageClass => null;
+
+    /// <summary>这张物品注册过的装备贴图（安装期由装备管线读）。</summary>
+    internal IReadOnlyList<EquipTexture> EquipTextures =>
+        _equipTextures is null ? Array.Empty<EquipTexture>() : _equipTextures;
+
+    /// <summary>注册一张装备贴图：在 <see cref="Load"/> 里调，返回的实例留到 <c>SetDefaults</c> 里取 <c>Slot</c>。</summary>
+    protected EquipTexture AddEquipTexture(string name, EquipType type, string texture)
+    {
+        var equip = new EquipTexture
+        {
+            Name = name,
+            Type = (int)type,
+            Texture = texture,
+            Item = this,
+        };
+
+        (_equipTextures ??= []).Add(equip);
+        return equip;
+    }
+
+    /// <summary>按注册名查这张物品某张装备贴图的槽位（在 SetDefaults 里用；没有就是 -1）。</summary>
+    public int GetEquipSlot(EquipType part, string name) => EquipTable.SlotOf(part, name);
 
     /// <summary>这一类型的每个物品生成时跑；数值都写在这。</summary>
     public virtual void SetDefaults(Item item) { }
@@ -275,6 +302,15 @@ public abstract class ModItem : ModType
         stats.DownHoverSpeedOverride = hoverFlySpeedOverride;
         stats.DownHoverAccelerationMult = hoverAccelerationMultiplier;
     }
+
+    /// <summary>
+    /// 这件物品要跟着原版物品包一起过网的那部分状态；对端按 <see cref="NetReceive"/> 同顺序读。
+    /// 只在安装期登记过钩子（重写本方法）时才发，其余物品不占带宽。
+    /// </summary>
+    public virtual void NetSend(NetWriter writer) { }
+
+    /// <summary>对端收到同一次物品包时读；顺序必须和 <see cref="NetSend"/> 一致。</summary>
+    public virtual void NetReceive(NetReader reader) { }
 
     /// <summary>每帧，在背包里。</summary>
     public virtual void UpdateInventory(Item item, Player player) { }

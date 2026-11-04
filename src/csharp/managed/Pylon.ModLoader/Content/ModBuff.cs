@@ -66,6 +66,12 @@ public abstract class ModBuff : ModType
     /// <summary>条上这个图标画完之后。</summary>
     public virtual void PostDraw(SpriteBatch spriteBatch, int buffIndex, BuffDrawParams drawParams) { }
 
+    /// <summary>相对 ModBuff 覆写了哪些钩子：安装时算一次挂在模板上，分派期只做位运算。</summary>
+    internal HookMask Hooks { get; set; }
+
+    /// <summary>这个钩子要不要分派给本实例。</summary>
+    internal bool HookEnabled(HookId hook) => Hooks.Has(hook);
+
     /// <summary>这个类型是不是 mod buff。</summary>
     public static bool IsModType(int type) => ModContent.IsCustom(ContentKind.Buff, type);
 

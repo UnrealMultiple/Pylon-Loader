@@ -3,27 +3,23 @@ using System.Text;
 namespace Pylon.ModLoader;
 
 /// <summary>
-/// 异常边界：包住 Mod 回调，抛错只记日志、不向外炸；同一 label 只记一条，防止每帧刷屏。
+/// 异常与日志边界：Mod 回调抛错只记一条、不外炸；同一标签只记一次，避免每帧刷屏。
 /// </summary>
 internal static class Safe
 {
     private static readonly HashSet<string> Reported = new(StringComparer.Ordinal);
     private static IModLog _sink = NullLog.Instance;
 
-    /// <summary>日志出口。宿主初始化时接上；未接上时静默。</summary>
     internal static IModLog Sink
     {
         get => _sink;
         set => _sink = value ?? NullLog.Instance;
     }
 
-    /// <summary>普通信息走当前日志出口。</summary>
     internal static void Info(string message) => Sink.Info(message);
 
-    /// <summary>警告走当前日志出口。</summary>
     internal static void Warn(string message) => Sink.Warn(message);
 
-    /// <summary>跑一段 Mod 回调，抛错记一条日志（不重抛）。</summary>
     internal static void Run(string label, Action action)
     {
         try
@@ -36,7 +32,6 @@ internal static class Safe
         }
     }
 
-    /// <summary>跑一段带回值的 Mod 回调，抛错记日志并返回 fallback。</summary>
     internal static T Run<T>(string label, Func<T> action, T fallback = default!)
     {
         try
@@ -50,10 +45,11 @@ internal static class Safe
         }
     }
 
-    /// <summary>记一条异常及堆栈首行；同一 label 只记一次，之后完全静默。</summary>
+    /// <summary>同一标签只记一次；之后完全静默。</summary>
     internal static void Report(string label, Exception? exception)
     {
         if (!Reported.Add(label)) return;
+
         if (exception is null)
         {
             Sink.Warn(label);
@@ -70,7 +66,6 @@ internal static class Safe
         }
     }
 
-    /// <summary>同一 key 只记一条；error=true 走警告级。</summary>
     internal static void Once(string key, string text, bool error = false)
     {
         if (!Reported.Add(key)) return;
@@ -78,7 +73,7 @@ internal static class Safe
         else Sink.Info(text);
     }
 
-    /// <summary>把异常链压成一行：保留"谁抛的"，不刷堆栈。</summary>
+    /// <summary>异常链压成一行：保留"谁抛的"，不刷堆栈。</summary>
     internal static string Describe(Exception? exception)
     {
         if (exception is null) return "?";

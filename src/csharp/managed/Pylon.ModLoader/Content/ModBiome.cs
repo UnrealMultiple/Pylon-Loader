@@ -27,8 +27,13 @@ public abstract class ModBiome : ModSceneEffect
 
     /// <summary>图鉴头像背景色；null = 不换（用游戏的）。</summary>
     public virtual Color? BackgroundColor { get; set; }
+
+    /// <summary>本帧玩家在不在这个群落里（生物群系管线每次场景扫描更新一次）。</summary>
+    public bool IsActive(Player player) => BiomePipeline.Instance.IsActive(player, this);
+
+    /// <summary>场景效果管线问的就是这句：群落标记本身就是"这个效果激不激活"。</summary>
+    public override bool IsSceneEffectActive(Player player) => IsActive(player);
 }
 
-// 未移植 IsSceneEffectActive：它读 Player 上的本帧标记 ModBiomeFlags，属管线（没重写就直读标记）。
 // 未移植 BestiaryIcon/BackgroundPath、DisplayName/TownNPCDialogueName：值由注册管线按类名贴图路径与本地化管线给，
-// Pylon 尚无取"类内容贴图路径"的设施；player.InModBiome 也是管线在 Player 上加的桥接方法。
+// Pylon 尚无取"类内容贴图路径"的设施；player.InModBiome(...) 用 ModBiome.IsActive(player) 代替。

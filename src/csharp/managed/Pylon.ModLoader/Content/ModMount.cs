@@ -8,6 +8,12 @@ namespace Pylon.ModLoader;
 /// <summary>自定义坐骑：一个类型一份实例；骑上/每帧/绘制等钩子由 Harmony 层按 `_type` 派发。</summary>
 public abstract class ModMount : ModType
 {
+    /// <summary>相对 ModMount 覆写了哪些钩子：安装时算一次挂在模板上，分派期只做位运算。</summary>
+    internal HookMask Hooks { get; set; }
+
+    /// <summary>这个钩子要不要分派给本实例。</summary>
+    internal bool HookEnabled(HookId hook) => Hooks.Has(hook);
+
     /// <summary>这匹坐骑的 Terraria.Mount.MountData（SetStaticDefaults 之前由管线建好，直接改它的字段）。</summary>
     public Mount.MountData MountData { get; internal set; } = null!;
 
@@ -48,10 +54,10 @@ public abstract class ModMount : ModType
         ref Vector2 drawOrigin, ref float drawScale, float shadow) => true;
 
     /// <summary>这个玩家骑在这匹上时的额外数据（没设过 = null；他下来前一直有效）；侧表归 Loader 维护。</summary>
-    public static object GetSpecificData(Player player) => MountLoader.SpecificData(player);
+    public static object GetSpecificData(Player player) => MountPipeline.Instance.SpecificData(player);
 
     /// <summary>记下这个玩家骑在这匹上时的额外数据（他下来后清掉）。</summary>
-    public static void SetSpecificData(Player player, object value) => MountLoader.SetSpecificData(player, value);
+    public static void SetSpecificData(Player player, object value) => MountPipeline.Instance.SetSpecificData(player, value);
 
     /// <summary>建一条绘制数据（rotation=0、origin=(0,0)、scale=1、effect=None、inactiveLayerDepth=0）。</summary>
     public static DrawData NewDrawData(Texture2D texture, Vector2 position, Rectangle sourceRect, Color color,

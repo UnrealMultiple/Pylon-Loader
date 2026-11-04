@@ -1,5 +1,6 @@
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using ReLogic.Content;
+using Terraria.Enums;
 using Terraria.ID;
 
 namespace Pylon.ModLoader;
@@ -43,6 +44,10 @@ public abstract class ModTree : ModType
 
     /// <summary>砍了掉哪种木头。</summary>
     public virtual int DropWood() => ItemID.Wood;
-}
 
-// 未移植 CountsAsTreeType：本版 Terraria.Enums.TreeTypes 只到 Ash = 12，没有 Custom，不拿别的值顶替。
+    /// <summary>
+    /// 这块地算哪种原版树：世界生成与「这地能不能种树」的判定都走它。
+    /// 本版的 <see cref="TreeTypes"/> 没有 Custom（只到 Ash = 12），所以作者选一个最接近的原版树型（默认 Forest）。
+    /// </summary>
+    public virtual TreeTypes CountsAsTreeType => TreeTypes.Forest;
+}

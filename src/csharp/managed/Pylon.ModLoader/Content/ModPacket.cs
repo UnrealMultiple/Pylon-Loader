@@ -13,5 +13,5 @@ public class ModPacket : NetWriter
 
     /// <summary>发出去：客户端发给服务器；服务器发给 toClient（-1 = 广播给除 ignoreClient 外所有人）；单人游戏哪儿也不去。</summary>
     public void Send(int toClient = -1, int ignoreClient = -1) =>
-        ModNet.SendPacket(this, toClient, ignoreClient);
+        NetPipeline.Instance.SendPacket(this, toClient, ignoreClient);
 }

@@ -45,7 +45,7 @@ internal static class LimitPatch
     ];
 
     /// <summary>把方块类型上限从 754 顶到 <paramref name="total"/>；返回失败的方法数。</summary>
-    internal static int Apply(int total, ModLogger log)
+    internal static int Apply(int total, IModLog log)
     {
         if (total <= TileCount) return 0;
 

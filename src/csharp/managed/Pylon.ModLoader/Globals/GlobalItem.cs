@@ -76,6 +76,12 @@ public abstract class GlobalItem : ModType
     public virtual bool Shoot(Item item, Player player, Vector2 position, Vector2 velocity, int type, int damage,
                               float knockBack, IEntitySource source) => true;
 
+    /// <summary>这件物品要跟着原版物品包一起过网的那部分状态（按注册顺序编号发送）。</summary>
+    public virtual void NetSend(Item item, NetWriter writer) { }
+
+    /// <summary>对端收到同一次物品包时读；顺序必须和 <see cref="NetSend"/> 一致。</summary>
+    public virtual void NetReceive(Item item, NetReader reader) { }
+
     /// <summary>每帧，在背包里（58 个格子）。</summary>
     public virtual void UpdateInventory(Item item, Player player) { }
 

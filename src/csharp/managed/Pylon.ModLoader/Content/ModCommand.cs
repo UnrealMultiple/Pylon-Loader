@@ -51,6 +51,9 @@ public abstract class ModCommand : ModType
     /// <summary>命令本体：caller.Player、caller.CommandType、caller.Reply；抛 UsageException 就回那句错。</summary>
     public virtual void Action(CommandCaller caller, string input, string[] args) { }
 
+    /// <summary>这个玩家能不能跑这条命令（默认谁都能；返回 false 时管线回一句拒绝）。</summary>
+    public virtual bool AllowedBy(Player player) => true;
+
     /// <summary>游戏回话的颜色（就是 /help 那个黄）。</summary>
     public static Color ResponseColor => new(255, 240, 20);
 

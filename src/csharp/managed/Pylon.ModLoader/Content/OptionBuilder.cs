@@ -49,13 +49,6 @@ public sealed class OptionBuilder
         return this;
     }
 
-    internal OptionBuilder Action(string method)
-    {
-        if (string.IsNullOrEmpty(method)) throw new ArgumentException("Button 需要方法名（或调用 Action(Action<ModConfig>)）");
-        _option.Action = method;
-        return this;
-    }
-
     internal OptionBuilder Url(string url)
     {
         _option.Url = url;

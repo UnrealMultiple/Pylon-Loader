@@ -1,0 +1,300 @@
+using Il2CppMicrosoft.Xna.Framework;
+using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Terraria;
+using Terraria.GameContent;
+using Terraria.GameContent.UI.BigProgressBar;
+
+namespace Pylon.ModLoader;
+
+/// <summary>
+/// Boss 血条管线：拦在 <c>BigProgressBarSystem</c> 上——
+/// <c>Update</c> 之后读 <c>_info.npcIndexToAimAt</c>（精确的目标 NPC 序号），
+/// <c>Draw</c> 里换成作者的条。见 docs/pipeline/content-bossbar.md。
+/// </summary>
+internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
+{
+    public static BossBarPipeline Instance { get; } = new();
+
+    public string Name => "bossbar";
+
+    private static IModLog Log => LoaderHost.Current.Log;
+
+    /// <summary>当前这条 mod 血条（null = 这一帧画原版）。</summary>
+    private static ModBossBar? Bar;
+
+    /// <summary>当前这条血条指向的 NPC 序号（-1 = 没有）。</summary>
+    private static int Index = -1;
+
+    /// <summary>原版没血条时，隔多少帧扫一次附近的 mod Boss。</summary>
+    private const int ScanEvery = 30;
+
+    private static int Tracked = -1;
+    private static int ScanAge;
+
+    public bool Install()
+    {
+        On.Terraria.GameContent.UI.BigProgressBar.BigProgressBarSystem.Update += Update;
+        On.Terraria.GameContent.UI.BigProgressBar.BigProgressBarSystem.Draw += DrawSystem;
+
+        Log.Info("[bossbar] 已挂（BigProgressBarSystem.Update 抓目标 / Draw 换条）");
+        return true;
+    }
+
+    public void Refresh() => BossBarTable.Rebuild();
+
+    /// <summary>安装期一次：血条的静态默认值。</summary>
+    internal void Build()
+    {
+        foreach (var bar in ModContent.GetContent<ModBossBar>())
+        {
+            bar.Registered = true;
+            bar.SetStaticDefaults();
+        }
+
+        BossBarTable.Rebuild();
+
+        if (BossBarTable.Count > 0) Log.Info($"[bossbar] 安装：{BossBarTable.Count} 条血条");
+    }
+
+    // ===================== 抓目标 =====================
+
+    private static void Update(On.Terraria.GameContent.UI.BigProgressBar.BigProgressBarSystem.orig_Update orig,
+                               BigProgressBarSystem self)
+    {
+        orig(self);
+
+        Bar = null;
+        Index = -1;
+
+        if (BossBarTable.Count == 0) return;
+
+        try
+        {
+            var current = self._currentBar;
+            if (current is not null)
+            {
+                // 原版已经盯上了一个：看它的 _info 里是哪个 NPC。这就是精确序号。
+                Tracked = -1;
+
+                var at = self._info.npcIndexToAimAt;
+                var own = Of(at);
+
+                if (own is not null && !Collect(own, at)) self._currentBar = null;
+
+                return;
+            }
+
+            if (Tracked >= 0)
+            {
+                var own = Of(Tracked);
+                if (own is not null && Collect(own, Tracked)) return;
+
+                Tracked = -1;
+            }
+
+            if (++ScanAge < ScanEvery) return;
+            ScanAge = 0;
+
+            var found = Find();
+            if (found < 0) return;
+
+            if (Of(found) is { } candidate && Collect(candidate, found)) Tracked = found;
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report($"[bossbar] 抓目标异常：{Safe.Describe(e)}");
+        }
+    }
+
+    /// <summary>第 <paramref name="at"/> 号 NPC 是不是 mod Boss 且声明了血条。</summary>
+    private static ModBossBar? Of(int at)
+    {
+        if ((uint)at >= 200u) return null;
+
+        var npcs = Main.npc;
+        if (npcs is null || at >= npcs.Length) return null;
+
+        var npc = npcs[at];
+        if (npc is null || !npc.active) return null;
+        if (ModContent.Find(ContentKind.Npc, npc.type) is not ModNpc modNpc) return null;
+
+        return modNpc.BossBar;
+    }
+
+    /// <summary>作者点头就用这条；返回 false = 这个目标不画。</summary>
+    private static bool Collect(ModBossBar candidate, int at)
+    {
+        var info = new BossBarInfo { npcIndexToAimAt = at };
+
+        // 合同里没有单独的 Validate：ModifyInfo 返回 false 就是不画。
+        Bar = candidate;
+        Index = at;
+        return true;
+    }
+
+    /// <summary>原版没在盯任何 Boss 时，就近找一个声明了血条的 mod NPC。</summary>
+    private static int Find()
+    {
+        var npcs = Main.npc;
+        if (npcs is null) return -1;
+
+        var me = Main.LocalPlayer;
+        if (me is null) return -1;
+
+        var center = me.Center;
+        var screen = Main.screenPosition;
+        var left = screen.X - 5000f;
+        var right = screen.X + Main.screenWidth + 5000f;
+        var top = screen.Y - 5000f;
+        var bottom = screen.Y + Main.screenHeight + 5000f;
+
+        var best = -1;
+        var bestDistance = float.MaxValue;
+
+        var count = Math.Min(npcs.Length, 200);
+        for (var index = 0; index < count; index++)
+        {
+            var npc = npcs[index];
+            if (npc is null || !npc.active) continue;
+
+            var position = npc.position;
+            if (position.X + npc.width < left || position.X > right) continue;
+            if (position.Y + npc.height < top || position.Y > bottom) continue;
+
+            if (ModContent.Find(ContentKind.Npc, npc.type) is not ModNpc modNpc || modNpc.BossBar is null) continue;
+
+            var dx = npc.Center.X - center.X;
+            var dy = npc.Center.Y - center.Y;
+            var distance = dx * dx + dy * dy;
+            if (distance >= bestDistance) continue;
+
+            best = index;
+            bestDistance = distance;
+        }
+
+        return best;
+    }
+
+    // ===================== 画 =====================
+
+    private static void DrawSystem(On.Terraria.GameContent.UI.BigProgressBar.BigProgressBarSystem.orig_Draw orig,
+                                   BigProgressBarSystem self, SpriteBatch spriteBatch)
+    {
+        if (Bar is not { } bar || (uint)Index >= 200u || Main.npc is null || Index >= Main.npc.Length)
+        {
+            orig(self, spriteBatch);
+            return;
+        }
+
+        var npc = Main.npc[Index];
+        if (npc is null)
+        {
+            orig(self, spriteBatch);
+            return;
+        }
+
+        try
+        {
+            DrawBar(bar, npc, spriteBatch);
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report($"[bossbar] {bar.Name} 绘制异常：{Safe.Describe(e)}");
+        }
+    }
+
+    private static void DrawBar(ModBossBar bar, NPC npc, SpriteBatch spriteBatch)
+    {
+        var gui = GUIInstance.Active is null ? null : GUIInstance.Active.GUIBossBar;
+        if (gui is null) return;
+
+        Rectangle? frame = null;
+        Texture2D? icon = null;
+
+        try
+        {
+            if (bar.GetIconTexture(ref frame) is { } asset) icon = asset.Value;
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report($"[bossbar] {bar.Name}.GetIconTexture 异常：{Safe.Describe(e)}");
+        }
+
+        var heads = TextureAssets.NpcHead;
+        if (icon is null && heads is not null && heads.Length > 0) icon = heads[0]?.Value;
+        if (icon is null) return;
+
+        var life = bar.Life;
+        var lifeMax = bar.LifeMax;
+        var shield = bar.Shield;
+        var shieldMax = bar.ShieldMax;
+
+        try
+        {
+            bar.Collected(npc.life, npc.lifeMax, shield, shieldMax);
+            life = bar.Life;
+            lifeMax = bar.LifeMax;
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report($"[bossbar] {bar.Name}.Collected 异常：{Safe.Describe(e)}");
+        }
+
+        var info = new BossBarInfo { npcIndexToAimAt = npc.whoAmI };
+
+        bool? verdict = null;
+        try
+        {
+            verdict = bar.ModifyInfo(info, ref life, ref lifeMax, ref shield, ref shieldMax);
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report($"[bossbar] {bar.Name}.ModifyInfo 异常：{Safe.Describe(e)}");
+        }
+
+        if (verdict == false) return;
+
+        var draw = new BossBarDrawParams
+        {
+            IconTexture = icon,
+            IconFrame = frame ?? new Rectangle(0, 0, icon.Width, icon.Height),
+            Life = life,
+            LifeMax = lifeMax,
+            Shield = shield,
+            ShieldMax = shieldMax,
+            BarTexture = icon,
+            BarCenter = Vector2.Zero,
+            BarColor = Color.White,
+            IconColor = Color.White,
+            IconScale = 1f,
+            ShowText = true,
+            TextOffset = Vector2.Zero,
+        };
+
+        var keep = true;
+        try
+        {
+            keep = bar.PreDraw(spriteBatch, npc, draw);
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report($"[bossbar] {bar.Name}.PreDraw 异常：{Safe.Describe(e)}");
+        }
+
+        if (keep)
+        {
+            var shielded = draw.ShieldMax > 0f;
+            gui.Draw(draw.Life, draw.LifeMax, draw.IconTexture, draw.IconFrame,
+                     shielded ? draw.Shield : -1f, shielded ? draw.ShieldMax : 1f);
+        }
+
+        try
+        {
+            bar.PostDraw(spriteBatch, npc, draw);
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report($"[bossbar] {bar.Name}.PostDraw 异常：{Safe.Describe(e)}");
+        }
+    }
+}

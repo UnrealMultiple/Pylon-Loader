@@ -130,7 +130,7 @@ internal static class AndroidAudio
         catch (Exception e) { Safe.Report("AndroidAudio.StopSound", e); }
     }
 
-    /// <summary>时长（毫秒）：SoundPool 查不了时长，固定 1000 让 stream 至少活 1 秒，够 SoundLoader 估算。</summary>
+    /// <summary>时长（毫秒）：SoundPool 查不了时长，固定 1000 让 stream 至少活 1 秒，够 SoundPipeline 估算。</summary>
     internal static int SoundDuration(int id) => 1000;
 
     internal static void PauseAll()

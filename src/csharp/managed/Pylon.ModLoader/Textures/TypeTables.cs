@@ -103,7 +103,47 @@ public static class TypeTables
         new("Terraria.Map", "MapHelper"),
     ];
 
-    public enum TableKind { Item, Projectile, Npc, Buff, Tile, Wall }
+    // 血腥粒子：平行表都在 GoreID.Sets 与 ChildSafety 里，长度 = TextureAssets.Gore 的原版长度。
+    private static readonly TableClass[] GoreClasses =
+    [
+        new("Terraria.GameContent", "TextureAssets"),
+        new("Terraria.ID", "GoreID", "Sets"),
+        new("Terraria.GameContent", "ChildSafety"),
+    ];
+
+    // 云：只有一张贴图表，没有 Sets 平行表。
+    private static readonly TableClass[] CloudClasses =
+    [
+        new("Terraria.GameContent", "TextureAssets"),
+    ];
+
+    // 发型：PlayerHair 与 PlayerHairAlt 长度相同，会被一起扩到同一个目标长度。
+    private static readonly TableClass[] HairClasses =
+    [
+        new("Terraria.GameContent", "TextureAssets"),
+    ];
+
+    // 水样式：Liquid 与 LiquidSlope 长度相同，会被一起扩到同一个目标长度。
+    private static readonly TableClass[] WaterClasses =
+    [
+        new("Terraria.GameContent", "TextureAssets"),
+    ];
+
+    // 瀑布样式：贴图表是 WaterfallManager 的私有静态字段（interop 只暴露这一张，没有 ID 平行表）。
+    private static readonly TableClass[] WaterfallClasses = [new("Terraria", "WaterfallManager")];
+
+    // 装备贴图（盔甲 + 饰品 / 翅膀 / 胡子）：都只有一张贴图表，没有 Sets 平行表。
+    private static readonly TableClass[] EquipClasses = [new("Terraria.GameContent", "TextureAssets")];
+
+    public enum TableKind
+    {
+        Item, Projectile, Npc, Buff, Tile, Wall, Gore, Cloud, Hair, WaterStyle, Waterfall,
+        ArmorHead, ArmorBody, ArmorLeg, ArmorBodyComposite, ArmorArm,
+        EquipHandOn, EquipHandOff, EquipBack, EquipFront, EquipShoes, EquipWaist,
+        EquipWings, EquipShield, EquipNeck, EquipFace, EquipBalloon, EquipBeard,
+        EquipHandOnComposite, EquipHandOffComposite,
+        TreeTop, TreeBranch, TreeWood,
+    }
 
     private static TableClass[] Classes(TableKind kind) => kind switch
     {
@@ -112,7 +152,34 @@ public static class TypeTables
         TableKind.Npc => NpcClasses,
         TableKind.Buff => BuffClasses,
         TableKind.Tile => TileClasses,
-        _ => WallClasses,
+        TableKind.Wall => WallClasses,
+        TableKind.Cloud => CloudClasses,
+        TableKind.Hair => HairClasses,
+        TableKind.WaterStyle => WaterClasses,
+        TableKind.Waterfall => WaterfallClasses,
+        TableKind.ArmorHead => EquipClasses,
+        TableKind.ArmorBody => EquipClasses,
+        TableKind.ArmorLeg => EquipClasses,
+        TableKind.EquipHandOn => EquipClasses,
+        TableKind.EquipHandOff => EquipClasses,
+        TableKind.EquipBack => EquipClasses,
+        TableKind.EquipFront => EquipClasses,
+        TableKind.EquipShoes => EquipClasses,
+        TableKind.EquipWaist => EquipClasses,
+        TableKind.EquipWings => EquipClasses,
+        TableKind.EquipShield => EquipClasses,
+        TableKind.EquipNeck => EquipClasses,
+        TableKind.EquipFace => EquipClasses,
+        TableKind.EquipBalloon => EquipClasses,
+        TableKind.EquipBeard => EquipClasses,
+        TableKind.ArmorBodyComposite => EquipClasses,
+        TableKind.ArmorArm => EquipClasses,
+        TableKind.EquipHandOnComposite => EquipClasses,
+        TableKind.EquipHandOffComposite => EquipClasses,
+        TableKind.TreeTop => EquipClasses,
+        TableKind.TreeBranch => EquipClasses,
+        TableKind.TreeWood => EquipClasses,
+        _ => GoreClasses,
     };
 
     private static string Name(TableKind kind) => kind switch
@@ -122,7 +189,34 @@ public static class TypeTables
         TableKind.Npc => "NPC",
         TableKind.Buff => "Buff",
         TableKind.Tile => "方块",
-        _ => "墙壁",
+        TableKind.Wall => "墙壁",
+        TableKind.Cloud => "云",
+        TableKind.Hair => "发型",
+        TableKind.WaterStyle => "水样式",
+        TableKind.Waterfall => "瀑布贴图",
+        TableKind.ArmorHead => "头盔贴图",
+        TableKind.ArmorBody => "胸甲贴图",
+        TableKind.ArmorLeg => "护腿贴图",
+        TableKind.EquipHandOn => "手部（前面）贴图",
+        TableKind.EquipHandOff => "手部（后面）贴图",
+        TableKind.EquipBack => "背部贴图",
+        TableKind.EquipFront => "胸前贴图",
+        TableKind.EquipShoes => "鞋贴图",
+        TableKind.EquipWaist => "腰贴图",
+        TableKind.EquipWings => "翅膀贴图",
+        TableKind.EquipShield => "盾贴图",
+        TableKind.EquipNeck => "项链贴图",
+        TableKind.EquipFace => "面部贴图",
+        TableKind.EquipBalloon => "气球贴图",
+        TableKind.EquipBeard => "胡子贴图",
+        TableKind.ArmorBodyComposite => "胸甲复合贴图",
+        TableKind.ArmorArm => "手臂贴图",
+        TableKind.EquipHandOnComposite => "手部前复合贴图",
+        TableKind.EquipHandOffComposite => "手部后复合贴图",
+        TableKind.TreeTop => "树顶贴图",
+        TableKind.TreeBranch => "树枝贴图",
+        TableKind.TreeWood => "树干贴图",
+        _ => "血腥粒子",
     };
 
     private static int VanillaCount(TableKind kind) => kind switch
@@ -132,8 +226,130 @@ public static class TypeTables
         TableKind.Npc => Terraria.ID.NPCID.Count,
         TableKind.Buff => Terraria.ID.BuffID.Count,
         TableKind.Tile => 754,
-        _ => 367,
+        TableKind.Wall => 367,
+        TableKind.Cloud => CloudVanilla,
+        TableKind.Hair => HairVanilla,
+        TableKind.WaterStyle => WaterVanilla,
+        TableKind.Waterfall => WaterfallVanilla,
+        TableKind.ArmorHead => EquipVanilla(0, TextureTable.ArmorHead),
+        TableKind.ArmorBody => EquipVanilla(1, TextureTable.ArmorBody),
+        TableKind.ArmorLeg => EquipVanilla(2, TextureTable.ArmorLeg),
+        TableKind.EquipHandOn => EquipVanilla(3, TextureTable.AccHandsOn),
+        TableKind.EquipHandOff => EquipVanilla(4, TextureTable.AccHandsOff),
+        TableKind.EquipBack => EquipVanilla(5, TextureTable.AccBack),
+        TableKind.EquipFront => EquipVanilla(6, TextureTable.AccFront),
+        TableKind.EquipShoes => EquipVanilla(7, TextureTable.AccShoes),
+        TableKind.EquipWaist => EquipVanilla(8, TextureTable.AccWaist),
+        TableKind.EquipWings => EquipVanilla(9, TextureTable.Wings),
+        TableKind.EquipShield => EquipVanilla(10, TextureTable.AccShield),
+        TableKind.EquipNeck => EquipVanilla(11, TextureTable.AccNeck),
+        TableKind.EquipFace => EquipVanilla(12, TextureTable.AccFace),
+        TableKind.EquipBalloon => EquipVanilla(13, TextureTable.AccBalloon),
+        TableKind.EquipBeard => EquipVanilla(14, TextureTable.AccBeard),
+        TableKind.ArmorBodyComposite => EquipVanilla(15, TextureTable.ArmorBodyComposite),
+        TableKind.ArmorArm => EquipVanilla(16, TextureTable.ArmorArm),
+        TableKind.EquipHandOnComposite => EquipVanilla(17, TextureTable.AccHandsOnComposite),
+        TableKind.EquipHandOffComposite => EquipVanilla(18, TextureTable.AccHandsOffComposite),
+        TableKind.TreeTop => EquipVanilla(19, TextureTable.TreeTop),
+        TableKind.TreeBranch => EquipVanilla(20, TextureTable.TreeBranch),
+        TableKind.TreeWood => EquipVanilla(21, TextureTable.TreeWood),
+        _ => GoreVanilla,
     };
+
+    private static int _goreVanilla;
+
+    /// <summary>
+    /// 原版 gore 表长：GoreID 没有编译期 Count，只能在扩表之前按表长捕获一次。
+    /// 读到 0（表还没建）时不缓存，下一轮再读。
+    /// </summary>
+    internal static int GoreVanilla
+    {
+        get
+        {
+            if (_goreVanilla > 0) return _goreVanilla;
+
+            var length = TextureSlots.Length(TextureTable.Gore);
+            if (length > 0) _goreVanilla = length;
+            return _goreVanilla;
+        }
+    }
+
+    private static int _cloudVanilla;
+
+    /// <summary>原版云表长：云的编号没有编译期常量，只能在扩表之前按表长捕获一次。</summary>
+    internal static int CloudVanilla
+    {
+        get
+        {
+            if (_cloudVanilla > 0) return _cloudVanilla;
+
+            var length = TextureSlots.Length(TextureTable.Cloud);
+            if (length > 0) _cloudVanilla = length;
+            return _cloudVanilla;
+        }
+    }
+
+    private static int _hairVanilla;
+
+    /// <summary>原版发型表长：发型编号没有编译期常量，只能在扩表之前按表长捕获一次。</summary>
+    internal static int HairVanilla
+    {
+        get
+        {
+            if (_hairVanilla > 0) return _hairVanilla;
+
+            var length = TextureSlots.Length(TextureTable.PlayerHair);
+            if (length > 0) _hairVanilla = length;
+            return _hairVanilla;
+        }
+    }
+
+    private static readonly int[] EquipVanillaCache = new int[24];
+
+    /// <summary>
+    /// 原版装备贴图表长：装备编号没有编译期常量，只能在扩表之前按表长捕获一次（按部位缓存）。
+    /// </summary>
+    internal static int EquipVanilla(int part, TextureTable table)
+    {
+        if ((uint)part < (uint)EquipVanillaCache.Length && EquipVanillaCache[part] > 0) return EquipVanillaCache[part];
+
+        var length = TextureSlots.Length(table);
+        if (length > 0 && (uint)part < (uint)EquipVanillaCache.Length) EquipVanillaCache[part] = length;
+        return length > 0 ? length : 0;
+    }
+
+    private static int _waterVanilla;
+
+    /// <summary>原版水样式表长：水样式没有编译期 Count，只能在扩表之前按表长捕获一次。</summary>
+    internal static int WaterVanilla
+    {
+        get
+        {
+            if (_waterVanilla > 0) return _waterVanilla;
+
+            var length = TextureSlots.Length(TextureTable.Liquid);
+            if (length > 0) _waterVanilla = length;
+            return _waterVanilla;
+        }
+    }
+
+    private static int _waterfallVanilla;
+
+    /// <summary>
+    /// 原版瀑布表长：<c>WaterfallManager.waterfallTexture</c> 在 interop 代理里就是普通公开属性，
+    /// 与其它表一样在扩表之前捕获一次（读到 0 说明表还没建，不缓存）。
+    /// </summary>
+    internal static int WaterfallVanilla
+    {
+        get
+        {
+            if (_waterfallVanilla > 0) return _waterfallVanilla;
+
+            var array = Terraria.WaterfallManager.waterfallTexture;
+            if (array is { Length: > 0 }) _waterfallVanilla = array.Length;
+            return _waterfallVanilla;
+        }
+    }
 
     private const uint FieldStatic = 0x0010;    // FieldAttributes.Static
     private const uint FieldLiteral = 0x0040;   // FieldAttributes.Literal（const）

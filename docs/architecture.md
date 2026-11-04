@@ -86,10 +86,14 @@ Pylon 让 Mod 跑在游戏自己的进程里：启动器负责选择与校验，
 |---|---|
 | `Pylon.Mod.Abstractions` | 最小契约：`IPylonMod` / `IModContext` / `IModImGuiTab` / `ImGuiTabRegistry` |
 | `Pylon.Managed` | CoreCLR 入口：原生解析、Dobby 后端、Il2CppInterop 启动、Mod 发现与加载 |
-| `Pylon.ModLoader` | 内容框架：`Mod` 基类、内容管线（`ILoaderModule`）、`Global*`、配置、UI、效果 |
+| `Pylon.ModLoader` | 内容框架：`Mod` 基类、五条管线（见 [pipeline/](pipeline/README.md)）、`Global*`、配置、UI、效果 |
 | `Pylon.NaviteAPI` | 内核导出面的唯一 C# 绑定：ImGui（`ig*` / `PylonImgui_*`，机器生成）、屏幕特效（`PylonFx_*`）、宿主（`PylonMod_*`）。全工程只有这里声明 `LibraryImport` |
 
-### 4.1 钩子链
+### 4.1 管线
+
+`Pylon.ModLoader` 的内容流程由一条实例化的宿主（`LoaderHost`）串起四段：注册（发现类型 + 确定发号）、安装（阶段 + 预算 + 可续步骤）、钩子分派（`HookId` 位集 + 稠密订阅表）、模块装配（显式数组）。设计取舍见 [pipeline/](pipeline/README.md)。
+
+### 4.2 钩子链
 
 只有一条链：
 

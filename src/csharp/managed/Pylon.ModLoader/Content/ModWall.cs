@@ -31,6 +31,12 @@ public abstract class ModWall : ModType
     /// <summary>已登记的 <see cref="AddMapEntry"/>，按调用顺序；游戏侧读取用。</summary>
     public IReadOnlyList<MapEntry> MapEntries => _mapEntries;
 
+    /// <summary>这个类覆写了哪些钩子（管线安装时算好）。</summary>
+    internal HookMask Hooks { get; set; }
+
+    /// <summary>这个钩子有没有被覆写：热路径上判定用。</summary>
+    internal bool HookEnabled(HookId hook) => Hooks.Has(hook);
+
     private readonly List<MapEntry> _mapEntries = [];
 
     /// <summary>只放共享数值，不要碰游戏对象。</summary>

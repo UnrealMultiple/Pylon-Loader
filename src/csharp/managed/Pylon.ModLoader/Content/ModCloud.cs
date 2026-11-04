@@ -13,4 +13,10 @@ public abstract class ModCloud : ModType
 
     /// <summary>这朵云出现之后（云已经是活的，位置和大小都定了）。</summary>
     public virtual void OnSpawn(Cloud cloud) { }
+
+    /// <summary>
+    /// 这朵云画的时候乘什么颜色（<paramref name="color"/> 是游戏按天色/高度算好的原色，返回它即可不改）。
+    /// 每帧每朵一次；要"彩虹"这类效果在这里按 <see cref="Cloud.position"/> 或时间算。
+    /// </summary>
+    public virtual Il2CppMicrosoft.Xna.Framework.Graphics.Color CloudColor(Cloud cloud, Il2CppMicrosoft.Xna.Framework.Graphics.Color color) => color;
 }

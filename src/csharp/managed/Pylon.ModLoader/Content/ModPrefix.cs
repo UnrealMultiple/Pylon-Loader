@@ -33,6 +33,12 @@ public abstract class ModPrefix : ModType
     /// <summary>Mod 名/类名；Mod 还没挂上时是 '?'。</summary>
     public virtual string FullName => (Mod != null ? Mod.Name : "?") + "/" + Name;
 
+    /// <summary>相对 ModPrefix 覆写了哪些钩子：安装时算一次挂在模板上，判定期只做位运算。</summary>
+    internal HookMask Hooks { get; set; }
+
+    /// <summary>这个钩子要不要分派给本实例。</summary>
+    internal bool HookEnabled(HookId hook) => Hooks.Has(hook);
+
     /// <summary>哪些物品能拿这个前缀（默认 Custom：只在 CanRoll 或物品的 ChoosePrefix 放行的地方出现）。</summary>
     public virtual int Category => CategoryCustom;
 
@@ -65,4 +71,4 @@ public abstract class ModPrefix : ModType
 
 // 未移植 SetStats 的单参数变体：JS 方便写法（{ damage, knockBack, ... }），C# 里没有对应物。
 // 未移植 GetTooltipLines：TooltipLine 已有，但 ContentKind 还没有 Prefix，等前缀管线定形后接。
-// 未移植 register / isModType / getModPrefix / getTypeByName：注册走自动发现，后三个读 PrefixLoader 注册表。
+// 未移植 register / isModType / getModPrefix / getTypeByName：注册走自动发现，后三个读 PrefixTable 注册表。

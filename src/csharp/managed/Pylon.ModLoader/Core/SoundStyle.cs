@@ -8,8 +8,8 @@ namespace Pylon.ModLoader;
 /// </summary>
 public sealed class SoundStyle
 {
-    /// <summary>Mod 声音标记的 SoundId 命名空间：LegacySoundPlayer 的 hook 靠它认出 Mod 声音。</summary>
-    private const int ModSoundId = 1000;
+    /// <summary>Mod 声音标记的 SoundId 命名空间：LegacySoundPlayer 的 hook 靠它认出 Mod 声音。管线读同一个常量。</summary>
+    internal const int MarkerSoundId = 1000;
 
     /// <summary>
     /// 构造选项。必须保持**公共字段**：老 Mod 是按字段编译的，
@@ -42,7 +42,7 @@ public sealed class SoundStyle
         PitchVariance = settings.PitchVariance;
         MaxInstances = settings.MaxInstances;
         SoundLimitBehavior = settings.SoundLimitBehavior;
-        Style = SoundLoader.Register(this);
+        Style = SoundPipeline.Instance.Register(this);
     }
 
     public string Path { get; }
@@ -62,5 +62,5 @@ public sealed class SoundStyle
 
     /// <summary>直接当游戏的 LegacySoundStyle 用。</summary>
     public static implicit operator LegacySoundStyle(SoundStyle sound) =>
-        new(ModSoundId, sound.Style, SoundType.Sound, 0);
+        new(MarkerSoundId, sound.Style, SoundType.Sound, 0);
 }

@@ -21,6 +21,12 @@ public abstract class ModPlayer
     /// <summary>武器伤害那个字段（ModifyWeaponDamage 管线写入；本版还没接那条管线）。</summary>
     public int WeaponDamage = 0;
 
+    /// <summary>相对 ModPlayer 覆写了哪些钩子：实例建出来时从模板复制，分派期只做位运算。</summary>
+    internal HookMask Hooks { get; set; }
+
+    /// <summary>这个钩子要不要分派给本实例。</summary>
+    internal bool HookEnabled(HookId hook) => Hooks.Has(hook);
+
     /// <summary>这个实例挂在哪个玩家上（由每玩家的实例保管方赋；钩子参数里的 player 是同一个）。</summary>
     public Player Player { get; internal set; } = null!;
 
@@ -253,6 +259,12 @@ public abstract class ModPlayer
 
     /// <summary>本地玩家每更新一次：读触屏按钮（ModTouchButton）或键位（参考的 ModKeybind 用法）。</summary>
     public virtual void ProcessTriggers(Player player, TriggersSet triggersSet) { }
+
+    /// <summary>这一层别画（返回 true 就跳过原版那次绘制）；按 <see cref="VanillaDrawLayer"/> 点名。</summary>
+    public virtual bool HideDrawLayer(Player player, VanillaDrawLayer layer) => false;
+
+    /// <summary>改这一帧的镜头缩放（写回 <c>Main.GameViewMatrix.Zoom</c>）；只对本机玩家调。</summary>
+    public virtual void ModifyZoom(Player player, ref Vector2 zoom) { }
 }
 
 // 未移植：伤害/攻速/弹药那套（要 StatModifier，等 ItemCheck_Shoot 的实际形状）、受伤与命中那套（要 HurtModifiers/HurtInfo/

@@ -65,8 +65,8 @@ public sealed class ModTouchButton
         }
     }
 
-    /// <summary>Current，但聊天、对话或牌子开着时为 false（本版暂与 Current 同）。</summary>
-    public bool RetroCurrent => Current;
+    /// <summary>Current，但聊天、对话或牌子开着时为 false。</summary>
+    public bool RetroCurrent => KeybindPipeline.Instance.RetroCurrent(this);
 
     /// <summary>这个按钮在不在当前布局里（给提示用："去 Controls 里加按钮"）。</summary>
     public bool IsBound => TouchButtonLoader.IsBound(_entry);

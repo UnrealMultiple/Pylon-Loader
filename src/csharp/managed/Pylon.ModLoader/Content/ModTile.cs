@@ -61,6 +61,24 @@ public abstract class ModTile : ModType
     /// <summary>已登记的 <see cref="RegisterItemDrop"/>，按调用顺序；掉落查询用。</summary>
     public IReadOnlyList<ItemDropEntry> ItemDrops => _itemDrops;
 
+    /// <summary>这个类覆写了哪些钩子（管线安装时算好）。</summary>
+    internal HookMask Hooks { get; set; }
+
+    /// <summary>这个钩子有没有被覆写：热路径上判定用。</summary>
+    internal bool HookEnabled(HookId hook) => Hooks.Has(hook);
+
+    /// <summary>
+    /// 放下这块时自动建哪个方块实体：返回实体模板的 <see cref="ModType.Name"/>（同 Mod 下的名字）。
+    /// 默认 <c>null</c> = 不建；服务器/单人放完就建，客户端等服务器广播（权威在服务器，客户端不建）。
+    /// </summary>
+    public virtual string? TileEntity => null;
+
+    /// <summary>
+    /// 放置完成后的回调（对应 <c>PlacementHook</c> 的时机）：游戏把方块真正放下、玩家坐标定下来之后。
+    /// 返回 -1 = "没有别的返回值"，这是这条钩子链的约定，不是失败。
+    /// </summary>
+    public virtual int Hook_AfterPlacement(int i, int j, int type, int style, int direction, int alternate) => -1;
+
     private readonly List<MapEntry> _mapEntries = [];
     private readonly List<ItemDropEntry> _itemDrops = [];
 
@@ -169,7 +187,7 @@ public abstract class ModTile : ModType
 
     /// <summary>是不是智能交互的目标；默认跟着 <see cref="RightClick"/> 有没有被覆写。</summary>
     public virtual bool HasSmartInteract(int i, int j, object settings) =>
-        Plan != null && Plan.Has(nameof(RightClick));
+        Plan.Has(HookId.RightClick);
 
     /// <summary>有电的线穿过这块。</summary>
     public virtual void HitWire(int i, int j) { }

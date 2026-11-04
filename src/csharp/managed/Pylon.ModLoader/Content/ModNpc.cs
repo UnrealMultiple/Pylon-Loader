@@ -10,23 +10,11 @@ namespace Pylon.ModLoader;
 /// <summary>自定义 NPC（敌对/小动物/Boss）：一个类型一份模板，每个实体一份实例。</summary>
 public abstract class ModNpc : ModType
 {
-    private static readonly Dictionary<Type, OverridePlan> HookPlans = [];
-
-    /// <summary>这个类相对 <see cref="ModNpc"/> 覆写了哪些钩子；按类算一次。不能用 <see cref="ModType.Plan"/>（基类是 ModType，会把自己声明的方法全算成覆写）；判定基类是本内容类。</summary>
-    internal OverridePlan HookPlan
-    {
-        get
-        {
-            var type = GetType();
-            if (HookPlans.TryGetValue(type, out var plan)) return plan;
-            plan = OverridePlan.Build(type, typeof(ModNpc));
-            HookPlans[type] = plan;
-            return plan;
-        }
-    }
+    /// <summary>相对 ModNpc 覆写了哪些钩子：绑定时从模板复制，分派期只做位运算。</summary>
+    internal HookMask Hooks { get; set; }
 
     /// <summary>这个钩子要不要分派给本实例。</summary>
-    internal bool HasHook(string hook) => HookPlan.Has(hook);
+    internal bool HookEnabled(HookId hook) => Hooks.Has(hook);
 
     /// <summary>聊天栏上的两个按钮：文本留空 = 没这个按钮（手机最多显示两个）。城镇 NPC 用。</summary>
     public sealed class ChatButtons
@@ -50,11 +38,14 @@ public abstract class ModNpc : ModType
     /// <summary>照这个原版 NPC 的 FindFrame 动画（0 = 自定）；在 SetDefaults 里定；覆写了 <see cref="FindFrame"/> 时以自己的为准。</summary>
     public virtual int AnimationType => 0;
 
-    /// <summary>旗帜 ID（代表 NPC 的类型）；0 = 关。旗帜管线（BannerLoader）未迁移。</summary>
+    /// <summary>旗帜 ID（代表 NPC 的类型）；0 = 关。与 <see cref="BannerItem"/> 必须成对填写。</summary>
     public virtual int Banner => 0;
 
-    /// <summary>旗帜解锁的物品 ID；0 = 关。旗帜管线未迁移。</summary>
+    /// <summary>旗帜解锁的物品 ID；0 = 关。与 <see cref="Banner"/> 必须成对填写。</summary>
     public virtual int BannerItem => 0;
+
+    /// <summary>血条；null = 用游戏那条。要在 <see cref="SetDefaults"/> 里给。</summary>
+    public virtual ModBossBar BossBar => null!;
 
     /// <summary>显示名；空 = 用 <c>NPCName.&lt;Name&gt;</c>（ContentInstaller 写 Lang）。</summary>
     public virtual string DisplayName => "";
@@ -77,7 +68,7 @@ public abstract class ModNpc : ModType
     /// <summary>首领血条与地图图标；空 = <c>&lt;Texture&gt;_Head_Boss</c>。首领头像管线未迁移。</summary>
     public virtual string BossHeadTexture => "";
 
-    /// <summary>靠近屏幕时放的音乐；-1 = 用游戏的。由 ModMusic 按优先级选择。</summary>
+    /// <summary>靠近屏幕时放的音乐；-1 = 用游戏的。由 MusicPipeline 按优先级选择。</summary>
     public virtual int Music => -1;
 
     /// <summary>原版是 SceneEffectPriority.BossLow = 6；两个都有音乐时高的赢。</summary>
@@ -107,7 +98,7 @@ public abstract class ModNpc : ModType
                 $"CloneDefaults：{Name} 的克隆类型 {type} 无效（和自己一样、为负，或不是已注册的 NPC）", true);
             return;
         }
-        if (!NpcLoader.StartClone(type))
+        if (!NpcPipeline.Instance.StartClone(type))
         {
             Safe.Once("npc.clone.loop." + Name + "." + type,
                 $"CloneDefaults：{Name} 出现循环克隆（类型 {type}）", true);
@@ -128,9 +119,7 @@ public abstract class ModNpc : ModType
             npc.netID = netId;
             if (interaction != null) npc.playerInteraction = interaction;
             // 绑定实例与实体级 Global 表也换回来。
-            NpcEntities.RebindTo(npc, this);
-            GlobalNpcRegistry.Attach(npc, true);
-            NpcLoader.EndClone(type);
+            NpcPipeline.Instance.EndClone(npc, this, type);
         }
     }
 
@@ -273,5 +262,5 @@ public abstract class ModNpc : ModType
 
 // 未移植：命中类钩子（OnHitByItem/ModifyHitPlayer/...，缺 HitModifiers/HurtModifiers/HitInfo/HurtInfo）、
 // Happiness（偏好要写进 PersonalityDatabase，Pylon 侧还没有）、BossBar（缺 ModBossBar 内容类）、
-// Clone/CloneNewInstances/NewInstance（实体实例由 NpcEntities.Bind 统一建）、TownNPCProfile、
+// Clone/CloneNewInstances/NewInstance（实体实例由 NpcBinding 统一建）、TownNPCProfile、
 // ModifyActiveShop/ModifyNPCHappiness/AddShops/TownNPCAttack*、旗帜/图鉴/头像注册管线、register。

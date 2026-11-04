@@ -1,5 +1,5 @@
 // 音效：直接用 MEAC 的 Sounds/Customs/Laser.wav（原素材，不再自己合成）。
-// 播放/解码由 SoundLoader（Android SoundPool）负责。
+// 播放/解码由 SoundPipeline（Android SoundPool）负责。
 using System;
 using Il2CppMicrosoft.Xna.Framework;
 using Pylon.ModLoader;

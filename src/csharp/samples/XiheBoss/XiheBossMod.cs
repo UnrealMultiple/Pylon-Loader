@@ -85,7 +85,7 @@ namespace XiheBoss
 
         /// <summary>
         /// 原版 UpdateAudio 在选出 newMusic 后调用它；这里把 newMusic 改成 0，让原版曲目按正常
-        /// 淡出逻辑停下。Mod 曲（TakeFlight）由 AndroidAudio/ModMusic 独立播放。
+        /// 淡出逻辑停下。Mod 曲（TakeFlight）由 AndroidAudio/MusicPipeline 独立播放。
         /// </summary>
         private static void AfterDecideOnNewMusic(On.Terraria.Main.orig_UpdateAudio_DecideOnNewMusic orig, Main self)
         {

@@ -155,7 +155,7 @@ public class ModRecipe
         if (recipes == null || index >= recipes.Length) Main.recipe = Grow(recipes, index + 1);
 
         Terraria.Recipe.AddRecipe();
-        RecipeLoader.Added(index, CraftingStation, this);
+        RecipeTable.Added(index, CraftingStation, this);
     }
 
     /// <summary>已经是组对象就原样返回。</summary>
@@ -169,7 +169,7 @@ public class ModRecipe
     public static RecipeGroup GetGroup(string name)
     {
         if (string.IsNullOrEmpty(name)) return null!;
-        var mine = RecipeLoader.Group(name);
+        var mine = RecipeTable.Group(name);
         if (mine != null) return mine;
 
         // 游戏那批组是 Terraria.ID.RecipeGroups 的静态属性，只能按名字反射；
@@ -192,7 +192,7 @@ public class ModRecipe
     {
         if (string.IsNullOrEmpty(name)) throw new ArgumentNullException(nameof(name));
 
-        var known = RecipeLoader.Group(name);
+        var known = RecipeTable.Group(name);
         if (known != null) return known;
 
         itemTypes ??= Array.Empty<int>();
@@ -201,7 +201,7 @@ public class ModRecipe
 
         group.Register();
         Safe.Run("grupo de receita " + name, group.SortDecraftingEntries);
-        RecipeLoader.SetGroup(name, group);
+        RecipeTable.SetGroup(name, group);
         return group;
     }
 

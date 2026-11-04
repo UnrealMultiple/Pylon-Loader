@@ -10,10 +10,10 @@ public static class Framework
 
     public static bool Initialized => _context is not null;
 
-    /// <summary>宿主数据根（用户 Mods 目录）；框架自己的设置写在这里的 .pylon/ 下。</summary>
+    /// <summary>宿主数据根（用户 Mods 目录）；框架设置写在它的 .pylon/ 下。</summary>
     internal static string? HostDirectory => _context?.Directory;
 
-    /// <summary>绑定宿主上下文（幂等）：只保存对象、不碰 Unity 类型，可以在引导线程调用。</summary>
+    /// <summary>绑定宿主上下文（幂等）：只保存对象、不碰 Unity 类型，可在引导线程调用。</summary>
     public static void Initialize(IModContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -21,7 +21,7 @@ public static class Framework
 
         _context = context;
         _logger = new ModLogger(context);
-        Safe.Sink = _logger;
+        LoaderHost.Current.Configure(_logger);
         _logger.Info("框架宿主已初始化（UI / ImGui 不依赖 Mod 数量）");
     }
 

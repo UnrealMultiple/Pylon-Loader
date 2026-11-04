@@ -264,8 +264,11 @@ public static class OnHookGenerator
 
         private static bool IsTypeCandidate(TypeDefinition type)
         {
-            if (!type.IsClass) return false;
-            if (type.IsValueType || type.IsEnum || type.IsInterface) return false;
+            if (!type.IsClass && !type.IsValueType) return false;
+            if (type.IsEnum || type.IsInterface) return false;
+            // il2cpp 代理把一部分游戏类生成为值类型包装（如 Terraria.TileObject）——它们的静态方法
+            // 同样有 NativeMethodInfoPtr、同样可以 detour；BuildType 本来就会把"没有可钩方法的类型"丢掉，
+            // 所以这里放行值类型只会为真的可钩对象多出宿主类，不会为纯数据 struct 生成空壳。
             if (type.BaseType?.FullName == "System.MulticastDelegate") return false;
             if (!IsValidIdentifier(BaseName(type.Name))) return false;
             if (string.IsNullOrEmpty(type.Namespace) && BaseName(type.Name).StartsWith("_", StringComparison.Ordinal)) return false;
@@ -287,7 +290,9 @@ public static class OnHookGenerator
         private static bool IsHookable(MethodDefinition method)
         {
             if (method.IsConstructor) return false;
-            if (method.IsSpecialName) return false;
+            // 属性访问器（get_/set_）也是 IsSpecialName，但它们是普通函数体，可以挂钩子；
+            // 运算符（op_*）与其它特殊方法仍然跳过。
+            if (method.IsSpecialName && !IsAccessor(method.Name)) return false;
             if (method.IsAbstract) return false;
             if (!IsValidIdentifier(method.Name)) return false;
             if (method.ReturnType is ByReferenceType) return false;
@@ -296,6 +301,9 @@ public static class OnHookGenerator
                 if (!IsRepresentable(parameter.ParameterType)) return false;
             return HasMethodInfoField(method);
         }
+
+        private static bool IsAccessor(string name) =>
+            name.StartsWith("get_", StringComparison.Ordinal) || name.StartsWith("set_", StringComparison.Ordinal);
 
         private static bool HasMethodInfoField(MethodDefinition method)
         {

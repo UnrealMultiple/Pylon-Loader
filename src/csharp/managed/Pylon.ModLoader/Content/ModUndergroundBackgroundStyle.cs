@@ -3,6 +3,9 @@ namespace Pylon.ModLoader;
 /// <summary>自定义地下背景风格：ModSceneEffect/ModBiome 的 UndergroundBackgroundStyle 抢到场景时用；占游戏 22 个风格之后的编号。</summary>
 public abstract class ModUndergroundBackgroundStyle : ModType
 {
+    /// <summary>占用的风格号（管线发号：游戏 22 个风格之后）。</summary>
+    public int Slot { get; internal set; } = -1;
+
     /// <summary>填各层贴图编号：[0] 天/地边界 160x16、[1] 土、[2] 土/石边界 160x16、[3] 石 160x96、[4] 通往地狱（随游戏）。</summary>
     public virtual void FillTextureArray(int[] textureSlots) { }
 
@@ -10,5 +13,5 @@ public abstract class ModUndergroundBackgroundStyle : ModType
     public override void SetStaticDefaults() { }
 }
 
-// 未移植 register：桥接入口（实例化 + UndergroundBackgroundLoader.Add + Safe.Run(SetStaticDefaults)）；
+// 未移植 register：桥接入口（实例化 + UndergroundBackgroundLoader.Add + Safe.Run(SetStaticDefaults)）；编号与调用在 BackgroundPipeline 里。
 // Pylon 的注册由 ModType 自动发现，编号分配与调用在管线里。

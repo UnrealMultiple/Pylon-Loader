@@ -37,8 +37,17 @@ public abstract class ModMenu : ModType
     /// <summary>这个主题停止生效时。</summary>
     public virtual void OnDeselected() { }
 
+    /// <summary>选中这个主题（切换按钮/命令/别的 mod 调这个）；选择会落盘，下次启动还是它。</summary>
+    public void Select() => MenuPipeline.Instance.SelectAndSave(this);
+
+    /// <summary>取消选择，回到游戏原版标题画面（同样落盘）。</summary>
+    public static void Deselect() => MenuPipeline.Instance.SelectAndSave(null);
+
     /// <summary>菜单里每帧；isOnTitleScreen = 在标题画面（menuMode 0）。</summary>
     public virtual void Update(bool isOnTitleScreen) { }
+
+    /// <summary>标题画面的表层背景风格（null = 用游戏的）；写法与场景效果的 SurfaceBackgroundStyle 相同，在菜单里写 Main.bgStyle。</summary>
+    public virtual ModSurfaceBackgroundStyle? MenuBackgroundStyle => null;
 
     /// <summary>logo 画之前；后四个可写（游戏这帧的 logo 中心/旋转/缩放/颜色）；false = 不画 logo。</summary>
     public virtual bool PreDrawLogo(SpriteBatch spriteBatch, ref Vector2 logoDrawCenter, ref float logoRotation, ref float logoScale, ref Color drawColor) => true;
@@ -47,5 +56,4 @@ public abstract class ModMenu : ModType
     public virtual void PostDrawLogo(SpriteBatch spriteBatch, ref Vector2 logoDrawCenter, ref float logoRotation, ref float logoScale, ref Color drawColor) { }
 }
 
-// 未移植 MenuBackgroundStyle：类型是 ModSurfaceBackgroundStyle，这个版本的游戏里没有（dump.cs 查无此类型）。
 // 未移植 register：Pylon 的注册由 ModType 发现自动做，主题切换与 SetStaticDefaults 的调用在管线里。

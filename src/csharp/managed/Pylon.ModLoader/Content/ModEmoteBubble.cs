@@ -17,10 +17,21 @@ public abstract class ModEmoteBubble : ModType
     /// <summary>占号之后一次，只放共享数值（AddToCategory 也在这里调）。</summary>
     public override void SetStaticDefaults() { }
 
-    /// <summary>把它放进表情菜单的哪个分类（数字照游戏的分类号，0..6）。</summary>
-    public virtual void AddToCategory(int categoryId) { }
+    private List<int>? _categories;
+
+    /// <summary>把它放进表情菜单的哪个分类（数字照游戏的分类号：0 通用 / 1 石头剪刀布 / 2 物品 / 3 群系事件 / 4 城镇 NPC / 5 小动物 / 6 Boss）。</summary>
+    public void AddToCategory(int categoryId) => (_categories ??= []).Add(categoryId);
+
+    /// <summary>注册过的分类（管线用）。</summary>
+    internal IReadOnlyList<int> Categories => _categories is null ? Array.Empty<int>() : _categories;
 
     /// <summary>菜单里要不要出现；false = 不出现。</summary>
+    /// <summary>玩家做这个表情时，最近的城镇 NPC 用哪个原版表情回应（-1 = 不回应，默认）。</summary>
+    public virtual int NPCReaction => -1;
+
+    /// <summary>悬停/菜单里显示的名字；默认类名，作者可覆盖。</summary>
+    public virtual string DisplayName => Name;
+
     public virtual bool IsUnlocked() => true;
 
     /// <summary>泡泡生出来时一次（EmoteBubble.NewBubble）。</summary>

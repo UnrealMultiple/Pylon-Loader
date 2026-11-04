@@ -19,6 +19,12 @@ public class NpcShop
 
         /// <summary>自定义货币 ID；null = 用金币。</summary>
         public int? Currency;
+
+        /// <summary>
+        /// true：<see cref="Price"/> 随这个 NPC 的好感度浮动（乘 <c>Main.ShopHelper</c> 算出的 <c>PriceAdjustment</c>）。
+        /// 默认 false —— 原版对自定义价格是否已经乘过折扣，从方法体看不出来，所以让作者显式要。
+        /// </summary>
+        public bool HappinessPrice;
     }
 
     // #nextIndex 与 byKey 查重：Register 发号与重名抛错需要；完整注册表与 hook 安装归商店管线。
@@ -51,10 +57,17 @@ public class NpcShop
     /// <summary>true：游戏自己的店（管线预置的）；mod 的店是 false。</summary>
     public bool Vanilla { get; set; }
 
-    /// <summary>加一条商品；condition 返回 false 就不摆，price/currency 覆盖价格与货币。</summary>
-    public NpcShop Add(int type, Func<bool>? condition = null, int? price = null, int? currency = null)
+    /// <summary>
+    /// 加一条商品；condition 返回 false 就不摆，price/currency 覆盖价格与货币，
+    /// happinessPrice = 价格随好感度浮动（见 <see cref="ShopEntry.HappinessPrice"/>）。
+    /// </summary>
+    public NpcShop Add(int type, Func<bool>? condition = null, int? price = null, int? currency = null,
+                        bool happinessPrice = false)
     {
-        Entries.Add(new ShopEntry { Type = type, Condition = condition!, Price = price, Currency = currency });
+        Entries.Add(new ShopEntry
+        {
+            Type = type, Condition = condition!, Price = price, Currency = currency, HappinessPrice = happinessPrice,
+        });
         return this;
     }
 
@@ -62,7 +75,7 @@ public class NpcShop
     public NpcShop Register()
     {
         var key = NpcType + "/" + Name;
-        if (!Keys.Add(key)) throw new InvalidOperationException("NPCShop: " + key + " ja registrada");
+        if (!Keys.Add(key)) throw new InvalidOperationException("NPCShop: " + key + " 已经注册过");
 
         Index = _nextIndex--;
         ByKey[key] = this;
@@ -76,6 +89,9 @@ public class NpcShop
         Main.instance.OpenShop(Index);
         GUIInstance.Active.GUIPageIcons.OpenUI(GUIPageIcons.Category.Inventory, GUIPageIcons.Category.Shop);
     }
+
+    /// <summary>已注册的店（商店管线收表用）。</summary>
+    internal static IEnumerable<NpcShop> All => ByKey.Values;
 
     /// <summary>按 NPC 类型 + 店名找已注册的店；没有返回 null。</summary>
     internal static NpcShop Find(int npcType, string name) =>
