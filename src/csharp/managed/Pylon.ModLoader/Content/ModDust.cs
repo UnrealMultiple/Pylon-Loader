@@ -13,6 +13,10 @@ public abstract class ModDust : ModType
     /// <summary>贴图相对 Mod 目录的路径（默认 assets/dusts/&lt;Name&gt;.png）。</summary>
     public override string TexturePath => $"assets/dusts/{Name}.png";
 
+    /// <summary>生成一枚本类型的尘土；返回 Dust 实例，可继续改字段。</summary>
+    public Dust? Spawn(Vector2 position, Vector2 velocity, int alpha = 0, Color? color = null, float scale = 1f) =>
+        DustPipeline.Spawn(this, position, velocity, alpha, color, scale);
+
     /// <summary>生成时一次。</summary>
     public virtual void OnSpawn(Dust dust) { }
 

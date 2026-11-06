@@ -95,4 +95,9 @@ Mod.Load(context)
 2. 在 `Pipelines/<Name>/` 加内容表（`ModContent.GetContent<T>()` 收表、按类型全名排序）与管线（`ILoaderModule`：`Name` + `Install()`，需要重建时实现 `ILoaderModuleRefresh`）；
 3. 钩子注册用 `On.*`，分派前先判表为空；每个作者回调单独 `try/catch`，失败走 `ContentErrors.Report`；
 4. 钩子方法名与 `HookId` 一一对应，`HookId` 只追加；热路径不放分配；
-5. 在 `docs/pipeline/` 加 `content-<name>.md`：职责、实现原理、失败语义、作者 API 影响。
+5. 在 `docs/pipeline/` 加 `content-<name>.md`：职责、实现原理、失败语义、作者 API 影响；
+6. 在 [docs/testing/02-case-matrix.md](../testing/02-case-matrix.md) 补该管线的用例，并在测试 Mod 里加一个组。
+
+## 测试
+
+42 条管线目前零测试。测试策略、用例矩阵与测试 Mod 规格见 [docs/testing](../testing/README.md)。

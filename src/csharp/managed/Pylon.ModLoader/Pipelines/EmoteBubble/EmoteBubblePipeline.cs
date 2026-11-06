@@ -18,7 +18,7 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    /// <summary>原版表情图集在 TextureAssets.Extra 里的槽位（Bunny 的 Sheet 用同一个值）。</summary>
+    /// <summary>原版表情图集在 TextureAssets.Extra 里的槽位。</summary>
     private const int EmoteSheetSlot = 48;
 
     public bool Install()

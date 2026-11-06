@@ -41,7 +41,7 @@ PYLON_MOD_EXPORT const char* PylonMod_LastError();
 /// 不要缓存到 Mod 的静态变量里跨版本复用。
 PYLON_MOD_EXPORT void* PylonMod_FindType(const char* qualifiedName);
 
-/// `"Terraria.Main"`+`"DrawMenu"`+argc → 该方法的**原生代码指针**（Dobby 挂钩用）。
+/// `"Terraria.Main"`+`"DrawMenu"`+argc → 该方法的**原生代码指针**（ShadowHook 挂钩用）。
 /// 失败返回 nullptr，原因见 LastError。这是给"原生 detour 直调跳板"（对齐上游 hook 模型）
 /// 用的，不是拿来直调 C#：C# 异常是 C++ 异常，越过托管帧会崩（见 il2cpp/Invoke.h）。
 PYLON_MOD_EXPORT void* PylonMod_MethodPointer(const char* qualifiedName, const char* method,
@@ -152,16 +152,16 @@ PYLON_MOD_EXPORT void* PylonMod_NewString(const char* utf8);
 PYLON_MOD_EXPORT int32_t PylonMod_ReadString(void* managedString, char* out, int32_t outSize);
 
 // ---------------------------------------------------------------------------
-// 原生 hook（Dobby）：托管侧的 detour provider 与内核内部都用它
+// 原生 hook（ShadowHook）：托管侧的 detour provider 与内核内部都用它
 // ---------------------------------------------------------------------------
 
 /// 成功时通过 trampoline 返回原函数入口（跳板为空即已撤销）。
-/// @return 0 成功；-1 参数非法；-2 Dobby 不可用；-3 拿不到跳板；-4 该地址已挂别的替换函数
+/// @return 0 成功；-1 参数非法；-2 ShadowHook 不可用；-3 拿不到跳板；-4 该地址已挂别的替换函数；-5 后端挂钩失败
 PYLON_MOD_EXPORT int32_t PylonMod_HookApply(void* target, void* detour, void** trampoline);
 
 /// 卸载挂钩（还有别的持有者时只减计数）。
 PYLON_MOD_EXPORT int32_t PylonMod_HookRemove(void* target);
 
-/// Dobby 是否可用。
+/// ShadowHook 是否可用。
 PYLON_MOD_EXPORT int32_t PylonMod_HookAvailable();
 

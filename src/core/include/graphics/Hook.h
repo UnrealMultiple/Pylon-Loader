@@ -1,4 +1,4 @@
-// 层：内核层 / graphics —— Dobby 挂钩的薄封装
+// 层：内核层 / graphics —— ShadowHook 挂钩的薄封装
 #pragma once
 
 #include <cstddef>

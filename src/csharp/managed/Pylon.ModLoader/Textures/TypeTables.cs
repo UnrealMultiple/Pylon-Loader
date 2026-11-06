@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Il2CppInterop.Runtime;
+using Il2CppInterop.Runtime.InteropTypes.Arrays;
 
 namespace Pylon.ModLoader.Textures;
 
@@ -375,6 +376,95 @@ public static class TypeTables
         }
     }
 
+    /// <summary>
+    /// 目录表用的字段级指针访问（只给"按类名 + 字段名找表"这段老逻辑用；管线扩容走 <see cref="ArrayGrow"/>）。
+    /// 偏移见 refs/il2cpp.h。
+    /// </summary>
+    private static unsafe class Meta
+    {
+        private const int ClassElementClass = 0x40;
+        private const int ClassFields = 0x80;
+        private const int ClassStaticFields = 0xB8;
+        private const int ClassThreadStaticOffset = 0x110;
+        private const int ClassFieldCount = 0x120;
+        private const int FieldNameOff = 0x00;
+        private const int FieldTypeOff = 0x08;
+        private const int FieldParentOff = 0x10;
+        private const int FieldOffsetOff = 0x18;
+        private const int TypeBitsOff = 0x08;
+        private const int ArrLength = 0x18;
+        private const int ArrDataOff = 0x20;
+        private const int ThreadStatic = -1;
+
+        private static byte* B(IntPtr p) => (byte*)p;
+
+        internal static int FieldCount(IntPtr klass) => klass == IntPtr.Zero ? 0 : *(ushort*)(B(klass) + ClassFieldCount);
+
+        internal static IntPtr FieldAt(IntPtr klass, int index)
+        {
+            if (klass == IntPtr.Zero) return IntPtr.Zero;
+            var table = *(IntPtr*)(B(klass) + ClassFields);
+            return table == IntPtr.Zero ? IntPtr.Zero : ((IntPtr*)table)[index];
+        }
+
+        internal static string? FieldName(IntPtr field) => field == IntPtr.Zero ? null : IL2CPP.il2cpp_field_get_name_(field);
+        internal static IntPtr TypeOf(IntPtr field) => field == IntPtr.Zero ? IntPtr.Zero : *(IntPtr*)(B(field) + FieldTypeOff);
+        internal static int OffsetOf(IntPtr field) => field == IntPtr.Zero ? 0 : *(int*)(B(field) + FieldOffsetOff);
+        internal static IntPtr ParentOf(IntPtr field) => field == IntPtr.Zero ? IntPtr.Zero : *(IntPtr*)(B(field) + FieldParentOff);
+
+        internal static uint AttrsOf(IntPtr field)
+        {
+            var type = TypeOf(field);
+            return type == IntPtr.Zero ? 0u : *(uint*)(B(type) + TypeBitsOff) & 0xFFFFu;
+        }
+
+        internal static int TypeKindOf(IntPtr type) =>
+            type == IntPtr.Zero ? -1 : (int)((*(uint*)(B(type) + TypeBitsOff) >> 16) & 0xFFu);
+
+        /// <summary>字段类型是不是 T[]（走 il2cpp 的 type 枚举，不自己解 Il2CppType.bits）。</summary>
+        internal static bool IsSzArray(IntPtr field) =>
+            IL2CPP.il2cpp_type_get_type(IL2CPP.il2cpp_field_get_type(field)) == TypeSzArray;
+
+        internal static bool IsPlainStatic(IntPtr field)
+        {
+            var attrs = (uint)IL2CPP.il2cpp_field_get_flags(field);
+            if ((attrs & FieldStatic) == 0 || (attrs & FieldLiteral) != 0) return false;
+            return unchecked((int)IL2CPP.il2cpp_field_get_offset(field)) != ThreadStatic;
+        }
+
+        internal static bool NameIs(IntPtr field, string text) =>
+            string.Equals(IL2CPP.il2cpp_field_get_name_(field), text, StringComparison.Ordinal);
+
+        internal static IntPtr StaticAddress(IntPtr klass, IntPtr field)
+        {
+            if (klass == IntPtr.Zero || field == IntPtr.Zero) return IntPtr.Zero;
+            var block = *(IntPtr*)(B(klass) + ClassStaticFields);
+            return block == IntPtr.Zero ? IntPtr.Zero : block + OffsetOf(field);
+        }
+
+        /// <summary>
+        /// 读静态字段。走 il2cpp 自己的 API（<c>field_static_get_value</c>）：
+        /// 它内部处理 static_fields 基址与 thread-static 两种存储，比自己算地址稳。
+        /// </summary>
+        internal static unsafe IntPtr ReadStaticPtr(IntPtr klass, IntPtr field)
+        {
+            if (field == IntPtr.Zero) return IntPtr.Zero;
+            var value = IntPtr.Zero;
+            IL2CPP.il2cpp_field_static_get_value(field, &value);
+            return value;
+        }
+
+        /// <summary>写静态字段（同样交给 il2cpp，引用类型的写屏障由它负责）。</summary>
+        internal static unsafe void WriteStaticPtr(IntPtr klass, IntPtr field, IntPtr value)
+        {
+            if (field == IntPtr.Zero) return;
+            IL2CPP.il2cpp_field_static_set_value(field, (void*)value);
+        }
+
+        internal static int Items(IntPtr array) => array == IntPtr.Zero ? 0 : (int)*(long*)(B(array) + ArrLength);
+        internal static byte* Data(IntPtr array) => array == IntPtr.Zero ? null : B(array) + ArrDataOff;
+    }
+
     /// <summary>按名字在域里的程序集找 image（GetIl2CppImage 是私有的，这里自己走一遍）。</summary>
     private static unsafe IntPtr FindImage(string imageName)
     {
@@ -425,29 +515,23 @@ public static class TypeTables
         }
     }
 
-    /// <summary>
-    /// 字段类型是不是 T[]（只认"[]"结尾；多维 [,] 不算）。不能用 il2cpp_class_get_element_class 判：
-    /// 它只是 `return klass->element_class`，不做数组检查 —— 非数组类上也会拿到非 0 值
-    /// （真机踩过：把 int 静态字段 50 当数组指针，il2cpp_array_length(0x32) 直接 SIGSEGV）。
-    /// </summary>
-    private static bool IsArrayField(IntPtr field)
-    {
-        var type = IL2CPP.il2cpp_field_get_type(field);
-        return type != IntPtr.Zero && IL2CPP.il2cpp_type_get_type(type) == TypeSzArray;
-    }
+    /// <summary>字段类型是不是 T[] 一维数组（多维 [,] 是 ARRAY，不算）。</summary>
+    private static bool IsArrayField(IntPtr field) => Meta.IsSzArray(field);
 
     private static bool IsSkipped(TableClass spec, IntPtr field)
     {
         var skip = spec.Skip;
         if (skip is not { Length: > 0 }) return false;
-        var name = IL2CPP.il2cpp_field_get_name_(field);
-        if (string.IsNullOrEmpty(name)) return false;
         foreach (var candidate in skip)
-            if (string.Equals(candidate, name, StringComparison.Ordinal)) return true;
+            if (Meta.NameIs(field, candidate)) return true;
         return false;
     }
 
-    /// <summary>收集这个类的全部"静态 T[] 字段"。</summary>
+    /// <summary>
+    /// 收集这个类的全部"静态 T[] 字段"。走 il2cpp 自己的字段枚举迭代器 —— 它会先跑类初始化、
+    /// 也会过滤掉 <c>klass-&gt;fields</c> 里那些还没定型的槽位；自己按下标解 <c>klass-&gt;fields</c>
+    /// 曾经在真机上扫到过非 FieldInfo 的指针，扩表直接把内存写坏（fault addr 都是 ASCII 字符串）。
+    /// </summary>
     private static void CollectFields(IntPtr cls, TableClass spec, List<IntPtr> into)
     {
         var iter = IntPtr.Zero;
@@ -455,102 +539,67 @@ public static class TypeTables
         {
             var field = IL2CPP.il2cpp_class_get_fields(cls, ref iter);
             if (field == IntPtr.Zero) return;
-
-            var flags = (uint)IL2CPP.il2cpp_field_get_flags(field);
-            if ((flags & FieldStatic) == 0 || (flags & FieldLiteral) != 0) continue;
-            // thread-static 的 offset 是 (uint32)-1（这里按 int32 判）
-            if (unchecked((int)IL2CPP.il2cpp_field_get_offset(field)) == -1) continue;
+            if (!Meta.IsPlainStatic(field)) continue;
             if (IsSkipped(spec, field)) continue;
             if (!IsArrayField(field)) continue;
             into.Add(field);
         }
     }
 
-    /// <summary>读静态字段里的数组对象指针（0 = 还没建 / 不是引用）。</summary>
-    private static unsafe IntPtr ReadStatic(IntPtr field)
+    /// <summary>按名字找 FieldInfo（il2cpp 自带的名字查找）。</summary>
+    private static IntPtr FindField(IntPtr cls, string name)
     {
-        var value = IntPtr.Zero;
-        IL2CPP.il2cpp_field_static_get_value(field, &value);
-        return value;
+        try { return IL2CPP.il2cpp_class_get_field_from_name(cls, name); }
+        catch { return IntPtr.Zero; }
     }
 
-    /// <summary>写回静态字段（<c>field_static_set_value</c> 直接收对象指针）。</summary>
-    private static unsafe void WriteStatic(IntPtr field, IntPtr array) =>
-        IL2CPP.il2cpp_field_static_set_value(field, (void*)array);
+    /// <summary>读静态字段里的数组对象指针（0 = 还没建 / 不是引用）。</summary>
+    private static IntPtr ReadStatic(IntPtr field) =>
+        Meta.ReadStaticPtr(Meta.ParentOf(field), field);
 
-    private static int ArrayLength(IntPtr array) => array == IntPtr.Zero ? 0 : (int)IL2CPP.il2cpp_array_length(array);
+    /// <summary>写回静态字段（落值 + GC 写屏障）。</summary>
+    private static void WriteStatic(IntPtr field, IntPtr array) =>
+        Meta.WriteStaticPtr(Meta.ParentOf(field), field, array);
 
-    /// <summary>数组元素起始地址：Il2CppArray = 对象头（2 指针）+ bounds + max_length → 4 个指针。</summary>
-    private static unsafe byte* ArrayData(IntPtr array) => (byte*)array + 4 * IntPtr.Size;
+    private static int ArrayLength(IntPtr array) => Meta.Items(array);
+
+    /// <summary>数组元素起始地址。</summary>
+    private static unsafe byte* ArrayData(IntPtr array) => Meta.Data(array);
 
     /// <summary>
-    /// 值类型元素按 <c>il2cpp_class_value_size</c> 整块拷；引用元素拷指针。
+    /// 值类型元素按 <c>il2cpp_class_value_size</c> 整块拷；引用元素逐个走 GC 写屏障。
+    /// <para>
+    /// 引用元素<b>不能</b>用 memcpy 整块搬：那等于绕过增量 GC 的写屏障。新数组如果在标记
+    /// 阶段被分配（表一大就会分配很多次，必然撞上），它已经被标黑、不会再被扫描，此时用
+    /// memcpy 塞进去的指针没人去标记，下一轮回收就可能把那个对象收走 —— 现场表现就是十几
+    /// 秒后一段完全无关的游戏代码读到野指针 SIGSEGV。<c>TypeTables::growArray</c>
+    /// 对引用元素改用 <c>Array.Copy</c> / <c>Array.SetValue</c>，要的就是这个屏障。
+    /// </para>
     /// <paramref name="fillWithMode"/> 时尾部填"原数组出现最多的值"（方块/墙壁必须用它：
-    /// 填 0 会把新方块变成"实心泥土"）。写回前新数组没人看得见，绕过写屏障安全；
-    /// Android IL2CPP 是非移动 Boehm GC，本就没有写屏障。
+    /// 填 0 会把新方块变成"实心泥土"）。
     /// </summary>
-    internal static unsafe IntPtr GrowArray(IntPtr oldArray, int newCapacity, bool fillWithMode = false)
+    internal static IntPtr GrowArray(IntPtr oldArray, int newCapacity, bool fillWithMode = false) =>
+        ArrayGrow.Grow(oldArray, newCapacity, fillWithMode);
+
+    /// <summary>
+    /// 精确扩一张 interop 静态贴图表：
+    /// 只动这一张表，不做类级扫描 —— 云 / 发型这类"清单里只有一两个字段"的种类
+    /// 用 TableGrower 全类扫描会被 budget 截断，漏扩就是主菜单第一帧空指针。
+    /// 已经够长返回 false（不重扩）；表还没建（null / 长 0）返回 false，调用方 Refresh 重试。
+    /// </summary>
+    public static bool GrowAssetTable<T>(ref Il2CppReferenceArray<T>? table, int total)
+        where T : Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase
     {
-        if (oldArray == IntPtr.Zero || newCapacity <= 0) return IntPtr.Zero;
+        if (total <= 0) return false;
+        IntPtr old;
+        try { old = table?.Pointer ?? IntPtr.Zero; } catch { return false; }
+        if (old == IntPtr.Zero) return false;
+        if (ArrayLength(old) >= total) return false;
 
-        var oldLength = ArrayLength(oldArray);
-        var arrayClass = IL2CPP.il2cpp_object_get_class(oldArray);
-        if (arrayClass == IntPtr.Zero) return IntPtr.Zero;
-        var elementClass = IL2CPP.il2cpp_class_get_element_class(arrayClass);
-        if (elementClass == IntPtr.Zero) return IntPtr.Zero;
-
-        int elementSize;
-        if (IL2CPP.il2cpp_class_is_valuetype(elementClass))
-        {
-            var align = 0u;
-            elementSize = IL2CPP.il2cpp_class_value_size(elementClass, ref align);
-        }
-        else
-        {
-            elementSize = IntPtr.Size;   // 引用元素就是一个指针
-        }
-        if (elementSize <= 0) return IntPtr.Zero;
-
-        var grown = IL2CPP.il2cpp_array_new(elementClass, (ulong)newCapacity);
-        if (grown == IntPtr.Zero) return IntPtr.Zero;
-
-        var src = ArrayData(oldArray);
-        var dst = ArrayData(grown);
-        var copyBytes = (long)oldLength * elementSize;
-        if (copyBytes > 0)
-            Buffer.MemoryCopy(src, dst, (long)newCapacity * elementSize, copyBytes);
-
-        // 尾部填"没设置"的原值：一般 [0]，方块/墙壁用模式值。
-        if (oldLength > 0 && newCapacity > oldLength)
-        {
-            var model = src + (fillWithMode ? ModeIndex(src, oldLength, elementSize) : 0) * elementSize;
-            for (var i = oldLength; i < newCapacity; i++)
-                Buffer.MemoryCopy(model, dst + (long)i * elementSize, elementSize, elementSize);
-        }
-        return grown;
-    }
-
-    /// <summary>元素字节里出现次数最多的下标。</summary>
-    private static unsafe int ModeIndex(byte* data, int length, int elementSize)
-    {
-        if (length <= 0 || elementSize > 8) return 0;
-
-        var seen = new Dictionary<ulong, (int Count, int First)>(length);
-        var best = 0;
-        var bestCount = 0;
-        for (var i = 0; i < length; i++)
-        {
-            ulong value = 0;
-            var at = data + (long)i * elementSize;
-            for (var b = 0; b < elementSize; b++) value |= (ulong)at[b] << (8 * b);
-            seen.TryGetValue(value, out var entry);
-            entry = (entry.Count + 1, entry.Count == 0 ? i : entry.First);
-            seen[value] = entry;
-            if (entry.Count <= bestCount) continue;
-            bestCount = entry.Count;
-            best = entry.First;
-        }
-        return best;
+        var grown = GrowArray(old, total);
+        if (grown == IntPtr.Zero) return false;
+        table = new Il2CppReferenceArray<T>(grown);
+        return true;
     }
 
     /// <summary>已经跑过（还在盯着的）扩表器：每帧补 pending / 每 120 帧查重建。</summary>
@@ -594,6 +643,7 @@ public static class TypeTables
         }
         return grown;
     }
+
 
     /// <summary>表换了内容（补扩/重建）：贴图与名字要往新表再写一遍。</summary>
     private static void Notify(Action<TableKind>? regrown, TableGrower grower, Action<string>? log)
@@ -677,6 +727,8 @@ public static class TypeTables
                 }
                 if (ArrayLength(array) != _vanilla) continue;   // 不是这一类（同长度靠 Skip 排除）
                 _candidates.Add(field);                        // 这一张就该扩（自检按这份名单数）
+            
+                    log?.Invoke($"[grow] {_name} {FieldLabel(field)} len={_vanilla}→{_newCapacity} ptr=0x{array.ToInt64():x}");
                 if (!GrowField(field, array, log)) continue;
                 _grown++;
                 batch++;
@@ -687,6 +739,18 @@ public static class TypeTables
                 log?.Invoke($"[typetables] {_name} 这批 {watch.ElapsedMilliseconds}ms：扩了 {_grown - grownBefore} 张，" +
                             $"已扫到 {_fields.Count} 张表");
             return batch;
+        }
+
+        /// <summary>诊断用：<c>类名.字段名</c>，扩表流水账里标明是哪一张。</summary>
+        private static string FieldLabel(IntPtr field)
+        {
+            try
+            {
+                var cls = Meta.ParentOf(field);
+                var clsName = cls == IntPtr.Zero ? "?" : IL2CPP.il2cpp_class_get_name_(cls) ?? "?";
+                return clsName + "." + (IL2CPP.il2cpp_field_get_name_(field) ?? "?");
+            }
+            catch { return "?"; }
         }
 
         /// <summary>换一个类：按名解析 → 跑静态构造 → 收集静态数组字段。</summary>
@@ -821,6 +885,54 @@ public static class TypeTables
         }
     }
 
+    /// <summary>临时诊断：列出类的全部字段（名字/静态/偏移/当前值），返回名字含 contains 的静态字段。</summary>
+    public static IntPtr DumpFields(string ns, string name, string contains, Action<string> log)
+    {
+        try
+        {
+            var cls = FindClass(new TableClass(ns, name));
+            if (cls == IntPtr.Zero) { log($"[fields] 找不到 {ns}.{name}"); return IntPtr.Zero; }
+            // 先跑静态构造：没跑过时 klass->fields 还是空的（枚举会一张都拿不到，真机踩过）。
+            try { IL2CPP.il2cpp_runtime_class_init(cls); } catch { }
+            var match = IntPtr.Zero;
+            var iter = IntPtr.Zero;
+            while (true)
+            {
+                var field = IL2CPP.il2cpp_class_get_fields(cls, ref iter);
+                if (field == IntPtr.Zero) break;
+                var flags = (uint)IL2CPP.il2cpp_field_get_flags(field);
+                var offset = IL2CPP.il2cpp_field_get_offset(field);
+                var fieldName = IL2CPP.il2cpp_field_get_name_(field) ?? "?";
+                var isStatic = (flags & FieldStatic) != 0;
+                var value = isStatic ? ReadStatic(field) : IntPtr.Zero;
+                log($"[fields] {fieldName} static={isStatic} offset=0x{offset:x} flags=0x{flags:x} value=0x{value:x}");
+                if (match == IntPtr.Zero && isStatic && fieldName.Contains(contains, StringComparison.OrdinalIgnoreCase))
+                    match = field;
+            }
+            return match;
+        }
+        catch (Exception e) { log("[fields] 异常：" + e.Message); return IntPtr.Zero; }
+    }
+
+    /// <summary>临时诊断：读静态字段当前值。</summary>
+    public static IntPtr ReadField(IntPtr field) => field == IntPtr.Zero ? IntPtr.Zero : ReadStatic(field);
+
+    /// <summary>临时诊断：读一个类的静态字段原始指针（found=false 表示字段不存在）。</summary>
+    public static IntPtr StaticPointer(string ns, string name, string fieldName, out bool found)
+    {
+        found = false;
+        try
+        {
+            var cls = FindClass(new TableClass(ns, name));
+            if (cls == IntPtr.Zero) return IntPtr.Zero;
+            var field = FindField(cls, fieldName);
+            if (field == IntPtr.Zero) return IntPtr.Zero;
+            found = true;
+            return ReadStatic(field);
+        }
+        catch { return IntPtr.Zero; }
+    }
+
     /// <summary>自检：按原生名字读一张表的当前长度（0 = 类/字段/数组不存在）。</summary>
     public static int TableLength(string ns, string name, string? nested, string fieldName)
     {
@@ -828,7 +940,7 @@ public static class TypeTables
         {
             var cls = FindClass(new TableClass(ns, name, nested));
             if (cls == IntPtr.Zero) return 0;
-            var field = IL2CPP.il2cpp_class_get_field_from_name(cls, fieldName);
+            var field = FindField(cls, fieldName);
             if (field == IntPtr.Zero) return 0;
             var array = ReadStatic(field);
             return ArrayLength(array);

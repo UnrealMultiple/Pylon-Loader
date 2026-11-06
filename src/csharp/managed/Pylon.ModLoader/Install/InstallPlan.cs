@@ -28,6 +28,11 @@ internal static class InstallPlan
             new Step("尘土安装", InstallStage.Static, () => DustPipeline.Instance.Build()),
             new Step("树安装", InstallStage.Static, () => TreePipeline.Instance.Build()),
             new Step("伤害类别安装", InstallStage.Static, () => DamageClassPipeline.Instance.Build()),
+            // 云 / 发型 / 水样式要先扩表再写贴图（ResizeArrays → SetupTextures）。
+            // 它们原先排在写贴图之后，表还没扩写槽就全部失败，主菜单第一帧遍历这些表就空指针。
+            new Step("云安装", InstallStage.Static, () => CloudPipeline.Instance.Build()),
+            new Step("发型安装", InstallStage.Static, () => HairPipeline.Instance.Build()),
+            new Step("水样式安装", InstallStage.Static, () => WaterPipeline.Instance.Build()),
 
             // 表面：上传贴图 → 写表槽与名字 / 介绍。
             new Step("贴图上传", InstallStage.Surface, () => InstallSteps.LoadTextures(host)),
@@ -47,12 +52,9 @@ internal static class InstallPlan
             new Step("场景效果安装", InstallStage.Static, () => SceneEffectPipeline.Instance.Build()),
             new Step("血条安装", InstallStage.Static, () => BossBarPipeline.Instance.Build()),
             new Step("晶塔安装", InstallStage.Static, () => PylonPipeline.Instance.Build()),
-            new Step("云安装", InstallStage.Static, () => CloudPipeline.Instance.Build()),
-            new Step("发型安装", InstallStage.Static, () => HairPipeline.Instance.Build()),
             new Step("商店安装", InstallStage.Static, () => ShopPipeline.Instance.Build()),
             new Step("掉落安装", InstallStage.Mods, () => LootPipeline.Instance.Build()),
             new Step("命令安装", InstallStage.Static, () => CommandPipeline.Instance.Build()),
-            new Step("水样式安装", InstallStage.Static, () => WaterPipeline.Instance.Build()),
             new Step("菜单主题安装", InstallStage.Static, () => MenuPipeline.Instance.Build()),
             new Step("资源覆盖层安装", InstallStage.Static, () => ResourceOverlayPipeline.Instance.Build()),
             new Step("玩家绘制层安装", InstallStage.Static, () => PlayerDrawLayerPipeline.Instance.Build()),

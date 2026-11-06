@@ -44,6 +44,9 @@ class MainActivity : Activity(), LauncherScreen.Listener {
     private var currentState: LauncherState? = null
     private var importing = false
 
+    /** debug 入口只处理一次（防止 Activity 重建后重复自动启动）。 */
+    private var intentConsumed = false
+
     private var checkingExit = false
     private val preferences by lazy { getSharedPreferences("pylon-launcher", MODE_PRIVATE) }
 
@@ -538,12 +541,23 @@ class MainActivity : Activity(), LauncherScreen.Listener {
     // 导入与启动
     // ------------------------------------------------------------------
 
-    /** adb 驱动入口（该 action 只在 debug manifest 里声明）。 */
+    /**
+     * adb 驱动入口（该 action 只在 debug manifest 里声明）。
+     *
+     * 只消费一次：`launch=true` 的 intent 若留着，Activity 每次被重建/回到前台都会重新处理一次，
+     * 于是"崩溃 → 宿主退出 → Activity 重建 → 又拉一次游戏"变成无限重启（真机踩到）。
+     */
     private fun handleDebugIntent(intent: Intent?) {
         if (intent?.action != ACTION_IMPORT) return
+        if (intentConsumed) return
+        intentConsumed = true
+
         val force = intent.getBooleanExtra(EXTRA_FORCE, false)
         val launch = intent.getBooleanExtra(EXTRA_LAUNCH, false)
         Log.stage("launcher", "收到测试入口：force=$force launch=$launch")
+
+        // 消费掉 action，避免重建时再触发一次自动启动
+        setIntent(Intent(this, MainActivity::class.java))
         // 验收路径不因界面状态提前拦截：要能观察"未就绪时宿主怎么失败"。
         runImport(force) { if (launch) launchGameHost(requireReady = false) }
     }
@@ -610,6 +624,16 @@ class MainActivity : Activity(), LauncherScreen.Listener {
             )
             return
         }
+
+        // 崩溃循环保护：上一次启动在 20 秒内、且现在又要启动 = 崩了又被重新拉起，直接拒绝。
+        val now = System.currentTimeMillis()
+        val last = preferences.getLong(KEY_LAST_LAUNCH_AT, 0L)
+        if (now - last in 1..20_000) {
+            Log.w("启动宿主被拒绝：上一次启动 ${(now - last) / 1000}s 前，疑似崩溃重启循环")
+            screen.showError("游戏刚才异常退出，已阻止自动重启；请手动点启动再试")
+            return
+        }
+        preferences.edit().putLong(KEY_LAST_LAUNCH_AT, now).apply()
 
         Log.stage("launcher", "启动宿主：$GAME_ACTIVITY_CLASS")
         val gamePackage = state?.selectedPackage ?: selectedGamePackage()
@@ -705,6 +729,9 @@ class MainActivity : Activity(), LauncherScreen.Listener {
         const val EXTRA_FORCE = "force"
         const val EXTRA_LAUNCH = "launch"
         const val KEY_SELECTED_GAME = "selectedGamePackage"
+
+        /** 上一次拉起宿主的时刻（毫秒）：用来掐掉"崩溃→自动重启"的循环。 */
+        const val KEY_LAST_LAUNCH_AT = "lastLaunchAt"
 
         /** docs/03 排查表点名的关键资源，缺了会黑屏，单独列出。 */
         val CRITICAL_DATA_PROBES = listOf(

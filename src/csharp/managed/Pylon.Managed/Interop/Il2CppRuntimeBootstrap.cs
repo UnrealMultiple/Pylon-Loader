@@ -19,7 +19,7 @@ internal static class Il2CppRuntimeBootstrap
                 DetourProvider = new PylonDetourProvider(),
             });
             runtime.Start();
-            HostLog.Write("Il2CppInterop 运行时已启动（detour 走后端 Dobby，不带 Harmony）");
+            HostLog.Write("Il2CppInterop 运行时已启动（detour 走后端 ShadowHook，不带 Harmony）");
         }
         catch (Exception e)
         {

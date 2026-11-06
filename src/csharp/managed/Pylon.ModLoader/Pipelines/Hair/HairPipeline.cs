@@ -110,8 +110,17 @@ internal sealed class HairPipeline : ILoaderModule, ILoaderModuleRefresh
     /// <summary>安装期一次：扩表 + 静态默认值。要在写贴图（Surface 阶段）之前跑。</summary>
     internal void Build()
     {
+        // TextureAssets.ResizePlayerHair：精确扩
+        // PlayerHair 与 PlayerHairAlt 两张表到同一长度。不做类级扫描 —— 扫描会被
+        // 预算截断漏扩，主菜单/创建角色第一帧遍历发型表就空指针。
         var total = HairTable.Total;
-        if (total > 0) new TypeTables.TableGrower(TypeTables.TableKind.Hair, total).NextBatch(total, Log.Info);
+        if (total > TypeTables.HairVanilla && total > 0)
+        {
+            var hair = Terraria.GameContent.TextureAssets.PlayerHair;
+            var hairAlt = Terraria.GameContent.TextureAssets.PlayerHairAlt;
+            if (ArrayGrow.Grow(ref hair, total)) Terraria.GameContent.TextureAssets.PlayerHair = hair;
+            if (ArrayGrow.Grow(ref hairAlt, total)) Terraria.GameContent.TextureAssets.PlayerHairAlt = hairAlt;
+        }
 
         foreach (var hair in ModContent.GetContent<ModHair>())
         {

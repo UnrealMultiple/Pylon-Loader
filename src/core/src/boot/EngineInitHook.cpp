@@ -38,7 +38,7 @@ Status InstallEngineInitHook() {
     const int rc = PylonMod_HookApply(reinterpret_cast<void*>(api.init),
                                       reinterpret_cast<void*>(&InitReplacement), &trampoline);
     if (rc != 0 || trampoline == nullptr) {
-        return Status::Fail("Dobby 挂钩 il2cpp_init 失败（rc=" + std::to_string(rc) + "）");
+        return Status::Fail("ShadowHook 挂钩 il2cpp_init 失败（rc=" + std::to_string(rc) + "）");
     }
 
     g_original = reinterpret_cast<InitFn>(trampoline);

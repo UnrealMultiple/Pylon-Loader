@@ -3,8 +3,8 @@ using Pylon.NaviteAPI.Host;
 
 namespace Pylon.Managed.Interop;
 
-/// <summary>把 hook 引擎的 Apply / Remove 接到内核 Dobby。</summary>
-internal sealed class DobbyDetourBackend : DetourBackend
+/// <summary>把 hook 引擎的 Apply / Remove 接到内核 ShadowHook。</summary>
+internal sealed class ShadowHookDetourBackend : DetourBackend
 {
     public override bool IsAvailable
     {
@@ -16,7 +16,7 @@ internal sealed class DobbyDetourBackend : DetourBackend
             }
             catch (Exception e)
             {
-                // 探测接口约定永不抛出：Dobby 未加载时这里会失败，按"不可用"处理即可。
+                // 探测接口约定永不抛出：ShadowHook 未加载时这里会失败，按"不可用"处理即可。
                 HostLog.Write("内核 hook 出口不可用：" + e.Message);
                 return false;
             }

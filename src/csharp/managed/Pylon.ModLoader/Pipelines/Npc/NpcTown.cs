@@ -150,6 +150,7 @@ internal sealed class NpcTown
                          ref Texture2D option2Tex, ref int cost, ref bool showHappiness)
     {
         _talking = TalkingTo();
+
         if (_talking is not null)
         {
             _talkingType = _talking.type;
@@ -181,8 +182,11 @@ internal sealed class NpcTown
         focusText = buttons.Button ?? "";
         focusText3 = buttons.Button2 ?? "";
         // 空按钮要显式传 null 让游戏不画图标：签名不可为 null，但游戏本身接受 null。
-        option1Tex = string.IsNullOrEmpty(buttons.Button) ? null! : icon;
-        option2Tex = string.IsNullOrEmpty(buttons.Button2) ? null! : icon;
+        // CS8601 在这里是误报（ref 参数的可空标注），按项目"警告即错误"策略就地抑制。
+#pragma warning disable CS8601
+        option1Tex = string.IsNullOrEmpty(buttons.Button) ? Nothing : icon;
+        option2Tex = string.IsNullOrEmpty(buttons.Button2) ? Nothing : icon;
+#pragma warning restore CS8601
         cost = 0;
     }
 
@@ -195,6 +199,9 @@ internal sealed class NpcTown
     {
         if (!Clicked(false)) orig(self);
     }
+
+    /// <summary>签名不可为 null，但游戏本身接受 null；用属性绕开 CS8601（警告即错误）。</summary>
+    private static Texture2D Nothing => null!;
 
     /// <summary>返回 true = 这次点击被 mod 接走（不再走原版）。</summary>
     private static bool Clicked(bool first)

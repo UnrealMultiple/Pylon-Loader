@@ -16,10 +16,20 @@ internal static class CrashGuard
     private const int MaxRemembered = 256;
 
     private static readonly HashSet<string> Reported = new(StringComparer.Ordinal);
+    private static int FirstChance;
 
     public static void Install()
     {
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Report("unhandled", e.ExceptionObject as Exception);
+
+        // 诊断：未处理异常常常没有托管栈，在抛出点抓 first-chance。
+        AppDomain.CurrentDomain.FirstChanceException += (_, e) =>
+        {
+            if (e.Exception is not NullReferenceException) return;
+            if (FirstChance++ >= 5) return;
+            HostLog.Write("[error] first-chance NRE: " + e.Exception.Message);
+            if (e.Exception.StackTrace is { } stack) HostLog.Write(stack.TrimEnd());
+        };
         TaskScheduler.UnobservedTaskException += (_, e) =>
         {
             Report("unobserved-task", e.Exception);
@@ -41,5 +51,6 @@ internal static class CrashGuard
 
         HostLog.Write($"[error] {label}: {HostLog.Describe(exception)}");
         if (exception.StackTrace is { } stack) HostLog.Write(stack.TrimEnd());
+        else HostLog.Write("[error] 异常没有堆栈；当前栈（用于定位是在哪个 native→managed 回调里漏出来的）：" + Environment.StackTrace.Replace("\r", "").TrimEnd());
     }
 }

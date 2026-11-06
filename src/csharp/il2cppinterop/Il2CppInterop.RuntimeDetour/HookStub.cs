@@ -309,27 +309,26 @@ internal static class HookStub
         var nativeParams = plan.NativeParams.Concat(new[] { typeof(IntPtr) }).ToArray();
         il.EmitCalli(OpCodes.Calli, CallingConvention.Cdecl, plan.NativeReturn, nativeParams);
 
+        if (nativeResultLocal is not null) il.Emit(OpCodes.Stloc, nativeResultLocal);
+
+        // ref/out write-back：void 方法也要执行，否则原版写出来的值回不到托管侧（D-007）。
+        argIndex = plan.IsStatic ? 0 : 1;
+        for (var i = 0; i < plan.ParamTypes.Length; i++)
+        {
+            if (byrefLocals[i] is not null)
+            {
+                var element = plan.ParamTypes[i].GetElementType()!;
+                var nativeElement = plan.NativeParams[argIndex].GetElementType()!;
+                il.Emit(OpCodes.Ldarg, argIndex);
+                il.Emit(OpCodes.Ldloc, byrefLocals[i]);
+                EmitNativeToManaged(il, element, nativeElement);
+                il.Emit(OpCodes.Stobj, element);
+            }
+            argIndex++;
+        }
+
         if (nativeResultLocal is not null)
         {
-            il.Emit(OpCodes.Stloc, nativeResultLocal);
-
-            // ref/out write-back (value type refs pass through directly; boxed value type changes are
-            // already visible inside the box)
-            argIndex = plan.IsStatic ? 0 : 1;
-            for (var i = 0; i < plan.ParamTypes.Length; i++)
-            {
-                if (byrefLocals[i] is not null)
-                {
-                    var element = plan.ParamTypes[i].GetElementType()!;
-                    var nativeElement = plan.NativeParams[argIndex].GetElementType()!;
-                    il.Emit(OpCodes.Ldarg, argIndex);
-                    il.Emit(OpCodes.Ldloc, byrefLocals[i]);
-                    EmitNativeToManaged(il, element, nativeElement);
-                    il.Emit(OpCodes.Stobj, element);
-                }
-                argIndex++;
-            }
-
             il.Emit(OpCodes.Ldloc, nativeResultLocal);
             EmitNativeToManaged(il, plan.ReturnType, plan.NativeReturn);   // IntPtr -> string etc.
         }

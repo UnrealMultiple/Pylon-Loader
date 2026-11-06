@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace Pylon.NaviteAPI.Host;
 
-/// <summary>内核 Dobby 的 hook 出口。</summary>
+/// <summary>内核 ShadowHook 的 hook 出口。</summary>
 internal static partial class HookNative
 {
     [LibraryImport("pylon", EntryPoint = "PylonMod_HookAvailable")]

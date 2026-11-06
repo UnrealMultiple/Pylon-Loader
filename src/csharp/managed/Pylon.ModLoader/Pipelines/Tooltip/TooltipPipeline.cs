@@ -307,10 +307,12 @@ internal sealed class TooltipPipeline : ILoaderModule
         var names = new TooltipNames(item);
         var used = new HashSet<string>(StringComparer.Ordinal);
         var lines = new List<TooltipLine>(count + 4);
+        var originals = new string[count];
 
         for (var i = 0; i < count; i++)
         {
             var text = tip.GetLine(i) ?? "";
+            originals[i] = text;
             lines.Add(new TooltipLine(names.Of(text, i == 0 ? "name" : "", false), text));
         }
 
@@ -319,16 +321,23 @@ internal sealed class TooltipPipeline : ILoaderModule
 
         var texts = new string[lines.Count];
         var written = 0;
+        var changed = false;
 
         for (var i = 0; i < lines.Count; i++)
         {
             var line = lines[i];
             if (!line.Visible) continue;
 
-            texts[written++] = line.Text ?? "";
+            var text = line.Text ?? "";
+            if (!changed && (i >= count || text != originals[i])) changed = true;
+            texts[written++] = text;
         }
 
         if (written == 0) return;
+
+        // 作者没改就不替换游戏原有的 ItemTooltip（详情/图鉴界面依赖它的结构）。
+        if (!changed && written == count) return;
+
         if (written != texts.Length) Array.Resize(ref texts, written);
 
         item.ToolTip = ItemTooltip.FromHardcodedText(texts);

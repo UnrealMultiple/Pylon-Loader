@@ -4,7 +4,7 @@ using Pylon.NaviteAPI.Host;
 
 namespace Pylon.Managed.Interop;
 
-/// <summary>一个 Dobby detour 的生命周期；构造即生效，Dispose 时移除。</summary>
+/// <summary>一个 ShadowHook detour 的生命周期；构造即生效，Dispose 时移除。</summary>
 internal sealed class PylonDetour<TDelegate> : IDetour where TDelegate : Delegate
 {
     // 必须保活：委托被回收后，跳板会跳进已释放的桩。
@@ -15,7 +15,7 @@ internal sealed class PylonDetour<TDelegate> : IDetour where TDelegate : Delegat
     public PylonDetour(IntPtr original, TDelegate target)
     {
         if (HookNative.IsAvailable() == 0)
-            throw new NotSupportedException("内核 Dobby 不可用（libdobby.so 未加载）");
+            throw new NotSupportedException("内核 ShadowHook 不可用（libshadowhook.so 未加载）");
 
         _target = target;
         Target = original;
@@ -36,7 +36,7 @@ internal sealed class PylonDetour<TDelegate> : IDetour where TDelegate : Delegat
 
     public IntPtr OriginalTrampoline { get; }
 
-    /// <summary>Dobby 在构造时就已生效，这里无需动作。</summary>
+    /// <summary>ShadowHook 在构造时就已生效，这里无需动作。</summary>
     public void Apply() { }
 
     public T GenerateTrampoline<T>() where T : Delegate => Marshal.GetDelegateForFunctionPointer<T>(OriginalTrampoline);

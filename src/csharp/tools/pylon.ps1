@@ -301,8 +301,7 @@ function Command-Deploy {
     Step '运行时 native → debug jniLibs'
     $libs = @('libcoreclr.so', 'libclrjit.so', 'libmscordaccore.so', 'libmscordbi.so',
               'libSystem.Native.so', 'libSystem.Globalization.Native.so',
-              'libSystem.IO.Compression.Native.so', 'libSystem.Security.Cryptography.Native.Android.so',
-              'libdobby.so')
+              'libSystem.IO.Compression.Native.so', 'libSystem.Security.Cryptography.Native.Android.so')
     New-Item -ItemType Directory -Force -Path $jniDebug | Out-Null
     foreach ($name in $libs) {
         Need "$runtimeRoot\lib\$name" '运行时 native 不全'

@@ -36,8 +36,6 @@ internal sealed class BannerPipeline : ILoaderModule
         On.Terraria.Main.Update += BuffScan;
         On.Terraria.SceneMetrics.Scan += BuffApply;
         On.Terraria.Player.HasNPCBannerBuff += HasNpcBannerBuff;
-        On.Terraria.Player.GetBannerBuffEffect += GetBannerBuffEffectFromNpc;
-        On.Terraria.Player.GetBannerBuffEffect_1 += GetBannerBuffEffectFromType;
         On.Terraria.IO.WorldFile.LoadWorld += LoadWorld;
         On.Terraria.IO.WorldFile.InternalSaveWorld += SaveWorld;
 
@@ -275,6 +273,10 @@ internal sealed class BannerPipeline : ILoaderModule
     /// <summary>
     /// servamp：两张表（<c>NPCBannerBuff</c> 与 <c>ItemID.Sets.BannerStrength</c>）都已补到容纳 mod 编号，
     /// 所以 mod 旗子直接问原版即可——减伤数值也走原版那套，我们不复刻。越界前先兜一下，免得表没补上时崩。
+    /// 注意：不要再钩 <c>Player.GetBannerBuffEffect</c>（两个重载都不行）。
+    /// 它的 <c>out ItemID.BannerEffect</c> 是含引用字段的非 blittable struct（24 字节），
+    /// 插件的 out 封送会把 out 指针传成 null，原版往里写 → 攻击 NPC 时 SIGSEGV fault 0x10。
+    /// 表扩长后原版逻辑对 mod 旗子本来就成立，这两个钩子属多余。
     /// </summary>
     private static bool HasNpcBannerBuff(On.Terraria.Player.orig_HasNPCBannerBuff orig, Player self, int bannerType)
     {
@@ -282,30 +284,6 @@ internal sealed class BannerPipeline : ILoaderModule
         if (bannerType >= VanillaCounts.Npc && (table is null || bannerType >= table.Length)) return false;
 
         return orig(self, bannerType);
-    }
-
-    private static bool GetBannerBuffEffectFromNpc(On.Terraria.Player.orig_GetBannerBuffEffect orig, Player self, NPC npc,
-                                                   ref ItemID.BannerEffect effect)
-    {
-        if (npc.type >= VanillaCounts.Npc && !HasBuff(npc.type))
-        {
-            effect = ItemID.BannerEffect.None;
-            return false;
-        }
-
-        return orig(self, npc, ref effect);
-    }
-
-    private static bool GetBannerBuffEffectFromType(On.Terraria.Player.orig_GetBannerBuffEffect_1 orig, Player self,
-                                                    int bannerType, ref ItemID.BannerEffect effect)
-    {
-        if (bannerType >= VanillaCounts.Npc && !HasBuff(bannerType))
-        {
-            effect = ItemID.BannerEffect.None;
-            return false;
-        }
-
-        return orig(self, bannerType, ref effect);
     }
 
     /// <summary>这面 mod 旗子此刻有没有被点亮（表还没补就当作没有）。</summary>

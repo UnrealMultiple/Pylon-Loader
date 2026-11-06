@@ -14,6 +14,9 @@ internal sealed class CloudPipeline : ILoaderModule, ILoaderModuleRefresh
 
     public string Name => "cloud";
 
+    /// <summary>临时隔离开关（测试计划 §4.4）：true = 不把云编号换成 mod 云。已确认无关，回到 false。</summary>
+    internal static bool _isolateNoReplace = false;
+
     private static IModLog Log => LoaderHost.Current.Log;
 
     public bool Install()
@@ -31,8 +34,16 @@ internal sealed class CloudPipeline : ILoaderModule, ILoaderModuleRefresh
     /// <summary>安装期一次：扩表 + 静态默认值。要在写贴图（Surface 阶段）之前跑。</summary>
     internal void Build()
     {
+        // 精确扩 TextureAssets.Cloud 一张表，
+        // 再把 TextureMaskManager.CloudMasks 扩到同长并给每朵云建 TextureMask（游戏画云前查遮罩，空槽位解引用就是主菜单 SIGSEGV）。
         var total = CloudTable.Total;
-        if (total > 0) new TypeTables.TableGrower(TypeTables.TableKind.Cloud, total).NextBatch(total, Log.Info);
+        if (total > TypeTables.CloudVanilla && total > 0)
+        {
+            // 扩哪张表由本管线自己声明：取静态属性 → 交给 ArrayGrow → 写回。
+            var clouds = Terraria.GameContent.TextureAssets.Cloud;
+            if (ArrayGrow.Grow(ref clouds, total))
+                Terraria.GameContent.TextureAssets.Cloud = clouds;
+        }
 
         foreach (var cloud in ModContent.GetContent<ModCloud>())
         {
@@ -40,7 +51,45 @@ internal sealed class CloudPipeline : ILoaderModule, ILoaderModuleRefresh
             cloud.SetStaticDefaults();
         }
 
+        GrowMasks(total);
+
         if (CloudTable.Count > 0) Log.Info($"[cloud] 安装：{CloudTable.Count} 朵云");
+    }
+
+    /// <summary>
+    /// 云遮罩表与贴图表同长，每朵 mod 云一个"没画过"的空遮罩，
+    /// 尺寸取贴图尺寸。原版遮罩原样保留。
+    /// </summary>
+    private static void GrowMasks(int total)
+    {
+        try
+        {
+            var masks = global::TextureMaskManager.CloudMasks;
+            Log.Info($"[cloud] CloudMasks 表：{(masks is null ? "null（游戏还没建）" : $"长 {masks.Length}")}，目标 {total}");
+            if (masks is null) return;
+            if (ArrayGrow.Grow(ref masks, total))
+                global::TextureMaskManager.CloudMasks = masks;
+
+            foreach (var cloud in ModContent.GetContent<ModCloud>())
+            {
+                if (!cloud.Registered) continue;
+                if (masks is null || (uint)cloud.Type >= (uint)masks.Length) continue;
+                var existing = masks[cloud.Type];
+                if (existing is not null && existing.Pointer != IntPtr.Zero) continue;
+
+                var mask = new global::TextureMask();
+                if (cloud.Texture?.Value is { } texture)
+                {
+                    mask.srcWidth = texture.Width;
+                    mask.srcHeight = texture.Height;
+                }
+                masks[cloud.Type] = mask;
+            }
+        }
+        catch (Exception e)
+        {
+            Log.Warn("[cloud] 遮罩表扩容失败（游戏侧没有 TextureMaskManager 时画云走老路径）：" + Safe.Describe(e));
+        }
     }
 
     // ===================== 生成 =====================
@@ -51,6 +100,7 @@ internal sealed class CloudPipeline : ILoaderModule, ILoaderModuleRefresh
         var vanilla = orig();
 
         if (CloudTable.Count == 0) return vanilla;
+        if (_isolateNoReplace) return vanilla;   // 临时隔离
 
         var type = CloudTable.Roll(CloudTable.Base, true);
         if (type == 0) return vanilla;
@@ -90,6 +140,7 @@ internal sealed class CloudPipeline : ILoaderModule, ILoaderModuleRefresh
         orig();
 
         if (CloudTable.Count == 0) return;
+        if (_isolateNoReplace) return;   // 临时隔离：不替换云类型
 
         var index = Main.numClouds - 1;
         var clouds = Main.cloud;

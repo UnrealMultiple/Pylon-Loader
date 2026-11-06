@@ -45,8 +45,8 @@ internal static class LoaderRegistry
         PlayerPipeline.Instance,
         PlayerNetPipeline.Instance,
         NetPipeline.Instance,
-    BannerNetPipeline.Instance,
-    EmoteNetPipeline.Instance,
+        BannerNetPipeline.Instance,
+        EmoteNetPipeline.Instance,
         SoundPipeline.Instance,
         TouchButtonPipeline.Instance,
         MusicPipeline.Instance,
@@ -66,6 +66,8 @@ internal static class LoaderRegistry
     /// </summary>
     public static void InstallAll()
     {
+        if (_installed >= Modules.Length) return;   // 全装完了：别每帧重跑 RefreshAll
+
         while (_installed < Modules.Length)
         {
             if (!Modules[_installed].Install()) return;

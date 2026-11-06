@@ -88,6 +88,10 @@ internal sealed class RecipePipeline : ILoaderModule
         var count = Main.numAvailableRecipes;
         if (available is null || count <= 0 || count > available.Length) return;
 
+        // 压缩会改变下标，正在看的那条要重新定位。
+        var focus = Main.focusRecipe;
+        var focused = focus >= 0 && focus < count ? available[focus] : -1;
+
         var kept = 0;
         var dropped = false;
 
@@ -104,7 +108,19 @@ internal sealed class RecipePipeline : ILoaderModule
             kept++;
         }
 
-        if (dropped) Main.numAvailableRecipes = kept;
+        if (!dropped) return;
+
+        Main.numAvailableRecipes = kept;
+
+        if (focused < 0) return;
+        for (var i = 0; i < kept; i++)
+        {
+            if (available[i] != focused) continue;
+            Main.focusRecipe = i;
+            return;
+        }
+
+        Main.focusRecipe = 0;
     }
 
     #endregion

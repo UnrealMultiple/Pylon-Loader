@@ -30,6 +30,7 @@ pwsh -File src/csharp/tools/pylon.ps1 check
 | `refs/` | 游戏的 `libil2cpp.so`、`global-metadata.dat`、`dump.cs` | 从**你自己安装的正版** APK 解出，再用 Il2CppDumper 生成 `dump.cs` |
 | `runtime/` | CoreCLR native、BCL、BepInEx 托管栈 | 上游 BepInEx-Android release APK，或本仓库 CI 的 artifact |
 | `interop/generated/` | Il2CppInterop 代理程序集与 `On.*` 钩子 | `pylon.ps1 interop -DummyDir <Il2CppDumper 的 DummyDll>` |
+| `src/app/src/main/jniLibs/arm64-v8a/libshadowhook.so` | hook 后端运行时 | `com.bytedance.android:shadowhook:1.0.10` AAR 里的 `jni/arm64-v8a/libshadowhook.so` |
 
 三者都与**游戏版本**绑定：换版本必须整组重做，混用会在运行期以引用校验失败或崩溃暴露。
 
@@ -86,6 +87,19 @@ pwsh -File src/csharp/tools/pylon.ps1 interop -DummyDir refs\DummyDll
 - 游戏程序集的强类型代理（`Assembly-CSharp.dll`、`Il2Cppmscorlib.dll` 等）
 - `On.*` 钩子事件（写进代理程序集，不额外产出程序集）
 - `MethodAddressToToken.db`（运行期按名定位方法的索引）
+
+### 2.4 shadowhook
+
+内核的 hook 出口通过 `dlopen("libshadowhook.so")` 加载后端，因此 APK 里必须有这个 .so：
+
+```powershell
+# 从 Maven Central 取 AAR，解出 arm64 运行时库
+curl -L -o shadowhook.aar https://repo1.maven.org/maven2/com/bytedance/android/shadowhook/1.0.10/shadowhook-1.0.10.aar
+# 解压（7z / Expand-Archive 均可），然后：
+copy <解压目录>\jni\arm64-v8a\libshadowhook.so src\app\src\main\jniLibs\arm64-v8a\
+```
+
+`src/app/src/main/jniLibs/` 被 `.gitignore` 排除（`*.so`），所以新 clone 需要自己放一份。
 
 ## 3. 一条命令构建
 

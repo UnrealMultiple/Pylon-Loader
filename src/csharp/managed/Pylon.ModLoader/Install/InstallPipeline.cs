@@ -2,7 +2,6 @@ using System.Diagnostics;
 using Pylon.ModLoader.Textures;
 using Il2CppMicrosoft.Xna.Framework;
 using Terraria;
-using Terraria.GameContent;
 
 namespace Pylon.ModLoader;
 
@@ -18,8 +17,8 @@ internal sealed class InstallPipeline
     /// <summary>单步超过这个时长就单独记一条，提示该拆了。</summary>
     private const int SlowStepMs = 40;
 
-    /// <summary>就绪判据一直不成立时的兜底帧数（约 2 秒）。</summary>
-    private const int ReadyTimeoutFrames = 120;
+    /// <summary>就绪判据的兜底帧数（约 5 分钟）；只防永远卡住，不提前强装。</summary>
+    private const int ReadyTimeoutFrames = 60 * 60 * 5;
 
     /// <summary>表维护的间隔帧数。</summary>
     private const int MaintainEveryFrames = 60;
@@ -46,6 +45,10 @@ internal sealed class InstallPipeline
         try
         {
             On.Terraria.Main.DoUpdate += Tick;
+
+            // 扩表只在明确事件里做（SceneMetrics.Reset / LoadWorld），不每帧扫全表。
+            On.Terraria.SceneMetrics.Reset += Reshape;
+            On.Terraria.IO.WorldFile.LoadWorld += ReshapeWorld;
         }
         catch (Exception e)
         {
@@ -59,15 +62,13 @@ internal sealed class InstallPipeline
 
         try
         {
-            if (_complete)
-            {
-                Maintain();
-                return;
-            }
+            if (_complete) return;
 
             if (_steps.Length == 0)
             {
-                if (!GameReadiness.LooksReady() && ++_frames < ReadyTimeoutFrames) return;
+                var ready = GameReadiness.LooksReady();
+                if (!ready && ++_frames < ReadyTimeoutFrames) return;
+
                 if (_steps.Length == 0) Build();
             }
 
@@ -130,6 +131,20 @@ internal sealed class InstallPipeline
         _complete = true;
         _host.MarkReady();
         Log.Info("[install] 内容安装完成，转入表维护");
+    }
+
+    /// <summary>事件驱动的表维护：场景指标重置后补扩。</summary>
+    private void Reshape(On.Terraria.SceneMetrics.orig_Reset orig, Terraria.SceneMetrics self)
+    {
+        orig(self);
+        Maintain();
+    }
+
+    /// <summary>读档后补扩：世界文件加载会重建一批内容表。</summary>
+    private void ReshapeWorld(On.Terraria.IO.WorldFile.orig_LoadWorld orig, bool canCheckFileState)
+    {
+        orig(canCheckFileState);
+        Maintain();
     }
 
     /// <summary>表维护：游戏重建表后补扩、重写槽；方块与墙壁的实例表低频补齐。</summary>

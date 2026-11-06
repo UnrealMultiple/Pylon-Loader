@@ -1,3 +1,4 @@
+using Il2CppInterop.Runtime;
 using Il2CppMicrosoft.Xna.Framework;
 using Terraria;
 using Terraria.UI;
@@ -29,16 +30,23 @@ internal sealed class InterfaceLayerPipeline : ILoaderModule, ILoaderModuleRefre
     private static readonly List<IntPtr> Applied = [];
 
     /// <summary>作者层外壳（按名字 + 重复序号缓存，作者的层每帧新建也能复用外壳）。</summary>
-    private static readonly Dictionary<string, NativeLayer> Shells = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, Shell> Shells = new(StringComparer.Ordinal);
+
+    /// <summary>外壳 + 钉住它的强 GC handle。</summary>
+    private sealed class Shell
+    {
+        public NativeLayer Layer = null!;
+        public IntPtr Pin;
+    }
 
     /// <summary>外壳指针 → 作者的层（<c>DrawSelf</c> 靠它转回托管）。</summary>
     private static readonly Dictionary<IntPtr, GameInterfaceLayer> ByPointer = [];
 
     /// <summary>外壳指针 → 外壳对象（写回列表时要把指针换回对象）。</summary>
-    private static readonly Dictionary<IntPtr, NativeLayer> ShellsByPointer = [];
+    private static readonly Dictionary<IntPtr, Shell> ShellsByPointer = [];
 
-    /// <summary>原版层的对象（与 <see cref="Vanilla"/> 一一对应）。</summary>
-    private static readonly List<NativeLayer> Native = [];
+    /// <summary>原版层的原始指针（与 <see cref="Vanilla"/> 一一对应）；不长期持有包装对象。</summary>
+    private static readonly List<IntPtr> NativePtrs = [];
 
     /// <summary>加载器自己的层（画完原版层之后画，不参与作者的增删）。</summary>
     private static readonly List<GameInterfaceLayer> Internal = [];
@@ -52,6 +60,9 @@ internal sealed class InterfaceLayerPipeline : ILoaderModule, ILoaderModuleRefre
     public bool Install()
     {
         On.Terraria.Main.DrawInterface += DrawInterface;
+
+        // DrawSelf 只有 8 字节（mov w0,#1; ret）；ShadowHook 入口只写一条 4 字节 B，
+        // 不会像 Dobby（16 字节补丁）那样覆盖紧邻的 get__notifications。
         On.Terraria.UI.GameInterfaceLayer.DrawSelf += DrawSelf;
 
         Log.Info("[interfacelayer] 已挂（界面层序列可增删/换序/隐藏；作者层绘制转回托管）");
@@ -65,10 +76,14 @@ internal sealed class InterfaceLayerPipeline : ILoaderModule, ILoaderModuleRefre
         Vanilla.Clear();
         Layers.Clear();
         Applied.Clear();
+        foreach (var shell in Shells.Values)
+        {
+            if (shell.Pin != IntPtr.Zero) IL2CPP.il2cpp_gchandle_free(shell.Pin);
+        }
         Shells.Clear();
         ByPointer.Clear();
         ShellsByPointer.Clear();
-        Native.Clear();
+        NativePtrs.Clear();
         _capturedList = IntPtr.Zero;
         _capturedCount = 0;
     }
@@ -108,7 +123,15 @@ internal sealed class InterfaceLayerPipeline : ILoaderModule, ILoaderModuleRefre
             }
         }
 
-        return orig(self);
+        try
+        {
+            return orig(self);
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report("[interfacelayer] 原版 Draw 抛异常：" + Safe.Describe(e));
+            return true;
+        }
     }
 
     private static void Apply(Main main)
@@ -174,16 +197,16 @@ internal sealed class InterfaceLayerPipeline : ILoaderModule, ILoaderModuleRefre
     {
         for (var i = 0; i < Vanilla.Count; i++)
         {
-            if (Vanilla[i].Native == pointer) return Native[i];
+            if (Vanilla[i].Native == pointer) return new NativeLayer(pointer);
         }
 
-        return ShellsByPointer.TryGetValue(pointer, out var shell) ? shell : null;
+        return ShellsByPointer.TryGetValue(pointer, out var shell) ? shell.Layer : null;
     }
 
     private static void Capture(NativeList list)
     {
         Vanilla.Clear();
-        Native.Clear();
+        NativePtrs.Clear();
         ByPointer.Clear();
 
         for (var i = 0; i < list.Count; i++)
@@ -192,7 +215,7 @@ internal sealed class InterfaceLayerPipeline : ILoaderModule, ILoaderModuleRefre
             if (native is null) continue;
 
             Vanilla.Add(new GameInterfaceLayer(native.Name ?? "", native.ScaleType, native.Pointer));
-            Native.Add(native);
+            NativePtrs.Add(native.Pointer);
         }
 
         _capturedList = list.Pointer;
@@ -209,16 +232,18 @@ internal sealed class InterfaceLayerPipeline : ILoaderModule, ILoaderModuleRefre
         var key = repeat == 0 ? name : name + "#" + repeat;
         if (!Shells.TryGetValue(key, out var shell))
         {
-            shell = new NativeLayer(name, layer.ScaleType);
+            var created = new NativeLayer(name, layer.ScaleType);
+            // pinned=true：钉住 il2cpp 对象，包装器被回收也不影响游戏侧。
+            shell = new Shell { Layer = created, Pin = IL2CPP.il2cpp_gchandle_new(created.Pointer, true) };
             Shells[key] = shell;
         }
-        else if (shell.ScaleType != layer.ScaleType)
+        else if (shell.Layer.ScaleType != layer.ScaleType)
         {
-            shell.ScaleType = layer.ScaleType;
+            shell.Layer.ScaleType = layer.ScaleType;
         }
 
-        ShellsByPointer[shell.Pointer] = shell;
-        return shell.Pointer;
+        ShellsByPointer[shell.Layer.Pointer] = shell;
+        return shell.Layer.Pointer;
     }
 
     private static bool Same(List<IntPtr> final)

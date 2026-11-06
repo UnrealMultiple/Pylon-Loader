@@ -15,6 +15,10 @@ internal static class ImGuiContext
     private static GCHandle _fontPin;      // 动态字体图集按需取字，TTF 必须常驻
     private static float _appliedScale = 1f;
 
+    // 缩放基线：TerrariaTheme.Apply() 之后、缩放之前的那份样式。
+    // 每次改缩放都从它重算，不能在已缩放的值上做增量（见 ApplyScale 注释）。
+    private static byte[]? _baseStyle;
+
     internal static bool Created => _context != IntPtr.Zero;
 
     internal static bool Create()
@@ -56,17 +60,35 @@ internal static class ImGuiContext
         ImGui.DestroyContext(_context);
         _context = IntPtr.Zero;
         _appliedScale = 1f;   // 新上下文的样式是默认值，下次 ApplyScale 必须重新施加
+        _baseStyle = null;
         if (_fontPin.IsAllocated) _fontPin.Free();
     }
 
-    /// <summary>整体缩放：字体与控件度量一起变。按比例从当前状态增量施加，可重复调用。</summary>
-    internal static void ApplyScale(float scale)
+    /// <summary>
+    /// 整体缩放：每次都从基线样式重算。增量施加会被 ScaleAllSizes 的 ImTrunc
+    /// 逐步截断（WindowBorderHoverPadding 归零即断言 abort）。
+    /// </summary>
+    internal static unsafe void ApplyScale(float scale)
     {
         if (_context == IntPtr.Zero) return;
         var target = Math.Clamp(scale, UiSettings.MinScale, UiSettings.MaxScale);
         if (Math.Abs(target - _appliedScale) < 0.0001f) return;
 
-        ImGui.GetStyle().ScaleAllSizes(target / _appliedScale);
+        var style = ImGui.GetStyle();
+        var size = sizeof(ImGuiStyle);
+        var current = (byte*)style.NativePtr;
+
+        if (_baseStyle is null)
+        {
+            _baseStyle = new byte[size];
+            fixed (byte* basePtr = _baseStyle) Buffer.MemoryCopy(current, basePtr, size, size);
+        }
+        else
+        {
+            fixed (byte* basePtr = _baseStyle) Buffer.MemoryCopy(basePtr, current, size, size);
+        }
+
+        if (Math.Abs(target - 1f) > 0.0001f) style.ScaleAllSizes(target);
         ImGui.GetIO().FontGlobalScale = target;
         _appliedScale = target;
     }

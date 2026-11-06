@@ -286,6 +286,11 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         var total = WaterTable.Total;
         if (total > 0) new TypeTables.TableGrower(TypeTables.TableKind.WaterStyle, total).NextBatch(total, Log.Info);
 
+        // 除 TextureAssets.Liquid / LiquidSlope（上面
+        // TableGrower 按 WaterStyle 类清单扫）外，还有第三张表 LiquidRenderer._liquidTextures
+        // —— 游戏画水面时读它，漏扩就是进世界读水面贴图越界/空指针。
+        GrowLiquidRenderer(total);
+
         var falls = WaterfallTable.Total;
         if (falls > WaterfallTable.Base)
         {
@@ -313,6 +318,22 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
 
         if (WaterTable.Count > 0) Log.Info($"[water] 安装：{WaterTable.Count} 个水样式");
         if (WaterfallTable.Count > 0) Log.Info($"[water] 安装：{WaterfallTable.Count} 个瀑布样式");
+    }
+
+    /// <summary>LiquidRenderer._liquidTextures 与 TextureAssets 两张表同长扩。</summary>
+    private static void GrowLiquidRenderer(int total)
+    {
+        try
+        {
+            var table = Terraria.GameContent.Liquid.LiquidRenderer._liquidTextures;
+            if (table is null) return;
+            if (ArrayGrow.Grow(ref table, total))
+                Terraria.GameContent.Liquid.LiquidRenderer._liquidTextures = table;
+        }
+        catch (Exception e)
+        {
+            Log.Warn("[water] LiquidRenderer._liquidTextures 扩容失败：" + Safe.Describe(e));
+        }
     }
 
     // ===================== 瀑布 =====================

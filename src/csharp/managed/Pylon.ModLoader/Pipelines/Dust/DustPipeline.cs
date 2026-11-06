@@ -113,6 +113,15 @@ internal sealed class DustPipeline : ILoaderModule, ILoaderModuleRefresh
                 continue;
             }
 
+            // NaN/Inf 的尘土不会自然消失，画的时候还会把 NaN 递给 SpriteBatch，直接丢掉。
+            if (!float.IsFinite(dust.position.X) || !float.IsFinite(dust.position.Y) ||
+                !float.IsFinite(dust.velocity.X) || !float.IsFinite(dust.velocity.Y) ||
+                !float.IsFinite(dust.scale))
+            {
+                Live.RemoveAt(index);
+                continue;
+            }
+
             // 最小物理：位置 += 速度，速度受重力，尺寸收缩。作者要别的就在 Update 里自己改。
             var velocity = dust.velocity;
             if (!dust.noGravity) velocity.Y += 0.1f;
@@ -154,7 +163,7 @@ internal sealed class DustPipeline : ILoaderModule, ILoaderModuleRefresh
                 continue;
             }
 
-            if (texture is null) continue;
+            if (texture is null || texture.Pointer == IntPtr.Zero) continue;
 
             var dust = owned.Dust;
             var position = dust.position - Main.screenPosition;
@@ -168,12 +177,21 @@ internal sealed class DustPipeline : ILoaderModule, ILoaderModuleRefresh
                 ContentErrors.Report($"[dust] {owned.Mod.Name}.GetAlpha 异常：{Safe.Describe(e)}");
             }
 
+            try
+            {
             var origin = new Il2CppSystem.Nullable<Vector2>(new Vector2(texture.Width / 2f, texture.Height / 2f));
             var drawPosition = new Il2CppSystem.Nullable<Vector2>(position);
             var scale = new Il2CppSystem.Nullable<Vector2>(new Vector2(dust.scale, dust.scale));
             var colorNullable = new Il2CppSystem.Nullable<Color>(color);
 
             spriteBatch.Draw(texture, drawPosition, null, null, origin, dust.rotation, scale, colorNullable, SpriteEffects.None, 0f);
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report("[dust] 绘制异常：" + Safe.Describe(e));
+                Live.RemoveAt(index);
+                index--;
+            }
         }
     }
 }
