@@ -47,6 +47,13 @@ public sealed class Hook : IDisposable
     /// <summary>The target method's label (Type.Method).</summary>
     public string Label => _plan.Label;
 
+    /// <summary>True when this hook targets a constructor.</summary>
+    public bool IsConstructorHook => _plan.IsConstructor;
+
+    /// <summary>The real constructor when <see cref="IsConstructorHook"/>, otherwise null.</summary>
+    public ConstructorInfo? Constructor =>
+        _plan.IsConstructor ? ConstructorTarget.Unwrap(_plan.Target) : null;
+
     public bool IsApplied => _applied;
 
     /// <summary>The orig delegate: invoking it walks the rest of the chain until the real trampoline.</summary>

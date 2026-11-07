@@ -31,6 +31,22 @@ internal sealed class HookPlan
     }
 
     public MethodInfo Target { get; private set; } = null!;
+
+    /// <summary>True when the target is a constructor (the wrapped ConstructorTarget).</summary>
+    public bool IsConstructor { get; private set; }
+
+    /// <summary>
+    ///     True when the target returns by reference (ref T). The engine bridges it as a data
+    ///     pointer: orig returns an element snapshot, the handler's return value is written back
+    ///     through the original pointer (managed code never forms a dangling byref).
+    /// </summary>
+    public bool IsByRefReturn { get; private set; }
+
+    /// <summary>Native slot shape of one element of a byref return (byte/mirror struct/IntPtr).</summary>
+    public Type ReturnElementNative { get; private set; } = null!;
+
+    /// <summary>Byte size of one element of a byref return (return-buffer sizing).</summary>
+    public int ReturnElementSize { get; private set; }
     public Type DeclaringType { get; private set; } = null!;
     public bool IsStatic { get; private set; }
     public Type ReturnType { get; private set; } = null!;
@@ -64,9 +80,14 @@ internal sealed class HookPlan
 
     internal static HookPlan Create(MethodBase target, Delegate handler)
     {
-        if (target is not MethodInfo method)
+        // Constructors are hookable too: il2cpp .ctor is a native function like any other, and the
+        // interop proxy's .ctor body loads NativeMethodInfoPtr_ the same way. Delegate-style targets
+        // are also accepted and resolved to their Invoke method (matching MonoMod semantics).
+        var method = NormalizeTarget(target);
+        if (method is null)
             throw new NotSupportedException(
-                "Only MethodInfo targets are supported (resolve constructors/property accessors to a concrete method first)");
+                "Only MethodInfo/ConstructorInfo targets are supported (resolve property accessors to a concrete method first)");
+        if (method.DeclaringType is null)
         if (handler is null) throw new ArgumentNullException(nameof(handler));
         if (method.DeclaringType is null)
             throw new NotSupportedException("The target method has no declaring type");
@@ -81,6 +102,7 @@ internal sealed class HookPlan
             Target = method,
             DeclaringType = method.DeclaringType,
             IsStatic = method.IsStatic,
+            IsConstructor = method.IsConstructor,
             ReturnType = method.ReturnType,
             ParamTypes = parameters.Select(p => p.ParameterType).ToArray(),
             ParamIsOut = parameters.Select(p => p.IsOut).ToArray(),
@@ -101,6 +123,24 @@ internal sealed class HookPlan
 
         plan.ResolveNativePointers();
         return plan;
+    }
+
+    /// <summary>
+    ///     Normalizes the hook target: delegate targets resolve to their Invoke method; constructors
+    ///     are wrapped as a synthetic MethodInfo via <see cref="ConstructorTarget"/>. Returns null for
+    ///     anything else (property accessors must be resolved by the caller).
+    /// </summary>
+    private static MethodInfo? NormalizeTarget(MethodBase target)
+    {
+        switch (target)
+        {
+            case MethodInfo method:
+                return method;
+            case ConstructorInfo constructor:
+                return ConstructorTarget.Wrap(constructor);
+            default:
+                return null;
+        }
     }
 
     /// <summary>The handler's parameter table must equal (orig, self?, params...) with matching types.</summary>
@@ -292,6 +332,28 @@ internal sealed class HookPlan
         FunctionPtr = Marshal.ReadIntPtr(MethodInfoPtr);
         if (FunctionPtr == IntPtr.Zero)
             throw new InvalidOperationException($"{Label} has an empty methodPointer (method not compiled?)");
+    }
+
+    /// <summary>
+    ///     Native slot shape of one byref-return element: primitives/enum/blittable pass as
+    ///     themselves; every il2cpp struct goes through its mirror (raw memory, exact il2cpp size);
+    ///     references are raw pointers. The mirror always wins over the &gt;16-byte indirect rule —
+    ///     a ref return hands the raw storage address, and we copy the element's exact bytes.
+    /// </summary>
+    internal static (Type slot, int size) ElementSlot(Type element, string what)
+    {
+        if (element.IsPrimitive || element.IsEnum || element == typeof(IntPtr) || element == typeof(UIntPtr))
+        {
+            var slot = NativeSlot(element, what);
+            return (slot, Marshal.SizeOf(slot == typeof(byte) ? typeof(byte) : slot));
+        }
+        if (IsBlittableValue(element))
+        {
+            var slot = NativeSlot(element, what);
+            return (slot, Marshal.SizeOf(slot));
+        }
+        var info = MirrorTypes.For(element);
+        return (info.Mirror, info.Size);
     }
 
     internal static string Describe(Type returnType, Type[] parameters)
