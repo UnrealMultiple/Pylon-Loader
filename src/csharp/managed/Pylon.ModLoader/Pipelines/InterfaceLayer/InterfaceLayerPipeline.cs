@@ -14,6 +14,8 @@ namespace Pylon.ModLoader;
 /// </summary>
 internal sealed class InterfaceLayerPipeline : ILoaderModule, ILoaderModuleRefresh
 {
+    private static long _diTick;
+
     public static InterfaceLayerPipeline Instance { get; } = new();
 
     public string Name => "interfacelayer";
@@ -90,6 +92,13 @@ internal sealed class InterfaceLayerPipeline : ILoaderModule, ILoaderModuleRefre
 
     private static void DrawInterface(On.Terraria.Main.orig_DrawInterface orig, Main self, GameTime gameTime)
     {
+        var now = Environment.TickCount64;
+        if (now - _diTick > 200)
+        {
+            _diTick = now;
+
+        }
+
         if (SystemTable.AnyModifyInterfaceLayers || Internal.Count > 0)
         {
             try
@@ -213,6 +222,10 @@ internal sealed class InterfaceLayerPipeline : ILoaderModule, ILoaderModuleRefre
         {
             var native = list[i];
             if (native is null) continue;
+
+            // 我们自己写回的外壳不算原版层：否则下一帧 Capture 又把它们当原版抓回来，
+            // Layers = Vanilla(含壳) + Internal 每帧净增，形成 +N/帧的滚雪球（本次点击物品崩溃的根因）。
+            if (ShellsByPointer.ContainsKey(native.Pointer)) continue;
 
             Vanilla.Add(new GameInterfaceLayer(native.Name ?? "", native.ScaleType, native.Pointer));
             NativePtrs.Add(native.Pointer);

@@ -36,8 +36,9 @@ internal sealed class ItemDefaults(ItemBinding binding)
                 mod.PostSetDefaults(item);
             }
 
+            // 不调 RebuildTooltip（item.ToolTip 是游戏管的结构体，重建走它的校验路径）。
+            // 介绍已在安装期写进 Lang._itemTooltipCache，悬停时游戏自然取到。
             ApplyEquipSlots(item);
-            item.RebuildTooltip();
         }
         catch (Exception e)
         {

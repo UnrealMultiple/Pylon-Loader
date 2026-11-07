@@ -145,6 +145,16 @@ internal sealed class InstallPipeline
     {
         orig(canCheckFileState);
         Maintain();
+
+        // 进世界时游戏会重建 Lang 缓存：名字/介绍必须重写一遍，否则物品「拿得到但没有名字没有介绍」。
+        try
+        {
+            InstallSteps.ReapplyTexts();
+        }
+        catch (Exception e)
+        {
+            Log.Warn("本地化重写失败：" + Safe.Describe(e));
+        }
     }
 
     /// <summary>表维护：游戏重建表后补扩、重写槽；方块与墙壁的实例表低频补齐。</summary>

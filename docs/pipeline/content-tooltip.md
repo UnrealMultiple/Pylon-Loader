@@ -60,23 +60,23 @@ foreach (行 in lines)
 
 不这么做的话，作者在前面插一行，「研究已解锁」的图标就会留在旧下标上，指到别的文字上。
 
-### 2.5 绘制期：整次包住；行级改动「下一帧」生效
+### 2.5 绘制期：托管钩子（D-013 / D-014 / D-015）
 
-`On.Main.MouseText_DrawItemTooltip` 包住原版：
+绘制期钩子（`PreDrawTooltip` / `PostDrawTooltip`）通过 `On.Terraria.Main.MouseText_DrawItemTooltip` 托管钩子实现。
 
-```
-PreDrawTooltip(item, lines, ref x, ref y)   // false = 这次一行都不画
-  → 原版绘制（画的正是我们写回去的那份数组）
-每行 → PreDrawTooltipLine(item, 带估算位置的 DrawableTooltipLine, ref yOffset)
-PostDrawTooltip(item, DrawableTooltipLine[]) + 每行 PostDrawTooltipLine
-```
+`Main.MouseText_DrawItemTooltip` 的第二个参数是 48 字节的 `Main.MouseTextCache`，ARM64 上按"隐式引用"传
+（寄存器槽里放的是调用者栈副本的指针，见 D-013）。引擎为此做了两件事：
 
-位置是管线按 `y + 序号 × 行高` 估出来的：游戏真正的排版（换行、宽度回折）不对外公开，我们不去猜它。于是行级钩子的语义定为：
+1. **入桩**把原始数据指针记进槽位表，handler 拿到的是一份托管快照（box）；
+2. **orig 桩**调用原函数时直接转发原始指针（零拷贝）——游戏在函数内部对结构体的写回
+   （`GetLinesInfo` 写行数、写文本）必须落回调用者副本，否则游戏读到 0 行，整条 tooltip 不画（D-014）。
 
-* **能立刻生效**的：`yOffset`（后面所有行的偏移）、`PostDrawTooltipLine` 里作者自己画的叠加层；
-* **下一帧生效**的：`Text`、`Color`、`Visible`——管线把它们记进一张 `行全名 → 改动` 的表，下一次取行时套上。理由很实在：文字已经交给游戏排版并画完了，本帧无法回退；硬要回退就得挂 `SpriteBatch.DrawString`，那是 XNA 框架函数，挂上去等于给全游戏的文字绘制都加一层间接。
+管线契约：**除非作者返回 false，否则一定调用 orig**——任何管线失败都不能让游戏自己的 tooltip 消失。
 
-这个折中的代价是「改文字慢一帧」（悬停时肉眼不可见），换来的是不碰框架、不重写排版。
+另外（D-015）：mod 物品 tooltip 整块不显示的另一半根因在名字——游戏悬停时调 `Lang.GetItemNameValue`，
+原版实现对 mod 类型返回空串，空名字让 `MouseText` 直接跳过整个 tooltip。`ItemNamePatch` 接管该入口，
+mod 类型返回 `ModItem.DisplayName`；介绍缓存走 `ItemTooltip.FromLanguageKey`（键先进游戏语言表，
+游戏取文本时走官方 processor 链）。
 
 ### 2.6 与 1.4.4 `ItemTooltip` 的关系
 

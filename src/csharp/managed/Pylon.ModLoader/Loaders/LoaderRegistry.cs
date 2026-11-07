@@ -60,17 +60,15 @@ internal static class LoaderRegistry
 
     private static int _installed;
 
-    /// <summary>
-    /// 按顺序安装；遇到未就绪的模块就停下，下次注册再继续。
-    /// 挂钩失败不吞：抛出去让调用方看见——半挂的管线比没挂的更难查。
-    /// </summary>
+    /// <summary>按顺序安装；遇到未就绪的模块就停下，下次注册再继续。</summary>
     public static void InstallAll()
     {
-        if (_installed >= Modules.Length) return;   // 全装完了：别每帧重跑 RefreshAll
+        if (_installed >= Modules.Length) return;
 
         while (_installed < Modules.Length)
         {
-            if (!Modules[_installed].Install()) return;
+            var module = Modules[_installed];
+            if (!module.Install()) return;
             _installed++;
         }
 

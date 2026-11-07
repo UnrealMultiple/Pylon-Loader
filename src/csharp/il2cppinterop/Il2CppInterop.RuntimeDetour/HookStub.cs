@@ -58,6 +58,10 @@ internal static class HookStub
         .GetMethod(nameof(Il2CppClassPointerStore.GetNativeClassPointer), new[] { typeof(Type) })!;
     private static readonly MethodInfo s_valueBox = typeof(IL2CPP).GetMethod(nameof(IL2CPP.il2cpp_value_box))!;
     private static readonly MethodInfo s_objectUnbox = typeof(IL2CPP).GetMethod(nameof(IL2CPP.il2cpp_object_unbox))!;
+    private static readonly MethodInfo s_recordIndirectMethod =
+        typeof(HookStub).GetMethod(nameof(RecordIndirectArg), BindingFlags.Static | BindingFlags.NonPublic)!;
+    private static readonly MethodInfo s_getIndirectMethod =
+        typeof(HookState).GetMethod(nameof(HookState.GetIndirectArg), BindingFlags.Static | BindingFlags.NonPublic)!;
 
     /// <summary>Builds the entry stub, returning (delegate, native entry pointer).</summary>
     internal static (Delegate stub, IntPtr entry) BuildEntry(HookPlan plan, int slot)
@@ -92,6 +96,24 @@ internal static class HookStub
         il.Emit(OpCodes.Callvirt, s_handlersGetter);
         il.Emit(OpCodes.Castclass, plan.OrigType);
         il.Emit(OpCodes.Stloc, origLocal);
+
+        // D-014: 先记录所有">16 字节结构体"实参的原始数据指针（指向调用者栈副本）。
+        // orig 桩调用原函数时直接转发该指针，游戏在函数内部对结构体的写回才能落回调用者副本；
+        // 若转发托管 box 的数据指针，写回会丢（tooltip 整体不显示的根因）。
+        var paramIndex = 0;
+        for (var i = 0; i < plan.ParamTypes.Length; i++)
+        {
+            var managed = plan.ParamTypes[i];
+            if (!managed.IsByRef && HookPlan.IsBoxedValueType(managed)
+                && plan.NativeParams[plan.IsStatic ? i : i + 1] == typeof(IntPtr))
+            {
+                il.Emit(OpCodes.Ldarg, plan.IsStatic ? i : i + 1);
+                il.Emit(OpCodes.Ldc_I4, slot);
+                il.Emit(OpCodes.Ldc_I4, i);
+                il.Emit(OpCodes.Call, s_recordIndirectMethod);
+            }
+            paramIndex++;
+        }
 
         // handler(orig, self?, parameters...)
         il.Emit(OpCodes.Ldloc, handlerLocal);
@@ -229,6 +251,10 @@ internal static class HookStub
         return (stub, entry);
     }
 
+    /// <summary>D-014：entry 桩记录一个">16 字节结构体"实参的原始数据指针。</summary>
+    private static void RecordIndirectArg(IntPtr pointer, int slot, int paramIndex) =>
+        HookState.SetIndirectArg(slot, paramIndex, pointer);
+
     /// <summary>Builds the orig stub (managed signature) and returns a strongly typed delegate.</summary>
     internal static Delegate BuildOrig(HookPlan plan, int slot)
     {
@@ -287,6 +313,32 @@ internal static class HookStub
                     il.Emit(OpCodes.Stloc, local);
                     il.Emit(OpCodes.Ldloca, local);     // native pointer
                 }
+            }
+            else if (HookPlan.IsBoxedValueType(managed) && native == typeof(IntPtr))
+            {
+                // D-014: 转发 entry 桩记录的原始数据指针（指向调用者的栈副本）。
+                // 这样 orig 内部对结构体的写回会落回调用者副本；托管 box 只是 handler 侧的快照。
+                var raw = il.DeclareLocal(typeof(IntPtr));
+                var haveLabel = il.DefineLabel();
+                var endLabel = il.DefineLabel();
+
+                il.Emit(OpCodes.Ldc_I4, slot);
+                il.Emit(OpCodes.Ldc_I4, i);
+                il.Emit(OpCodes.Call, s_getIndirectMethod);
+                il.Emit(OpCodes.Stloc, raw);
+                il.Emit(OpCodes.Ldloc, raw);
+                il.Emit(OpCodes.Ldc_I4_0);
+                il.Emit(OpCodes.Conv_I);
+                il.Emit(OpCodes.Bne_Un, haveLabel);
+
+                // 未记录（理论上不可达）：退回 unbox 托管 box
+                il.Emit(OpCodes.Ldarg, argIndex);
+                EmitUnboxToPointer(il, managed);
+                il.Emit(OpCodes.Br, endLabel);
+
+                il.MarkLabel(haveLabel);
+                il.Emit(OpCodes.Ldloc, raw);
+                il.MarkLabel(endLabel);
             }
             else
             {
@@ -371,6 +423,13 @@ internal static class HookStub
 
         if (HookPlan.IsBoxedValueType(managed))
         {
+            // 大结构（>16 字节）：native 传来的是隐藏指针（指向调用者的值副本），直接 box 成 proxy。
+            if (native == typeof(IntPtr))
+            {
+                EmitBoxFromPointer(il, managed);
+                return;
+            }
+
             // native struct passed by value: store into a mirror local -> box -> wrap in a proxy object
             var info = MirrorTypes.For(managed);
             var local = il.DeclareLocal(info.Mirror);
@@ -423,6 +482,15 @@ internal static class HookStub
 
         if (HookPlan.IsBoxedValueType(managed))
         {
+            // 大结构（>16 字节）：ARM64 il2cpp 按值传参走隐藏指针（memory class），
+            // 槽位就是"指向值副本的指针"。这里把代理对象 unbox 出数据指针原样交给 orig（零拷贝）。
+            // 不生成任何分支：proxy -> ToPtr -> unbox 两步直达，避免合流点栈深不一致导致 InvalidProgramException。
+            if (native == typeof(IntPtr))
+            {
+                EmitUnboxToPointer(il, managed);
+                return;
+            }
+
             // Proxy object -> unbox -> copy into a mirror local -> hand the struct by value.
             // A null proxy (e.g. a missing Nullable<Color> argument in GUIPanel.Draw):
             // ToPtr(null) = 0 -> unbox(0) would NRE on the null data pointer; the native side expects
@@ -530,18 +598,41 @@ internal static class HookStub
         EmitWrapReference(il, boxed);
     }
 
-    /// <summary>Top of the stack is a native data pointer; box it into a proxy object (top of the stack).</summary>
+    /// <summary>
+    ///     Top of the stack is a native data pointer (the "invisible reference" of a &gt;16 byte value
+    ///     type); box it into a proxy object (top of the stack). A null pointer must never reach
+    ///     il2cpp_value_box: that is memmove(dst, NULL, size). It becomes a zeroed value instead.
+    /// </summary>
     private static void EmitBoxFromPointer(ILGenerator il, Type boxed)
     {
         var data = il.DeclareLocal(typeof(IntPtr));
         il.Emit(OpCodes.Stloc, data);
 
+        var nullLabel = il.DefineLabel();
+        var endLabel = il.DefineLabel();
+
+        il.Emit(OpCodes.Ldloc, data);
+        il.Emit(OpCodes.Ldc_I4_0);
+        il.Emit(OpCodes.Conv_I);
+        il.Emit(OpCodes.Beq, nullLabel);
+
+        // non-null: box straight from the native data pointer
         il.Emit(OpCodes.Ldtoken, boxed);
         il.Emit(OpCodes.Call, s_getTypeFromHandle);
         il.Emit(OpCodes.Call, s_getClassPointer);
         il.Emit(OpCodes.Ldloc, data);
         il.Emit(OpCodes.Call, s_valueBox);
         EmitWrapReference(il, boxed);
+        il.Emit(OpCodes.Br, endLabel);
+
+        // null: produce a default (all-zero) value of the same type
+        il.MarkLabel(nullLabel);
+        var info = MirrorTypes.For(boxed);
+        var mirror = il.DeclareLocal(info.Mirror);
+        il.Emit(OpCodes.Ldloca, mirror);
+        il.Emit(OpCodes.Initobj, info.Mirror);
+        EmitBoxFromLocal(il, boxed, mirror);
+        il.MarkLabel(endLabel);
     }
 
     /// <summary>Top of the stack is a proxy object; unbox it to a data pointer (top of the stack).</summary>

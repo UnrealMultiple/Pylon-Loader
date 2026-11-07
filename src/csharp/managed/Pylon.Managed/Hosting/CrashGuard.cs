@@ -20,7 +20,10 @@ internal static class CrashGuard
 
     public static void Install()
     {
-        AppDomain.CurrentDomain.UnhandledException += (_, e) => Report("unhandled", e.ExceptionObject as Exception);
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            Report("unhandled", e.ExceptionObject as Exception);
+        };
 
         // 诊断：未处理异常常常没有托管栈，在抛出点抓 first-chance。
         AppDomain.CurrentDomain.FirstChanceException += (_, e) =>

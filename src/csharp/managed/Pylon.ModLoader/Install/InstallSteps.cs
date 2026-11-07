@@ -188,6 +188,32 @@ internal static class InstallSteps
         }
     }
 
+    /// <summary>
+    ///     世界加载后重写一次名字/介绍文本：游戏进世界时会重建 Lang 缓存，安装期写进去的条目会被清掉，
+    ///     表现就是「物品能拿到、但没有名字也没有介绍」。幂等，可重复调用。
+    /// </summary>
+    public static void ReapplyTexts()
+    {
+        var count = 0;
+        foreach (var type in ModContent.GetContent<ModType>())
+        {
+            switch (type)
+            {
+                case ModItem item:
+                    ApplyItemName(item);
+                    ApplyItemTooltip(item);
+                    count++;
+                    break;
+                case ModBuff buff:
+                    ApplyBuffText(buff);
+                    count++;
+                    break;
+            }
+        }
+
+        Log.Info($"本地化重写：{count} 个内容（世界加载后）");
+    }
+
     // ===================== 本地化写入 =====================
 
     private static void ApplyItemName(ModItem item)
@@ -199,6 +225,7 @@ internal static class InstallSteps
         var text = new Terraria.Localization.LocalizedText(key, item.DisplayName);
         cache[item.Type] = text;
         LocalizationKeys.Register(key, text);
+
     }
 
     private static void ApplyItemTooltip(ModItem item)
@@ -213,7 +240,21 @@ internal static class InstallSteps
 
         var key = "Pylon.ItemTooltip." + (item.Mod is null ? "Mod" : item.Mod.Name) + "." + item.Name;
         LocalizationKeys.Register(key, new Terraria.Localization.LocalizedText(key, string.Join("\n", item.TooltipLines)));
-        cache[item.Type] = Terraria.UI.ItemTooltip.FromLanguageKey((short)item.Type, key);
+
+        // 手机版 tooltip 必须走 FromLanguageKey（键先进语言表，ItemTooltip 只存 id+键，
+        // 文本由游戏取值时经 TooltipProcessor 处理）。FromHardcodedText 造出来的对象游戏不认，
+        // MouseTextInner 会直接跳过（D-015：mod 物品 tooltip 整块不显示）。
+        try
+        {
+            cache[item.Type] = Terraria.UI.ItemTooltip.FromLanguageKey((short)item.Type, key);
+        }
+        catch
+        {
+            // FromLanguageKey 不可用时退回硬编码行（旧行为）
+            var lines = new string[item.TooltipLines.Count];
+            for (var i = 0; i < lines.Length; i++) lines[i] = item.TooltipLines[i];
+            cache[item.Type] = Terraria.UI.ItemTooltip.FromHardcodedText(lines);
+        }
     }
 
     private static void ApplyBuffText(ModBuff buff)

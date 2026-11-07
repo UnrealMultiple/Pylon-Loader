@@ -392,6 +392,9 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
     {
         orig(self, gameTime);
 
+        var now = Environment.TickCount64;
+
+
         if (MenuTable.Count == 0) return;
 
         // 选中的主题不可用了（例如按日期开放的写法）：换回默认。

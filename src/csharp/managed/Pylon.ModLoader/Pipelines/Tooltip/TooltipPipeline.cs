@@ -4,10 +4,12 @@ using Terraria;
 using Terraria.UI;
 using OnMain = On.Terraria.Main;
 
+
 namespace Pylon.ModLoader;
 
 /// <summary>
-/// 物品提示管线：把游戏算出来的行变成 List&lt;TooltipLine&gt;，让作者改，再写回去；绘制期只负责包住与回调。
+///     物品提示管线：把游戏算出来的行变成 List&lt;TooltipLine&gt;，让作者改，再按原顺序写回游戏的数组；
+///     绘制期包住原版，让 Pre/PostDrawTooltip* 能生效。
 /// </summary>
 internal sealed class TooltipPipeline : ILoaderModule
 {
@@ -23,14 +25,9 @@ internal sealed class TooltipPipeline : ILoaderModule
 
     private List<TooltipLine> _lines = [];
 
-    /// <summary>内容装载完成之前 <see cref="Rebuild"/> 不介入（作者的钩子依赖的东西还不存在）。</summary>
-    private bool _contentReady;
-
     /// <summary>有 GlobalItem 接了改行钩子（对所有物品生效）；ModItem 没有钩子掩码，按类型单独查。</summary>
     private bool _anyGlobalTooltip;
 
-    /// <summary>物品类型 → 这个类型要不要跑改行（懒增长；索引查询，重建路径上没有字典开销）。</summary>
-    private bool[] _wanted = [];
 
     public static TooltipPipeline Instance { get; } = new();
 
@@ -42,37 +39,14 @@ internal sealed class TooltipPipeline : ILoaderModule
     {
         OnMain.MouseText_DrawItemTooltip_GetLinesInfo += GetLinesInfo;
         OnMain.MouseText_DrawItemTooltip += DrawTooltip;
-        On.Terraria.Item.RebuildTooltip += Rebuild;
-        Log.Info("[tooltip] 已挂（取行 + 绘制期 + 非悬停读取路径）");
+        Log.Info("[tooltip] 已挂（取行 + 绘制期）");
         return true;
     }
 
-    /// <summary>安装期一次（内容装载完）：记下有没有 GlobalItem 接改行钩子，并按需增长类型表。</summary>
+    /// <summary>安装期一次（内容装载完）。</summary>
     internal void Build()
     {
         _anyGlobalTooltip = GlobalItemRegistry.AnyWith(HookId.ModifyTooltips);
-        _wanted = [];
-        _contentReady = true;
-    }
-
-    /// <summary>这个物品类型需不需要跑改行：有全局钩子就全都要，否则看它是不是 mod 物品。</summary>
-    private bool Wanted(int type)
-    {
-        if (type < 0) return false;
-        if (_anyGlobalTooltip) return true;
-
-        if (type >= _wanted.Length)
-        {
-            var grown = new bool[type + 1];
-            Array.Copy(_wanted, grown, _wanted.Length);
-
-            for (var i = _wanted.Length; i < grown.Length; i++)
-                grown[i] = ModContent.Find(ContentKind.Item, i) is ModItem;
-
-            _wanted = grown;
-        }
-
-        return _wanted[type];
     }
 
     #region 取行
@@ -83,13 +57,27 @@ internal sealed class TooltipPipeline : ILoaderModule
                               Il2CppStructArray<bool> preFixLine, Il2CppStructArray<bool> badPreFixLine,
                               ref int setBonusLine, ref Color setBonusColour, ref int sharedLine)
     {
+        // 调用前的 numLines 决定第 0 行是不是游戏自己放进去的名字：
+        // 手机版会带着 numLines = 1、第 0 行是物品名进来；从 0 开始时名字要自己补，且不写回。
+        var first = numLines;
+
+
         orig(item, ref yoyoLogo, ref researchLine, ref materialsLine, oldKB, ref numLines, toolTipLine, preFixLine,
             badPreFixLine, ref setBonusLine, ref setBonusColour, ref sharedLine);
 
+        // 原版物品一个字节都不动：只有 mod 物品，或有 GlobalItem 声明了改行时才介入。
+        if (item is null || item.type <= 0) return;
+        if (!_anyGlobalTooltip && ItemOf(item) is null) return;
+
+        var texts = toolTipLine;
+        var prefix = preFixLine;
+        var bad = badPreFixLine;
+        if (texts is null || prefix is null || bad is null) return;
+
         try
         {
-            Rewrite(item, toolTipLine, preFixLine, badPreFixLine, ref numLines, ref yoyoLogo, ref researchLine,
-                ref materialsLine, ref setBonusLine, ref sharedLine);
+            Rewrite(item, texts, prefix, bad, first, ref numLines, ref yoyoLogo,
+                ref researchLine, ref materialsLine, ref setBonusLine, ref setBonusColour, ref sharedLine);
         }
         catch (Exception e)
         {
@@ -98,8 +86,9 @@ internal sealed class TooltipPipeline : ILoaderModule
     }
 
     private void Rewrite(Item item, Il2CppStringArray texts, Il2CppStructArray<bool> modifiers,
-                         Il2CppStructArray<bool> bad, ref int numLines, ref int yoyoLogo, ref int researchLine,
-                         ref int materialsLine, ref int setBonusLine, ref int sharedLine)
+                         Il2CppStructArray<bool> bad, int first, ref int numLines, ref int yoyoLogo,
+                         ref int researchLine, ref int materialsLine, ref int setBonusLine,
+                         ref Color setBonusColour, ref int sharedLine)
     {
         if (texts is null || modifiers is null || bad is null) return;
 
@@ -107,38 +96,54 @@ internal sealed class TooltipPipeline : ILoaderModule
         var count = Math.Min(numLines, capacity);
         if (count <= 0) return;
 
-        var lines = Build(item, texts, modifiers, bad, count, yoyoLogo, researchLine, materialsLine, setBonusLine,
-            sharedLine);
+        var roles = new Dictionary<int, string>
+        {
+            [yoyoLogo] = "logo",
+            [researchLine] = "research",
+            [materialsLine] = "materials",
+            [setBonusLine] = "setBonus",
+            [sharedLine] = "shared",
+        };
+
+        var lines = Build(item, texts, modifiers, bad, first > 0, count, roles);
 
         WriteBack(lines, texts, modifiers, bad, capacity, ref numLines, ref yoyoLogo, ref researchLine,
-            ref materialsLine, ref setBonusLine, ref sharedLine);
+            ref materialsLine, ref setBonusLine, ref setBonusColour, ref sharedLine);
 
         _lines = lines;
+
     }
 
     private List<TooltipLine> Build(Item item, Il2CppStringArray texts, Il2CppStructArray<bool> modifiers,
-                                    Il2CppStructArray<bool> bad, int count, int yoyoLogo, int researchLine,
-                                    int materialsLine, int setBonusLine, int sharedLine)
+                                    Il2CppStructArray<bool> bad, bool named, int count,
+                                    Dictionary<int, string> roles)
     {
         var names = new TooltipNames(item);
         var lines = new List<TooltipLine>(count + 4);
-        var used = new HashSet<string>(StringComparer.Ordinal);
 
-        for (var i = 0; i < count; i++)
+        // 第 0 行永远是名字。游戏自己放进去的（named）沿用它并参与写回；
+        // 从 0 开始时用 HoverName 补一行合成的，Role = "name" 表示不写回。
+        var name = named && count > 0 ? texts[0] ?? "" : HoverName(item);
+        lines.Add(new TooltipLine("Terraria", "ItemName", name) { Role = named ? "" : "name" });
+
+        var used = new HashSet<string>(StringComparer.Ordinal) { "ItemName" };
+
+        for (var i = named ? 1 : 0; i < count; i++)
         {
             var text = texts[i] ?? "";
-            var role = RoleOf(i, yoyoLogo, researchLine, materialsLine, setBonusLine, sharedLine);
             var modifier = modifiers[i];
-            var name = names.Of(text, role, modifier);
+            roles.TryGetValue(i, out var role);
+            role ??= "";
 
-            if (!used.Add(name))
+            var lineName = names.Of(text, role, modifier);
+            if (!used.Add(lineName))
             {
                 var suffix = 1;
-                while (!used.Add(name + suffix)) suffix++;
-                name += suffix;
+                while (!used.Add(lineName + suffix)) suffix++;
+                lineName += suffix;
             }
 
-            lines.Add(new TooltipLine("Terraria", name, text)
+            lines.Add(new TooltipLine("Terraria", lineName, text)
             {
                 IsModifier = modifier,
                 IsModifierBad = modifier && bad[i],
@@ -156,6 +161,19 @@ internal sealed class TooltipPipeline : ILoaderModule
         }
 
         return lines;
+    }
+
+    private static string HoverName(Item item)
+    {
+        try
+        {
+            return item.HoverName ?? "";
+        }
+        catch (Exception e)
+        {
+            Safe.Report("tooltip.hover-name", e);
+            return "";
+        }
     }
 
     /// <summary>行级钩子在上一帧写下的改动（文字/颜色/隐藏）。</summary>
@@ -177,19 +195,6 @@ internal sealed class TooltipPipeline : ILoaderModule
             if (over.Text is { } text) line.Text = text;
             if (over.Color is { } color) line.OverrideColor = color;
         }
-    }
-
-    private static string RoleOf(int index, int yoyoLogo, int researchLine, int materialsLine, int setBonusLine,
-                                 int sharedLine)
-    {
-        if (index == yoyoLogo) return "logo";
-        if (index == researchLine) return "research";
-        if (index == materialsLine) return "materials";
-        if (index == setBonusLine) return "setBonus";
-        if (index == sharedLine) return "shared";
-        if (index == 0) return "name";
-
-        return "";
     }
 
     /// <summary>Mod 物品与所有 GlobalItem 的改行；顺序固定（Mod 物品在前）。</summary>
@@ -225,17 +230,27 @@ internal sealed class TooltipPipeline : ILoaderModule
 
     private static ModItem? ItemOf(Item item) => ModContent.Find(ContentKind.Item, item.type) as ModItem;
 
-    private void WriteBack(List<TooltipLine> lines, Il2CppStringArray texts, Il2CppStructArray<bool> modifiers,
-                           Il2CppStructArray<bool> bad, int capacity, ref int numLines, ref int yoyoLogo,
-                           ref int researchLine, ref int materialsLine, ref int setBonusLine, ref int sharedLine)
+    private static void WriteBack(List<TooltipLine> lines, Il2CppStringArray texts, Il2CppStructArray<bool> modifiers,
+                                  Il2CppStructArray<bool> bad, int capacity, ref int numLines, ref int yoyoLogo,
+                                  ref int researchLine, ref int materialsLine, ref int setBonusLine,
+                                  ref Color setBonusColour, ref int sharedLine)
     {
         yoyoLogo = researchLine = materialsLine = setBonusLine = sharedLine = -1;
+
+        var writable = 0;
+        for (var n = 0; n < lines.Count; n++)
+        {
+            if (lines[n].Role != "name") writable++;
+        }
 
         var written = 0;
 
         for (var n = 0; n < lines.Count; n++)
         {
             var line = lines[n];
+
+            // 合成名字只给作者看，不写回：游戏数组里那个位置是它自己的第一行。
+            if (line.Role == "name") continue;
             if (written >= capacity) break;
 
             var i = written++;
@@ -249,14 +264,17 @@ internal sealed class TooltipPipeline : ILoaderModule
             {
                 case "research": researchLine = i; break;
                 case "materials": materialsLine = i; break;
-                case "setBonus": setBonusLine = i; break;
+                case "setBonus":
+                    setBonusLine = i;
+                    if (line.OverrideColor is { } bonus) setBonusColour = bonus;
+                    break;
                 case "shared": sharedLine = i; break;
             }
         }
 
-        if (written < lines.Count)
+        if (written < writable)
         {
-            ContentErrors.Report($"[tooltip] {lines.Count - written} 行放不下（上限 {capacity}），已截断");
+            ContentErrors.Report($"[tooltip] {writable - written} 行放不下（上限 {capacity}），已截断");
         }
 
         numLines = written;
@@ -271,111 +289,65 @@ internal sealed class TooltipPipeline : ILoaderModule
 
     #endregion
 
-    /// <summary>
-    /// 非悬停读取路径（图鉴、搜索、物品栏气泡这些不走鼠标提示的地方）用的是 <c>item.ToolTip</c>。
-    /// 原版算完那几行之后我们补一遍 <c>ModifyTooltips</c>，再造成新的 <c>ItemTooltip</c> 写回去。
-    /// </summary>
-    /// <remarks>
-    /// 这个钩子的调用频度远高于悬停：物品一建出来就会调。所以两道闸：
-    /// 内容没加载完直接放行（那时候 <c>ModifyTooltips</c> 依赖的东西还不存在），
-    /// 整份内容里没有任何作者改提示时也直接放行（一次布尔判断，不给普通物品加字符串处理）。
-    /// </remarks>
-    private void Rebuild(On.Terraria.Item.orig_RebuildTooltip orig, Item self)
-    {
-        orig(self);
-
-        if (!_contentReady || !Wanted(self.type)) return;
-
-        try
-        {
-            RebuildCore(self);
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report("[tooltip] RebuildTooltip 失败：" + Safe.Describe(e));
-        }
-    }
-
-    private void RebuildCore(Item item)
-    {
-        var tip = item.ToolTip;
-        if (tip is null) return;
-
-        var count = tip.Lines;
-        if (count <= 0) return;
-
-        var names = new TooltipNames(item);
-        var used = new HashSet<string>(StringComparer.Ordinal);
-        var lines = new List<TooltipLine>(count + 4);
-        var originals = new string[count];
-
-        for (var i = 0; i < count; i++)
-        {
-            var text = tip.GetLine(i) ?? "";
-            originals[i] = text;
-            lines.Add(new TooltipLine(names.Of(text, i == 0 ? "name" : "", false), text));
-        }
-
-        ApplyOverrides(lines);
-        Modify(item, lines);
-
-        var texts = new string[lines.Count];
-        var written = 0;
-        var changed = false;
-
-        for (var i = 0; i < lines.Count; i++)
-        {
-            var line = lines[i];
-            if (!line.Visible) continue;
-
-            var text = line.Text ?? "";
-            if (!changed && (i >= count || text != originals[i])) changed = true;
-            texts[written++] = text;
-        }
-
-        if (written == 0) return;
-
-        // 作者没改就不替换游戏原有的 ItemTooltip（详情/图鉴界面依赖它的结构）。
-        if (!changed && written == count) return;
-
-        if (written != texts.Length) Array.Resize(ref texts, written);
-
-        item.ToolTip = ItemTooltip.FromHardcodedText(texts);
-    }
-
     #region 绘制期
 
+    /// <summary>
+    ///     包住原版绘制。契约只有一条：**除非作者明确要求不画，否则一定调用 orig**——
+    ///     管线里任何失败都不能让游戏自己的 tooltip 消失。
+    /// </summary>
     private void DrawTooltip(OnMain.orig_MouseText_DrawItemTooltip orig, Main self, Main.MouseTextCache info,
                              int rare, byte diff, int x, int y)
     {
-        var item = Main.HoverItem;
-        var lines = _lines;
+        Item? item = null;
+        List<TooltipLine>? lines = null;
+        var go = true;
         var fx = (float)x;
         var fy = (float)y;
-        var go = true;
 
-        if (lines.Count > 0)
+        try
         {
-            go = PreDrawTooltip(item, lines, ref fx, ref fy);
+            item = Main.HoverItem;
+            var candidate = _lines;
+
+            // Wanted 门：原版物品不让任何作者回调介入。
+            if (candidate.Count > 0 && item is not null && item.type > 0
+                && (_anyGlobalTooltip || ItemOf(item) is not null))
+            {
+                lines = candidate;
+                go = PreDrawTooltip(item, lines, ref fx, ref fy);
+            }
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report("[tooltip] 绘制期前置失败：" + Safe.Describe(e));
+            lines = null;
+            go = true;
         }
 
         if (!go) return;
 
         orig(self, info, rare, diff, (int)fx, (int)fy);
 
-        if (lines.Count == 0) return;
+        if (lines is null) return;
 
-        var drawn = new DrawableTooltipLine[lines.Count];
-
-        for (var i = 0; i < lines.Count; i++)
+        try
         {
-            var drawable = new DrawableTooltipLine(lines[i], i, fx, fy + i * LineHeight, Color.White);
-            drawn[i] = drawable;
+            var drawn = new DrawableTooltipLine[lines.Count];
 
-            LineHook(item, drawable);
+            for (var i = 0; i < lines.Count; i++)
+            {
+                var drawable = new DrawableTooltipLine(lines[i], i, fx, fy + i * LineHeight, Color.White);
+                drawn[i] = drawable;
+
+                LineHook(item!, drawable);
+            }
+
+            PostDrawTooltip(item!, drawn);
         }
-
-        PostDrawTooltip(item, drawn);
+        catch (Exception e)
+        {
+            ContentErrors.Report("[tooltip] 绘制期回调失败：" + Safe.Describe(e));
+        }
     }
 
     private bool PreDrawTooltip(Item item, List<TooltipLine> lines, ref float x, ref float y)
@@ -485,10 +457,10 @@ internal sealed class TooltipPipeline : ILoaderModule
             }
         }
 
+        if (ItemOf(item) is not { } owner) return;
+
         for (var i = 0; i < drawn.Length; i++)
         {
-            if (ItemOf(item) is not { } owner) break;
-
             try
             {
                 owner.PostDrawTooltipLine(item, drawn[i]);

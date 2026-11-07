@@ -20,6 +20,13 @@ internal static class HookState
     internal static readonly List<Delegate> s_origDelegates = new();
     internal static readonly List<IntPtr> s_origPointers = new();
 
+    /// <summary>
+    ///     Per-slot原始数据指针表：entry 桩把">16 字节值类型实参"（ARM64 invisible reference，
+    ///     槽位里是调用者栈副本的指针）的原始指针存到这里；orig 桩调用时直接转发该指针，
+    ///     保证游戏代码通过结构体参数写回的值落在调用者的副本上（unbox 托管 box 会丢写回，D-014）。
+    /// </summary>
+    internal static readonly List<IntPtr[]> s_indirectArgs = new();
+
     /// <summary>Pins stubs and delegates so the GC never collects them mid-invocation.</summary>
     internal static readonly List<object> s_keepAlive = new();
 
@@ -38,6 +45,7 @@ internal static class HookState
             s_handlers.Add(handler);
             s_origDelegates.Add(null!);
             s_origPointers.Add(IntPtr.Zero);
+            s_indirectArgs.Add(new IntPtr[64]);
             return slot;
         }
     }
@@ -63,6 +71,23 @@ internal static class HookState
 
     internal static IntPtr GetOrig(int slot) =>
         slot >= 0 && slot < s_origPointers.Count ? s_origPointers[slot] : IntPtr.Zero;
+
+    /// <summary>Entry 桩记录一个原始数据指针（>16 字节结构体实参）。</summary>
+    internal static void SetIndirectArg(int slot, int index, IntPtr value)
+    {
+        if (slot < 0 || slot >= s_indirectArgs.Count) return;
+        var table = s_indirectArgs[slot];
+        if (index < 0 || index >= table.Length) return;
+        table[index] = value;
+    }
+
+    /// <summary>Orig 桩取回该槽位某参数的原始数据指针（未记录时为 Zero）。</summary>
+    internal static IntPtr GetIndirectArg(int slot, int index)
+    {
+        if (slot < 0 || slot >= s_indirectArgs.Count) return IntPtr.Zero;
+        var table = s_indirectArgs[slot];
+        return index >= 0 && index < table.Length ? table[index] : IntPtr.Zero;
+    }
 
     internal static HookChain GetOrCreateChain(IntPtr target)
     {

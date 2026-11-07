@@ -15,6 +15,10 @@ internal static class InstallPlan
             // 布表：先扩内容表，后面所有写槽都以新长度为前提。
             new GrowTablesStep(host),
 
+            // 名字接管：游戏悬停取名字走 Lang.GetItemNameValue，原版对 mod 类型返回空串 →
+            // 空名字让 MouseText 直接跳过整个 tooltip（D-015 根因）。必须先于一切内容安装。
+            new Step("名字接管", InstallStage.Static, () => ItemNamePatch.Install(host.Log)),
+
             // 静态：依赖表长或必须先于写槽的初始化。
             new Step("buff 静态默认值", InstallStage.Static, InstallSteps.BuffStaticDefaults),
             new Step("buffImmune 扩长", InstallStage.Static, GrowBuffImmune),

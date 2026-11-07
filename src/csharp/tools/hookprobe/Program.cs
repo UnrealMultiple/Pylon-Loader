@@ -114,6 +114,9 @@ static class Probe
         HookLog.Error = (label, e) => Console.WriteLine("[hook:err] " + label + ": " + e.GetType().Name + ": " + e.Message);
         DetourBackend.Current = new ProbeBackend();
 
+        // ⓪ 值类型 ABI 分类（D-013）：≤16 字节走寄存器，>16 字节走隐藏指针
+        AbiClassifier();
+
         // ① int，orig 正常调用
         var add = HookIt(typeof(Targets).GetMethod(nameof(Targets.Add)),
             new AddHook((orig, a, b) => orig(a, b) + 1),
@@ -184,6 +187,18 @@ static class Probe
 
         Console.WriteLine(_failures == 0 ? "\n全部通过。" : "\n失败 " + _failures + " 项。");
         Environment.Exit(_failures == 0 ? 0 : 1);
+    }
+
+    private static void AbiClassifier()
+    {
+        var sixteen = HookPlan.ClassifyValueType(16);
+        var fortyEight = HookPlan.ClassifyValueType(48);
+        Check("abi 16B → 寄存器", sixteen == HookPlan.ValueAbi.InRegisters, sixteen, "InRegisters");
+        Check("abi 48B → 隐藏指针", fortyEight == HookPlan.ValueAbi.Indirect, fortyEight, "Indirect");
+        Check("abi 边界 16/17",
+            HookPlan.ClassifyValueType(16) == HookPlan.ValueAbi.InRegisters &&
+            HookPlan.ClassifyValueType(17) == HookPlan.ValueAbi.Indirect,
+            "16=reg, 17=ind", "16=reg, 17=ind");
     }
 
     private static unsafe void ReRunString()

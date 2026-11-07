@@ -16,6 +16,16 @@ namespace Il2CppInterop.RuntimeDetour;
 /// </summary>
 internal sealed class HookPlan
 {
+    /// <summary>il2cpp(ARM64) 给值类型实参用的传递方式（与二进制实测一致，见 D-013）。</summary>
+    internal enum ValueAbi
+    {
+        /// <summary>≤16 字节：1~2 个整型寄存器（HFA 走 s/d 寄存器），两侧同构。</summary>
+        InRegisters,
+
+        /// <summary>&gt;16 字节：调用者复制一份，槽位里是指向副本的指针（invisible reference）。</summary>
+        Indirect,
+    }
+
     private HookPlan()
     {
     }
@@ -87,7 +97,7 @@ internal sealed class HookPlan
         plan.CheckSupportedTypes();
 
         plan.NativeParams = BuildNativeParams(plan);
-        plan.NativeReturn = NativeSlot(plan.ReturnType, $"{plan.Label} return value");
+        plan.NativeReturn = NativeSlot(plan.ReturnType, $"{plan.Label} return value", returns: true);
 
         plan.ResolveNativePointers();
         return plan;
@@ -143,7 +153,7 @@ internal sealed class HookPlan
         if (ReturnType.IsByRef)
             throw new NotSupportedException($"{Label} returns byref, which is not supported");
 
-        NativeSlot(ReturnType, $"{Label} return value");
+        NativeSlot(ReturnType, $"{Label} return value", returns: true);
 
         if (!IsStatic && !typeof(Il2CppObjectBase).IsAssignableFrom(DeclaringType))
         {
@@ -160,8 +170,16 @@ internal sealed class HookPlan
         return list.ToArray();
     }
 
+    /// <summary>
+    ///     il2cpp(ARM64) 的值类型实参规则，与 libil2cpp 实测一致（D-013）：
+    ///     ≤16 字节走寄存器；&gt;16 字节由调用者复制一份，寄存器槽里是"指向副本的指针"。
+    ///     引擎槽位必须与原生实参用同一套判定，否则就是 mirror 的 NRE / IntPtr 的 NULL memmove。
+    /// </summary>
+    internal static ValueAbi ClassifyValueType(int size) =>
+        size > IntPtr.Size * 2 ? ValueAbi.Indirect : ValueAbi.InRegisters;
+
     /// <summary>Managed type -> native slot type.</summary>
-    internal static Type NativeSlot(Type type, string what)
+    internal static Type NativeSlot(Type type, string what, bool returns = false)
     {
         if (type is null) throw new NotSupportedException($"{what}: type is null");
         if (type.IsByRef)
@@ -173,7 +191,15 @@ internal sealed class HookPlan
             return NativeSlot(element, what).MakeByRefType();                     // value type: raw pointer
         }
         if (type == typeof(string)) return typeof(IntPtr);
-        if (IsBoxedValueType(type)) return MirrorTypes.For(type).Mirror;          // boxed value type passed by value
+        if (IsBoxedValueType(type))
+        {
+            // il2cpp(ARM64)：>16 字节按"隐藏指针"传——调用者复制一份值，槽位放指向副本的指针。
+            // 桥接用"数据指针 <-> 即时 box 对象"，绝不让 CLR 对结构体做 ABI 分类。
+            // 返回值是另一套（sret / x8），这里不动：mirror 交给 CLR 的 sret 处理。
+            var info = MirrorTypes.For(type);
+            if (!returns && ClassifyValueType(info.Size) == ValueAbi.Indirect) return typeof(IntPtr);
+            return info.Mirror;          // 小结构：寄存器/组合传递，mirror 按值
+        }
         if (typeof(Il2CppObjectBase).IsAssignableFrom(type)) return typeof(IntPtr);
         if (type == typeof(bool)) return typeof(byte);                 // il2cpp bool is 1 byte
         if (type == typeof(char)) return typeof(ushort);
