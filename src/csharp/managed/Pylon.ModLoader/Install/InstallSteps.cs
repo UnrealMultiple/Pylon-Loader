@@ -326,7 +326,7 @@ internal static class InstallSteps
         ModGore => TextureTable.Gore,
         ModCloud => TextureTable.Cloud,
         ModHair => TextureTable.PlayerHair,
-        ModWaterStyle => TextureTable.Liquid,
+        // 水样式三张表（liquid / _Block / _Slope）由 WaterPipeline.SetupTextures 一起写，不走通用槽。
         ModItem => TextureTable.Item,
         ModTile => TextureTable.Tile,
         ModWall => TextureTable.Wall,

@@ -147,7 +147,7 @@ internal sealed class SceneEffectPipeline : ILoaderModule, ILoaderModuleRefresh
     /// 档位与音乐同尺——≥ 100 无条件，否则要 ≥ 原版这一帧的场景档（<see cref="VanillaSceneTier.Tier"/>）。
     /// 视觉不分"另一个世界"那条路径，固定按普通世界算。
     /// </summary>
-    private static bool AllowsVisuals(ModSceneEffect effect)
+    internal static bool AllowsVisuals(ModSceneEffect effect)
     {
         bool hasVisuals;
         int priority;

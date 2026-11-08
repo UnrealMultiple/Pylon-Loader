@@ -29,11 +29,40 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.GameContent.Drawing.TileDrawing.EmitLiquidDrops += EmitLiquidDrops;
         On.Terraria.Rain.MakeRain += MakeRain;
         On.Terraria.Main.DrawRain += DrawRain;
+        // 原版每帧读这个返回值写 Main.waterStyle：直接赋值会被它盖掉（真机水永远是 0），必须改返回值。
+        On.Terraria.Main.CalculateWaterStyle += ChooseWaterStyle;
         On.Terraria.Graphics.Light.LightingEngine.UpdateLightDecay += UpdateLightDecay;
         On.Terraria.Graphics.Light.LegacyLighting.UpdateLightDecay += UpdateLegacyLightDecay;
 
-        Log.Info("[water] 已挂（编号 / 扩表 / 主贴图 / 瀑布贴图与绘制 / 溅水尘与水滴 / 雨 / 光穿透 / 赢家写 waterStyle）；斜坡、染发色本版不接");
+        Log.Info("[water] 已挂（编号 / 扩表 / 主贴图 / 瀑布贴图与绘制 / 溅水尘与水滴 / 雨 / 光穿透 / 场景赢家改 CalculateWaterStyle 返回值）");
         return true;
+    }
+
+    /// <summary>
+    /// 原版算完这一帧的水样式后，场景效果的赢家声明了 mod 水就换成它的编号。
+    /// 和 Bunny 一样钩 <c>Main.CalculateWaterStyle</c>：写 <c>Main.waterStyle</c> 会被原版覆盖。
+    /// </summary>
+    private static int ChooseWaterStyle(On.Terraria.Main.orig_CalculateWaterStyle orig, bool ignoreFountains)
+    {
+        var vanilla = orig(ignoreFountains);
+
+        var effect = SceneEffectPipeline.Current;
+        if (effect is null) return vanilla;
+
+        try
+        {
+            if (!SceneEffectPipeline.AllowsVisuals(effect)) return vanilla;
+
+            var style = effect.WaterStyle;
+            if (style is null || !style.Registered) return vanilla;
+
+            return style.Type;
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report("[water] 场景赢家的 WaterStyle 异常：" + Safe.Describe(e));
+            return vanilla;
+        }
     }
 
     // ===================== 雨 =====================
@@ -274,7 +303,8 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
             _waterfalls.NextBatch(falls, Log.Info);
         }
 
-        WriteWaterfallTextures();
+        // 动态注册又加了样式时重写一遍槽；贴图已上传，幂等。
+        SetupTextures();
     }
 
     private TypeTables.TableGrower? _waterfalls;
@@ -313,9 +343,6 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
             fall.SetStaticDefaults();
         }
 
-        WriteWaterfallTextures();
-        WriteSlopeTextures();
-
         if (WaterTable.Count > 0) Log.Info($"[water] 安装：{WaterTable.Count} 个水样式");
         if (WaterfallTable.Count > 0) Log.Info($"[water] 安装：{WaterfallTable.Count} 个瀑布样式");
     }
@@ -336,25 +363,58 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    // ===================== 瀑布 =====================
+    // ===================== 贴图槽 =====================
 
     /// <summary>
-    /// 瀑布贴图表是 <c>WaterfallManager.waterfallTexture</c>：interop 代理把私有静态字段生成为公开
-    /// 属性，直接读写即可；表还没建（LoadContent 之前）就先不写，Refresh 每次重试。
+    /// 三张水贴图表 + 瀑布表都在这里写：主贴图进 <c>LiquidRenderer._liquidTextures</c>，
+    /// <c>_Block</c> 进 <c>TextureAssets.Liquid</c>，<c>_Slope</c> 进 <c>TextureAssets.LiquidSlope</c>，
+    /// 瀑布进 <c>WaterfallManager.waterfallTexture</c>。
+    /// 必须在贴图上传（Surface 阶段）之后调：Static 阶段 Texture 还是 null，写了也只会掉回原版。
+    /// 缺贴图按作者约定回落到前一张/原版 0 号，不让游戏读到空槽。
     /// </summary>
-    private static void WriteWaterfallTextures()
+    internal void SetupTextures()
     {
-        if (WaterfallTable.Count == 0) return;
-
         var written = 0;
-        foreach (var fall in ModContent.GetContent<ModWaterfallStyle>())
+
+        foreach (var water in ModContent.GetContent<ModWaterStyle>())
         {
-            if (!fall.Registered) continue;
+            if (!water.Registered) continue;
+            if (water.Type < 0) continue;
 
             try
             {
-                if (WriteWaterfallTexture(fall.Type, fall.Texture)) written++;
-                else Log.Warn($"[water] {fall.Name} 的瀑布贴图没写进 waterfallTexture[{fall.Type}]（表还没建或越界，下次 Refresh 重试）");
+                var liquid = Terraria.GameContent.Liquid.LiquidRenderer._liquidTextures;
+                var blocks = TextureAssets.Liquid;
+                var slopes = TextureAssets.LiquidSlope;
+
+                Asset<Texture2D>? main = water.Texture;
+                var block = LoadOptional(water, water.BlockTexture) ?? main;
+                var slope = LoadOptional(water, water.SlopeTexture) ?? block;
+
+                // 回落到原版 0 号：空槽位在绘制/光照里就是空指针。
+                if (liquid is not null && water.Type < liquid.Length && liquid.Length > 0)
+                    liquid[water.Type] = main ?? liquid[0];
+                if (blocks is not null && water.Type < blocks.Length && block is not null)
+                    blocks[water.Type] = block;
+                if (slopes is not null && water.Type < slopes.Length && slope is not null)
+                    slopes[water.Type] = slope;
+
+                written++;
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[water] {water.Name} 的水贴图槽失败：{Safe.Describe(e)}");
+            }
+        }
+
+        var falls = 0;
+        foreach (var fall in ModContent.GetContent<ModWaterfallStyle>())
+        {
+            if (!fall.Registered) continue;
+            try
+            {
+                if (WriteWaterfallTexture(fall.Type, fall.Texture)) falls++;
+                else Log.Warn($"[water] {fall.Name} 的瀑布贴图没写进 waterfallTexture[{fall.Type}]（表还没建或越界）");
             }
             catch (Exception e)
             {
@@ -362,40 +422,23 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
             }
         }
 
-        if (written > 0) Log.Info($"[water] 瀑布贴图：写 {written}");
+        if (written > 0) Log.Info($"[water] 水贴图：写 {written}");
+        if (falls > 0) Log.Info($"[water] 瀑布贴图：写 {falls}");
     }
 
-    /// <summary>
-    /// 斜坡水贴图：作者放了 <c>&lt;类名&gt;_Slope.png</c> 才写 <c>TextureAssets.LiquidSlope</c>（没有这个文件就保持空，
-    /// 游戏画斜坡水时用主贴图那一格）。单独写是因为安装步骤每张表只写一次，斜坡是第二条贴图路径。
-    /// </summary>
-    private static void WriteSlopeTextures()
+    /// <summary>可选的附加贴图：文件不存在返回 null，交给调用方回落。</summary>
+    private static Asset<Texture2D>? LoadOptional(ModWaterStyle water, string? path)
     {
-        var written = 0;
-
-        foreach (var water in ModContent.GetContent<ModWaterStyle>())
+        if (string.IsNullOrEmpty(path)) return null;
+        try
         {
-            if (!water.Registered) continue;
-            if (string.IsNullOrEmpty(water.TexturePath)) continue;
-
-            try
-            {
-                var asset = water.Mod.LoadAsset(water.TexturePath + "_Slope");
-
-                var table = TextureAssets.LiquidSlope;
-                if (table is null || water.Type < 0 || water.Type >= table.Length) continue;
-
-                table[water.Type] = asset;
-                written++;
-            }
-            catch (Exception e)
-            {
-                // 没有 _Slope 文件是最常见的情况：记一条 warn 就够，斜坡退回主贴图那一格。
-                Log.Warn("[water] " + water.Name + " 没有斜坡贴图（" + water.TexturePath + "_Slope）：" + Safe.Describe(e));
-            }
+            return ModContent.HasAsset(water.Mod, path) ? water.Mod.LoadAsset(path) : null;
         }
-
-        if (written > 0) Log.Info("[water] 斜坡贴图：写 " + written);
+        catch (Exception e)
+        {
+            Log.Warn($"[water] {water.Name} 的附加贴图 {path} 读取失败：{Safe.Describe(e)}");
+            return null;
+        }
     }
 
     private static bool WriteWaterfallTexture(int type, Asset<Texture2D>? asset)

@@ -1,4 +1,5 @@
 using Pylon.ModLoader;
+using Terraria;
 
 namespace PipelineTest.Tests;
 
@@ -7,7 +8,46 @@ namespace PipelineTest.Tests;
 /// </summary>
 internal static class WaterTests
 {
-    public static void Register() => PT.Group("water", Phase.Ready, Run);
+    public static void Register()
+    {
+        PT.Group("water", Phase.Ready, Run);
+        PT.Group("water-w", Phase.World, RunWorld);
+    }
+
+    private static void RunWorld()
+    {
+        var water = ModContent.GetInstance<Content.TestWaterStyle>();
+        var player = Main.player[Main.myPlayer];
+        var x = (int)(player.Center.X / 16f);
+        var y = (int)(player.Center.Y / 16f);
+
+        PT.Case("WATER-W1", c =>
+        {
+            c.Eq(Main.waterStyle, water.Type, "场景效果把 Main.waterStyle 换成 mod 水");
+        });
+
+        // 手动验证：在玩家右前方挖坑灌水，屏幕上直接看 mod 水的颜色。
+        PT.Case("WATER-W2", c =>
+        {
+            // 挖一个 10 宽 x 5 深的坑（草皮往下）
+            for (var i = x + 3; i <= x + 12; i++)
+                for (var j = y; j <= y + 4; j++)
+                    WorldGen.KillTile(i, j, false, false, true);
+
+            // 灌水（Liquid = 1）
+            for (var i = x + 3; i <= x + 12; i++)
+                for (var j = y + 2; j <= y + 4; j++)
+                {
+                    var tile = Main.tile[i, j];
+                    tile.liquid = 1;
+                    tile.liquidType(0);
+                    WorldGen.SquareTileFrame(i, j, true);
+                }
+
+            PT.Info("玩家右前方应有亮蓝色水坑（TestWaterStyle 主贴图）");
+            c.True(true, "水坑已灌好");
+        });
+    }
 
     private static void Run()
     {

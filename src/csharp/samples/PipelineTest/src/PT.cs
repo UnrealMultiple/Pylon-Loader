@@ -174,7 +174,8 @@ internal sealed class Check(string id)
     public void Eq<T>(T actual, T expected, string what) =>
         True(EqualityComparer<T>.Default.Equals(actual, expected), $"{what}={actual}（期望 {expected}）");
 
-    public void NotNull(object? value, string what) => True(value is not null, $"{what}=null");
+    public void NotNull(object? value, string what) =>
+        True(value is not null, $"{what} 非 null（{(value is null ? "null" : value.GetType().Name)}）");
 
     public void InRange(long value, long min, long max, string what) =>
         True(value >= min && value <= max, $"{what}={value}（应在 {min}..{max}）");

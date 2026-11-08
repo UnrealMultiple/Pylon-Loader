@@ -22,7 +22,11 @@ internal sealed class HairPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.GameContent.HairstyleUnlocksHelper.ListWarrantsRemake += ListWarrantsRemake;
         On.Terraria.GameContent.HairstyleUnlocksHelper.RebuildList += RebuildList;
 
-        Log.Info("[hair] 已挂（编号 / 扩表 / 主贴图 / 菜单 / 戴帽子版贴图）");
+        // 存档：原版 .plr 只认 0..227，228 读回来会被游戏打回默认（建号界面正常、选人界面变默认）。
+        On.Terraria.Player.InternalSavePlayerFile += SavePlayerFile;
+        On.Terraria.Player.LoadPlayer += LoadPlayerFile;
+
+        Log.Info("[hair] 已挂（编号 / 扩表 / 主贴图 / 菜单 / 戴帽子版贴图 / 存档按名字）；不接 DrawBackHair");
         return true;
     }
 
@@ -163,4 +167,87 @@ internal sealed class HairPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static void ContentReports(ModHair hair, Exception e) =>
         ContentErrors.Report($"[hair] {hair.Name} 的戴帽子版贴图失败：{Safe.Describe(e)}");
+
+    // ===================== 存档 =====================
+
+    /// <summary>侧车里的键名；值是 <c>Mod名/类名</c>，跨设备按名字恢复，不依赖发号。</summary>
+    private const string SaveKey = "pylon:hair";
+
+    /// <summary>
+    /// 和 Bunny 一样：存盘前把 mod 发型临时写回 0（原版 .plr 只认它自己的 228 个），
+    /// 名字写进玩家侧车；游戏存完立刻把内存里的值恢复，界面不受影响。
+    /// </summary>
+    private static void SavePlayerFile(On.Terraria.Player.orig_InternalSavePlayerFile orig, Terraria.IO.PlayerFileData playerFile)
+    {
+        var player = playerFile is null ? null : playerFile.Player;
+        var hair = player is null ? null : HairTable.Of(player.hair);
+
+        if (hair is not null && player is not null) player.hair = 0;
+        try
+        {
+            orig(playerFile);
+
+            if (player is null) return;
+            if (DataFile(playerFile) is not { } file) return;
+
+            var all = TagJson.Read(file);
+            if (hair is not null)
+            {
+                all.Set(SaveKey, hair.FullKey);
+            }
+            else if (all.Get(SaveKey) is string saved && HairTable.Find(saved) > 0)
+            {
+                all.Remove(SaveKey);
+            }
+            else
+            {
+                return;
+            }
+
+            if (all.Count > 0) TagJson.Write(file, all);
+            else File.Delete(file);
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report("[hair] 存档失败：" + Safe.Describe(e));
+        }
+        finally
+        {
+            if (hair is not null && player is not null) player.hair = hair.Type;
+        }
+    }
+
+    /// <summary>读档后按侧车里的名字把 mod 发型写回 <c>player.hair</c>（选人界面的预览也走这条）。</summary>
+    private static Terraria.IO.PlayerFileData LoadPlayerFile(On.Terraria.Player.orig_LoadPlayer orig, string playerPath, bool cloudSave)
+    {
+        var data = orig(playerPath, cloudSave);
+        try
+        {
+            if (data is null) return null!;
+
+            var player = data.Player;
+            if (player is null) return data;
+            if (DataFile(data) is not { } file) return data;
+
+            var all = TagJson.Read(file);
+            if (all.Get(SaveKey) is not string key) return data;
+
+            var type = HairTable.Find(key);
+            if (type > 0) player.hair = type;
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report("[hair] 读档失败：" + Safe.Describe(e));
+        }
+
+        return data;
+    }
+
+    /// <summary>玩家侧车路径：<c>&lt;玩家文件&gt;.pl.json</c>（pl = Pylon Loader）；云存档不写。</summary>
+    private static string? DataFile(Terraria.IO.PlayerFileData? data)
+    {
+        if (data is null || data.IsCloudSave) return null;
+        var path = data.Path;
+        return string.IsNullOrEmpty(path) ? null : path + ".pl.json";
+    }
 }

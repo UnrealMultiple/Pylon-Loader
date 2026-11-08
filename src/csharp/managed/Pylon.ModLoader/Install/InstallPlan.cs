@@ -41,6 +41,8 @@ internal static class InstallPlan
             // 表面：上传贴图 → 写表槽与名字 / 介绍。
             new Step("贴图上传", InstallStage.Surface, () => InstallSteps.LoadTextures(host)),
             new Step("写贴图与文本", InstallStage.Surface, () => InstallSteps.WriteTextures(host)),
+            // 水/瀑布贴图必须等上传完再写（Static 阶段 Texture 还是 null），和作者的 SetupContent 时机一致。
+            new Step("水贴图安装", InstallStage.Surface, () => WaterPipeline.Instance.SetupTextures()),
 
             // 样例：ContentSamples 与静态默认值。
             new Step("物品样例", InstallStage.Samples, InstallSteps.RegisterItemSamples),
