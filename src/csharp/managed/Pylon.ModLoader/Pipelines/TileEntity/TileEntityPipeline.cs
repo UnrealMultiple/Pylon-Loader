@@ -75,7 +75,9 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
             }
         }
 
-        if (TileEntityBinding.Count == 0 || Main.netMode == 1) return placed;
+        // 这里要看"有没有登记过实体类型"，不是"世界里现在有几个实体"：
+        // 用后者的话第一个实体永远建不起来（放第一块时世界里有 0 个）。
+        if (TileEntityTable.Count == 0 || Main.netMode == 1) return placed;
 
         // 声明优先：ModTile.TileEntity 指了名字，就只建那一个。
         if (TileTableOf(Type) is { } tile && tile.TileEntity is { } wanted)
@@ -128,10 +130,11 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
     {
         orig(i, j, fail, effectOnly, noItem);
 
-        if (fail || effectOnly || TileEntityBinding.Count == 0) return;
+        if (fail || effectOnly || TileEntityTable.Count == 0) return;
         if (TileEntityBinding.At(i, j) is not { } entity) return;
 
-        TileEntityBinding.Remove(entity);
+        // 走 KillEntity 而不是直接 Remove：作者的 OnKill 必须跑到（它常用来收拾附属状态）。
+        Instance.KillEntity(entity);
     }
 
     /// <summary>新内容发号：每次 Mod 注册后都要跟上，否则作者的 SetupContent 读不到 ID。</summary>
@@ -594,6 +597,10 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
     private static string? DataFile()
     {
         var path = Main.worldPathName;
-        return string.IsNullOrEmpty(path) ? null : path + ".wld.tileentities.json";
+        if (string.IsNullOrEmpty(path)) return null;
+
+        // 手机版 worldPathName 自带 ".wld"：直接拼会得到 xxx.wld.wld.tileentities.json。
+        if (path.EndsWith(".wld", StringComparison.OrdinalIgnoreCase)) path = path[..^4];
+        return path + ".wld.tileentities.json";
     }
 }
