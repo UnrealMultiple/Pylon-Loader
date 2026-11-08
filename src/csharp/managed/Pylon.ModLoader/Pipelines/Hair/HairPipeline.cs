@@ -174,7 +174,7 @@ internal sealed class HairPipeline : ILoaderModule, ILoaderModuleRefresh
     private const string SaveKey = "pylon:hair";
 
     /// <summary>
-    /// 和 Bunny 一样：存盘前把 mod 发型临时写回 0（原版 .plr 只认它自己的 228 个），
+    /// 存盘前把 mod 发型临时写回 0（原版 .plr 只认它自己的 228 个），
     /// 名字写进玩家侧车；游戏存完立刻把内存里的值恢复，界面不受影响。
     /// </summary>
     private static void SavePlayerFile(On.Terraria.Player.orig_InternalSavePlayerFile orig, Terraria.IO.PlayerFileData playerFile)

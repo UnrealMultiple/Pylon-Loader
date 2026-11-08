@@ -13,7 +13,9 @@ internal static class HostTests
     public static void Register()
     {
         PT.Group("host", Phase.Load, HostLoad);
-        PT.Group("host-ready", Phase.Ready, HostReady);
+        // 安装完成的断言必须放世界阶段：Mod.PostSetupContent 本身就是安装管线的第 74 步，
+        // 那一刻 GameContent.Installed 必然还是 false。
+        PT.Group("host-ready", Phase.World, HostReady);
     }
 
     // ---- T0：Load 阶段能做的自检 ----
@@ -86,14 +88,15 @@ internal static class HostTests
         });
     }
 
-    // ---- T1：Ready 阶段（游戏表就绪后） ----
+    // ---- T1：进世界后（安装管线必然跑完） ----
 
     private static void HostReady()
     {
         PT.Case("HOST-04", c =>
         {
             // 安装完成：GameContent.Installed 为真，且没有 UnavailableReason。
-            c.True(Pylon.ModLoader.GameContent.Installed, "GameContent.Installed=false（安装管线没跑完）");
+            c.True(Pylon.ModLoader.GameContent.Installed,
+                $"GameContent.Installed={Pylon.ModLoader.GameContent.Installed}");
             c.True(Pylon.ModLoader.GameContent.UnavailableReason is null,
                 "UnavailableReason=" + Pylon.ModLoader.GameContent.UnavailableReason);
         });

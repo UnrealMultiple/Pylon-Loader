@@ -8,7 +8,26 @@ namespace PipelineTest.Tests;
 /// </summary>
 internal static class SoundTests
 {
-    public static void Register() => PT.Group("sound", Phase.Ready, Run);
+    public static void Register()
+    {
+        PT.Group("sound", Phase.Ready, Run);
+        PT.Group("sound-w", Phase.World, RunWorld);
+    }
+
+    /// <summary>听感验证：连播 5 声，应能听到 Beep.ogg。</summary>
+    private static void RunWorld()
+    {
+        PT.Case("SOUND-W1", c =>
+        {
+            var style = new SoundStyle("assets/sounds/test");
+            c.NoThrow(() =>
+            {
+                for (var i = 0; i < 5; i++) SoundEngine.PlaySound(style);
+            }, "PlaySound ×5");
+
+            PT.Info("刚才应连续听到 5 声测试音效（assets/sounds/test.ogg）");
+        });
+    }
 
     private static void Run()
     {

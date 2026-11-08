@@ -8,7 +8,24 @@ namespace PipelineTest.Tests;
 /// </summary>
 internal static class MusicTests
 {
-    public static void Register() => PT.Group("music", Phase.Ready, Run);
+    public static void Register()
+    {
+        PT.Group("music", Phase.Ready, Run);
+        PT.Group("music-w", Phase.World, RunWorld);
+    }
+
+    /// <summary>听感验证：直接播放 mod 槽，应能听到 Tone.ogg 的音调。</summary>
+    private static void RunWorld()
+    {
+        PT.Case("MUSIC-W1", c =>
+        {
+            var slot = MusicLoader.GetMusicSlot(PipelineTestMod.Instance, "assets/music/test");
+            c.True(slot > 0, $"slot={slot}");
+
+            c.NoThrow(() => MusicLoader.RestartMusic(slot), "RestartMusic(slot)");
+            PT.Info($"正在播放槽 {slot} 的测试音乐（assets/music/test.ogg），应能听到循环音调");
+        });
+    }
 
     private static void Run()
     {

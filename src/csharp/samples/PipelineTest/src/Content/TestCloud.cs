@@ -19,10 +19,10 @@ public sealed class TestCloud : ModCloud
     public override void OnSpawn(Terraria.Cloud cloud) => OnSpawnCount++;
 }
 
-/// <summary>稀有测试云：RareCloud=true，权重 1。</summary>
+/// <summary>稀有测试云：RareCloud=true，权重 1；贴图是带字的高级云。</summary>
 public sealed class TestRareCloud : ModCloud
 {
-    public override string TexturePath => "assets/clouds/TestCloud.png";
+    public override string TexturePath => "assets/clouds/TestRareCloud.png";
 
     public override bool RareCloud => true;
 

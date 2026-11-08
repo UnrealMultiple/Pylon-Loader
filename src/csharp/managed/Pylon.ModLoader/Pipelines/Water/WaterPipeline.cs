@@ -40,7 +40,7 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
 
     /// <summary>
     /// 原版算完这一帧的水样式后，场景效果的赢家声明了 mod 水就换成它的编号。
-    /// 和 Bunny 一样钩 <c>Main.CalculateWaterStyle</c>：写 <c>Main.waterStyle</c> 会被原版覆盖。
+    /// 钩 <c>Main.CalculateWaterStyle</c>：直接写 <c>Main.waterStyle</c> 会被原版每帧覆盖。
     /// </summary>
     private static int ChooseWaterStyle(On.Terraria.Main.orig_CalculateWaterStyle orig, bool ignoreFountains)
     {
