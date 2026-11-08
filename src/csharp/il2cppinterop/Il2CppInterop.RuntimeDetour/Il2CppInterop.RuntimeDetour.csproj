@@ -2,7 +2,7 @@
   <!--
     Il2CppInterop.RuntimeDetour —— the single hook engine (MonoMod-shaped).
     · The engine itself never touches a native detour implementation: the host (Pylon)
-      implements DetourBackend on top of the kernel's Dobby.
+      implements DetourBackend on top of the kernel's ShadowHook.
     · On.* hooks are emitted straight into the proxy assemblies as IL by
       Il2CppInterop.RuntimeDetour.HookGen.
   -->

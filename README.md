@@ -10,7 +10,7 @@ Mod 是普通的 .NET 10 C# 类库，运行时被加载进游戏进程：内容 
 
 - **强类型**：`Terraria.Main`、`Item`、`Projectile`、`NPC`、`Player` 都是编译期可检查的代理，字段直接读写，方法直接调用。
 - **tModLoader 式路径**：`ModItem` / `ModProjectile` / `ModNPC` / `ModBuff` / `ModConfig` / `Global*`，内容 ID 由框架分配，贴图、配方、配置统一注册。
-- **只有一条钩子链**：`Il2CppInterop.RuntimeDetour` + 内核 Dobby，不需要 Harmony 或第二套 detour。
+- **只有一条钩子链**：`Il2CppInterop.RuntimeDetour` + 内核 ShadowHook，不需要 Harmony 或第二套 detour。
 - **进程内直调**：没有 IPC、没有脚本层；框架先判"有没有人覆写"再分派，为空钩子不付成本。
 - **不改游戏 APK、不需要 root**：宿主把自己的进程变成游戏进程，全程只读用户已安装的那份游戏。
 - **UI 不依赖悬浮窗权限**：配置屏挂在游戏菜单里，自定义界面用 ImGui 覆盖层，画在游戏自己的 GLES 上下文。
@@ -21,7 +21,7 @@ Mod 是普通的 .NET 10 C# 类库，运行时被加载进游戏进程：内容 
 ```text
 :app 启动器 (Kotlin)      选择游戏 → 导入运行时并校验 → 拉起宿主
   └─ :game 宿主 (Kotlin)  注入游戏 dex → 装载游戏 .so → 挂载 assets → UnityPlayer
-       └─ libpylon.so     绑定 il2cpp_* → 等待引擎稳定 → 校验引用 → Dobby → CoreCLR → ImGui
+       └─ libpylon.so     绑定 il2cpp_* → 等待引擎稳定 → 校验引用 → ShadowHook → CoreCLR → ImGui
             └─ 托管层       Pylon.Managed → Pylon.ModLoader → 你的 Mod
 ```
 

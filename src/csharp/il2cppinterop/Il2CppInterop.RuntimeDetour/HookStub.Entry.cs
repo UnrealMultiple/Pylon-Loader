@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 
 namespace Il2CppInterop.RuntimeDetour;
 
-/// <summary>Entry stub: native ABI -> managed (the game's native entry point jumps here via Dobby).</summary>
+/// <summary>Entry stub: native ABI -> managed (the game's native entry point jumps here via ShadowHook).</summary>
 internal static partial class HookStub
 {
     /// <summary>Builds the entry stub, returning (delegate, native entry pointer).</summary>

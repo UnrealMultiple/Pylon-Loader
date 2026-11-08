@@ -17,7 +17,7 @@ Pylon 让 Mod 跑在游戏自己的进程里：启动器负责选择与校验，
                             │ JNI
 ┌───────────────────────────▼──────────────────────────────────┐
 │ libpylon.so  内核（C++20）                                     │
-│   绑定 il2cpp_* → 等引擎稳定 → 校验引用 → Dobby detour         │
+│   绑定 il2cpp_* → 等引擎稳定 → 校验引用 → ShadowHook detour    │
 │   → 起 CoreCLR → ImGui / 屏幕效果                              │
 └───────────────────────────┬──────────────────────────────────┘
                             │ P/Invoke + 代理程序集
@@ -59,7 +59,7 @@ Pylon 让 Mod 跑在游戏自己的进程里：启动器负责选择与校验，
 |---|---|
 | `src/boot` | 阶段状态机（`KernelLoaded` → `EngineReady` → `RefsValidated` / `Failed`）、就绪探测、引用校验与报告 |
 | `src/il2cpp` | `il2cpp_*` 符号表、域与线程票据、按名解析类/字段/方法、`runtime_invoke` 调用 |
-| `src/hook` | Dobby 的 `DobbyHook` / `DobbyDestroy` 出口，供托管侧 detour provider 调用 |
+| `src/hook` | ShadowHook 的 hook / unhook 出口（`shadowhook_hook_func_addr` / `shadowhook_unhook`），供托管侧 detour provider 调用 |
 | `src/dotnet` | CoreCLR 托管（`Prepare` / `RunEntry` / `CallManagedEntry`） |
 | `src/mod` | `PylonMod_*` 导出 ABI：解析、读写字段、调方法、hook |
 | `src/graphics` | GLES/EGL 入口表、GL 状态镜像、帧编排（世界层 / 屏幕层 / 覆盖层）、屏幕效果 |
@@ -78,14 +78,14 @@ Pylon 让 Mod 跑在游戏自己的进程里：启动器负责选择与校验，
 | 外来线程首次访问 | 必须先 `il2cpp_thread_attach()` |
 | 托管入口 | 跑在 64 MB 栈的独立线程，不占游戏线程 |
 | IL2CPP 对象与方法 | 只在 UnityMain 上碰；跨线程调用会被拒绝并记日志 |
-| detour 回调 | 由 Dobby 跳板进入，异常在托管侧边界内消化 |
+| detour 回调 | 由 ShadowHook 跳板进入，异常在托管侧边界内消化 |
 
 ## 4. 托管层
 
 | 程序集 | 职责 |
 |---|---|
 | `Pylon.Mod.Abstractions` | 最小契约：`IPylonMod` / `IModContext` / `IModImGuiTab` / `ImGuiTabRegistry` |
-| `Pylon.Managed` | CoreCLR 入口：原生解析、Dobby 后端、Il2CppInterop 启动、Mod 发现与加载 |
+| `Pylon.Managed` | CoreCLR 入口：原生解析、ShadowHook 后端、Il2CppInterop 启动、Mod 发现与加载 |
 | `Pylon.ModLoader` | 内容框架：`Mod` 基类、五条管线（见 [pipeline/](pipeline/README.md)）、`Global*`、配置、UI、效果 |
 | `Pylon.NaviteAPI` | 内核导出面的唯一 C# 绑定：ImGui（`ig*` / `PylonImgui_*`，机器生成）、屏幕特效（`PylonFx_*`）、宿主（`PylonMod_*`）。全工程只有这里声明 `LibraryImport` |
 
@@ -105,7 +105,7 @@ Il2CppInterop 的 detour 引擎
         ▼
 Pylon.Managed 的 DetourBackend（P/Invoke）
         ▼
-内核 src/hook/HookApi.cpp → DobbyHook
+内核 src/hook/HookApi.cpp → shadowhook_hook
 ```
 
 因此：不要引入 Harmony、MonoMod 或第二套 detour；`On.*` 由 `interop/generated` 生成，随游戏版本走。

@@ -5,7 +5,7 @@ namespace Il2CppInterop.RuntimeDetour;
 /// <summary>
 ///     Abstraction over the native detour mechanism used by the hook engine.
 ///     The engine only generates stubs, maintains chains and invokes handlers; rewriting
-///     code in memory is delegated to the host (e.g. Pylon's kernel Dobby exports:
+///     code in memory is delegated to the host (e.g. Pylon's kernel ShadowHook exports:
 ///     PylonMod_HookApply / PylonMod_HookRemove). This keeps the engine free of any
 ///     platform detail, and a desktop probe can substitute a fake backend.
 /// </summary>
@@ -14,7 +14,7 @@ public abstract class DetourBackend
     /// <summary>Gets or sets the process-wide backend. The host must set it during startup.</summary>
     public static DetourBackend? Current { get; set; }
 
-    /// <summary>Whether the backend is usable right now (false when Dobby is not loaded; never throws).</summary>
+    /// <summary>Whether the backend is usable right now (false when ShadowHook is not loaded; never throws).</summary>
     public abstract bool IsAvailable { get; }
 
     /// <summary>

@@ -193,7 +193,7 @@ tasks.matching { it.name == "mergeDebugJniLibFolders" }.configureEach {
 // === Hook 栈 ===
 //
 // 不再有 Harmony / Il2CppInterop.HarmonySupport：
-// hook 只有 Il2CppInterop.RuntimeDetour（宿主实现 DetourBackend 接内核 Dobby）；On.* 直接生成在代理程序集里。
+// hook 只有 Il2CppInterop.RuntimeDetour（宿主实现 DetourBackend 接内核 ShadowHook）；On.* 直接生成在代理程序集里。
 // 这两个程序集和 Pylon.Managed 一样由 tools/pylon.ps1 deploy 放进 pylon-managed（进 TPA）。
 // 这里不再需要任何编 APK 前的 dotnet 构建步骤。
 

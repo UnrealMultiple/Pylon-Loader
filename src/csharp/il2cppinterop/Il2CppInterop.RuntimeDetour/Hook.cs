@@ -69,7 +69,7 @@ public sealed class Hook : IDisposable
         var backend = DetourBackend.Current;
         if (backend is null)
             throw new InvalidOperationException(
-                "No DetourBackend is set: the host must provide the native detour implementation at startup (Pylon -> kernel Dobby)");
+                "No DetourBackend is set: the host must provide the native detour implementation at startup (Pylon -> kernel ShadowHook)");
         if (!backend.IsAvailable)
             throw new InvalidOperationException($"The detour backend is unavailable (libdobby.so not loaded); cannot hook {_plan.Label}");
 
@@ -112,7 +112,7 @@ public sealed class Hook : IDisposable
 
     /// <summary>
     ///     Undoes the hook (idempotent). When the hook is the chain head and other hooks remain,
-    ///     the Dobby detour is kept and this node is demoted to pure forwarding.
+    ///     the ShadowHook detour is kept and this node is demoted to pure forwarding.
     /// </summary>
     public void Undo()
     {

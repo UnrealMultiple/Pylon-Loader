@@ -230,7 +230,7 @@ PYLON_MOD_EXPORT void* PylonMod_MethodPointer(const char* qualified_name, const 
         return nullptr;
     }
 
-    // IL2CPP 的 MethodInfo 头部第一个指针宽字段就是 methodPointer（代码地址，Dobby 要 patch 它）。
+    // IL2CPP 的 MethodInfo 头部第一个指针宽字段就是 methodPointer（代码地址，ShadowHook 要 patch 它）。
     void* method_pointer = nullptr;
     std::memcpy(&method_pointer, info, sizeof(method_pointer));
     if (method_pointer == nullptr) {

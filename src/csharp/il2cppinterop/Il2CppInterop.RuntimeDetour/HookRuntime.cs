@@ -11,7 +11,7 @@ namespace Il2CppInterop.RuntimeDetour;
 ///     requires regenerating IL or re-patching memory.
 ///
 ///     Chain shape (Nodes in invocation order):
-///         game -> Nodes[0] (the stub Dobby actually patches) -> Nodes[1] -> ... -> trampoline
+///         game -> Nodes[0] (the stub ShadowHook actually patches) -> Nodes[1] -> ... -> trampoline
 ///     New hooks are appended to the end of the chain, so earlier hooks run first.
 /// </summary>
 internal static class HookState
@@ -141,7 +141,7 @@ internal sealed class HookChain
     /// <summary>The real trampoline handed out by the backend (end of the chain).</summary>
     internal IntPtr Trampoline { get; set; }
 
-    /// <summary>Nodes in invocation order; [0] is the stub Dobby actually patches.</summary>
+    /// <summary>Nodes in invocation order; [0] is the stub ShadowHook actually patches.</summary>
     internal List<HookNode> Nodes { get; } = new();
 
     internal HookNode? FindNode(Hook hook)

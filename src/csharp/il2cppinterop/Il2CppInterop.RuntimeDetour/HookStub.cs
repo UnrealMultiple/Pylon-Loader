@@ -73,7 +73,7 @@ internal static partial class HookStub
         HookState.SetIndirectArg(slot, paramIndex, pointer);
 
     /// <summary>
-    ///     Builds an "as-is forwarding" handler, used when the head of a chain is undone: the Dobby
+    ///     Builds an "as-is forwarding" handler, used when the head of a chain is undone: the ShadowHook
     ///     hook stays in place but the slot only forwards to the next hop.
     /// </summary>
     internal static Delegate BuildPassthrough(HookPlan plan)

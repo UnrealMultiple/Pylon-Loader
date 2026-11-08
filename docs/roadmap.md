@@ -18,7 +18,7 @@
 |---|---|
 | 宿主链路（dex 注入、运行时装载、assets 挂载、UnityPlayer 生命周期） | 跑通，APK 不含游戏二进制 |
 | 运行时导入（解包、sha256 清单、版本门禁、PairIP 拒绝） | 跑通 |
-| 内核（`il2cpp_*` 绑定、引用校验、Dobby detour、CoreCLR、ImGui） | 跑通 |
+| 内核（`il2cpp_*` 绑定、引用校验、ShadowHook detour、CoreCLR、ImGui） | 跑通 |
 | 托管层（CoreCLR 入口、Mod 发现与依赖排序、内容框架） | 跑通 |
 | 内容管线 | 物品、弹幕、NPC、Buff、坐骑、前缀、稀有度、配方、方块、墙壁、玩家与世界生命周期（含侧车存档）、网络包与实体附加数据、城镇 NPC 与商店、音乐与音效、配置、工具提示与触屏按钮 |
 | 屏幕效果 | 着色器管线（GLSL ES 3.00，`#include` 预处理）在渲染线程编译，报错带 Mod 文件行号 |

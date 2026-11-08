@@ -31,7 +31,7 @@
     <!-- 内核导出面（hook / 日志的 P/Invoke 都在这里，宿主自己也要用） -->
     <ProjectReference Include="..\Pylon.NaviteAPI\Pylon.NaviteAPI.csproj" />
 
-    <!-- Hook 引擎（宿主实现 DetourBackend，把 detour 接到内核 Dobby）。 -->
+    <!-- Hook 引擎（宿主实现 DetourBackend，把 detour 接到内核 ShadowHook）。 -->
     <ProjectReference Include="..\..\il2cppinterop\Il2CppInterop.RuntimeDetour\Il2CppInterop.RuntimeDetour.csproj" />
 
     <!-- 游戏代理：宿主需要读游戏状态（如类型表是否建好），typed 访问比按名字反射安全 -->

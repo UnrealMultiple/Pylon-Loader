@@ -1,6 +1,6 @@
 # 内核（libpylon.so）
 
-游戏进程里的 C++20 内核。职责：绑定 `il2cpp_*` → 等引擎稳定 → 按名解析并校验引用 → 接上 Dobby detour、CoreCLR 与图形层。
+游戏进程里的 C++20 内核。职责：绑定 `il2cpp_*` → 等引擎稳定 → 按名解析并校验引用 → 接上 ShadowHook detour、CoreCLR 与图形层。
 
 设计原则一句话：**Mod 可以没有，游戏必须能跑**。任何必需引用解析失败，内核只让 Mod 停用并写清原因，不把进程带崩。
 
@@ -19,7 +19,7 @@
 | `src/boot/*` | 阶段状态机、就绪探测、引用校验与报告 |
 | `src/il2cpp/Symbols.*` | `il2cpp_*` 符号表：声明、绑定、计数由同一份清单生成 |
 | `src/il2cpp/Domain.*` `Session.cpp` `Metadata.*` `Invoke.*` | 域与线程票据、按名找类、字段读写、方法调用 |
-| `src/hook/HookApi.cpp` | Dobby 的 `DobbyHook` / `DobbyDestroy` 出口 |
+| `src/hook/HookApi.cpp` | ShadowHook 的 hook / unhook 出口（`shadowhook_hook_func_addr` / `shadowhook_unhook`） |
 | `src/dotnet/CoreClrHost.cpp` | CoreCLR 托管：`Prepare` / `RunEntry` |
 | `src/mod/ModApi.cpp` | `PylonMod_*` 的实现 |
 | `src/graphics/*` | GLES/EGL 入口表、GL 状态镜像、帧编排、屏幕效果 |

@@ -70,7 +70,7 @@ internal sealed class HookPlan
     /// <summary>il2cpp MethodInfo* (passed as the hidden trailing argument of native calls).</summary>
     public IntPtr MethodInfoPtr { get; private set; }
 
-    /// <summary>Native code address of the target method (what Dobby patches).</summary>
+    /// <summary>Native code address of the target method (what ShadowHook patches).</summary>
     public IntPtr FunctionPtr { get; private set; }
 
     public string Label => $"{DeclaringType.Name}.{Target.Name}";

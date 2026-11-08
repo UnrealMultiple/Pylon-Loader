@@ -25,7 +25,7 @@
 1. **移除 HarmonySupport 工程**：hook 只有 `Il2CppInterop.Runtime.Hooking` 一套。
 2. **Hook 引擎 = `Il2CppInterop.RuntimeDetour` 工程**：
    - `Hook`：MonoMod 形状的自由 hook（任意 `MethodBase` 或原生地址）；
-   - `DetourBackend`：原生 detour 抽象类，宿主（Pylon）实现它接内核 Dobby；
+   - `DetourBackend`：原生 detour 抽象类，宿主（Pylon）实现它接内核 ShadowHook；
    - `HookEndpoint`：生成的 `On.*` 事件的运行时端点；
    - `HookPlan/HookStub/MirrorTypes`：签名映射，含 `ref/out`、真值类型按值传、
      **装箱值类型（`Il2CppSystem.Nullable<T>` 这类 class 代理但原生按值传）的镜像 blob + `il2cpp_value_box/unbox`**。

@@ -5,7 +5,7 @@
 | 工程 | 职责 |
 |---|---|
 | `Pylon.Mod.Abstractions` | 给 Mod 作者的最小契约：`IPylonMod` / `IModContext` / `IModImGuiTab` / `ImGuiTabRegistry` |
-| `Pylon.Managed` | CoreCLR 入口：原生解析、Dobby 后端、Il2CppInterop 启动、Mod 发现与加载 |
+| `Pylon.Managed` | CoreCLR 入口：原生解析、ShadowHook 后端、Il2CppInterop 启动、Mod 发现与加载 |
 | `Pylon.ModLoader` | 内容框架：`Mod` 基类、内容管线、`Global*`、配置、UI、效果 |
 | `Pylon.NaviteAPI` | 内核导出面的唯一 C# 绑定（ImGui / 特效 / 宿主）；全工程只有这里声明 `LibraryImport` |
 
@@ -16,7 +16,7 @@ Pylon.Mod.Abstractions/   契约（一个接口一个文件）
 Pylon.Managed/
   Entrypoint.cs           内核解析的入口（签名不可改）
   Hosting/                启动编排、日志、全局错误边界、就绪探测
-  Interop/                原生库解析、Dobby 后端、Il2CppInterop 启动
+  Interop/                原生库解析、ShadowHook 后端、Il2CppInterop 启动
   Mods/                   清单解析、目录扫描、依赖排序、加载管线
 Pylon.ModLoader/
   Mod.cs                  作者基类
