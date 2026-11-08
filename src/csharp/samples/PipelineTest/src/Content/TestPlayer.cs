@@ -254,6 +254,15 @@ public sealed class TestPlayer : ModPlayer
         hook.SetDefaults(Terraria.ID.ItemID.AmethystHook, null);
         inv[4] = hook;
 
+        // mount 组：第 7 格给测试坐骑物品，方便手动骑乘验证。
+        var mountItemType = ModContent.ItemType<TestMountItem>();
+        if (mountItemType > 0)
+        {
+            var mountItem = new Item();
+            mountItem.SetDefaults(mountItemType, null);
+            inv[5] = mountItem;
+        }
+
         _given = true;
 
         PT.Info($"已把测试物品放进热键栏第 1 格（type={type} 玩家槽位数={inv.Length}），方块/家具在第 2/3 格");
