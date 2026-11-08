@@ -25,6 +25,17 @@ internal static class WallTable
             var type = wall.Type;
             if (type <= 0) continue;
 
+            // 墙的静态默认值（Main.wallHouse、地图项、以及作者自己写的平行表）和方块侧一样
+            // 在安装期跑一次；不跑这一步，墙不会被算作房屋墙，地图项也为空。
+            try
+            {
+                wall.SetStaticDefaults();
+            }
+            catch (Exception e)
+            {
+                log.Warn($"{wall.Name} 的静态默认值失败：{Safe.Describe(e)}");
+            }
+
             Ensure(type + 1);
             _walls[type] = wall;
 
@@ -44,7 +55,7 @@ internal static class WallTable
                 if (item is null || item.createWall <= 0) continue;
 
                 var type = item.createWall;
-                if ((uint)type >= (uint)_meta.Length || _meta[type].Masks.IsEmpty) continue;
+                if (!Has(type)) continue;
                 if (_meta[type].DropItem != 0) continue;
 
                 _meta[type].DropItem = item.type;
@@ -69,11 +80,18 @@ internal static class WallTable
         if (size > _count) _count = size;
     }
 
-    internal static bool Has(int type) => (uint)type < (uint)_meta.Length && !_meta[type].Masks.IsEmpty;
+    /// <summary>
+    /// 是不是 mod 墙。判据是"这个类型登记过"而不是"覆写了钩子"——
+    /// 只写静态数据（ItemDrop / 地图项）的墙一个钩子都不覆写，用位集判会把它当成原版墙。
+    /// </summary>
+    internal static bool Has(int type) => (uint)type < (uint)_walls.Length && _walls[type] is not null;
 
     internal static ref WallMeta Meta(int type) => ref _meta[type];
 
     internal static int DropOf(int type) => Has(type) ? _meta[type].DropItem : 0;
+
+    /// <summary>按类型取墙；不是 mod 墙返回 null。</summary>
+    internal static ModWall? Of(int type) => Has(type) ? _walls[type] : null;
 
     /// <summary>按格子取墙；不是 mod 墙返回 null。</summary>
     internal static ModWall? At(int i, int j)

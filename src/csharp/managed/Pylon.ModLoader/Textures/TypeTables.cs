@@ -628,6 +628,64 @@ public static class TypeTables
         }
     }
 
+    /// <summary>
+    /// 写一个静态计数（<c>WallID.Count</c> 这类"游戏自己拿它当上界"的槽）。
+    /// 原版 <c>WorldGen.PlaceWall</c> 开头就用它挡掉越界类型：不写的话 mod 墙类型放不下，
+    /// 玩家手里的放置物品也永远放不出去（表现是"点一下什么都没发生"）。
+    /// </summary>
+    internal static unsafe bool WriteStaticCount(string ns, string cls, string fieldName, int value)
+    {
+        try
+        {
+            var klass = FindClass(new TableClass(ns, cls));
+            if (klass == IntPtr.Zero) return false;
+            var field = FindField(klass, fieldName);
+            if (field == IntPtr.Zero) return false;
+
+            // 原版字段是 ushort：小端下传 int 指针的前两字节正好是它。
+            IL2CPP.il2cpp_field_static_set_value(field, &value);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// <c>Main.wallBlend</c> 里新墙的空槽填成自身（原版约定 <c>wallBlend[i] == i</c>）。
+    /// 留 0 的话边框混合会去查原版墙 0 的样式，mod 墙的边框会闪/错位。返回填了几槽。
+    /// </summary>
+    internal static unsafe int FillWallBlend(int from, int to)
+    {
+        try
+        {
+            var klass = FindClass(new TableClass("Terraria", "Main"));
+            if (klass == IntPtr.Zero) return 0;
+            var field = FindField(klass, "wallBlend");
+            if (field == IntPtr.Zero) return 0;
+
+            var array = ReadStatic(field);
+            if (array == IntPtr.Zero) return 0;
+            if (ArrayLength(array) < to) return 0;
+
+            var data = (int*)ArrayData(array);
+            var filled = 0;
+            for (var type = from; type < to; type++)
+            {
+                if (data[type] != 0) continue;
+                data[type] = type;
+                filled++;
+            }
+
+            return filled;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
     /// <summary>已经跑过（还在盯着的）扩表器：每帧补 pending / 每 120 帧查重建。</summary>
     private static readonly List<TableGrower> Active = [];
     private static int _watchTicks;
