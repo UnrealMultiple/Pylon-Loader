@@ -14,9 +14,6 @@ internal sealed class CloudPipeline : ILoaderModule, ILoaderModuleRefresh
 
     public string Name => "cloud";
 
-    /// <summary>临时隔离开关（测试计划 §4.4）：true = 不把云编号换成 mod 云。已确认无关，回到 false。</summary>
-    internal static bool _isolateNoReplace = false;
-
     private static IModLog Log => LoaderHost.Current.Log;
 
     public bool Install()
@@ -100,7 +97,6 @@ internal sealed class CloudPipeline : ILoaderModule, ILoaderModuleRefresh
         var vanilla = orig();
 
         if (CloudTable.Count == 0) return vanilla;
-        if (_isolateNoReplace) return vanilla;   // 临时隔离
 
         var type = CloudTable.Roll(CloudTable.Base, true);
         if (type == 0) return vanilla;
@@ -140,7 +136,6 @@ internal sealed class CloudPipeline : ILoaderModule, ILoaderModuleRefresh
         orig();
 
         if (CloudTable.Count == 0) return;
-        if (_isolateNoReplace) return;   // 临时隔离：不替换云类型
 
         var index = Main.numClouds - 1;
         var clouds = Main.cloud;

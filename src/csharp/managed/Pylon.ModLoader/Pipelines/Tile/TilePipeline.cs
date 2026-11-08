@@ -22,6 +22,7 @@ internal sealed class TilePipeline : ILoaderModule
     {
         On.Terraria.WorldGen.CanKillTile += CanKill;
         On.Terraria.WorldGen.CanKillTile_1 += CanKillFast;
+        On.Terraria.WorldGen.CanKillTile_2 += CanKillOut;
         On.Terraria.WorldGen.KillTile += Kill;
         On.Terraria.WorldGen.KillTile_MakeTileDust += MakeDust;
         On.Terraria.WorldGen.KillTile_DropItems += DropItems;
@@ -135,9 +136,50 @@ internal sealed class TilePipeline : ILoaderModule
         }
     }
 
+    /// <summary>正在替多格家具清残留格：防止 WorldGen.KillTile 重入时再清一遍。</summary>
+    private static bool _removingMulti;
+
+    /// <summary><c>CanKillTile(int, int, out bool)</c> 是镐子/公开调用走的那条重载；前两条接不到它。</summary>
+    private bool CanKillOut(On.Terraria.WorldGen.orig_CanKillTile_2 orig, int i, int j, ref bool blockDamaged)
+    {
+        var tile = TileTable.At(i, j);
+        if (tile is null || !tile.HookEnabled(HookId.CanKillTile))
+            return orig(i, j, ref blockDamaged);
+
+        var damaged = false;
+        try
+        {
+            var allowed = tile.CanKillTile(i, j, ref damaged);
+            var originalDamaged = false;
+            var result = orig(i, j, ref originalDamaged);
+            blockDamaged = damaged || originalDamaged;
+            return allowed && result;
+        }
+        catch (Exception e)
+        {
+            Fail(tile, HookId.CanKillTile, e);
+            return orig(i, j, ref blockDamaged);
+        }
+    }
+
     private void Kill(On.Terraria.WorldGen.orig_KillTile orig, int i, int j, bool fail, bool effectOnly, bool noItem)
     {
         var tile = TileTable.At(i, j);
+        var cache = Main.tile[i, j];
+        var type = cache.type;
+        var frameX = cache.frameX;
+        var frameY = cache.frameY;
+
+        var data = type > 0 ? TileObjectData.GetTileData(type, 0) : null;
+        var multi = data is not null && data.Width * data.Height > 1;
+        var left = i;
+        var top = j;
+
+        if (multi)
+        {
+            left -= (frameX / 18) % data!.Width;
+            top -= (frameY / 18) % data.Height;
+        }
 
         if (tile is not null && tile.HookEnabled(HookId.KillTile))
         {
@@ -153,14 +195,41 @@ internal sealed class TilePipeline : ILoaderModule
 
         orig(i, j, fail, effectOnly, noItem);
 
-        // 多格家具只在左上角发一次：这里已经能拿到帧坐标，比在掉落钩子里猜靠得住。
-        if (tile is null || fail || !tile.HookEnabled(HookId.KillMultiTile)) return;
+        // 这版游戏挖多格家具只删目标格；挖掉任意一格就替作者清掉其余格，再发一次 KillMultiTile。
+        // 残留格用 noItem=true 清掉，避免本体物品掉多份。
+        if (tile is null || !multi || fail || effectOnly || _removingMulti || !tile.HookEnabled(HookId.KillMultiTile)) return;
 
-        var cache = Main.tile[i, j];
+        var tiles = Main.tile;
+        var objectData = data!;
+
+        if (tiles[i, j].active() && tiles[i, j].type == type) return;
+
+        for (var x = left; x < left + objectData.Width; x++)
+        {
+            for (var y = top; y < top + objectData.Height; y++)
+            {
+                if (x == i && y == j) continue;
+
+                var part = tiles[x, y];
+                if (!part.active() || part.type != type) continue;
+
+                _removingMulti = true;
+                try
+                {
+                    WorldGen.KillTile(x, y, false, false, true);
+                }
+                finally
+                {
+                    _removingMulti = false;
+                }
+            }
+        }
 
         try
         {
-            tile.KillMultiTile(i, j, cache.frameX, cache.frameY);
+            tile.KillMultiTile(left, top,
+                (short)(frameX - ((frameX / 18) % objectData.Width) * 18),
+                (short)(frameY - ((frameY / 18) % objectData.Height) * 18));
         }
         catch (Exception e)
         {
@@ -195,6 +264,13 @@ internal sealed class TilePipeline : ILoaderModule
     private void DropItems(On.Terraria.WorldGen.orig_KillTile_DropItems orig, int x, int y, Tile tileCache,
                            bool includeLargeObjectDrops)
     {
+        // 多格家具的残留格是替作者清的：即便 noItem 没挡住这个入口，也不能再掉一份。
+        if (_removingMulti)
+        {
+            orig(x, y, tileCache, includeLargeObjectDrops);
+            return;
+        }
+
         var tile = TileTable.At(x, y);
 
         if (tile is null || !tile.HookEnabled(HookId.CanDrop) && !tile.HookEnabled(HookId.GetItemDrops))

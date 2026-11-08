@@ -22,6 +22,7 @@ internal static partial class HookStub
 
         var il = method.GetILGenerator();
         var byrefLocals = new LocalBuilder[plan.ParamTypes.Length];
+        var rawByrefLocals = new LocalBuilder[plan.ParamTypes.Length];
 
         // The native return value must first land in a local of the native type: calli returns
         // NativeReturn (string -> IntPtr), and Stloc into a managed-typed local would produce an
@@ -44,7 +45,7 @@ internal static partial class HookStub
 
             if (managed.IsByRef)
             {
-                EmitOrigByRefArgument(il, plan, i, argIndex, native, byrefLocals);
+                EmitOrigByRefArgument(il, plan, slot, i, argIndex, native, byrefLocals, rawByrefLocals);
             }
             else if (HookPlan.IsBoxedValueType(managed) && native == typeof(IntPtr))
             {
@@ -72,17 +73,9 @@ internal static partial class HookStub
 
         var nativeParams = plan.NativeParams.Concat(new[] { typeof(IntPtr) }).ToArray();
 
-        // 原函数是原生的：它抛出来的 IL2CPP 异常会直接穿过 calli（托管侧接不住）。
-        // 在 calli 外面包一层 catch-all，把它换成托管异常，交给 entry 桩的 catch-all 兜住。
-        il.BeginExceptionBlock();
+        // 原函数是原生的；calli 外面不再包 catch（cae071c 的 catch 块在当前 BCL 下发不出合法 IL）。
         il.EmitCalli(OpCodes.Calli, CallingConvention.Cdecl, plan.NativeReturn, nativeParams);
         if (nativeResultLocal is not null) il.Emit(OpCodes.Stloc, nativeResultLocal);
-        il.BeginCatchBlock(null);
-        il.Emit(OpCodes.Pop);
-        il.Emit(OpCodes.Ldstr, "orig:" + plan.Label + " 的原函数抛出了 IL2CPP 异常");
-        il.Emit(OpCodes.Newobj, typeof(InvalidOperationException).GetConstructor(new[] { typeof(string) })!);
-        il.Emit(OpCodes.Throw);
-        il.EndExceptionBlock();
 
         // ref/out write-back：void 方法也要执行，否则原版写出来的值回不到托管侧（D-007）。
         argIndex = plan.IsStatic ? 0 : 1;
@@ -122,18 +115,54 @@ internal static partial class HookStub
     ///     One ref/out parameter of the orig stub: the managed byref is converted to the native
     ///     pointer form; boxed value types are unboxed straight to a data pointer.
     /// </summary>
-    private static void EmitOrigByRefArgument(ILGenerator il, HookPlan plan, int paramIndex, int argIndex,
-                                              Type native, LocalBuilder[] byrefLocals)
+    private static void EmitOrigByRefArgument(ILGenerator il, HookPlan plan, int slot, int paramIndex, int argIndex,
+                                              Type native, LocalBuilder[] byrefLocals, LocalBuilder[] rawByrefLocals)
     {
         var managed = plan.ParamTypes[paramIndex];
         var element = managed.GetElementType()!;
 
         if (HookPlan.IsBoxedValueType(element) && native == typeof(IntPtr))
         {
-            // ref/out boxed value type: take the proxy object, unbox to a data pointer
+            // D-023: forward the caller's real out/ref storage pointer recorded by the entry stub.
+            // Unboxing a null proxy gives il2cpp_object_unbox(0) = 0x10, which the original then
+            // writes to (SIGSEGV). Fall back to the old unbox path only if nothing was recorded.
+            var raw = il.DeclareLocal(typeof(IntPtr));
+            rawByrefLocals[paramIndex] = raw;
+
+            il.Emit(OpCodes.Ldc_I4, slot);
+            il.Emit(OpCodes.Ldc_I4, paramIndex);
+            il.Emit(OpCodes.Call, GetIndirectMethod);
+            il.Emit(OpCodes.Stloc, raw);
+
+            var haveRaw = il.DefineLabel();
+            var end = il.DefineLabel();
+            il.Emit(OpCodes.Ldloc, raw);
+            il.Emit(OpCodes.Ldc_I4_0);
+            il.Emit(OpCodes.Conv_I);
+            il.Emit(OpCodes.Bne_Un, haveRaw);
+
             il.Emit(OpCodes.Ldarg, argIndex);
             il.Emit(OpCodes.Ldobj, element);
             EmitUnboxToPointer(il, element);
+            il.Emit(OpCodes.Br, end);
+
+            il.MarkLabel(haveRaw);
+            // A ref handler may have changed the value before calling orig: copy the proxy into the
+            // caller storage first, then hand that same storage to the original.
+            var noCopy = il.DefineLabel();
+            il.Emit(OpCodes.Ldarg, argIndex);
+            il.Emit(OpCodes.Ldobj, element);
+            il.Emit(OpCodes.Brfalse, noCopy);
+            il.Emit(OpCodes.Ldloc, raw);
+            il.Emit(OpCodes.Ldarg, argIndex);
+            il.Emit(OpCodes.Ldobj, element);
+            EmitUnboxToPointer(il, element);
+            il.Emit(OpCodes.Ldc_I4, MirrorTypes.For(element).Size);
+            il.Emit(OpCodes.Cpblk);
+            il.MarkLabel(noCopy);
+
+            il.Emit(OpCodes.Ldloc, raw);
+            il.MarkLabel(end);
             return;
         }
 

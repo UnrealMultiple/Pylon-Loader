@@ -130,6 +130,9 @@ public static partial class OnHookGenerator
             if (hookEndpointDef == null)
                 throw new InvalidOperationException("RuntimeDetour does not contain HookEndpoint");
             _endpointType = _module.ImportReference(hookEndpointDef);
+            // Cecil 可能把导入类型的 scope 落成 ModuleDefinition（运行时就会去代理程序集里找
+            // HookEndpoint → TypeLoadException）。显式绑到 RuntimeDetour 的 AssemblyRef。
+            _endpointType.Scope = _detourRef;
             _bindOnce = _module.ImportReference(hookEndpointDef.Methods.First(m => m.Name == "BindOnce"));
             _bindCompact = _module.ImportReference(hookEndpointDef.Methods.First(
                 m => m.Name == "BindOnce" && m.Parameters.Count == 6 && m.Parameters[3].ParameterType.Name == "Int32"));
@@ -138,11 +141,47 @@ public static partial class OnHookGenerator
             _add = _module.ImportReference(hookEndpointDef.Methods.First(m => m.Name == "Add"));
             _remove = _module.ImportReference(hookEndpointDef.Methods.First(m => m.Name == "Remove"));
 
+            foreach (var method in new[] { _bindOnce, _bindCompact, _bindWithArgs, _add, _remove })
+            {
+                if (method.DeclaringType is not null)
+                {
+                    method.DeclaringType.Scope = _detourRef;
+                    FixDetourScope(method.DeclaringType);
+                }
+                FixDetourScope(method.ReturnType);
+                foreach (var parameter in method.Parameters) FixDetourScope(parameter.ParameterType);
+            }
+
             _getTypeFromHandle = new MethodReference("GetTypeFromHandle", _typeType, _typeType) { HasThis = false };
             _getTypeFromHandle.Parameters.Add(new ParameterDefinition(_runtimeTypeHandleType));
         }
 
         private TypeReference Sys(string name) => new TypeReference("System", name, _module, _corlib);
+
+        /// <summary>Fix the scope of any type reference that belongs to the RuntimeDetour assembly
+        /// (including byref/array/generic wrappers) so it resolves via the AssemblyRef, not the proxy module.</summary>
+        private void FixDetourScope(TypeReference type)
+        {
+            switch (type)
+            {
+                case ByReferenceType byRef:
+                    FixDetourScope(byRef.ElementType);
+                    return;
+                case PointerType pointer:
+                    FixDetourScope(pointer.ElementType);
+                    return;
+                case ArrayType array:
+                    FixDetourScope(array.ElementType);
+                    return;
+                case GenericInstanceType generic:
+                    FixDetourScope(generic.ElementType);
+                    foreach (var argument in generic.GenericArguments) FixDetourScope(argument);
+                    return;
+            }
+
+            if (type.Namespace == "Il2CppInterop.RuntimeDetour" && type.Scope != _detourRef)
+                type.Scope = _detourRef;
+        }
 
         internal HookGenResult Run()
         {

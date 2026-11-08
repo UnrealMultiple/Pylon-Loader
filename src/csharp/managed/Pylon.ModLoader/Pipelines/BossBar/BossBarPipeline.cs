@@ -36,6 +36,9 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.GameContent.UI.BigProgressBar.BigProgressBarSystem.Update += Update;
         On.Terraria.GameContent.UI.BigProgressBar.BigProgressBarSystem.Draw += DrawSystem;
 
+        // 原版条不经过 DrawBar；GlobalBossBar 要在 GUIBossBar.Draw 这一层也跑一遍。
+        On.GUIBossBar.Draw += GuiDraw;
+
         Log.Info("[bossbar] 已挂（BigProgressBarSystem.Update 抓目标 / Draw 换条）");
         return true;
     }
@@ -43,6 +46,12 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
     public void Refresh() => BossBarTable.Rebuild();
 
     /// <summary>安装期一次：血条的静态默认值。</summary>
+    /// <summary>横切血条（游戏条 + mod 条都走）。安装期快照，分派时不再分配。</summary>
+    private static GlobalBossBar[] _globals = [];
+
+    /// <summary>正在画 mod 条：此时 GUIBossBar.Draw 里不再重复分派 GlobalBossBar。</summary>
+    private static bool _inModBarDraw;
+
     internal void Build()
     {
         foreach (var bar in ModContent.GetContent<ModBossBar>())
@@ -51,6 +60,7 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
             bar.SetStaticDefaults();
         }
 
+        _globals = [.. ModContent.GetContent<GlobalBossBar>()];
         BossBarTable.Rebuild();
 
         if (BossBarTable.Count > 0) Log.Info($"[bossbar] 安装：{BossBarTable.Count} 条血条");
@@ -208,27 +218,12 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         var gui = GUIInstance.Active is null ? null : GUIInstance.Active.GUIBossBar;
         if (gui is null) return;
 
-        Rectangle? frame = null;
-        Texture2D? icon = null;
-
-        try
-        {
-            if (bar.GetIconTexture(ref frame) is { } asset) icon = asset.Value;
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report($"[bossbar] {bar.Name}.GetIconTexture 异常：{Safe.Describe(e)}");
-        }
-
-        var heads = TextureAssets.NpcHead;
-        if (icon is null && heads is not null && heads.Length > 0) icon = heads[0]?.Value;
-        if (icon is null) return;
-
         var life = bar.Life;
         var lifeMax = bar.LifeMax;
         var shield = bar.Shield;
         var shieldMax = bar.ShieldMax;
 
+        // 先把这一帧的生命收进作者对象：GetIconTexture / ModifyInfo 读到的才是当前帧。
         try
         {
             bar.Collected(npc.life, npc.lifeMax, shield, shieldMax);
@@ -241,7 +236,6 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         }
 
         var info = new BossBarInfo { npcIndexToAimAt = npc.whoAmI };
-
         bool? verdict = null;
         try
         {
@@ -253,6 +247,21 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         }
 
         if (verdict == false) return;
+
+        Rectangle? frame = null;
+        Texture2D? icon = null;
+        try
+        {
+            if (bar.GetIconTexture(ref frame) is { } asset) icon = asset.Value;
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report($"[bossbar] {bar.Name}.GetIconTexture 异常：{Safe.Describe(e)}");
+        }
+
+        var heads = TextureAssets.NpcHead;
+        if (icon is null && heads is not null && heads.Length > 0) icon = heads[0]?.Value;
+        if (icon is null) return;
 
         var draw = new BossBarDrawParams
         {
@@ -271,21 +280,45 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
             TextOffset = Vector2.Zero,
         };
 
+        // 横切类先跑（ModBossBar 的 PreDraw 在它们之后）；任何一个返回 false 都跳过条身。
         var keep = true;
-        try
+        foreach (var global in _globals)
         {
-            keep = bar.PreDraw(spriteBatch, npc, draw);
+            try
+            {
+                if (!global.PreDraw(spriteBatch, npc, draw)) keep = false;
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[bossbar] {global.Name}.PreDraw 异常：{Safe.Describe(e)}");
+            }
         }
-        catch (Exception e)
+
+        if (keep)
         {
-            ContentErrors.Report($"[bossbar] {bar.Name}.PreDraw 异常：{Safe.Describe(e)}");
+            try
+            {
+                keep = bar.PreDraw(spriteBatch, npc, draw);
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[bossbar] {bar.Name}.PreDraw 异常：{Safe.Describe(e)}");
+            }
         }
 
         if (keep)
         {
             var shielded = draw.ShieldMax > 0f;
-            gui.Draw(draw.Life, draw.LifeMax, draw.IconTexture, draw.IconFrame,
-                     shielded ? draw.Shield : -1f, shielded ? draw.ShieldMax : 1f);
+            _inModBarDraw = true;
+            try
+            {
+                gui.Draw(draw.Life, draw.LifeMax, draw.IconTexture, draw.IconFrame,
+                         shielded ? draw.Shield : -1f, shielded ? draw.ShieldMax : 1f);
+            }
+            finally
+            {
+                _inModBarDraw = false;
+            }
         }
 
         try
@@ -295,6 +328,90 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         catch (Exception e)
         {
             ContentErrors.Report($"[bossbar] {bar.Name}.PostDraw 异常：{Safe.Describe(e)}");
+        }
+
+        foreach (var global in _globals)
+        {
+            try { global.PostDraw(spriteBatch, npc, draw); }
+            catch (Exception e) { ContentErrors.Report($"[bossbar] {global.Name}.PostDraw 异常：{Safe.Describe(e)}"); }
+        }
+    }
+
+    /// <summary>
+    /// 原版条也过一遍 <see cref="GlobalBossBar"/>：<c>GUIBossBar.Draw</c> 是两种条共用的最后一步。
+    /// mod 条在 <see cref="DrawBar"/> 里已经分派过，用 <c>_inModBarDraw</c> 防止重复。
+    /// </summary>
+    private static void GuiDraw(On.GUIBossBar.orig_Draw orig, GUIBossBar self, float life, float lifeMax,
+                                Texture2D icon, Rectangle frame, float shield, float shieldMax)
+    {
+        if (_inModBarDraw || _globals.Length == 0)
+        {
+            orig(self, life, lifeMax, icon, frame, shield, shieldMax);
+            return;
+        }
+
+        var at = -1;
+        try
+        {
+            var system = Main.BigBossProgressBar;
+            if (system is not null) at = system._info.npcIndexToAimAt;
+        }
+        catch { /* 读不到就按原版画 */ }
+
+        if ((uint)at >= 200u || Main.npc is null || at >= Main.npc.Length)
+        {
+            orig(self, life, lifeMax, icon, frame, shield, shieldMax);
+            return;
+        }
+
+        var npc = Main.npc[at];
+        if (npc is null)
+        {
+            orig(self, life, lifeMax, icon, frame, shield, shieldMax);
+            return;
+        }
+
+        var draw = new BossBarDrawParams
+        {
+            IconTexture = icon,
+            IconFrame = frame,
+            Life = life,
+            LifeMax = lifeMax,
+            Shield = shield,
+            ShieldMax = shieldMax,
+            BarTexture = icon,
+            BarCenter = Vector2.Zero,
+            BarColor = Color.White,
+            IconColor = Color.White,
+            IconScale = 1f,
+            ShowText = true,
+            TextOffset = Vector2.Zero,
+        };
+
+        var keep = true;
+        foreach (var global in _globals)
+        {
+            try
+            {
+                if (!global.PreDraw(Main.spriteBatch, npc, draw)) keep = false;
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[bossbar] {global.Name}.PreDraw 异常：{Safe.Describe(e)}");
+            }
+        }
+
+        if (keep)
+        {
+            var shielded = draw.ShieldMax > 0f;
+            orig(self, draw.Life, draw.LifeMax, draw.IconTexture, draw.IconFrame,
+                 shielded ? draw.Shield : -1f, shielded ? draw.ShieldMax : 1f);
+        }
+
+        foreach (var global in _globals)
+        {
+            try { global.PostDraw(Main.spriteBatch, npc, draw); }
+            catch (Exception e) { ContentErrors.Report($"[bossbar] {global.Name}.PostDraw 异常：{Safe.Describe(e)}"); }
         }
     }
 }

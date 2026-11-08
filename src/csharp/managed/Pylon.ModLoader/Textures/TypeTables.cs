@@ -911,54 +911,6 @@ public static class TypeTables
         }
     }
 
-    /// <summary>临时诊断：列出类的全部字段（名字/静态/偏移/当前值），返回名字含 contains 的静态字段。</summary>
-    public static IntPtr DumpFields(string ns, string name, string contains, Action<string> log)
-    {
-        try
-        {
-            var cls = FindClass(new TableClass(ns, name));
-            if (cls == IntPtr.Zero) { log($"[fields] 找不到 {ns}.{name}"); return IntPtr.Zero; }
-            // 先跑静态构造：没跑过时 klass->fields 还是空的（枚举会一张都拿不到，真机踩过）。
-            try { IL2CPP.il2cpp_runtime_class_init(cls); } catch { }
-            var match = IntPtr.Zero;
-            var iter = IntPtr.Zero;
-            while (true)
-            {
-                var field = IL2CPP.il2cpp_class_get_fields(cls, ref iter);
-                if (field == IntPtr.Zero) break;
-                var flags = (uint)IL2CPP.il2cpp_field_get_flags(field);
-                var offset = IL2CPP.il2cpp_field_get_offset(field);
-                var fieldName = IL2CPP.il2cpp_field_get_name_(field) ?? "?";
-                var isStatic = (flags & FieldStatic) != 0;
-                var value = isStatic ? ReadStatic(field) : IntPtr.Zero;
-                log($"[fields] {fieldName} static={isStatic} offset=0x{offset:x} flags=0x{flags:x} value=0x{value:x}");
-                if (match == IntPtr.Zero && isStatic && fieldName.Contains(contains, StringComparison.OrdinalIgnoreCase))
-                    match = field;
-            }
-            return match;
-        }
-        catch (Exception e) { log("[fields] 异常：" + e.Message); return IntPtr.Zero; }
-    }
-
-    /// <summary>临时诊断：读静态字段当前值。</summary>
-    public static IntPtr ReadField(IntPtr field) => field == IntPtr.Zero ? IntPtr.Zero : ReadStatic(field);
-
-    /// <summary>临时诊断：读一个类的静态字段原始指针（found=false 表示字段不存在）。</summary>
-    public static IntPtr StaticPointer(string ns, string name, string fieldName, out bool found)
-    {
-        found = false;
-        try
-        {
-            var cls = FindClass(new TableClass(ns, name));
-            if (cls == IntPtr.Zero) return IntPtr.Zero;
-            var field = FindField(cls, fieldName);
-            if (field == IntPtr.Zero) return IntPtr.Zero;
-            found = true;
-            return ReadStatic(field);
-        }
-        catch { return IntPtr.Zero; }
-    }
-
     /// <summary>自检：按原生名字读一张表的当前长度（0 = 类/字段/数组不存在）。</summary>
     public static int TableLength(string ns, string name, string? nested, string fieldName)
     {

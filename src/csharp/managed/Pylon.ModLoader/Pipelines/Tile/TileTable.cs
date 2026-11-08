@@ -1,4 +1,5 @@
 using Terraria;
+using Terraria.ObjectData;
 
 namespace Pylon.ModLoader;
 
@@ -29,6 +30,25 @@ internal static class TileTable
     /// <summary>安装期建表：位集、掉落（登记表 + 物品反查）。</summary>
     internal static void Build(IModLog log)
     {
+        // TileObjectData 在游戏启动时就被锁成只读；mod 方块的形状/锚点要等安装期才写，
+        // 所以先把 _data 补到 mod 类型数，再临时解锁、跑完 SetStaticDefaults，最后原样锁回去。
+        var tileTotal = VanillaCounts.Tile + ModContent.Count(ContentKind.Tile);
+        var data = TileObjectData._data;
+        if (data is not null && data.Count < tileTotal)
+        {
+            try
+            {
+                while (data.Count < tileTotal) data.Add(TileObjectData.Style1x1);
+            }
+            catch (Exception e)
+            {
+                log.Warn($"[tile] TileObjectData._data 预扩失败：{Safe.Describe(e)}");
+            }
+        }
+
+        var readOnly = TileObjectData.readOnlyData;
+        TileObjectData.readOnlyData = false;
+
         foreach (var tile in ModContent.GetContent<ModTile>())
         {
             var type = tile.Type;
@@ -66,6 +86,8 @@ internal static class TileTable
                 else Styled[(type, entry.Style)] = entry.ItemType;
             }
         }
+
+        TileObjectData.readOnlyData = readOnly;
 
         // 物品反查：放置这块的那个物品就是默认掉落（只在作者没指定时兜底）。
         var samples = Terraria.ID.ContentSamples.ItemsByType;

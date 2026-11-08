@@ -224,8 +224,38 @@ public sealed class TestPlayer : ModPlayer
         item.stack = 1;
 
         inv[0] = item;
+
+        // 手动验证用：热键栏第 2/3 格放测试方块与 2x2 家具，方便直接用手放/挖。
+        // 必须直接写 inv（代理数组）；转成 Item[] 再写会写到副本上，游戏里看不到。
+        var blockItemType = ModContent.ItemType<TestTileBlockItem>();
+        if (blockItemType > 0)
+        {
+            var blockItem = new Item();
+            blockItem.SetDefaults(blockItemType, null);
+            blockItem.stack = 99;
+            inv[1] = blockItem;
+        }
+
+        var objectItemType = ModContent.ItemType<TestTileObjectItem>();
+        if (objectItemType > 0)
+        {
+            var objectItem = new Item();
+            objectItem.SetDefaults(objectItemType, null);
+            objectItem.stack = 99;
+            inv[2] = objectItem;
+        }
+
+        // 手动挖家具用：第 4 格给一把熔岩镐；第 5 格给钩爪，方便复现抓钩闪退。
+        var pick = new Item();
+        pick.SetDefaults(Terraria.ID.ItemID.MoltenPickaxe, null);
+        inv[3] = pick;
+
+        var hook = new Item();
+        hook.SetDefaults(Terraria.ID.ItemID.AmethystHook, null);
+        inv[4] = hook;
+
         _given = true;
 
-        PT.Info($"已把测试物品放进热键栏第 1 格（type={type} 玩家槽位数={inv.Length}）");
+        PT.Info($"已把测试物品放进热键栏第 1 格（type={type} 玩家槽位数={inv.Length}），方块/家具在第 2/3 格");
     }
 }

@@ -40,6 +40,8 @@ public sealed class PipelineTestMod : Mod
         Tests.ShopTests.Register();
         Tests.ShopHookTests.Register();
         Tests.BannerTests.Register();
+        Tests.BossBarTests.Register();
+        Tests.TileTests.Register();
 
         PT.Boot();
         Logger.Info("[PT] 组开关: " + (PT.Enabled is { } e ? string.Join(",", e) : "全部"));

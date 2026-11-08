@@ -88,7 +88,7 @@ internal static partial class HookStub
 
             if (managed.IsByRef)
             {
-                EmitEntryByRefArgument(il, plan, i, argIndex, native, byrefLocals, boxedByrefLocals);
+                EmitEntryByRefArgument(il, plan, slot, i, argIndex, native, byrefLocals, boxedByrefLocals);
             }
             else
             {
@@ -120,14 +120,9 @@ internal static partial class HookStub
         {
             if (boxedByrefLocals[i] is not null)
             {
-                var element = plan.ParamTypes[i].GetElementType()!;
-                var info = MirrorTypes.For(element);
-                il.Emit(OpCodes.Ldarg, argIndex);            // destination data pointer
-                il.Emit(OpCodes.Ldloc, boxedByrefLocals[i]);
-                il.Emit(OpCodes.Call, ToPtr);
-                il.Emit(OpCodes.Call, ObjectUnbox);          // source data pointer
-                il.Emit(OpCodes.Ldc_I4, info.Size);
-                il.Emit(OpCodes.Cpblk);
+                // D-023: out/ref boxed value types are written through the caller's real pointer
+                // by the orig stub; copying the handler proxy back here would overwrite that value
+                // (and a null out proxy would cpblk from il2cpp_object_unbox(0) = 0x10).
             }
             else if (byrefLocals[i] is not null)
             {
@@ -141,9 +136,8 @@ internal static partial class HookStub
             argIndex++;
         }
 
-        // catch-all：IL2CPP 从 calli 抛回来的不一定能当作 System.Exception 接住，
-        // 只 catch (Exception) 会让它一路穿到 il2cpp 顶层，直接 SIGABRT。
-        il.BeginCatchBlock(null);
+        // 设备 BCL 不接受 BeginCatchBlock(null)（ArgumentNullException）；用 Exception 保持可用。
+        il.BeginCatchBlock(typeof(Exception));
         var throwableLocal = il.DeclareLocal(typeof(object));
         il.Emit(OpCodes.Stloc, throwableLocal);
         il.Emit(OpCodes.Ldstr, "entry:" + plan.Label);
@@ -189,7 +183,7 @@ internal static partial class HookStub
     ///     One ref/out parameter of the entry stub: native hands a raw pointer, the managed handler
     ///     wants a byref; boxed value types go through a proxy object (boxedByrefLocals).
     /// </summary>
-    private static void EmitEntryByRefArgument(ILGenerator il, HookPlan plan, int paramIndex, int argIndex,
+    private static void EmitEntryByRefArgument(ILGenerator il, HookPlan plan, int slot, int paramIndex, int argIndex,
                                                Type native, LocalBuilder[] byrefLocals, LocalBuilder[] boxedByrefLocals)
     {
         var managed = plan.ParamTypes[paramIndex];
@@ -197,6 +191,13 @@ internal static partial class HookStub
 
         if (HookPlan.IsBoxedValueType(element) && native == typeof(IntPtr))
         {
+            // D-023: record the caller's real out/ref storage pointer. The orig stub forwards it
+            // directly; unboxing a null proxy would hand the original il2cpp_object_unbox(0)=0x10.
+            il.Emit(OpCodes.Ldarg, argIndex);
+            il.Emit(OpCodes.Ldc_I4, slot);
+            il.Emit(OpCodes.Ldc_I4, paramIndex);
+            il.Emit(OpCodes.Call, RecordIndirectMethod);
+
             // ref/out boxed value type: native hands a data pointer, managed side wants ref proxy object
             var local = il.DeclareLocal(element);
             boxedByrefLocals[paramIndex] = local;
