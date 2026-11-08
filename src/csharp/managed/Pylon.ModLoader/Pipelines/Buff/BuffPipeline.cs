@@ -36,6 +36,8 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.Player.DelBuff += DelBuff;
 
         var count = Prime();
+        PatchCompiledLimits();
+
         Log.Info($"[buff] 已挂（效果 / 施加 / 续时 / 文字 / 图标 / 取消），模板 {count}");
         return true;
     }
@@ -160,6 +162,7 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
                                int time)
     {
         var result = orig(self, type, time);
+
         if (!result) return false;
 
         var mod = Of(type);
@@ -356,6 +359,47 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
     #endregion
 
     #region 图标与取消
+
+
+    /// <summary>
+    /// 游戏在 <c>GUIBuffs.Draw</c> 里编译死了 <c>1 &lt;= 类型 &lt;= 400</c>，
+    /// 类型 &gt;= 401 会被直接清零（mod buff 从此消失）；护士/对话/网络移除也各有一处 400 上限。
+    /// 把这几处 cmp 立即数改成"原版数 + mod 数"。
+    /// </summary>
+    private void PatchCompiledLimits()
+    {
+        var total = (uint)(VanillaCounts.Buff + ModContent.GetContent<ModBuff>().Count);
+        var vanilla = (uint)VanillaCounts.Buff;
+
+        var patches = new (string Ns, string Type, string Method, int Argc, uint Old, uint New, int Below)[]
+        {
+            ("", "GUIBuffs", "Draw", 0, vanilla - 2, total - 2, 1),
+            ("", "GUIBuffs", "Draw", 0, vanilla, total, 1),
+            ("Terraria", "Main", "GetNurseHealCost", 0, vanilla - 1, total - 1, 0),
+            ("Terraria", "Main", "NPCChatText_DoNurseHeal", 1, vanilla - 1, total - 1, 0),
+            ("", "GUINPCDialogue", "Option1Clicked", 1, vanilla - 1, total - 1, 0),
+            ("", "GUINPCDialogue", "SetupButtonText", 6, vanilla - 1, total - 1, 0),
+            ("Terraria", "NPC", "RequestBuffRemoval", 1, vanilla - 1, total - 1, 0),
+        };
+
+        var ok = 0;
+        foreach (var p in patches)
+        {
+            try
+            {
+                var name = string.IsNullOrEmpty(p.Ns) ? p.Type : p.Ns + "." + p.Type;
+                var changed = Pylon.NaviteAPI.Host.PatchNative.CompareLimit(name, p.Method, p.Argc, p.Old, p.New, p.Below, 0);
+                if (changed > 0) ok++;
+                else Log.Warn($"[buff] 上限补丁没生效：{name}.{p.Method} {p.Old}→{p.New}（结果 {changed}）");
+            }
+            catch (Exception e)
+            {
+                Log.Warn($"[buff] 上限补丁异常：{p.Type}.{p.Method}：{e.Message}");
+            }
+        }
+
+        Log.Info($"[buff] 编译期上限补丁：{ok}/{patches.Length} 处（buff 总数 {total}）");
+    }
 
     private int DrawIcon(On.Terraria.Main.orig_DrawBuffIcon orig, int drawBuffText, int buffSlotOnPlayer, int x, int y)
     {

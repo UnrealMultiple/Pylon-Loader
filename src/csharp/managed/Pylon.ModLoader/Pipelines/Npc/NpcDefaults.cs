@@ -194,6 +194,18 @@ internal sealed class NpcDefaults(NpcBinding binding)
         return height;
     }
 
+    /// <summary>兜底：作者没覆写 FindFrame 时，原版对未知类型不会填 frame，这里按贴图补上（安装期就把模板 frame 定好）。</summary>
+    public void EnsureFrame(NPC npc)
+    {
+        TextureSize(npc.type, out var width, out var height);
+
+        var frame = npc.frame;
+        var changed = false;
+        if (frame.Width <= 0 && width > 0) { frame.Width = width; changed = true; }
+        if (frame.Height <= 0 && height > 0) { frame.Height = height; changed = true; }
+        if (changed) npc.frame = frame;
+    }
+
     /// <summary>接管原版 FindFrame 之前先填好 frame 的 X/Width/Height：作者只写 frame.Y。</summary>
     public int PrepareFrame(NPC npc)
     {

@@ -29,7 +29,6 @@ internal static class EmoteBubbleTable
         return (uint)index < (uint)_bubbles.Length ? _bubbles[index] : null;
     }
 
-    /// <summary>按名字取编号：先 <c>Mod名/类名</c>，再裸类名（重名当没有）。</summary>
     /// <summary>这个分类里、当前解锁的 mod 表情（按注册序）。</summary>
     internal static void AppendCategory(int categoryId, Il2CppSystem.Collections.Generic.List<int> into)
     {

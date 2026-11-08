@@ -151,7 +151,6 @@ internal static class EquipTable
 
     private static readonly Dictionary<EquipType, Dictionary<int, EquipTexture>> BySlot = [];
 
-    /// <summary>按部位 + 槽位反查（玩家身上穿的是不是我们发的号）。</summary>
     /// <summary>物品编号 → （部位, 槽位）；从各部位的槽位表反查得到。</summary>
     private static readonly Dictionary<int, List<(EquipType Part, int Slot)>> ByItem = [];
 

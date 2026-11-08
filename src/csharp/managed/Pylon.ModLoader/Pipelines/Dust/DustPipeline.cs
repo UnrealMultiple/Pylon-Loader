@@ -148,6 +148,41 @@ internal sealed class DustPipeline : ILoaderModule, ILoaderModuleRefresh
         var spriteBatch = Main.spriteBatch;
         if (spriteBatch is null) return;
 
+        // orig() 已经把游戏自己的批次 End 掉了；mod 尘土要在自己的批次里画。
+        try
+        {
+            // 照抄 UI 层已验证可用的 8 参 Begin：状态传 null、矩阵传"无值"=单位矩阵，屏幕空间绘制。
+            spriteBatch.Begin(SpriteSortMode.Deferred, null, null, null, null, null,
+                new Il2CppSystem.Nullable<Matrix>(), true);
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report("[dust] 批次 Begin 异常：" + Safe.Describe(e));
+            return;
+        }
+
+        try
+        {
+            DrawLive(spriteBatch);
+        }
+        finally
+        {
+            try { spriteBatch.End(); } catch { /* 批次已经坏了就别再抛 */ }
+        }
+    }
+
+    private static bool _drawLogged;
+
+    private static void DrawLive(SpriteBatch spriteBatch)
+    {
+        if (!_drawLogged && Live.Count > 0)
+        {
+            _drawLogged = true;
+            var first = Live[0].Dust;
+            Log.Info($"[dust] 首次绘制：{Live.Count} 颗；screen={Main.screenPosition}；屏幕={Main.screenWidth}x{Main.screenHeight}；第一颗 world={first.position} scale={first.scale} color={first.color}");
+        }
+
+
         for (var index = 0; index < Live.Count; index++)
         {
             var owned = Live[index];
@@ -179,16 +214,18 @@ internal sealed class DustPipeline : ILoaderModule, ILoaderModuleRefresh
 
             try
             {
-            var origin = new Il2CppSystem.Nullable<Vector2>(new Vector2(texture.Width / 2f, texture.Height / 2f));
-            var drawPosition = new Il2CppSystem.Nullable<Vector2>(position);
-            var scale = new Il2CppSystem.Nullable<Vector2>(new Vector2(dust.scale, dust.scale));
-            var colorNullable = new Il2CppSystem.Nullable<Color>(color);
+                // 用与 XiheBoss 一致的 9 参重载（position:Vector2 / sourceRect:Nullable<Rectangle> / color:Color / scale:float）。
+                var frame = new Il2CppSystem.Nullable<Rectangle>(new Rectangle(0, 0, texture.Width, texture.Height));
+                var origin = new Vector2(texture.Width / 2f, texture.Height / 2f);
 
-            spriteBatch.Draw(texture, drawPosition, null, null, origin, dust.rotation, scale, colorNullable, SpriteEffects.None, 0f);
+                spriteBatch.Draw(texture, position, frame, color, dust.rotation, origin, dust.scale, SpriteEffects.None, 0f);
             }
             catch (Exception e)
             {
-                ContentErrors.Report("[dust] 绘制异常：" + Safe.Describe(e));
+                // 带栈顶一帧：有 .pdb 时能看到文件:行号（定位"哪个参数是空对象"）。
+                var stack = e.StackTrace;
+                var frame = string.IsNullOrEmpty(stack) ? "" : " | " + stack.Split('\n')[0].Trim();
+                ContentErrors.Report("[dust] 绘制异常：" + Safe.Describe(e) + frame);
                 Live.RemoveAt(index);
                 index--;
             }

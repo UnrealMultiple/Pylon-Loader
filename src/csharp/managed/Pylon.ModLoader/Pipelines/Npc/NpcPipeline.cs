@@ -4,6 +4,7 @@ using ReLogic.Content;
 using Terraria;
 using Terraria.DataStructures;
 using Terraria.GameContent;
+using Terraria.ID;
 using Terraria.Graphics.Light;
 
 namespace Pylon.ModLoader;
@@ -67,6 +68,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.NPC.HitEffect += HitEffect;
         On.Terraria.NPC.ScaleStats_ByPlayerCount += Scaling;
         On.Terraria.NPC.GetChat += GetChat;
+        On.Terraria.NPC.get_CanTalk += ForceCanTalk;
         On.Terraria.NPC.GetNPCColorTintedByBuffs += TintedByBuffs;
         On.Terraria.NPC.GetAlpha += Alpha;
         On.Terraria.NPC.GetBossHeadTextureIndex += BossHeadSlot;
@@ -95,7 +97,32 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         _cloning.Remove(clonedType);
     }
 
-    internal void SetupShops(IModLog log) => _town.SetupShops(log);
+    internal void SetupShops(IModLog log)
+    {
+        PatchNameLimit(log);
+        _town.SetupShops(log);
+    }
+
+    /// <summary>
+    /// <c>Lang.GetNPCName</c> 把 <c>netID - 1 &gt; 695</c> 编进了机器码，
+    /// mod 类型（&gt; 696）直接走"没有名字"分支——Lang._npcNameCache 写得再对，读出来仍是空。
+    /// </summary>
+    private static void PatchNameLimit(IModLog log)
+    {
+        try
+        {
+            var total = VanillaCounts.Npc + ModContent.GetContent<ModNpc>().Count;
+            var old = (uint)(VanillaCounts.Npc - 2);
+            var updated = (uint)(total - 2);
+            var changed = Pylon.NaviteAPI.Host.PatchNative.CompareLimit("Terraria.Lang", "GetNPCName", 1, old, updated, 0, 0);
+            if (changed > 0) log.Info($"[npc] Lang.GetNPCName 上限补丁：{old}→{updated}（{changed} 处）");
+            else log.Warn($"[npc] Lang.GetNPCName 上限补丁没生效（{old}→{updated}）");
+        }
+        catch (Exception e)
+        {
+            log.Warn("[npc] Lang.GetNPCName 上限补丁异常：" + e.Message);
+        }
+    }
 
 #endregion
 
@@ -581,6 +608,73 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         if (alive) orig(self);
     }
 
+    /// <summary>
+    /// 进世界后补 NPC 类型表。<c>NPCID.Sets</c> 的字典会在世界加载时重建，安装期写的会丢；
+    /// 只补"类/int 值"的表（刷怪规则、免疫），结构体值字典（图鉴偏移）不能从托管写。
+    /// <para>
+    /// <b>不补 <c>NPCPortraits</c></b>：原先拿"向导"的 provider 顶给 mod 类型，对话就显示向导的头像。
+    /// 这张表不能拿别的 NPC 顶替：原版 <c>Player.SetTalkNPC</c> 先把 <c>Main.npcChatPortrait</c> 清空，
+    /// 再用 <c>TryGetValue</c> 查表——查不到就保持空，对话照原版画 NPC 本体（与梅林等没有特写头像的
+    /// 原版城镇 NPC 一致）。
+    /// </para>
+    /// </summary>
+    internal static void EnsureNpcTypeTables()
+    {
+        var mods = ModContent.GetContent<ModNpc>();
+        if (mods.Count == 0) return;
+
+        try
+        {
+            var spawn = NPCID.Sets.SpecialSpawningRules;
+            if (spawn is not null)
+            {
+                foreach (var npc in mods)
+                {
+                    if (spawn.ContainsKey(npc.Type)) continue;
+                    spawn[npc.Type] = 0;
+                }
+            }
+        }
+        catch (Exception e) { Log.Warn("[npc] 刷怪规则表补充失败：" + e.GetType().Name); }
+
+        try
+        {
+            var immunity = NPCID.Sets.DebuffImmunitySets;
+            if (immunity is not null)
+            {
+                foreach (var npc in mods)
+                {
+                    if (immunity.ContainsKey(npc.Type)) continue;
+                    immunity[npc.Type] = new NPCDebuffImmunityData();
+                }
+            }
+        }
+        catch (Exception e) { Log.Warn("[npc] 免疫表补充失败：" + e.GetType().Name); }
+    }
+
+    /// <summary>
+    /// <c>get_CanTalk</c> 钩子：原版对 <c>type &gt; n-1</c> 返回 false，mod 城镇 NPC 因此点不开对话。
+    /// 作者的 <c>CanChat</c> 没否决就强制 true。
+    /// </summary>
+    private bool ForceCanTalk(On.Terraria.NPC.orig_get_CanTalk orig, NPC self)
+    {
+        var vanilla = orig(self);
+        if (vanilla) return true;
+
+        var mod = _binding.InstanceOf(self);
+        if (mod is null) return false;
+
+        try
+        {
+            return mod.CanChat(self) ?? true;
+        }
+        catch (Exception e)
+        {
+            Fail(mod, HookId.GetChat, e);
+            return true;
+        }
+    }
+
     private string GetChat(On.Terraria.NPC.orig_GetChat orig, NPC self)
     {
         var result = orig(self);
@@ -643,6 +737,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         if (globals.Count == 0)
         {
             orig(self);
+            if (mod is not null) _defaults.EnsureFrame(self);
             return;
         }
 
@@ -655,6 +750,8 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         {
             RestoreAnimation(borrowed);
         }
+
+        if (mod is not null) _defaults.EnsureFrame(self);
 
         var height = _defaults.FrameHeight(self.type);
         foreach (var global in globals)

@@ -141,12 +141,14 @@ internal static partial class HookStub
             argIndex++;
         }
 
-        il.BeginCatchBlock(typeof(Exception));
-        var exceptionLocal = il.DeclareLocal(typeof(Exception));
-        il.Emit(OpCodes.Stloc, exceptionLocal);
+        // catch-all：IL2CPP 从 calli 抛回来的不一定能当作 System.Exception 接住，
+        // 只 catch (Exception) 会让它一路穿到 il2cpp 顶层，直接 SIGABRT。
+        il.BeginCatchBlock(null);
+        var throwableLocal = il.DeclareLocal(typeof(object));
+        il.Emit(OpCodes.Stloc, throwableLocal);
         il.Emit(OpCodes.Ldstr, "entry:" + plan.Label);
-        il.Emit(OpCodes.Ldloc, exceptionLocal);
-        il.Emit(OpCodes.Call, ReportExceptionMethod);
+        il.Emit(OpCodes.Ldloc, throwableLocal);
+        il.Emit(OpCodes.Call, ReportThrowableMethod);
         if (resultLocal is not null)
         {
             il.Emit(OpCodes.Ldloca, resultLocal);

@@ -113,6 +113,22 @@ internal static class HookState
 
     /// <summary>Fallback used by stubs: a handler exception is logged, never propagated into the game.</summary>
     internal static void ReportException(string label, Exception exception) => HookLog.Fail(label, exception);
+
+    /// <summary>
+    /// Stub catch-all: IL2CPP 原生异常不一定是 <see cref="Exception"/>，只记录类型名。
+    /// 绝不能碰 Message/ToString——那会走 il2cpp_format_exception，异常本身畸形时直接 SIGSEGV。
+    /// </summary>
+    internal static void ReportThrowable(string label, object? throwable)
+    {
+        try
+        {
+            HookLog.Info?.Invoke($"[hook] {label}: 未捕获（{throwable?.GetType().Name ?? "null"}）");
+        }
+        catch
+        {
+            // 记录失败也绝不能把异常带回游戏。
+        }
+    }
 }
 
 /// <summary>A single node of a hook chain: one slot plus its native entry point.</summary>

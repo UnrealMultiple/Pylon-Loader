@@ -208,6 +208,12 @@ internal static class InstallSteps
                     ApplyBuffText(buff);
                     count++;
                     break;
+                case ModNpc npc:
+                    // 世界加载会重建 Lang._npcNameCache：不重写的话，城镇/敌对 mod NPC 的
+                    // 悬停名字和对话框标题都会变成空（“怪物没有名字”）。
+                    ApplyNpcName(npc);
+                    count++;
+                    break;
             }
         }
 
@@ -283,14 +289,35 @@ internal static class InstallSteps
 
     private static void ApplyNpcName(ModNpc npc)
     {
+        if (npc.Type < 0) return;
+
+        // 世界加载会把 Lang._npcNameCache 重建回原版长度；不先扩回来的话，下面的写槽会被
+        // "type >= cache.Length" 挡掉，表现就是 NPC 没有名字（城镇 NPC 与敌对 NPC 都一样）。
+        var need = Math.Max(npc.Type + 1, ModContent.NextType(ContentKind.Npc));
         var cache = Lang._npcNameCache;
-        if (cache is null || npc.Type < 0 || npc.Type >= cache.Length) return;
+        if (cache is not null && cache.Length < need && TypeTables.GrowStaticArray("Terraria", "Lang", "_npcNameCache", need))
+            cache = Lang._npcNameCache;
+        if (cache is null || npc.Type >= cache.Length) return;
 
         var text = string.IsNullOrEmpty(npc.DisplayName) ? npc.Name : npc.DisplayName;
         var key = "NPCName." + npc.Name;
         var localized = new Terraria.Localization.LocalizedText(key, text);
         cache[npc.Type] = localized;
         LocalizationKeys.Register(key, localized);
+
+        // mod NPC 也要进 NPCID.Search。
+        // ShopHelper.ProcessMood → AddHappinessReportText 用 NPCID.Search.GetName(npc.netID)
+        // （IdDictionary 内部是 Dictionary 索引器，不是 TryGetValue）：没有这个条目时，
+        // 点击 mod 城镇 NPC → Player.SetTalkNPC → GetShoppingSettings 直接 KeyNotFoundException(698)。
+        try
+        {
+            var search = NPCID.Search;
+            if (search is not null && !search.ContainsName(npc.FullKey)) search.Add(npc.FullKey, npc.Type);
+        }
+        catch (Exception e)
+        {
+            Log.Warn($"{npc.Name} 登记 NPCID.Search 失败：{Safe.Describe(e)}");
+        }
     }
 
     /// <summary>内容种类 → 贴图槽表；没有表（Global / System）返回 null。</summary>

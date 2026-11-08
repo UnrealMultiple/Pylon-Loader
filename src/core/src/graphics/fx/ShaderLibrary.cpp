@@ -1,4 +1,4 @@
-// 层：内核层 / graphics::fx —— GLSL 库实现（GLSL 文本 100% 移植自 Bunny Loader）
+// 层：内核层 / graphics::fx —— GLSL 库实现（GLSL 文本移植自参考实现）
 #include "graphics/fx/ShaderLibrary.h"
 
 #include <cstdio>

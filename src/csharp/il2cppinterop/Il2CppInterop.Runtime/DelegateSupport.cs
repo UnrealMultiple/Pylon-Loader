@@ -322,11 +322,6 @@ public static class DelegateSupport
     ///     methods, and parameter types mapped to their native slot types. Instances are immutable
     ///     and compared by signature components, not by hash code.
     /// </summary>
-    /// <summary>
-    ///     A normalized native signature: return type, (optional) declaring type for instance
-    ///     methods, and parameter types mapped to their native slot types. Instances are immutable
-    ///     and compared by signature components, not by hash code.
-    /// </summary>
     internal class MethodSignature : IEquatable<MethodSignature>
     {
         public readonly bool ConstructedFromNative;

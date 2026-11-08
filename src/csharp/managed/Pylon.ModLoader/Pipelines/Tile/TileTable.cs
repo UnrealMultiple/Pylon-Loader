@@ -34,6 +34,18 @@ internal static class TileTable
             var type = tile.Type;
             if (type <= 0) continue;
 
+            // TileObjectData 的形状/锚点、Main.tileFrameImportant 这些都在 SetStaticDefaults 里写；
+            // 不跑这一步，WorldGen.PlaceObject 找不到这个方块的形状（banner 之类 1x3 方块放不下去）。
+            try
+            {
+                tile.SetStaticDefaults();
+                tile.PostSetDefaults();
+            }
+            catch (Exception e)
+            {
+                log.Warn($"{tile.Name} 的静态默认值失败：{Safe.Describe(e)}");
+            }
+
             Ensure(type + 1);
             _tiles[type] = tile;
             ref var meta = ref _meta[type];
@@ -77,6 +89,9 @@ internal static class TileTable
 
     private static void Ensure(int size)
     {
+        // _count 是"已登记的最大类型 + 1"，与是否要扩数组无关；初始 1024 容量内也必须更新诊断值。
+        if (size > _count) _count = size;
+
         if (size <= _meta.Length) return;
 
         var grown = new TileMeta[Math.Max(size, _meta.Length * 2)];
@@ -86,8 +101,6 @@ internal static class TileTable
         var grownTiles = new ModTile?[grown.Length];
         Array.Copy(_tiles, grownTiles, _tiles.Length);
         _tiles = grownTiles;
-
-        if (size > _count) _count = size;
     }
 
     /// <summary>有 mod 数据吗；没有就走原版快路径。</summary>

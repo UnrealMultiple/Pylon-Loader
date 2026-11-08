@@ -37,8 +37,14 @@ internal sealed class TilePipeline : ILoaderModule
     private int _maintained;
     private int _maintainedData;
 
-    /// <summary>安装期建表（位集、掉落）。</summary>
-    internal void Build() => TileTable.Build(Log);
+    /// <summary>安装期建表（编译期上限、位集、掉落）。</summary>
+    internal void Build()
+    {
+        // 游戏的 PlaceTile/PlaceObject/KillTile 等把 type > 753 编进了机器码；不改立即数，
+        // mod 方块（>= 754）放不下去（WorldGen.PlaceObject 直接返回 false）。
+        LimitPatch.Apply(VanillaCounts.Tile + ModContent.Count(ContentKind.Tile), Log);
+        TileTable.Build(Log);
+    }
 
     /// <summary>
     /// 低频维护：游戏重建表或实例新建后把 mod 类型那几格补齐。

@@ -104,6 +104,9 @@ public class NpcShop
         var storage = new InventoryStorage();
         storage.Resize(Math.Max(1, Entries.Count));
         storage.FillWithEmptyInstances();
+
+        var slots = storage.item;
+        var slot = 0;
         foreach (var entry in Entries)
         {
             if (entry.Condition != null && !entry.Condition()) continue;
@@ -111,8 +114,12 @@ public class NpcShop
             item.SetDefaults(entry.Type, null);
             if (entry.Price.HasValue) item.shopCustomPrice = new Il2CppSystem.Nullable<int>(entry.Price.Value);
             if (entry.Currency.HasValue) item.shopSpecialCurrency = entry.Currency.Value;
-            storage.AddItemToShop(item);
+            item.isAShopItem = true;   // 手机端货架只认这个标志，不设就是空店
+            if (slots is not null && slot < slots.Length) slots[slot++] = item;
+            else storage.AddItemToShop(item);
         }
+
+        if (slots is not null && slot > 0) storage.maxItems = Math.Max(storage.maxItems, slot);
         Main.instance.shop[Index] = storage;
         Built[Index] = true;
     }

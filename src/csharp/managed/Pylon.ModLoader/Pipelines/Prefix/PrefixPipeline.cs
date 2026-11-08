@@ -1,5 +1,6 @@
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Terraria;
+using Terraria.ID;
 using Terraria.Utilities;
 
 namespace Pylon.ModLoader;

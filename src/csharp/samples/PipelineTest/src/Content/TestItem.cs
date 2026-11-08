@@ -32,11 +32,19 @@ public sealed class TestItem : ModItem
         item.shootSpeed = 8f;
     }
 
+    public override void ModifyTooltipLines()
+    {
+        // TooltipLines 管线功能验证：额外加一行
+        TooltipLines.Add("[TestItem] ModifyTooltipLines 加的行");
+    }
+
     public override bool Shoot(Item item, Player player, Vector2 position, Vector2 velocity, int type, int damage, float knockBack)
     {
-        // 无弹药：直接发射一支木箭（验证 Shoot 链路 + 弹幕发射）
+        Tests.ItemTests2.ShootCalled = true;
+        // 发射自定义测试弹幕（Projectile 管线肉眼验证）：贴图为 assets/projectiles/TestProjectile.png
+        var projType = ModContent.ProjectileType<TestProjectile>();
         Terraria.Projectile.NewProjectile(null, position, velocity,
-            Terraria.ID.ProjectileID.WoodenArrowFriendly, damage, knockBack, player.whoAmI);
+            projType, damage, knockBack, player.whoAmI);
         return false; // 不走原版的弹药消耗路径
     }
 

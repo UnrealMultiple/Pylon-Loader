@@ -71,9 +71,18 @@ internal static partial class HookStub
         il.Emit(OpCodes.Callvirt, PointersGetter);
 
         var nativeParams = plan.NativeParams.Concat(new[] { typeof(IntPtr) }).ToArray();
-        il.EmitCalli(OpCodes.Calli, CallingConvention.Cdecl, plan.NativeReturn, nativeParams);
 
+        // 原函数是原生的：它抛出来的 IL2CPP 异常会直接穿过 calli（托管侧接不住）。
+        // 在 calli 外面包一层 catch-all，把它换成托管异常，交给 entry 桩的 catch-all 兜住。
+        il.BeginExceptionBlock();
+        il.EmitCalli(OpCodes.Calli, CallingConvention.Cdecl, plan.NativeReturn, nativeParams);
         if (nativeResultLocal is not null) il.Emit(OpCodes.Stloc, nativeResultLocal);
+        il.BeginCatchBlock(null);
+        il.Emit(OpCodes.Pop);
+        il.Emit(OpCodes.Ldstr, "orig:" + plan.Label + " 的原函数抛出了 IL2CPP 异常");
+        il.Emit(OpCodes.Newobj, typeof(InvalidOperationException).GetConstructor(new[] { typeof(string) })!);
+        il.Emit(OpCodes.Throw);
+        il.EndExceptionBlock();
 
         // ref/out write-back：void 方法也要执行，否则原版写出来的值回不到托管侧（D-007）。
         argIndex = plan.IsStatic ? 0 : 1;

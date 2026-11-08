@@ -105,6 +105,15 @@ function Command-Push {
         Invoke-Adb shell "run-as $pkg cp /data/local/tmp/$name.dll files/pylon-managed/$name.dll"
         Invoke-Adb shell "rm -f /data/local/tmp/$name.dll" | Out-Null
         Say ("{0}.dll ({1} KB)" -f $name, [int]((Get-Item $from).Length / 1KB))
+
+        # 同目录的 .pdb 一起推：有 PDB 时托管栈才带文件名与行号。
+        $pdb = [IO.Path]::ChangeExtension($from, '.pdb')
+        if (Test-Path $pdb) {
+            Invoke-Adb push $pdb "/data/local/tmp/$name.pdb" | Out-Null
+            Invoke-Adb shell "run-as $pkg cp /data/local/tmp/$name.pdb files/pylon-managed/$name.pdb"
+            Invoke-Adb shell "rm -f /data/local/tmp/$name.pdb" | Out-Null
+            Say ("{0}.pdb ({1} KB)" -f $name, [int]((Get-Item $pdb).Length / 1KB))
+        }
     }
 }
 
@@ -120,6 +129,8 @@ function Command-PushSamples {
         if (-not $dll) { Warn "找不到 $name.dll"; continue }
         Invoke-Adb shell "mkdir -p $modsDir/$name" | Out-Null
         Invoke-Adb push $dll.FullName "$modsDir/$name/$name.dll" | Select-Object -Last 1 | Out-Null
+        $modPdb = [IO.Path]::ChangeExtension($dll.FullName, '.pdb')
+        if (Test-Path $modPdb) { Invoke-Adb push $modPdb "$modsDir/$name/$name.pdb" | Out-Null }
         foreach ($dep in Get-ChildItem (Join-Path $root "src\csharp\samples\$name\lib") -Filter *.dll -ErrorAction SilentlyContinue) {
             Invoke-Adb push $dep.FullName "$modsDir/$name/lib/$($dep.Name)" | Out-Null
         }

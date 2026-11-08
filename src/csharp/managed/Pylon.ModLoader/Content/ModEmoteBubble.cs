@@ -25,7 +25,6 @@ public abstract class ModEmoteBubble : ModType
     /// <summary>注册过的分类（管线用）。</summary>
     internal IReadOnlyList<int> Categories => _categories is null ? Array.Empty<int>() : _categories;
 
-    /// <summary>菜单里要不要出现；false = 不出现。</summary>
     /// <summary>玩家做这个表情时，最近的城镇 NPC 用哪个原版表情回应（-1 = 不回应，默认）。</summary>
     public virtual int NPCReaction => -1;
 

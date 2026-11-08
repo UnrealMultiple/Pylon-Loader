@@ -50,6 +50,9 @@ internal sealed class NpcTown
     {
         orig();
 
+        // 世界加载后 NPCID.Sets 的字典会重建：每次刷怪检查时补齐（已存在就跳过）。
+        NpcPipeline.EnsureNpcTypeTables();
+
         if (Main.netMode == 1 || Main.checkForSpawns != 0) return;
 
         var townCount = -1;
@@ -150,6 +153,7 @@ internal sealed class NpcTown
                          ref Texture2D option2Tex, ref int cost, ref bool showHappiness)
     {
         _talking = TalkingTo();
+
 
         if (_talking is not null)
         {

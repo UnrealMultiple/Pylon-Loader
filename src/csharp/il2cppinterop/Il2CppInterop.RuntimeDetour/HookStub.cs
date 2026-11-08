@@ -49,6 +49,10 @@ internal static partial class HookStub
     internal static readonly MethodInfo ReportExceptionMethod =
         typeof(HookState).GetMethod(nameof(HookState.ReportException), BindingFlags.Static | BindingFlags.NonPublic)!;
 
+    /// <summary>Catch-all 入口：接受任意 throwable（IL2CPP 原生异常不保证是 Exception）。</summary>
+    internal static readonly MethodInfo ReportThrowableMethod =
+        typeof(HookState).GetMethod(nameof(HookState.ReportThrowable), BindingFlags.Static | BindingFlags.NonPublic)!;
+
     internal static readonly MethodInfo ToPtr = typeof(IL2CPP).GetMethod(nameof(IL2CPP.Il2CppObjectBaseToPtr))!;
     internal static readonly MethodInfo GetTypeFromHandle = typeof(Type).GetMethod(nameof(Type.GetTypeFromHandle))!;
     internal static readonly MethodInfo GetClassPointer = typeof(Il2CppClassPointerStore)

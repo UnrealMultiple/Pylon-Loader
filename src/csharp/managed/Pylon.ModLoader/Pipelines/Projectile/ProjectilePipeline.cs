@@ -26,6 +26,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
     private int _moveDepth;
     private int _drawDepth;
     private long _cutting;
+    private int _spawning;
     private bool _grappleRestore;
     private int _grappleShoot;
     private bool _pullChecked;
@@ -58,6 +59,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
         On.Terraria.Projectile.GetAlpha += Alpha;
         On.Terraria.Projectile.AI_007_GrapplingHooks_CanTileBeLatchedOnTo += Latch;
         On.Terraria.Projectile.NewProjectile_1 += Spawned;
+        On.Terraria.Projectile.NewProjectile += SpawnedVector;
 
         On.Terraria.Player.FireGrapple += FireGrapple;
         On.Terraria.Player.GetGrapplingForces += GrapplingForces;
@@ -208,25 +210,77 @@ internal sealed class ProjectilePipeline : ILoaderModule
         }
     }
 
+    /// <summary>浮点版 <c>NewProjectile(x, y, speedX, speedY, ...)</c>。</summary>
     private int Spawned(On.Terraria.Projectile.orig_NewProjectile_1 orig, IEntitySource spawnSource,
                         float x, float y, float speedX, float speedY, int type, int damage, float knockBack, int owner,
                         float ai0, float ai1, float ai2, NewProjectileModifier modifier)
     {
-        var result = orig(spawnSource, x, y, speedX, speedY, type, damage, knockBack, owner, ai0, ai1, ai2, modifier);
+        int result;
+        var outer = _spawning++;
+        try
+        {
+            result = orig(spawnSource, x, y, speedX, speedY, type, damage, knockBack, owner, ai0, ai1, ai2, modifier);
+        }
+        finally
+        {
+            _spawning--;
+        }
+
+        return outer == 0 ? DispatchSpawned(result, spawnSource, type) : result;
+    }
+
+    /// <summary>向量版 <c>NewProjectile(position, velocity, ...)</c>：两个重载都要挂。</summary>
+    private int SpawnedVector(On.Terraria.Projectile.orig_NewProjectile orig, IEntitySource spawnSource,
+                              Vector2 position, Vector2 velocity, int type, int damage, float knockBack, int owner,
+                              float ai0, float ai1, float ai2, NewProjectileModifier modifier)
+    {
+        int result;
+        var outer = _spawning++;
+        try
+        {
+            result = orig(spawnSource, position, velocity, type, damage, knockBack, owner, ai0, ai1, ai2, modifier);
+        }
+        finally
+        {
+            _spawning--;
+        }
+
+        return outer == 0 ? DispatchSpawned(result, spawnSource, type) : result;
+    }
+
+    /// <summary>
+    /// 两个重载共用的生成分派：作者 <c>OnSpawn</c> + <c>GlobalProjectile.OnSpawn</c>；
+    /// 嵌套调用只由最外层分派一次。生成时就调，不等首帧 AI。
+    /// </summary>
+    private int DispatchSpawned(int result, IEntitySource? spawnSource, int type)
+    {
         if (result < 0) return result;
+
+        var all = Main.projectile;
+        if (all is null || result >= all.Length) return result;
+
+        var projectile = all[result];
+        if (projectile is null || !projectile.active) return result;
+
+        try
+        {
+            if (_binding.InstanceOf(projectile) is { } mod && !mod.Spawned)
+            {
+                mod.Spawned = true;
+                if (mod.Plan.Has(HookId.OnSpawn)) mod.OnSpawn(projectile);
+            }
+        }
+        catch (Exception e)
+        {
+            Fail("OnSpawn", type, e);
+        }
 
         if (!GlobalProjectileRegistry.AnyWith(HookId.OnSpawn)) return result;
 
         try
         {
-            var all = Main.projectile;
-            if (all is null || result >= all.Length) return result;
-
-            var projectile = all[result];
-            if (projectile is null || !projectile.active) return result;
-
             foreach (var global in GlobalProjectileRegistry.For(projectile, HookId.OnSpawn))
-                global.OnSpawn(projectile, spawnSource);
+                global.OnSpawn(projectile, spawnSource!);
         }
         catch (Exception e)
         {

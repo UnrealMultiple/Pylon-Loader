@@ -1,4 +1,6 @@
+using Pylon.ModLoader.Textures;
 using Terraria;
+using Terraria.GameContent;
 using Terraria.ID;
 
 namespace Pylon.ModLoader;
@@ -36,6 +38,7 @@ internal sealed class BannerPipeline : ILoaderModule
         On.Terraria.Main.Update += BuffScan;
         On.Terraria.SceneMetrics.Scan += BuffApply;
         On.Terraria.Player.HasNPCBannerBuff += HasNpcBannerBuff;
+        On.Terraria.Main.MouseText_DrawBuffTooltip += BuffTooltip;
         On.Terraria.IO.WorldFile.LoadWorld += LoadWorld;
         On.Terraria.IO.WorldFile.InternalSaveWorld += SaveWorld;
 
@@ -52,30 +55,38 @@ internal sealed class BannerPipeline : ILoaderModule
 
     // ===================== 映射 =====================
 
+    // 所有 mod 编号（>= 原版 NPC 数）都由侧表回答。即使作者声明坏了、表里没登记，
+    // 也绝不把 mod 编号交给原版——原版的 killCount / claimableBanners 只有原版长度，
+    // 用 698 去索引就是越界读写（真机表现为之后点屏幕没反应/输入异常）。
+    private static bool IsModId(int id) => id >= VanillaCounts.Npc;
+
     private static int NpcToBanner(On.Terraria.GameContent.BannerSystem.orig_NPCtoBanner orig, int i)
     {
         var banner = BannerTable.BannerOfNpcType(i);
-        return banner > 0 ? banner : orig(i);
+        if (banner > 0) return banner;
+        return IsModId(i) ? i : orig(i);
     }
 
     private static int BannerToItem(On.Terraria.GameContent.BannerSystem.orig_BannerToItem orig, int banner)
     {
         var item = BannerTable.ItemForBanner(banner);
-        return item > 0 ? item : orig(banner);
+        if (item > 0) return item;
+        return IsModId(banner) ? 0 : orig(banner);
     }
 
     private static int BannerToNpc(On.Terraria.GameContent.BannerSystem.orig_BannerToNPC orig, int i) =>
-        BannerTable.IsMod(i) ? i : orig(i);
+        IsModId(i) ? i : orig(i);
 
     // ===================== 计数 =====================
 
     private static int GetKillCount(On.Terraria.GameContent.BannerSystem.orig_GetKillCount orig, int banner) =>
-        BannerTable.IsMod(banner) ? BannerTable.Kills(banner) : orig(banner);
+        IsModId(banner) ? BannerTable.Kills(banner) : orig(banner);
 
     private static void AddKill(On.Terraria.GameContent.BannerSystem.orig_AddKill orig, int banner)
     {
-        if (BannerTable.IsMod(banner))
+        if (IsModId(banner))
         {
+            if (!BannerTable.IsMod(banner)) return;
             BannerTable.AddKill(banner);
             BannerNetPipeline.Instance.PushKill(banner, BannerTable.Kills(banner));
             return;
@@ -87,22 +98,25 @@ internal sealed class BannerPipeline : ILoaderModule
     private static void AddNpcKillBy(On.Terraria.GameContent.BannerSystem.orig_AddNPCKillBy orig, int npcType, int plr)
     {
         var banner = BannerTable.BannerOfNpcType(npcType);
-        if (banner > 0)
+        if (banner > 0 && BannerTable.IsMod(banner))
         {
             BannerTable.AddKill(banner);
             BannerNetPipeline.Instance.PushKill(banner, BannerTable.Kills(banner));
             return;
         }
 
+        // 未登记的 mod NPC（作者声明错/表没建成）：直接丢弃，原版表没有它的位置。
+        if (IsModId(npcType)) return;
+
         orig(npcType, plr);
     }
 
     private static bool IsNewBanner(On.Terraria.GameContent.BannerSystem.orig_IsNewBanner orig, int banner) =>
-        BannerTable.IsMod(banner) ? BannerTable.Fresh(banner) : orig(banner);
+        IsModId(banner) ? BannerTable.Fresh(banner) : orig(banner);
 
     private static void SetNewBanner(On.Terraria.GameContent.BannerSystem.orig_SetNewBanner orig, int banner)
     {
-        if (BannerTable.IsMod(banner))
+        if (IsModId(banner))
         {
             BannerTable.SetFresh(banner, true);
             return;
@@ -113,7 +127,7 @@ internal sealed class BannerPipeline : ILoaderModule
 
     private static void ClearNewBanner(On.Terraria.GameContent.BannerSystem.orig_ClearNewBanner orig, int banner)
     {
-        if (BannerTable.IsMod(banner))
+        if (IsModId(banner))
         {
             BannerTable.SetFresh(banner, false);
             return;
@@ -146,18 +160,23 @@ internal sealed class BannerPipeline : ILoaderModule
         var max = BannerTable.MaxBanner;
         if (max <= 0) return vanilla;
 
-        var length = Math.Max(vanilla?.Length ?? 0, max + 1);
-        var merged = new Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<ushort>(length);
+        if (vanilla is null) return null!;
 
-        if (vanilla is not null)
-        {
-            for (var i = 0; i < vanilla.Length; i++) merged[i] = vanilla[i];
-        }
+        var length = Math.Max(vanilla.Length, max + 1);
+        if (length == vanilla.Length) return vanilla;
 
-        for (var banner = VanillaCounts.Npc + 1; banner <= max; banner++)
+        // 不能 new Il2CppStructArray<ushort>(length)：ARM64 上 Il2CppClassPointerStore<ushort>
+        // 不是合法的元素类（真机实测 SIGSEGV，x0=类型号）。用原版数组的元素类走 il2cpp_array_new，
+        // 再把 mod 旗子的格子写进新数组（ArrayGrow 已经按值类型整块拷贝）。
+        var grown = ArrayGrow.Grow(vanilla.Pointer, length);
+        if (grown == IntPtr.Zero) return vanilla;
+
+        var merged = new Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<ushort>(grown);
+        var span = merged.AsSpan();
+        for (var banner = VanillaCounts.Npc + 1; banner <= max && banner < span.Length; banner++)
         {
             var count = BannerTable.Claimable(banner);
-            if (count > 0 && count <= ushort.MaxValue) merged[banner] = (ushort)count;
+            if (count > 0) span[banner] = (ushort)Math.Min(count, ushort.MaxValue);
         }
 
         return merged;
@@ -170,11 +189,14 @@ internal sealed class BannerPipeline : ILoaderModule
     private static void RequestClaim(On.Terraria.GameContent.BannerSystem.orig_RequestBannerClaim orig, int banner,
                                      int amount)
     {
-        if (!BannerTable.IsMod(banner))
+        if (!IsModId(banner))
         {
             orig(banner, amount);
             return;
         }
+
+        // mod 编号但表里没有（声明错/建表失败）：丢弃，绝不落到原版的 claimableBanners[banner]。
+        if (!BannerTable.IsMod(banner)) return;
 
         if (Main.netMode == 1)
         {
@@ -264,10 +286,16 @@ internal sealed class BannerPipeline : ILoaderModule
             table = longer;
         }
 
+        var any = false;
         foreach (var banner in _nearby)
         {
-            if (banner < table.Length) table[banner] = true;
+            if (banner >= table.Length) continue;
+            table[banner] = true;
+            any = true;
         }
+
+        // 原版用 hasBanner 判断"附近有旗子"（减伤链的前置）；mod 旗子方块没有 NearbyEffects，这里补上。
+        if (any) self.hasBanner = true;
     }
 
     /// <summary>
@@ -284,6 +312,39 @@ internal sealed class BannerPipeline : ILoaderModule
         if (bannerType >= VanillaCounts.Npc && (table is null || bannerType >= table.Length)) return false;
 
         return orig(self, bannerType);
+    }
+
+    /// <summary>
+    /// 旗帜 buff 的提示框：原版循环到 <c>BannerSystem.MaxBannerTypes</c>（只到原版 NPC 数）就停，
+    /// mod 旗子的名字永远进不了"提高对以下怪的伤害和防御："后面。临时把上界抬到最大 mod 旗子号，
+    /// 画完再还原（只改这一次工具提示，不动游戏的存档/数组语义）。
+    /// </summary>
+    private static void BuffTooltip(On.Terraria.Main.orig_MouseText_DrawBuffTooltip orig, Main self,
+                                    string cursorText, string buffString, ref int x, ref int y)
+    {
+        var max = BannerTable.MaxBanner;
+        var previous = 0;
+        var widened = false;
+
+        if (max >= VanillaCounts.Npc)
+        {
+            previous = BannerSystem.MaxBannerTypes;
+            if (previous > 0 && previous <= max)
+            {
+                BannerSystem.MaxBannerTypes = max + 1;
+                widened = true;
+            }
+        }
+
+        try
+        {
+            orig(self, cursorText, buffString, ref x, ref y);
+        }
+        finally
+        {
+            if (widened)
+                BannerSystem.MaxBannerTypes = previous;
+        }
     }
 
     /// <summary>这面 mod 旗子此刻有没有被点亮（表还没补就当作没有）。</summary>

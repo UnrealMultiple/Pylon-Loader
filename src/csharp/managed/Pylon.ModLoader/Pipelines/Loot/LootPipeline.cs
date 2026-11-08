@@ -18,9 +18,62 @@ internal sealed class LootPipeline : ILoaderModule, ILoaderModuleRefresh
     {
         On.Terraria.Player.OpenBossBag += OpenBossBag;
         On.Terraria.Player.ItemCheck_ManageRightClickFeatures += RightClickFeatures;
+        On.Terraria.GameContent.ItemDropRules.CommonCode.DropItemFromNPC += DropModItem;
+
+        PatchNpcLootLimit();
 
         Log.Info("[loot] 已挂（全局掉落 / 物品规则预建 / 开 Boss 袋 / 物品右键）");
         return true;
+    }
+
+    /// <summary>
+    /// 游戏的掉落代码（<c>CommonCode.DropItem*</c>）开头会把 <c>itemId &gt;= ItemID.Count</c> 的 mod 物品直接丢掉；
+    /// 这段的寄存器上限改不了；托管侧等价做法：mod 物品不交给原版，自己生成。
+    /// </summary>
+    private static void DropModItem(On.Terraria.GameContent.ItemDropRules.CommonCode.orig_DropItemFromNPC orig,
+                                    NPC npc, int itemId, int stack, bool scattered)
+    {
+        if (itemId >= VanillaCounts.Item)
+        {
+            try
+            {
+                Item.NewItem((int)npc.position.X, (int)npc.position.Y, npc.width, npc.height, itemId, stack);
+                return;
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report("[loot] mod 物品掉落失败：" + Safe.Describe(e));
+            }
+        }
+
+        orig(npc, itemId, stack, scattered);
+    }
+
+    /// <summary>
+    /// <c>NPC.NPCLoot</c> 里编译死了 <c>type &gt; NPCID.Count-1 就退出</c>，
+    /// mod NPC 连掉落入口都进不去（表现为"规则表里有规则、击杀时一条都不掉"）。
+    /// </summary>
+    private static void PatchNpcLootLimit()
+    {
+        var total = (uint)(VanillaCounts.Npc + ModContent.GetContent<ModNpc>().Count);
+        var old = (uint)(VanillaCounts.Npc - 1);
+        var updated = total - 1;
+
+        try
+        {
+            var changed = 0;
+            foreach (var below in new[] { 0, 1 })
+            {
+                changed += Pylon.NaviteAPI.Host.PatchNative.CompareLimit("Terraria.NPC", "NPCLoot", 0, old, updated, below, 0);
+            }
+
+            if (changed > 0) Log.Info($"[loot] NPC.NPCLoot 上限补丁：{old}→{updated}（{changed} 处）");
+            else Log.Warn($"[loot] NPC.NPCLoot 上限补丁没生效（{old}→{updated}）");
+        }
+        catch (Exception e)
+        {
+            Log.Warn("[loot] NPC.NPCLoot 上限补丁异常：" + e.Message);
+        }
     }
 
     /// <summary>右键：原版不认的 mod 物品（袋、箱子、召唤物以外的自定义用法）派给作者。</summary>

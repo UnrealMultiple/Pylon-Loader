@@ -28,7 +28,8 @@ internal static class PrefixTable
     internal static ModPrefix? Of(int type)
     {
         var index = type - VanillaCount;
-        return index >= 0 && index < ByType.Count ? ByType[index] : null;
+        if (index < 0 || index >= ByType.Count) return null;
+        return ByType[index];
     }
 
     internal static List<ModPrefix> InCategory(int category) =>
@@ -49,6 +50,18 @@ internal static class PrefixTable
 
         if (!ByCategory.TryGetValue(category, out var list)) ByCategory[category] = list = [];
         list.Add(prefix);
+
+        // 槽表：运行时按号反查全靠它（all[type - VanillaCount] = prefix）。
+        var slot = prefix.Type - VanillaCount;
+        if (slot < 0)
+        {
+            Report(prefix, $"前缀号 {prefix.Type} 落在原版区间（原版 {VanillaCount} 个）");
+        }
+        else
+        {
+            while (ByType.Count <= slot) ByType.Add(null!);
+            ByType[slot] = prefix;
+        }
 
         var text = string.IsNullOrEmpty(prefix.DisplayName) ? prefix.Name : prefix.DisplayName;
         var key = "Mods." + (prefix.Mod is not null ? prefix.Mod.Name : "Mod") + ".Prefixes." + prefix.Name + ".DisplayName";

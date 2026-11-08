@@ -19,18 +19,22 @@ public class NPCLoot
     /// <summary>Add/Remove 之后变 true；Loader 靠它知道这张表动过（要刷新图鉴掉落）。</summary>
     public bool Changed { get; set; }
 
-    /// <summary>给这个 NPC 加一条掉落规则（游戏 RegisterToNPC）；返回 rule 好接着用。</summary>
+    /// <summary>
+    /// 给这个 NPC 加一条掉落规则。走 <c>RegisterToNPCNetId</c>：
+    /// <c>RegisterToNPC(type, …)</c> 要靠游戏内部那张 type→netID 映射表，mod NPC 不在表里，
+    /// 规则会注册到空处（能读到规则数，但击杀时永远命中不到）。
+    /// </summary>
     public IItemDropRule Add(IItemDropRule rule)
     {
-        Main.ItemDropsDB.RegisterToNPC(Type, rule);
+        Main.ItemDropsDB.RegisterToNPCNetId(Type, rule);
         Changed = true;
         return rule;
     }
 
-    /// <summary>从这 NPC 撤掉一条掉落规则（游戏 RemoveFromNPC）；返回 rule。</summary>
+    /// <summary>从这 NPC 撤掉一条掉落规则（同样按 netID）；返回 rule。</summary>
     public IItemDropRule Remove(IItemDropRule rule)
     {
-        Main.ItemDropsDB.RemoveFromNPC(Type, rule);
+        Main.ItemDropsDB.RemoveFromNPCNetId(Type, rule);
         Changed = true;
         return rule;
     }

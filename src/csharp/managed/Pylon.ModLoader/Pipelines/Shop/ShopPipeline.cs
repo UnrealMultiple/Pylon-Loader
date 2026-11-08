@@ -53,6 +53,10 @@ internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
         storage.Resize(Math.Max(1, entries.Count));
         storage.FillWithEmptyInstances();
 
+        // AddItemToShop 在这版不会追加（货架永远是空的）；直接写 item 槽。
+        var slots = storage.item;
+        var slot = 0;
+
         for (var index = 0; index < entries.Count; index++)
         {
             var entry = entries[index];
@@ -70,8 +74,14 @@ internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             if (entry.Currency.HasValue) item.shopSpecialCurrency = entry.Currency.Value;
 
-            storage.AddItemToShop(item);
+            // 手机端货架只认 isAShopItem 的条目；不设就是空店。
+            item.isAShopItem = true;
+
+            if (slots is not null && slot < slots.Length) slots[slot++] = item;
+            else storage.AddItemToShop(item);
         }
+
+        if (slots is not null && slot > 0) storage.maxItems = Math.Max(storage.maxItems, slot);
     }
 
     /// <summary>

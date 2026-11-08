@@ -602,6 +602,32 @@ public static class TypeTables
         return true;
     }
 
+    /// <summary>
+    /// 按类名 + 字段名把一张静态数组扩到 total。给"游戏在世界加载时重建回原版长度"的表用
+    /// （典型：Lang._npcNameCache —— 重写名字前必须先把它扩回来，否则写槽直接越界跳过）。
+    /// </summary>
+    internal static bool GrowStaticArray(string ns, string cls, string fieldName, int total)
+    {
+        if (total <= 0) return false;
+        try
+        {
+            var klass = FindClass(new TableClass(ns, cls));
+            if (klass == IntPtr.Zero) return false;
+            var field = FindField(klass, fieldName);
+            if (field == IntPtr.Zero) return false;
+            var old = ReadStatic(field);
+            if (old == IntPtr.Zero || ArrayLength(old) >= total) return false;
+            var grown = GrowArray(old, total);
+            if (grown == IntPtr.Zero) return false;
+            WriteStatic(field, grown);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     /// <summary>已经跑过（还在盯着的）扩表器：每帧补 pending / 每 120 帧查重建。</summary>
     private static readonly List<TableGrower> Active = [];
     private static int _watchTicks;

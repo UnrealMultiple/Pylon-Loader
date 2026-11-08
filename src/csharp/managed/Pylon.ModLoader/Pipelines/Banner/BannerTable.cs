@@ -1,4 +1,5 @@
 using Terraria;
+using Terraria.GameContent;
 using Terraria.ID;
 
 namespace Pylon.ModLoader;
@@ -20,8 +21,6 @@ internal static class BannerTable
 
     private static int[] _kills = [];
     private static bool[] _fresh = [];
-
-    /// <summary>可领取面数（每 <see cref="ClaimStep"/> 杀给一面，与原版的节奏一致）。</summary>
     private static int[] _claimable = [];
 
     /// <summary>已登记的旗子数量。</summary>
@@ -41,25 +40,37 @@ internal static class BannerTable
 
     internal static int Kills(int banner) => Slot(banner) is var index && index >= 0 ? _kills[index] : 0;
 
+    /// <summary>这面旗子每多少杀给一面可领取（读 <c>ItemID.Sets.KillsToBanner</c>，默认 50）。</summary>
+    private const int DefaultClaimStep = 50;
+
+    internal static int ThresholdOf(int banner)
+    {
+        var item = ItemForBanner(banner);
+        var table = ItemID.Sets.KillsToBanner;
+        if (item > 0 && table is not null && item < table.Length && table[item] > 0) return table[item];
+        return DefaultClaimStep;
+    }
+
     internal static void AddKill(int banner, int amount = 1)
     {
         var index = Slot(banner);
         if (index < 0) return;
 
-        var before = _kills[index] / ClaimStep;
+        var step = ThresholdOf(banner);
+        var before = _kills[index] / step;
         _kills[index] += amount;
 
-        // 跨过 50 的整数倍就给一面可领取，和原版"每 50 杀一面"的节奏对齐（原版方法体看不到，按这个节奏实现）。
-        var after = _kills[index] / ClaimStep;
-        if (after > before)
-        {
-            _claimable[index] += after - before;
-            Terraria.GameContent.BannerSystem.AnyNewClaimableBanners = true;
-        }
+        // 跨过阈值的整数倍就给一面可领取，和原版"每 KillsToBanner 杀一面"的节奏对齐。
+        var after = _kills[index] / step;
+        if (after <= before) return;
+
+        _claimable[index] += after - before;
+        _fresh[index] = true;
+        BannerSystem.AnyNewClaimableBanners = true;
     }
 
-    /// <summary>每多少杀给一面可领取的旗子。</summary>
-    internal const int ClaimStep = 50;
+    /// <summary>兼容旧调用：默认阈值常量。</summary>
+    internal const int ClaimStep = DefaultClaimStep;
 
     /// <summary>这面 mod 旗子还能领几面。</summary>
     internal static int Claimable(int banner) => Slot(banner) is var index && index >= 0 ? _claimable[index] : 0;
@@ -121,7 +132,7 @@ internal static class BannerTable
         if (index < 0) return;
 
         _claimable[index] = count < 0 ? 0 : count;
-        if (_claimable[index] > 0) Terraria.GameContent.BannerSystem.AnyNewClaimableBanners = true;
+        if (_claimable[index] > 0) BannerSystem.AnyNewClaimableBanners = true;
     }
 
     /// <summary>网络同步用：所有登记过的旗子的击杀数与可领取面数（服务器补给新客户端时用）。</summary>
@@ -144,26 +155,32 @@ internal static class BannerTable
         BannerOfTile.TryGetValue((tileType, style), out var banner) ? banner : 0;
 
     /// <summary>
-    /// 把游戏的"旗子减伤强度"表补到能容纳 mod NPC 编号。
-    /// <c>ItemID.Sets.BannerStrength</c> 是公开静态数组，interop 代理可直接换整块数组；
-    /// 补上之后原版的 <c>GetBannerBuffEffect</c> 对 mod 编号也能正常取值，不用我们再写一套减伤。
+    /// 给 mod 旗子物品补上默认值：<c>BannerStrength = Reduced</c>（Enabled）、
+    /// <c>KillsToBanner = 50</c>。作者在 SetStaticDefaults 里改过的值不覆盖。
     /// </summary>
-    internal static void ExpandStrength(int size)
+    private static void EnsureItemTables(int item)
     {
-        if (size <= 0) return;
+        var strength = ItemID.Sets.BannerStrength;
+        if (strength is not null)
+        {
+            if (item >= strength.Length) strength = Grow(strength, item + 1, ItemID.BannerEffect.Reduced);
+            if (item < strength.Length && !strength[item].Enabled) strength[item] = ItemID.BannerEffect.Reduced;
+        }
 
-        var table = ItemID.Sets.BannerStrength;
-        if (table is null) return;
+        var kills = ItemID.Sets.KillsToBanner;
+        if (kills is not null)
+        {
+            if (item >= kills.Length) kills = Grow(kills, item + 1, DefaultClaimStep);
+            if (item < kills.Length && kills[item] <= 0) kills[item] = DefaultClaimStep;
+        }
+    }
 
-        var need = Base + size;
-        if (table.Length >= need) return;
-
-        var longer = new ItemID.BannerEffect[need];
+    private static T[] Grow<T>(T[] table, int need, T fill)
+    {
+        var longer = new T[need];
         Array.Copy(table, longer, table.Length);
-
-        for (var index = table.Length; index < need; index++) longer[index] = ItemID.BannerEffect.Reduced;
-
-        ItemID.Sets.BannerStrength = longer;
+        for (var index = table.Length; index < need; index++) longer[index] = fill;
+        return longer;
     }
 
     /// <summary>存档键（Mod/类名）；未登记返回空串。</summary>
@@ -196,7 +213,9 @@ internal static class BannerTable
     }
 
     /// <summary>
-    /// 建表：每个 ModNpc 的 Banner / BannerItem 都必须成对出现，冲突直接抛（作者声明错误不降级成警告）。
+    /// 建表：每个 ModNpc 的 Banner / BannerItem 必须成对出现：
+    /// 代表 NPC 两个都填；同族 NPC 只填 Banner（指向代表的类型号），BannerItem 留空。
+    /// 冲突与漏填直接抛（作者声明错误不降级成警告）。
     /// </summary>
     internal static void Build()
     {
@@ -204,27 +223,33 @@ internal static class BannerTable
         ItemOfBanner.Clear();
         BannerOfItem.Clear();
         KeyOfBanner.Clear();
+        BannerOfTile.Clear();
         _kills = [];
         _fresh = [];
+        _claimable = [];
 
+        var npcs = ModContent.GetContent<ModNpc>();
         var size = 0;
 
-        foreach (var npc in ModContent.GetContent<ModNpc>())
+        // 第一遍：代表 NPC（Banner + BannerItem 都有）。
+        foreach (var npc in npcs)
         {
             var banner = npc.Banner;
             var item = npc.BannerItem;
             var name = npc.Mod.Name + "/" + npc.Name;
 
-            if (banner <= 0 && item > 0)
-                throw new InvalidOperationException($"{name}: 填了 BannerItem（{item}）但没填 Banner");
+            if (banner <= 0)
+            {
+                if (item > 0)
+                    throw new InvalidOperationException($"{name}: 填了 BannerItem（{item}）但没填 Banner");
+                continue;
+            }
 
-            if (banner <= 0) continue;
+            // 同族 NPC：Banner 指向代表，BannerItem 留空；第二遍再校验代表存在。
+            if (item <= 0) continue;
 
             if (banner <= Base)
                 throw new InvalidOperationException($"{name}: Banner 必须是本 Mod 的 NPC 类型号，不能指向原版 NPC（{banner}）");
-
-            if (item <= 0)
-                throw new InvalidOperationException($"{name}: 填了 Banner（{banner}）但没填 BannerItem");
 
             if (ItemOfBanner.TryGetValue(banner, out var previous) && previous != item)
                 throw new InvalidOperationException($"{name}: 旗子 {banner} 已经对应物品 {previous}，不能再对应 {item}");
@@ -243,13 +268,26 @@ internal static class BannerTable
             // 旗子方块反查：物品的 createTile + placeStyle 就是"这一面旗"的方块外观。
             var sample = ContentSamples.ItemsByType[item];
             if (sample is not null && sample.createTile > 0) BannerOfTile[(sample.createTile, sample.placeStyle)] = banner;
+
+            EnsureItemTables(item);
+        }
+
+        // 第二遍：同族 NPC（只填 Banner）。代表必须已经登记，否则计数会落空。
+        foreach (var npc in npcs)
+        {
+            var banner = npc.Banner;
+            if (banner <= 0 || npc.BannerItem > 0) continue;
+
+            var name = npc.Mod.Name + "/" + npc.Name;
+            if (!ItemOfBanner.ContainsKey(banner))
+                throw new InvalidOperationException($"{name}: 同族 NPC 指向的旗子 {banner} 没有代表 NPC 声明 BannerItem");
+
+            BannerOfNpc[npc.Type] = banner;
         }
 
         _kills = new int[size];
         _fresh = new bool[size];
         _claimable = new int[size];
-
-        ExpandStrength(size);
     }
 
     private static int Slot(int banner)
