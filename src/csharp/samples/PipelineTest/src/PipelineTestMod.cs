@@ -43,6 +43,7 @@ public sealed class PipelineTestMod : Mod
         Tests.BossBarTests.Register();
         Tests.TileTests.Register();
         Tests.MountTests.Register();
+        Tests.RecipeTests.Register();
 
         PT.Boot();
         Logger.Info("[PT] 组开关: " + (PT.Enabled is { } e ? string.Join(",", e) : "全部"));
@@ -53,6 +54,11 @@ public sealed class PipelineTestMod : Mod
     {
         PT.RunPhase(Phase.Ready);
         PT.End();
+    }
+
+    public override void AddRecipes()
+    {
+        Tests.RecipeTests.AddRecipes();
     }
 
     /// <summary>读 Mod 目录的 tests.txt（一行一个组名，# 注释）；没有则跑全部。</summary>

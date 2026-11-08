@@ -154,10 +154,11 @@ internal sealed class RecipePipeline : ILoaderModule
         var consume = entry.Consume;
         var globals = GlobalRecipeRegistry.For(HookId.ConsumeItem);
         if (!owned && globals.Count == 0) return amount;
-        if (amount <= 0) return amount;
 
+        // 语义：回调里的 amount 是"实际消耗多少"；这个方法游戏拿返回值当"折扣量"（从消耗里减）。
+        // 所以先算当前消耗（需要量 - 原版折扣），让作者改，最后换算回折扣量返回。
         var type = req.itemIdOrRecipeGroup;
-        var result = amount;
+        var result = req.stack - amount;
 
         if (consume is not null)
         {
@@ -186,11 +187,11 @@ internal sealed class RecipePipeline : ILoaderModule
             }
         }
 
-        var held = amount;
-        if (result > held) result = held;
-        if (result < 0) result = 0;
+        var consumed = result;
+        if (consumed > req.stack) consumed = req.stack;
+        if (consumed < 0) consumed = 0;
 
-        return result;
+        return req.stack - consumed;
     }
 
     /// <summary>先回调、再发物品：作者要在物品进背包之前改它。</summary>
