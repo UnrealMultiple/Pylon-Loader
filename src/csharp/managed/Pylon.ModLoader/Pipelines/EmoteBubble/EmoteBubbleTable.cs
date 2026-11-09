@@ -1,3 +1,4 @@
+using Terraria;
 using Terraria.GameContent.UI;
 
 namespace Pylon.ModLoader;
@@ -32,6 +33,7 @@ internal static class EmoteBubbleTable
     /// <summary>这个分类里、当前解锁的 mod 表情（按注册序）。</summary>
     internal static void AppendCategory(int categoryId, Il2CppSystem.Collections.Generic.List<int> into)
     {
+        EnsureLocalized();
         for (var type = Base; type < Base + _next; type++)
         {
             if (Of(type) is not { } emote) continue;
@@ -62,6 +64,57 @@ internal static class EmoteBubbleTable
         }
     }
 
+    /// <summary>
+    /// mod 表情也要进 <see cref="EmoteID.Search"/>。
+    /// 菜单里点表情时游戏走 <c>GUIEmotesWindow.EmoteOver</c> → <c>EmoteID.Search.GetName(编号)</c>
+    /// 拼聊天文本；<c>IdDictionary</c> 内部是字典索引器而不是 TryGetValue，mod 编号查不到就抛
+    /// <c>KeyNotFoundException</c>。异常从钩子/游戏代码里穿过 il2cpp 边界没人接，
+    /// 进程直接 SIGABRT（after "uncaught exception of type Il2CppExceptionWrapper"）。
+    /// </summary>
+    private static void RegisterName(ModEmoteBubble emote)
+    {
+        try
+        {
+            var search = EmoteID.Search;
+            if (search is not null && !search.ContainsName(emote.Name)) search.Add(emote.Name, emote.Type);
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report($"[emotebubble] {emote.Name} 登记 EmoteID.Search 失败：{Safe.Describe(e)}");
+        }
+
+        EnsureLocalized();
+    }
+
+    private static bool _localized;
+
+    /// <summary>
+    /// 语言表要等异步加载完才能写（加载期间写入会让游戏在未就绪的语言状态上取值并中断加载），
+    /// 而发号发生在注册期；所以名字挪到第一次用到时补登记。
+    /// 键是 <c>"EmojiName." + 表情名</c>：聊天与悬停提示都按这个键取文本，缺了就显示原始键名。
+    /// </summary>
+    internal static void EnsureLocalized()
+    {
+        if (_localized || !Main._isAsyncLoadComplete) return;
+        _localized = true;
+
+        for (var type = Base; type < Base + _next; type++)
+        {
+            if (Of(type) is not { } emote) continue;
+
+            try
+            {
+                var key = "EmojiName." + emote.Name;
+                var text = string.IsNullOrEmpty(emote.DisplayName) ? emote.Name : emote.DisplayName;
+                LocalizationKeys.Register(key, new Terraria.Localization.LocalizedText(key, text));
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[emotebubble] {emote.Name} 登记语言键失败：{Safe.Describe(e)}");
+            }
+        }
+    }
+
     internal static int Find(string? name)
     {
         if (string.IsNullOrEmpty(name)) return 0;
@@ -75,7 +128,9 @@ internal static class EmoteBubbleTable
     {
         foreach (var emote in ModContent.GetContent<ModEmoteBubble>())
         {
-            if (emote.Registered) continue;
+            // 幂等只能看这张表自己：注册管线在建实例时就已经把 Registered 置 true 了。
+            var key = emote.Mod.Name + "/" + emote.Name;
+            if (ByKey.ContainsKey(key)) continue;
 
             if (_next == _bubbles.Length) Array.Resize(ref _bubbles, _bubbles.Length * 2);
 
@@ -83,8 +138,10 @@ internal static class EmoteBubbleTable
             emote.Registered = true;
             _bubbles[_next++] = emote;
 
-            ByKey[emote.Mod.Name + "/" + emote.Name] = emote;
+            ByKey[key] = emote;
             ByName[emote.Name] = ByName.ContainsKey(emote.Name) ? null : emote;
+
+            RegisterName(emote);
         }
     }
 }

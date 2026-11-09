@@ -24,8 +24,11 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
     public bool Install()
     {
         On.Terraria.GameContent.UI.EmoteBubble.NewBubble += NewBubble;
-        On.Terraria.GameContent.UI.EmoteBubble.Update += Update;
+        On.Terraria.GameContent.UI.EmoteBubble.NewLocalOnlyBubble += NewLocalOnlyBubble;
+        On.Terraria.GameContent.UI.EmoteBubble.NewBubbleNPC += NewBubbleNpc;
+        On.Terraria.GameContent.UI.EmoteBubble.UpdateAll += UpdateAll;
         On.Terraria.GameContent.UI.EmoteBubble.Draw += Draw;
+        On.GUIEmotesWindow.EmoteDraw += EmoteDraw;
         On.Terraria.GameContent.UI.EmoteBubble.CheckForNPCsToReactToEmoteBubble += CheckNpcReactions;
         On.Terraria.GameContent.UI.EmoteBubble.ShouldFilterPlayerEmote += ShouldFilter;
         On.GUIEmotesWindow.GetEmotesGeneral += General;
@@ -113,38 +116,115 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
     /// </summary>
     private static void Hover(On.GUIEmotesWindow.orig_EmoteOver orig, GUIEmotesWindow self, int index)
     {
-        if (EmoteBubbleTable.Of(index) is not { } emote)
-        {
-            orig(self, index);
-            return;
-        }
+        // 必须让游戏跑完：它在这里记"当前悬停的是哪一格"，点击逻辑依赖这个状态；
+        // 之前 mod 表情直接 return，点下去用的还是上一次（或 -1）的格子。
+        orig(self, index);
 
         try
         {
+            EmoteBubbleTable.EnsureLocalized();
+            var entries = self?._emoteEntries;
+            if (entries is null || (uint)index >= (uint)entries.Count) return;
+
+            if (EmoteBubbleTable.Of(entries[index]) is not { } emote) return;
+
             Main.hoverItemName = emote.DisplayName ?? emote.Name;
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[emotebubble] " + emote.Name + " 的悬停名字异常：" + Safe.Describe(e));
+            ContentErrors.Report("[emotebubble] 悬停名字异常：" + Safe.Describe(e));
         }
     }
 
-    /// <summary>菜单里取哪一块：作者的 GetFrameInEmoteMenu 优先，没写就按"贴图的一半、两帧交替"取。</summary>
+    /// <summary>
+    /// 菜单图标：游戏永远从表情图集 <c>TextureAssets.Extra[48]</c> 上按帧取块，mod 表情的贴图不在里面。
+    /// 这里在调用游戏那次绘制之前把图集槽临时换成作者贴图，位置/缩放/裁剪仍由游戏算，画完换回去。
+    /// </summary>
+    private static void EmoteDraw(On.GUIEmotesWindow.orig_EmoteDraw orig, GUIEmotesWindow self,
+                                  ItemGrid_Layout gridLayout, int index, Vector2 position, float scale)
+    {
+        ModEmoteBubble? own = null;
+
+        try
+        {
+            var entries = self?._emoteEntries;
+            if (entries is not null && (uint)index < (uint)entries.Count)
+                own = EmoteBubbleTable.Of(entries[index]);
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report("[emotebubble] 菜单取表情编号异常：" + Safe.Describe(e));
+        }
+
+        if (own?.Texture?.Value is not { } texture)
+        {
+            orig(self, gridLayout, index, position, scale);
+            return;
+        }
+
+        // 菜单图标画的是 GUIEmotesWindow 自己那张静态图集；临时换成作者贴图，画完换回去。
+        // GetFrame 在 orig 内部被调用，靠 _menuEmote 知道该按作者的贴图取块。
+        var savedEmote = _menuEmote;
+        _menuEmote = own;
+
+        var saved = GUIEmotesWindow._emoteTexture;
+        try
+        {
+            // 同一个表情只包一次 Asset：每帧新建同名 Asset 会不停往资源表里塞新条目。
+            if (!MenuAssets.TryGetValue(own, out var asset))
+            {
+                asset = new ReLogic.Content.Asset<Texture2D>("mod-emote-" + own.FullKey);
+                asset.SubmitLoadedContent(texture, null);
+                MenuAssets[own] = asset;
+            }
+
+            GUIEmotesWindow._emoteTexture = asset;
+            orig(self, gridLayout, index, position, scale);
+        }
+        catch (Exception e)
+        {
+            Report(own.FullKey + ".menu-icon", $"[emotebubble] {own.Name} 的菜单图标异常", e);
+        }
+        finally
+        {
+            GUIEmotesWindow._emoteTexture = saved;
+            _menuEmote = savedEmote;
+        }
+    }
+
+    /// <summary>菜单图标用的临时 Asset（每表情一个，复用）。</summary>
+    private static readonly Dictionary<ModEmoteBubble, ReLogic.Content.Asset<Texture2D>> MenuAssets = [];
+
+    private static readonly HashSet<string> Reported = new(StringComparer.Ordinal);
+
+    private static void Report(string key, string what, Exception e)
+    {
+        if (!Reported.Add(key)) return;
+        ContentErrors.Report($"{what}：{Safe.Describe(e)}");
+    }
+
+    /// <summary>当前这一次 EmoteDraw 画的是哪个 mod 表情（GetFrame 在它内部被调用，靠这个认人）。</summary>
+    private static ModEmoteBubble? _menuEmote;
+
+    /// <summary>菜单里取哪一块：作者给了就用作者的，否则按"贴图的一半、两帧交替"取。</summary>
     private static Rectangle MenuFrame(On.GUIEmotesWindow.orig_GetFrame orig, GUIEmotesWindow self, int emoteIndex)
     {
-        // 菜单的帧步：游戏自己按帧计数走两帧，这里用全局时间合成（每 8 帧切一次）。
-        var ticks = (int)(Main.GlobalTimeWrappedHourly * 60f);
-        var frame = ticks / 8 % 2;
+        var vanilla = orig(self, emoteIndex);
 
         var globals = GlobalEmoteBubbleRegistry.For(HookId.GetFrameInEmoteMenu);
+        var own = _menuEmote ?? EmoteBubbleTable.Of(emoteIndex);
 
-        if (EmoteBubbleTable.Of(emoteIndex) is not { } emote)
+        // 动画相位沿用游戏自己那一帧的宽度推出来（它已经算好了两帧循环）。
+        var frame = vanilla.Width > 0 ? vanilla.X / vanilla.Width % 2 : 0;
+        var counter = self is null ? 0 : self._frameCounter;
+
+        if (own is null)
         {
             for (var g = 0; g < globals.Count; g++)
             {
                 try
                 {
-                    if (globals[g].GetFrameInEmoteMenu(emoteIndex, frame, ticks) is { } vanillaFrame) return vanillaFrame;
+                    if (globals[g].GetFrameInEmoteMenu(emoteIndex, frame, counter) is { } globalFrame) return globalFrame;
                 }
                 catch (Exception e)
                 {
@@ -152,23 +232,23 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
                 }
             }
 
-            return orig(self, emoteIndex);
+            return vanilla;
         }
 
         try
         {
-            if (emote.GetFrameInEmoteMenu(frame, ticks) is { } custom) return custom;
+            if (own.GetFrameInEmoteMenu(frame, counter) is { } custom) return custom;
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[emotebubble] {emote.Name}.GetFrameInEmoteMenu 异常：{Safe.Describe(e)}");
+            ContentErrors.Report($"[emotebubble] {own.Name}.GetFrameInEmoteMenu 异常：{Safe.Describe(e)}");
         }
 
         for (var g = 0; g < globals.Count; g++)
         {
             try
             {
-                if (globals[g].GetFrameInEmoteMenu(emoteIndex, frame, ticks) is { } globalFrame) return globalFrame;
+                if (globals[g].GetFrameInEmoteMenu(own.Type, frame, counter) is { } globalFrame) return globalFrame;
             }
             catch (Exception e)
             {
@@ -176,17 +256,7 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
             }
         }
 
-        Texture2D? texture;
-        try
-        {
-            texture = emote.Texture?.Value;
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report($"[emotebubble] {emote.Name}.Texture 异常：{Safe.Describe(e)}");
-            texture = null;
-        }
-
+        var texture = own.Texture?.Value;
         var width = texture is null ? 34 : Math.Max(texture.Width / 2, 1);
         var height = texture is null ? 28 : Math.Max(texture.Height, 1);
 
@@ -198,33 +268,106 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
     private static int NewBubble(On.Terraria.GameContent.UI.EmoteBubble.orig_NewBubble orig, int emoticon,
                                  WorldUIAnchor bubbleAnchor, int time)
     {
-        if (EmoteBubbleTable.Of(emoticon) is not { } emote)
-        {
-            var vanilla = orig(emoticon, bubbleAnchor, time);
-            Spawned(vanilla);
-            return vanilla;
-        }
-
-        var bubble = new EmoteBubble(emoticon, bubbleAnchor, time);
-        emote.EmoteBubble = bubble;
+        // 泡泡本体一律由游戏建：编号、登记进 byID、寿命都归它；自己 new 出来的没有 ID，也不会进表。
+        int id;
         try
         {
-            emote.OnSpawn();
+            id = orig(emoticon, bubbleAnchor, time);
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[emotebubble] {emote.Name}.OnSpawn 异常：{Safe.Describe(e)}");
+            Report("newbubble.orig", $"[emotebubble] 游戏建泡异常（编号 {emoticon}）", e);
+            return -1;
         }
-        finally
+
+        Dispatch(id, emoticon, bubbleAnchor, time);
+        return id;
+    }
+
+    /// <summary>客户端只在本机显示的表情（菜单点击走这条）：编号同样是 mod 的可能。</summary>
+    private static int NewLocalOnlyBubble(On.Terraria.GameContent.UI.EmoteBubble.orig_NewLocalOnlyBubble orig,
+                                          int emoticon, WorldUIAnchor bubbleAnchor, int time)
+    {
+        int id;
+        try
         {
-            emote.EmoteBubble = null!;
+            id = orig(emoticon, bubbleAnchor, time);
+        }
+        catch (Exception e)
+        {
+            Report("localonly.orig", $"[emotebubble] 本机建泡异常（编号 {emoticon}）", e);
+            return -1;
         }
 
-        // 多人：mod 表情的编号对端不认识，随包带上"锚是谁"（游戏自带锚的序列化），收到的人用同一个锚重建。
-        if (!OnReceive) EmoteNetPipeline.Instance.Push(emoticon, bubbleAnchor, time);
+        Dispatch(id, emoticon, bubbleAnchor, time);
+        return id;
+    }
 
-        Spawned(bubble.ID);
-        return bubble.ID;
+    /// <summary>NPC 自己发起的表情（编号由游戏/NPC 挑，也可能是 mod 编号）。</summary>
+    private static int NewBubbleNpc(On.Terraria.GameContent.UI.EmoteBubble.orig_NewBubbleNPC orig,
+                                    WorldUIAnchor bubbleAnchor, int time, WorldUIAnchor other)
+    {
+        int id;
+        try
+        {
+            id = orig(bubbleAnchor, time, other);
+        }
+        catch (Exception e)
+        {
+            Report("npcbubble.orig", "[emotebubble] NPC 建泡异常", e);
+            return -1;
+        }
+
+        var emoticon = 0;
+        try
+        {
+            var byID = EmoteBubble.byID;
+            if (byID is not null && byID.TryGetValue(id, out var bubble) && bubble is not null) emoticon = bubble.emote;
+        }
+        catch (Exception e)
+        {
+            Report("npcbubble.read", "[emotebubble] 读 NPC 泡泡编号异常", e);
+        }
+
+        Dispatch(id, emoticon, bubbleAnchor, time);
+        return id;
+    }
+
+    /// <summary>泡泡建好之后：mod 表情派 <c>OnSpawn</c>（并按需转发），全局钩子对游戏表情也派。</summary>
+    private static void Dispatch(int id, int emoticon, WorldUIAnchor bubbleAnchor, int time)
+    {
+        try
+        {
+            if (EmoteBubbleTable.Of(emoticon) is { } emote)
+            {
+                var byID = EmoteBubble.byID;
+                if (byID is not null && byID.TryGetValue(id, out var bubble) && bubble is not null)
+                {
+                    emote.EmoteBubble = bubble;
+                    try
+                    {
+                        emote.OnSpawn();
+                    }
+                    catch (Exception e)
+                    {
+                        ContentErrors.Report($"[emotebubble] {emote.Name}.OnSpawn 异常：{Safe.Describe(e)}");
+                    }
+                    finally
+                    {
+                        emote.EmoteBubble = null!;
+                    }
+                }
+
+                // 多人：mod 表情的编号对端不认识，随包带上"锚是谁"（游戏自带锚的序列化），收到的人用同一个锚重建。
+                if (!OnReceive) EmoteNetPipeline.Instance.Push(emoticon, bubbleAnchor, time);
+            }
+        }
+        catch (Exception e)
+        {
+            Report("dispatch", "[emotebubble] 建泡后的回调异常", e);
+        }
+
+        Spawned(id);
     }
 
     /// <summary>
@@ -272,41 +415,96 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
 
     // ===================== 每帧 =====================
 
-    private static void Update(On.Terraria.GameContent.UI.EmoteBubble.orig_Update orig, EmoteBubble self)
+    /// <summary>
+    /// 正在跟的 mod 泡泡：ID → 结构体数据指针。
+    /// 游戏的泡泡按值存在 <c>byID</c> 里，托管侧拿到的 <see cref="EmoteBubble"/> 只是快照；
+    /// 所以每轮都按指针重新包一份再写，否则帧号只写进了副本，动画不会动。
+    /// </summary>
+    private static readonly Dictionary<int, IntPtr> Live = [];
+
+    /// <summary>按指针记下这个泡泡（建泡与绘制时都会过一遍，托管侧不知道的泡泡也补上）。</summary>
+    private static void Track(EmoteBubble bubble)
     {
-        // 先让游戏推寿命与帧（不推的话作者一旦接管帧动画，泡泡就永远不消失），再分派作者那一次。
-        orig(self);
+        if (bubble is null || EmoteBubbleTable.Of(bubble.emote) is null) return;
+        Live[bubble.ID] = bubble.Pointer;
+    }
 
-        if (self is null) return;
+    /// <summary>这一轮 UpdateAll 之前记下的帧状态：游戏的帧推进不认识 mod 编号，跑完要还回去自己推。</summary>
+    private static readonly List<(int Id, IntPtr Bubble, int Frame, int Counter)> Saved = [];
 
-        // 全局：游戏表情与 mod 表情都派（作者可以只对某几个编号做事）。
-        var globals = GlobalEmoteBubbleRegistry.For(HookId.UpdateFrame);
-        for (var g = 0; g < globals.Count; g++)
+    private static void UpdateAll(On.Terraria.GameContent.UI.EmoteBubble.orig_UpdateAll orig)
+    {
+        EmoteBubbleTable.EnsureLocalized();
+
+        Saved.Clear();
+        if (Live.Count > 0)
         {
-            try
+            foreach (var pair in Live)
             {
-                _ = globals[g].UpdateFrame(self);
+                var bubble = new EmoteBubble(pair.Value);
+                Saved.Add((pair.Key, pair.Value, bubble.frame, bubble.frameCounter));
             }
-            catch (Exception e)
+        }
+
+        // 先让游戏推寿命、清理死掉的泡泡。
+        orig();
+
+        if (Saved.Count == 0) return;
+
+        var byID = EmoteBubble.byID;
+
+        for (var index = 0; index < Saved.Count; index++)
+        {
+            var (id, pointer, frame, counter) = Saved[index];
+
+            // 游戏可能已经把这个泡泡删了（寿命到）或换成另一个对象。
+            if (byID is null || !byID.TryGetValue(id, out var current) || current is null || current.Pointer != pointer)
             {
-                ContentErrors.Report($"[emotebubble] {globals[g].Name}.UpdateFrame 异常：{Safe.Describe(e)}");
+                Live.Remove(id);
+                continue;
             }
-        }
 
-        if (EmoteBubbleTable.Of(self.emote) is not { } emote) return;
+            // 按指针重新包：写的是游戏表里那一个，不是快照。
+            var bubble = new EmoteBubble(pointer);
+            bubble.frame = frame;
+            bubble.frameCounter = counter;
 
-        emote.EmoteBubble = self;
-        try
-        {
-            _ = emote.UpdateFrame();
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report($"[emotebubble] {emote.Name}.UpdateFrame 异常：{Safe.Describe(e)}");
-        }
-        finally
-        {
-            emote.EmoteBubble = null!;
+            bool advance = true;
+            var globals = GlobalEmoteBubbleRegistry.For(HookId.UpdateFrame);
+            for (var g = 0; g < globals.Count; g++)
+            {
+                try
+                {
+                    if (!globals[g].UpdateFrame(bubble)) advance = false;
+                }
+                catch (Exception e)
+                {
+                    ContentErrors.Report($"[emotebubble] {globals[g].Name}.UpdateFrame 异常：{Safe.Describe(e)}");
+                }
+            }
+
+            if (EmoteBubbleTable.Of(bubble.emote) is { } emote)
+            {
+                emote.EmoteBubble = bubble;
+                try
+                {
+                    if (!emote.UpdateFrame()) advance = false;
+                }
+                catch (Exception e)
+                {
+                    ContentErrors.Report($"[emotebubble] {emote.Name}.UpdateFrame 异常：{Safe.Describe(e)}");
+                }
+                finally
+                {
+                    emote.EmoteBubble = null!;
+                }
+            }
+
+            // 和游戏自己的步子一致：8 帧翻一次，两个帧来回。
+            if (!advance || bubble.lifeTime <= 0) continue;
+            if (++bubble.frameCounter < 8) continue;
+            bubble.frameCounter = 0;
+            if (++bubble.frame >= 2) bubble.frame = 0;
         }
     }
 
@@ -319,6 +517,8 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
             orig(self!, sb);
             return;
         }
+
+        Track(self);
 
         if (emote.Texture?.Value is not { } texture) return;
 
@@ -404,16 +604,10 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
     private static void Draw(SpriteBatch sb, Texture2D texture, Vector2 position, Rectangle frame, Vector2 origin,
                              SpriteEffects effect)
     {
-        sb.Draw(texture,
-                new Il2CppSystem.Nullable<Vector2>(position),
-                new Il2CppSystem.Nullable<Rectangle>(frame),
-                new Il2CppSystem.Nullable<Rectangle>(),
-                new Il2CppSystem.Nullable<Vector2>(origin),
-                0f,
-                new Il2CppSystem.Nullable<Vector2>(Vector2.One),
-                new Il2CppSystem.Nullable<Color>(Color.White),
-                effect,
-                0f);
+        // 9 参重载：position + sourceRect + color + rotation + origin + scale + effects + depth。
+        // 10 参那个把第 3 个参数当 destinationRectangle，同时给 position 会直接抛
+        // "Expected drawRectangle or position, but received neither or both"。
+        sb.Draw(texture, position, new Il2CppSystem.Nullable<Rectangle>(frame), Color.White, 0f, origin, 1f, effect, 0f);
     }
 
     /// <summary>
