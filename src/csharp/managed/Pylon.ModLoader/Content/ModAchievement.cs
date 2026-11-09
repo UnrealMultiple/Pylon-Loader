@@ -19,6 +19,13 @@ public abstract class ModAchievement : ModType
     /// <summary>分类：Slayer、Collector、Explorer 或 Challenger（Terraria.Achievements.AchievementCategory）。</summary>
     public virtual AchievementCategory Category => AchievementCategory.Slayer;
 
+    /// <summary>菜单里显示的名字；默认按类名拆词（TestFlagAchievement → Test Flag Achievement）。</summary>
+    public virtual string DisplayName =>
+        System.Text.RegularExpressions.Regex.Replace(Name, "([A-Z])", " $1").Trim();
+
+    /// <summary>菜单里显示的说明；默认空串。</summary>
+    public virtual string Description => "";
+
     /// <summary>没完成时，名字和说明在菜单里显示 "???"。</summary>
     public virtual bool Hidden => false;
 
@@ -49,56 +56,81 @@ public abstract class ModAchievement : ModType
     private readonly List<AchievementCondition> _conditions = [];
 
     /// <summary>加一个"发生/没发生"的条件；返回游戏的条件（CustomFlagCondition.Create）。</summary>
-    public AchievementCondition AddCondition(string key = "Condition") => AddRaw(CustomFlagCondition.Create(key));
+    public AchievementCondition AddCondition(string key = "Condition") => AddRaw(CustomFlagCondition.Create(key), key);
 
     /// <summary>加一个计数（整数）的条件；key 省略 = 'Condition'，返回的条件有 .Value。</summary>
     public CustomIntCondition AddIntCondition(int maxValue) => AddIntCondition("Condition", maxValue);
 
     /// <summary>加一个计数（整数）的条件；key 省略 = 'Condition'，返回的条件有 .Value。</summary>
     public CustomIntCondition AddIntCondition(string key, int maxValue) =>
-        AddRaw((CustomIntCondition)CustomIntCondition.Create(key, maxValue));
+        AddRaw(AsCustom(CustomIntCondition.Create(key, maxValue)), key);
 
     /// <summary>加一个计数（小数）的条件；key 省略 = 'Condition'，返回的条件有 .Value。</summary>
     public CustomFloatCondition AddFloatCondition(float maxValue) => AddFloatCondition("Condition", maxValue);
 
     /// <summary>加一个计数（小数）的条件；key 省略 = 'Condition'，返回的条件有 .Value。</summary>
     public CustomFloatCondition AddFloatCondition(string key, float maxValue) =>
-        AddRaw((CustomFloatCondition)CustomFloatCondition.Create(key, maxValue));
+        AddRaw(AsFloat(CustomFloatCondition.Create(key, maxValue)), key);
 
-    /// <summary>加一个"做过这些东西"的条件；单个或一列物品 ID（照游戏的 short Create）。</summary>
+    private static CustomFloatCondition AsFloat(AchievementCondition condition) =>
+        condition is CustomFloatCondition typed ? typed : new CustomFloatCondition(condition.Pointer);
+
+    // Create 的声明返回类型是基类 AchievementCondition，运行时对象是具体类型；
+    // 生成层的强制转换做不到向下转，只能按底层指针重新包一层，.Value 才读得到。
+    private static CustomIntCondition AsCustom(AchievementCondition condition) =>
+        condition is CustomIntCondition typed ? typed : new CustomIntCondition(condition.Pointer);
+
+    /// <summary>加一个"做过这些东西"的条件；key 省略 = 'Condition'。</summary>
     public AchievementCondition AddItemCraftCondition(short itemId) =>
-        AddRaw(ItemCraftCondition.Create(LocalUser.Active, itemId));
+        AddRaw(ItemCraftCondition.Create(LocalUser.Active, itemId), null);
+
+    /// <summary>加一个"做过这些东西"的条件；key 是该条件在成就里的名字（多条条件必须互不相同）。</summary>
+    public AchievementCondition AddItemCraftCondition(string key, short itemId) =>
+        AddRaw(ItemCraftCondition.Create(LocalUser.Active, itemId), key);
 
     /// <summary>加一个"做过这些东西"的条件；单个或一列物品 ID（照游戏的 short[] Create）。</summary>
     public AchievementCondition AddItemCraftCondition(short[] itemIds) =>
-        AddRaw(ItemCraftCondition.Create(LocalUser.Active, itemIds));
+        AddRaw(ItemCraftCondition.Create(LocalUser.Active, itemIds), null);
 
-    /// <summary>加一个"捡过这些东西"的条件；单个或一列物品 ID（照游戏的 short Create）。</summary>
+    /// <summary>加一个"拣过这些东西"的条件；key 省略 = 'Condition'。</summary>
     public AchievementCondition AddItemPickupCondition(short itemId) =>
-        AddRaw(ItemPickupCondition.Create(LocalUser.Active, itemId));
+        AddRaw(ItemPickupCondition.Create(LocalUser.Active, itemId), null);
 
-    /// <summary>加一个"捡过这些东西"的条件；单个或一列物品 ID（照游戏的 short[] Create）。</summary>
+    /// <summary>加一个"拣过这些东西"的条件；key 是该条件在成就里的名字（多条条件必须互不相同）。</summary>
+    public AchievementCondition AddItemPickupCondition(string key, short itemId) =>
+        AddRaw(ItemPickupCondition.Create(LocalUser.Active, itemId), key);
+
+    /// <summary>加一个"拣过这些东西"的条件；单个或一列物品 ID（照游戏的 short[] Create）。</summary>
     public AchievementCondition AddItemPickupCondition(short[] itemIds) =>
-        AddRaw(ItemPickupCondition.Create(LocalUser.Active, itemIds));
+        AddRaw(ItemPickupCondition.Create(LocalUser.Active, itemIds), null);
 
-    /// <summary>加一个"杀过这些东西"的条件；单个或一列 NPC ID（照游戏的 short Create）。</summary>
+    /// <summary>加一个"杀过这些东西"的条件；key 省略 = 'Condition'。</summary>
     public AchievementCondition AddNPCKilledCondition(short npcId) =>
-        AddRaw(NPCKilledCondition.Create(LocalUser.Active, npcId));
+        AddRaw(NPCKilledCondition.Create(LocalUser.Active, npcId), null);
+
+    /// <summary>加一个"杀过这些东西"的条件；key 是该条件在成就里的名字（多条条件必须互不相同）。</summary>
+    public AchievementCondition AddNPCKilledCondition(string key, short npcId) =>
+        AddRaw(NPCKilledCondition.Create(LocalUser.Active, npcId), key);
 
     /// <summary>加一个"杀过这些东西"的条件；单个或一列 NPC ID（照游戏的 short[] Create）。</summary>
     public AchievementCondition AddNPCKilledCondition(short[] npcIds) =>
-        AddRaw(NPCKilledCondition.Create(LocalUser.Active, npcIds));
+        AddRaw(NPCKilledCondition.Create(LocalUser.Active, npcIds), null);
 
     /// <summary>加一个"拆过这些方块"的条件；单个或一列 tile ID（本版游戏只有数组 Create，单个包成数组）。</summary>
     public AchievementCondition AddTileDestroyedCondition(ushort tileId) => AddTileDestroyedCondition([tileId]);
 
     /// <summary>加一个"拆过这些方块"的条件；单个或一列 tile ID（照游戏的 ushort[] Create）。</summary>
     public AchievementCondition AddTileDestroyedCondition(ushort[] tileIds) =>
-        AddRaw(TileDestroyedCondition.Create(LocalUser.Active, tileIds));
+        AddRaw(TileDestroyedCondition.Create(LocalUser.Active, tileIds), null);
+
+    /// <summary>加一个"拆过这些方块"的条件；key 是该条件在成就里的名字。</summary>
+    public AchievementCondition AddTileDestroyedCondition(string key, ushort[] tileIds) =>
+        AddRaw(TileDestroyedCondition.Create(LocalUser.Active, tileIds), key);
 
     /// <summary>挂上成就、记进 Conditions、原样返回（泛型保住具体类型，好让 .Value 可用）。</summary>
-    private T AddRaw<T>(T condition) where T : AchievementCondition
+    private T AddRaw<T>(T condition, string? key) where T : AchievementCondition
     {
+        if (key is not null) condition.Name = key;
         Achievement.AddCondition(condition);
         _conditions.Add(condition);
         return condition;

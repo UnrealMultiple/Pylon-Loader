@@ -24,10 +24,13 @@ internal sealed class AchievementPipeline : ILoaderModule, ILoaderModuleRefresh
     public bool Install()
     {
         On.Terraria.Achievements.Achievement.OnConditionComplete += ConditionComplete;
-        On.Terraria.NPC.NPCLoot += NpcKilled;
-        On.Terraria.WorldGen.KillTile += TileDestroyed;
-        On.Terraria.Player.GetItem += ItemPickedUp;
-        On.Terraria.Main.CraftItem_GrantItem += ItemCrafted;
+        // 四条进度通知都从游戏的 AchievementsHelper 进来：条件自己的计数也走这里，
+        // 且只有这条通道能覆盖"别的系统直接通知"的情况。
+        On.Terraria.GameContent.Achievements.AchievementsHelper.NotifyNPCKilledDirect += NpcKilled;
+        On.Terraria.GameContent.Achievements.AchievementsHelper.NotifyItemPickup += ItemPickedUp;
+        On.Terraria.GameContent.Achievements.AchievementsHelper.NotifyItemPickup_1 += ItemPickedUpStack;
+        On.Terraria.GameContent.Achievements.AchievementsHelper.NotifyItemCraft += ItemCrafted;
+        On.Terraria.GameContent.Achievements.AchievementsHelper.NotifyTileDestroyed += TileDestroyed;
         On.GUIAchievementsMenu.AchievementDraw += AchievementIconDraw;
 
         Log.Info("[achievement] 已挂（注册 / 条件 / 完成回调 / 击杀-挖掘-拾取-制作通知 / 菜单图标）");
@@ -46,113 +49,79 @@ internal sealed class AchievementPipeline : ILoaderModule, ILoaderModuleRefresh
         if (AchievementTable.Count > 0) Log.Info($"[achievement] 安装：{AchievementTable.Count} 条成就");
     }
 
-    /// <summary>NPC 被打死：把类型号发给每条成就（原版成就自己的统计走原版通道，这里只服务 mod 成就）。</summary>
-    private static void NpcKilled(On.Terraria.NPC.orig_NPCLoot orig, NPC self)
+    /// <summary>把一条通知发给每条 mod 成就；单条抛异常不影响别的成就。</summary>
+    private static void Notify(Action<ModAchievement> call, string what)
     {
-        orig(self);
+        if (AchievementTable.Count == 0) return;
 
-        if (AchievementTable.Count == 0 || self is null) return;
-
-        var player = Main.LocalPlayer;
         foreach (var entry in AchievementTable.Entries)
         {
             try
             {
-                entry.OnNPCKilled(player, self.type);
+                call(entry);
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[achievement] {entry.Name}.OnNPCKilled 异常：{Safe.Describe(e)}");
+                ContentErrors.Report($"[achievement] {entry.Name}.{what} 异常：{Safe.Describe(e)}");
             }
         }
     }
 
-    /// <summary>方块被挖掉：只在真的挖掉（fail = false）且不是刷怪时通知。</summary>
-    private static void TileDestroyed(On.Terraria.WorldGen.orig_KillTile orig, int i, int j, bool fail, bool effectOnly,
-                                      bool noItem)
+    /// <summary>NPC 被打死：成就进度各人各的，只服务本机玩家。</summary>
+    private static void NpcKilled(On.Terraria.GameContent.Achievements.AchievementsHelper.orig_NotifyNPCKilledDirect orig,
+                                  Player player, int npcNetId)
     {
-        var tile = Main.tile[i, j];
-        var type = tile.active() ? tile.type : -1;
+        orig(player, npcNetId);
 
-        orig(i, j, fail, effectOnly, noItem);
-
-        if (fail || effectOnly || noItem) return;
-        if (AchievementTable.Count == 0 || type <= 0) return;
-
-        var player = Main.LocalPlayer;
-        foreach (var entry in AchievementTable.Entries)
-        {
-            try
-            {
-                entry.OnTileDestroyed(player, type);
-            }
-            catch (Exception e)
-            {
-                ContentErrors.Report($"[achievement] {entry.Name}.OnTileDestroyed 异常：{Safe.Describe(e)}");
-            }
-        }
+        if (player is null || player.whoAmI != Main.myPlayer) return;
+        Notify(entry => entry.OnNPCKilled(player, npcNetId), nameof(ModAchievement.OnNPCKilled));
     }
 
-    /// <summary>
-    /// 物品进背包（掉落物、宝箱里拿、买、捡）：只服务本机玩家——成就进度是各人各的，
-    /// 别人的拾取不该点亮你的成就。合并进已有堆叠也算一次，和游戏自己的计数口径一致。
-    /// </summary>
-    private static Item ItemPickedUp(On.Terraria.Player.orig_GetItem orig, Player self, Item newItem,
-                                     GetItemSettings settings, bool disableMerge)
+    /// <summary>方块被拆掉：游戏只在真的拆掉时才走这条通知。</summary>
+    private static void TileDestroyed(On.Terraria.GameContent.Achievements.AchievementsHelper.orig_NotifyTileDestroyed orig,
+                                      Player player, ushort tile)
     {
-        var before = newItem is null ? 0 : newItem.stack;
-        var overflow = orig(self, newItem, settings, disableMerge);
+        orig(player, tile);
 
-        if (AchievementTable.Count == 0 || newItem is null || newItem.type <= 0) return overflow;
-        if (self is null || !self.active || self.whoAmI != Main.myPlayer) return overflow;
-
-        // GetItem 会把 newItem.stack 扣成"没装进去的剩余量"：差值才是真正捡起来的堆数。
-        var stack = before - newItem.stack;
-        if (stack <= 0) return overflow;
-
-        var player = self;
-        var type = newItem.type;
-
-        foreach (var entry in AchievementTable.Entries)
-        {
-            try
-            {
-                entry.OnItemPickup(player, type, stack);
-            }
-            catch (Exception e)
-            {
-                ContentErrors.Report($"[achievement] {entry.Name}.OnItemPickup 异常：{Safe.Describe(e)}");
-            }
-        }
-
-        return overflow;
+        if (player is null || player.whoAmI != Main.myPlayer) return;
+        Notify(entry => entry.OnTileDestroyed(player, tile), nameof(ModAchievement.OnTileDestroyed));
     }
 
-    /// <summary>
-    /// 制作出成品（游戏发成品的那一步）：拿成品类型与堆数通知每条成就。
-    /// 这是唯一一处"成品已经确定"的位置，比在配方表里找结果可靠。
-    /// </summary>
-    private static void ItemCrafted(On.Terraria.Main.orig_CraftItem_GrantItem orig, Recipe recipe, Item result,
-                                    bool quickCraft)
+    private static void ItemPickedUp(On.Terraria.GameContent.Achievements.AchievementsHelper.orig_NotifyItemPickup orig,
+                                     Player player, Item item)
     {
-        orig(recipe, result, quickCraft);
+        orig(player, item);
 
-        if (AchievementTable.Count == 0 || result is null || result.type <= 0) return;
+        if (item is null) return;
+        Pickup(player, item, item.stack);
+    }
 
-        var type = result.type;
-        var stack = result.stack;
+    private static void ItemPickedUpStack(On.Terraria.GameContent.Achievements.AchievementsHelper.orig_NotifyItemPickup_1 orig,
+                                          Player player, Item item, int customStack)
+    {
+        orig(player, item, customStack);
 
-        foreach (var entry in AchievementTable.Entries)
-        {
-            try
-            {
-                entry.OnItemCraft(type, stack);
-            }
-            catch (Exception e)
-            {
-                ContentErrors.Report($"[achievement] {entry.Name}.OnItemCraft 异常：{Safe.Describe(e)}");
-            }
-        }
+        if (item is null) return;
+        Pickup(player, item, customStack);
+    }
+
+    /// <summary>只有本机玩家的拾取才点亮成就；堆数按游戏给的算，合并进已有堆叠也算一次。</summary>
+    private static void Pickup(Player player, Item item, int stack)
+    {
+        if (player is null || player.whoAmI != Main.myPlayer) return;
+        if (item.type <= 0 || stack <= 0) return;
+
+        Notify(entry => entry.OnItemPickup(player, item.type, stack), nameof(ModAchievement.OnItemPickup));
+    }
+
+    /// <summary>制作出成品：拿成品类型与堆数通知每条成就。</summary>
+    private static void ItemCrafted(On.Terraria.GameContent.Achievements.AchievementsHelper.orig_NotifyItemCraft orig,
+                                    Recipe recipe)
+    {
+        orig(recipe);
+
+        if (recipe?.createItem is not { } result || result.type <= 0) return;
+        Notify(entry => entry.OnItemCraft(result.type, result.stack), nameof(ModAchievement.OnItemCraft));
     }
 
     private static void Register(ModAchievement mod)
@@ -174,6 +143,19 @@ internal sealed class AchievementPipeline : ILoaderModule, ILoaderModuleRefresh
 
         mod.Achievement = achievement;
 
+        // 游戏按 "Achievements.<键>_Name" 这类不存在的键建名字，菜单会原样显示键名。
+        // 这里换成带默认文本的 LocalizedText：有同名语言条目就用条目，没有就显示默认文本。
+        var baseKey = $"Mods.{mod.Mod.Name}.Achievements.{mod.Name}";
+        try
+        {
+            achievement.FriendlyName = new LocalizedText(baseKey + ".FriendlyName", mod.DisplayName);
+            achievement.Description = new LocalizedText(baseKey + ".Description", mod.Description);
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report($"[achievement] {key} 名字/说明设置失败：{Safe.Describe(e)}");
+        }
+
         // 作者在这里 AddCondition / AddIntCondition …，条件挂到 _conditions 上。
         try
         {
@@ -184,17 +166,26 @@ internal sealed class AchievementPipeline : ILoaderModule, ILoaderModuleRefresh
             ContentErrors.Report($"[achievement] {key}.SetStaticDefaults 异常：{Safe.Describe(e)}");
         }
 
+        // 条件在作者的 Add* 调用里已经进了成就；这里只补追踪器，不再重复挂（同名的第二条会撞 Dictionary）。
         var conditions = mod.Conditions;
-        for (var index = 0; index < conditions.Count; index++)
+        try
         {
-            try
+            if (!achievement.HasTracker)
             {
-                achievement.AddCondition(conditions[index]);
+                if (conditions.Count > 1)
+                {
+                    achievement.UseConditionsCompletedTracker();
+                }
+                else if (conditions.Count == 1 && conditions[0].GetAchievementTracker() is not null)
+                {
+                    // "发生过"这类条件没有追踪器，硬挂会让 UseTracker 里空指针。
+                    achievement.UseTrackerFromCondition(conditions[0].Name);
+                }
             }
-            catch (Exception e)
-            {
-                ContentErrors.Report($"[achievement] {key} 的第 {index} 个条件挂不上：{Safe.Describe(e)}");
-            }
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report($"[achievement] {key} 挑追踪器失败：{Safe.Describe(e)}");
         }
 
         var manager = Main.Achievements;
@@ -230,21 +221,31 @@ internal sealed class AchievementPipeline : ILoaderModule, ILoaderModuleRefresh
     private static void AchievementIconDraw(On.GUIAchievementsMenu.orig_AchievementDraw orig, GUIAchievementsMenu self,
                                             ItemGrid_Layout gridLayout, int index, Vector2 position, float scale)
     {
-        orig(self, gridLayout, index, position, scale);
+        Achievement? achievement = null;
+        ModAchievement? mod = null;
+        Texture2D? texture = null;
 
-        if (AchievementTable.Count == 0 || self is null) return;
+        if (AchievementTable.Count > 0 && self is not null)
+        {
+            var list = self.SortedAchievementsData;
+            if (list is not null && (uint)index < (uint)list.Count)
+            {
+                achievement = list[index];
+                if (achievement is not null)
+                {
+                    mod = AchievementTable.Of(achievement.Name);
+                    texture = mod?.Texture?.Value;
+                }
+            }
+        }
 
-        var list = self.SortedAchievementsData;
-        if (list is null || (uint)index >= (uint)list.Count) return;
+        if (achievement is null || mod is null || texture is null)
+        {
+            orig(self, gridLayout, index, position, scale);
+            return;
+        }
 
-        var achievement = list[index];
-        if (achievement is null) return;
-        if (AchievementTable.Of(achievement.Name) is not { } mod) return;
-
-        var texture = mod.Texture?.Value;
-        if (texture is null) return;
-
-        // 隐藏成就：没完成时名字/描述临时换成 "???"，画完恢复（游戏菜单直接读这两个属性）。
+        // 隐藏成就：没完成时名字/描述临时换成 "???"，画完恢复（菜单直接读这两个属性）。
         LocalizedText? savedName = null, savedDescription = null;
         bool hidden = false;
         if (!mod.IsCompleted)
@@ -260,12 +261,19 @@ internal sealed class AchievementPipeline : ILoaderModule, ILoaderModuleRefresh
             achievement.Description = HiddenText;
         }
 
+        // 只换图集，不自己画：位置、缩放、裁剪全交给游戏原有的一次 Draw，
+        // 自己摆位置会偏（图标是居中缩放到格子里的）。图集必须按 592×64 排：
+        // x = Index×66 是解锁格，x = 528 是锁定格。
+        var icons = GUIAchievementsMenu.AchievementsIcons;
+        GUIAchievementsMenu.AchievementsIcons = texture;
         try
         {
-            DrawIcon(orig, self, gridLayout, index, position, scale, achievement, mod, texture);
+            orig(self, gridLayout, index, position, scale);
         }
         finally
         {
+            GUIAchievementsMenu.AchievementsIcons = icons;
+
             if (hidden)
             {
                 achievement.FriendlyName = savedName!;
@@ -276,55 +284,6 @@ internal sealed class AchievementPipeline : ILoaderModule, ILoaderModuleRefresh
 
     /// <summary>"???" 本地化键不存在时 Language.GetText 原样返回键名，正好就是想要的文本。</summary>
     private static readonly LocalizedText HiddenText = Language.GetText("???");
-
-    private static void DrawIcon(On.GUIAchievementsMenu.orig_AchievementDraw orig, GUIAchievementsMenu self,
-                                 ItemGrid_Layout gridLayout, int index, Vector2 position, float scale,
-                                 Achievement achievement, ModAchievement mod, Texture2D texture)
-    {
-        if (texture.Width < IconSize || texture.Height < IconSize) return;
-
-        var spriteBatch = Main.spriteBatch;
-        if (spriteBatch is null) return;
-
-        bool completed;
-        try
-        {
-            completed = mod.IsCompleted;
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report($"[achievement] {mod.Name}.IsCompleted 异常：{Safe.Describe(e)}");
-            completed = false;
-        }
-
-        var column = 0;
-        try
-        {
-            column = mod.Index;
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report($"[achievement] {mod.Name}.Index 异常：{Safe.Describe(e)}");
-        }
-
-        if (column < 0 || column >= IconColumns) column = 0;
-
-        var source = completed
-            ? new Rectangle(column * IconStride, 0, IconSize, IconSize)
-            : new Rectangle(IconLockedX, 0, IconSize, IconSize);
-
-        // 贴图不够宽（作者只画了 8 列没画锁定格）时退回已解锁那一格，至少不是空白。
-        if (!completed && IconLockedX + IconSize > texture.Width) source = new Rectangle(column * IconStride, 0, IconSize, IconSize);
-        if (source.X + IconSize > texture.Width) source = new Rectangle(0, 0, IconSize, IconSize);
-
-        var sourceRect = new Il2CppSystem.Nullable<Rectangle>(source);
-        var drawPosition = new Il2CppSystem.Nullable<Vector2>(position);
-        var origin = new Il2CppSystem.Nullable<Vector2>(Vector2.Zero);
-        var drawScale = new Il2CppSystem.Nullable<Vector2>(new Vector2(scale, scale));
-        var color = new Il2CppSystem.Nullable<Color>(Color.White);
-
-        spriteBatch.Draw(texture, drawPosition, sourceRect, null, origin, 0f, drawScale, color, SpriteEffects.None, 0f);
-    }
 
     // ===================== 完成 =====================
 
