@@ -17,6 +17,13 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
 
     public string Name => "water";
 
+    public IReadOnlyList<TableRequest> Tables =>
+    [
+        new(WaterTables.Style, () => WaterTable.Total),
+        new(WaterTables.Waterfall, () => WaterfallTable.Total),
+    ];
+
+
     private static IModLog Log => LoaderHost.Current.Log;
 
     public bool Install()
@@ -293,28 +300,19 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         var falls = WaterfallTable.Total;
         if (falls > WaterfallTable.Base)
         {
-            // 目标长度变了（动态注册又加了瀑布样式）就换一份扩表器：容量是构造时定死的。
-            if (_waterfalls is null || _waterfallsCapacity != falls)
-            {
-                _waterfalls = new TypeTables.TableGrower(TypeTables.TableKind.Waterfall, falls);
-                _waterfallsCapacity = falls;
-            }
-
-            _waterfalls.NextBatch(falls, Log.Info);
+            // 目标长度变了（动态注册又加了瀑布样式）就抬高同一个扩表器：容量由 TableGrowth.Ensure 管。
+            TableMaintenance.Ensure(WaterTables.Waterfall, falls).GrowAll(Log.Info);
         }
 
         // 动态注册又加了样式时重写一遍槽；贴图已上传，幂等。
         SetupTextures();
     }
 
-    private TypeTables.TableGrower? _waterfalls;
-    private int _waterfallsCapacity;
-
     /// <summary>安装期一次：扩表 + 静态默认值 + 写瀑布贴图。要在写主贴图（Surface 阶段）之前跑。</summary>
     internal void Build()
     {
         var total = WaterTable.Total;
-        if (total > 0) new TypeTables.TableGrower(TypeTables.TableKind.WaterStyle, total).NextBatch(total, Log.Info);
+        if (total > 0) TableMaintenance.Ensure(WaterTables.Style, total).GrowAll(Log.Info);
 
         // 除 TextureAssets.Liquid / LiquidSlope（上面
         // TableGrower 按 WaterStyle 类清单扫）外，还有第三张表 LiquidRenderer._liquidTextures
@@ -323,13 +321,7 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
 
         var falls = WaterfallTable.Total;
         if (falls > WaterfallTable.Base)
-        {
-            // 与 Refresh 共用同一个扩表器：种类相同，TableGrower 的构造函数本来就会替换旧实例，
-            // 这里显式复用只是让"谁在盯这张表"只有一份。
-            _waterfalls ??= new TypeTables.TableGrower(TypeTables.TableKind.Waterfall, falls);
-            _waterfallsCapacity = falls;
-            _waterfalls.NextBatch(falls, Log.Info);
-        }
+            TableMaintenance.Ensure(WaterTables.Waterfall, falls).GrowAll(Log.Info);
 
         foreach (var style in ModContent.GetContent<ModWaterStyle>())
         {
@@ -649,5 +641,49 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         }
 
         Main.waterStyle = style.Type;
+    }
+}
+/// <summary>水样式与瀑布样式相关的原生表。</summary>
+internal static class WaterTables
+{
+    /// <summary>水样式：TextureAssets.Liquid 与 LiquidSlope 同长。</summary>
+    private static readonly TableClass[] Classes =
+    [
+        new("Terraria.GameContent", "TextureAssets"),
+    ];
+
+    private static readonly TableClass[] FallClasses = [new("Terraria", "WaterfallManager")];
+
+    internal static readonly TableSet Style = new("水样式", () => Vanilla, () => Classes);
+
+    /// <summary>瀑布样式：贴图表在 WaterfallManager 的静态字段里。</summary>
+    internal static readonly TableSet Waterfall = new("瀑布贴图", () => WaterfallVanilla, () => FallClasses);
+
+    private static int _vanilla;
+
+    /// <summary>原版水样式表长：没有编译期 Count，只能在扩表之前按表长捕获一次。</summary>
+    internal static int Vanilla
+    {
+        get
+        {
+            if (_vanilla > 0) return _vanilla;
+            var length = TextureSlots.Length(TextureTable.Liquid);
+            if (length > 0) _vanilla = length;
+            return _vanilla;
+        }
+    }
+
+    private static int _waterfallVanilla;
+
+    /// <summary>原版瀑布表长（读到 0 说明表还没建，不缓存）。</summary>
+    internal static int WaterfallVanilla
+    {
+        get
+        {
+            if (_waterfallVanilla > 0) return _waterfallVanilla;
+            var array = Terraria.WaterfallManager.waterfallTexture;
+            if (array is { Length: > 0 }) _waterfallVanilla = array.Length;
+            return _waterfallVanilla;
+        }
     }
 }

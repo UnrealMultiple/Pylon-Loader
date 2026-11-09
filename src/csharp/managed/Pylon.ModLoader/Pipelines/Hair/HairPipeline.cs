@@ -14,6 +14,7 @@ internal sealed class HairPipeline : ILoaderModule, ILoaderModuleRefresh
 
     public string Name => "hair";
 
+
     private static IModLog Log => LoaderHost.Current.Log;
 
     public bool Install()
@@ -115,10 +116,10 @@ internal sealed class HairPipeline : ILoaderModule, ILoaderModuleRefresh
     internal void Build()
     {
         // TextureAssets.ResizePlayerHair：精确扩
-        // PlayerHair 与 PlayerHairAlt 两张表到同一长度。不做类级扫描 —— 扫描会被
-        // 预算截断漏扩，主菜单/创建角色第一帧遍历发型表就空指针。
+        // PlayerHair 与 PlayerHairAlt 两张表到同一长度。不做类级扫描 ——
+        // 那会把"长度刚好相同"的其它贴图表一起扩长，发型表本身只该动这两张。
         var total = HairTable.Total;
-        if (total > TypeTables.HairVanilla && total > 0)
+        if (total > HairTable.Base && total > 0)
         {
             var hair = Terraria.GameContent.TextureAssets.PlayerHair;
             var hairAlt = Terraria.GameContent.TextureAssets.PlayerHairAlt;

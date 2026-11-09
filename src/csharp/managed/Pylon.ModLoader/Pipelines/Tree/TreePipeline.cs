@@ -16,6 +16,14 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
 
     public string Name => "tree";
 
+    public IReadOnlyList<TableRequest> Tables =>
+    [
+        new(TreeTables.Top, () => TreeTables.TopVanilla + TreeTable.Count * 3),
+        new(TreeTables.Branch, () => TreeTables.BranchVanilla + TreeTable.Count * 2),
+        new(TreeTables.Wood, () => TreeTables.WoodVanilla + TreeTable.Count),
+    ];
+
+
     private static IModLog Log => LoaderHost.Current.Log;
 
     public bool Install()
@@ -338,10 +346,10 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
         var count = TreeTable.Count;
         if (count > 0)
         {
-            // 每个风格：树顶 3 张、树枝 2 张、树干 1 张。
-            new TypeTables.TableGrower(TypeTables.TableKind.TreeTop, count * 3).NextBatch(count * 3, Log.Info);
-            new TypeTables.TableGrower(TypeTables.TableKind.TreeBranch, count * 2).NextBatch(count * 2, Log.Info);
-            new TypeTables.TableGrower(TypeTables.TableKind.TreeWood, count).NextBatch(count, Log.Info);
+            // 每个风格：树顶 3 张、树枝 2 张、树干 1 张；目标长度 = 原版表长 + 本次新增。
+            TableMaintenance.Ensure(TreeTables.Top, TreeTables.TopVanilla + count * 3).GrowAll(Log.Info);
+            TableMaintenance.Ensure(TreeTables.Branch, TreeTables.BranchVanilla + count * 2).GrowAll(Log.Info);
+            TableMaintenance.Ensure(TreeTables.Wood, TreeTables.WoodVanilla + count).GrowAll(Log.Info);
         }
 
         var written = 0;
@@ -425,5 +433,30 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
 
         styles[x] = tree.Type;
         return true;
+    }
+}
+
+/// <summary>树的三种贴图表（树顶 / 树枝 / 树干）：与原版树共用 TextureAssets 里的同名数组。</summary>
+internal static class TreeTables
+{
+    private static readonly TableClass[] Classes = [new("Terraria.GameContent", "TextureAssets")];
+
+    internal static readonly TableSet Top = new("树顶贴图", () => TopVanilla, () => Classes);
+    internal static readonly TableSet Branch = new("树枝贴图", () => BranchVanilla, () => Classes);
+    internal static readonly TableSet Wood = new("树干贴图", () => WoodVanilla, () => Classes);
+
+    // 树贴图没有 ID 平行表，只扩 TextureAssets 里这几张。
+    private static int _top, _branch, _wood;
+
+    internal static int TopVanilla => Capture(ref _top, TextureTable.TreeTop);
+    internal static int BranchVanilla => Capture(ref _branch, TextureTable.TreeBranch);
+    internal static int WoodVanilla => Capture(ref _wood, TextureTable.TreeWood);
+
+    private static int Capture(ref int cache, TextureTable table)
+    {
+        if (cache > 0) return cache;
+        var length = TextureSlots.Length(table);
+        if (length > 0) cache = length;
+        return cache;
     }
 }

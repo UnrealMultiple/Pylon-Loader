@@ -5,7 +5,7 @@ namespace Pylon.ModLoader;
 
 /// <summary>
 /// 云侧表：编号 = 原版云表长 + 注册序。原版表长只能运行期读（没有编译期常量），
-/// 由 <see cref="TypeTables.CloudVanilla"/> 在扩表之前统一捕获。
+/// 由 <see cref="CloudTable.Base"/> 在扩表之前统一捕获。
 /// </summary>
 internal static class CloudTable
 {
@@ -15,7 +15,18 @@ internal static class CloudTable
     private static int _next;
 
     /// <summary>原版云表长（自定义编号的起点）。</summary>
-    internal static int Base => TypeTables.CloudVanilla;
+    internal static int Base
+    {
+        get
+        {
+            if (_vanilla > 0) return _vanilla;
+            var length = TextureSlots.Length(TextureTable.Cloud);
+            if (length > 0) _vanilla = length;
+            return _vanilla;
+        }
+    }
+
+    private static int _vanilla;
 
     internal static int Count => _next;
 

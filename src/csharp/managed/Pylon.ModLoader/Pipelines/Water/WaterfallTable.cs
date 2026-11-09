@@ -13,7 +13,7 @@ internal static class WaterfallTable
     private static int _next;
 
     /// <summary>原版瀑布表长（自定义编号的起点）；0 = 还没捕获到。</summary>
-    internal static int Base => TypeTables.WaterfallVanilla;
+    internal static int Base => WaterTables.WaterfallVanilla;
 
     internal static int Count => _next;
 

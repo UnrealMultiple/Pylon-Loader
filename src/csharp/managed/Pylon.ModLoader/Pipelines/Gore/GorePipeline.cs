@@ -13,6 +13,10 @@ internal sealed class GorePipeline : ILoaderModule, ILoaderModuleRefresh
 
     public string Name => "gore";
 
+    public IReadOnlyList<TableRequest> Tables =>
+        [new(GoreTables.Set, () => GoreTable.Total)];
+
+
     private static IModLog Log => LoaderHost.Current.Log;
 
     public bool Install()
@@ -54,8 +58,7 @@ internal sealed class GorePipeline : ILoaderModule, ILoaderModuleRefresh
 
         try
         {
-            var grower = new TypeTables.TableGrower(TypeTables.TableKind.Gore, total);
-            grower.NextBatch(total, Log.Info);
+            TableMaintenance.Ensure(GoreTables.Set, total).GrowAll(Log.Info);
         }
         catch (Exception e)
         {
@@ -148,5 +151,32 @@ internal sealed class GorePipeline : ILoaderModule, ILoaderModuleRefresh
     {
         if (!_reported.Add(((long)gore.Type << 32) | (uint)hook)) return;
         ContentErrors.Report($"[gore] {gore.Name}.{hook} 异常：{Safe.Describe(exception)}");
+    }
+}
+
+/// <summary>血腥粒子编号相关的原生表：贴图、GoreID.Sets、ChildSafety（长度都跟着 gore 数量走）。</summary>
+internal static class GoreTables
+{
+    private static readonly TableClass[] Classes =
+    [
+        new("Terraria.GameContent", "TextureAssets"),
+        new("Terraria.ID", "GoreID", "Sets"),
+        new("Terraria.GameContent", "ChildSafety"),
+    ];
+
+    internal static readonly TableSet Set = new("血腥粒子", () => Vanilla, () => Classes);
+
+    private static int _vanilla;
+
+    /// <summary>原版 gore 表长：GoreID 没有编译期 Count，只能在扩表之前按表长捕获一次；读到 0 不缓存。</summary>
+    internal static int Vanilla
+    {
+        get
+        {
+            if (_vanilla > 0) return _vanilla;
+            var length = TextureSlots.Length(TextureTable.Gore);
+            if (length > 0) _vanilla = length;
+            return _vanilla;
+        }
     }
 }

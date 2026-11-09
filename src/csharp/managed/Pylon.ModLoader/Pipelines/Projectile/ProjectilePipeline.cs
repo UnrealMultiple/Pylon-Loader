@@ -1,3 +1,4 @@
+using Pylon.ModLoader.Textures;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
@@ -35,6 +36,10 @@ internal sealed class ProjectilePipeline : ILoaderModule
     private ProjectilePipeline() => _defaults = new ProjectileDefaults(_binding);
 
     public string Name => "projectile";
+
+    public IReadOnlyList<TableRequest> Tables =>
+        [new(ProjectileTables.Set, () => ModContent.NextType(ContentKind.Projectile), early: true)];
+
 
     private static IModLog Log => LoaderHost.Current.Log;
 
@@ -1193,5 +1198,21 @@ internal sealed class ProjectilePipeline : ILoaderModule
         public Color Light;
     }
 #endregion
+
+}
+
+/// <summary>弹幕编号相关的原生表：弹幕、Lang、贴图、Main 里的缓存数组。</summary>
+internal static class ProjectileTables
+{
+    private static readonly TableClass[] Classes =
+    [
+        new("Terraria.ID", "ProjectileID", "Sets"),
+        new("Terraria", "Main"),
+        new("Terraria", "Lang"),
+        new("Terraria", "Projectile"),
+        new("Terraria.GameContent", "TextureAssets"),
+    ];
+
+    internal static readonly TableSet Set = new("弹幕", () => Terraria.ID.ProjectileID.Count, () => Classes);
 
 }

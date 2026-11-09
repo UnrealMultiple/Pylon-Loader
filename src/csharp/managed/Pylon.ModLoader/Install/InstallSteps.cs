@@ -295,8 +295,8 @@ internal static class InstallSteps
         // "type >= cache.Length" 挡掉，表现就是 NPC 没有名字（城镇 NPC 与敌对 NPC 都一样）。
         var need = Math.Max(npc.Type + 1, ModContent.NextType(ContentKind.Npc));
         var cache = Lang._npcNameCache;
-        if (cache is not null && cache.Length < need && TypeTables.GrowStaticArray("Terraria", "Lang", "_npcNameCache", need))
-            cache = Lang._npcNameCache;
+        if (cache is not null && cache.Length < need && ArrayGrow.Grow(ref cache, need))
+            Lang._npcNameCache = cache;
         if (cache is null || npc.Type >= cache.Length) return;
 
         var text = string.IsNullOrEmpty(npc.DisplayName) ? npc.Name : npc.DisplayName;

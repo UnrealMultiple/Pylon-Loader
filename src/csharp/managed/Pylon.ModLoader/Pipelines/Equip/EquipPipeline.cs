@@ -1,3 +1,5 @@
+using System;
+using Terraria.ID;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Textures;
 using ReLogic.Content;
@@ -15,6 +17,25 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
     public static EquipPipeline Instance { get; } = new();
 
     public string Name => "equip";
+
+    public IReadOnlyList<TableRequest> Tables => EquipRequests;
+
+    /// <summary>15 个部位 + 4 张复合层：目标长度由各部位当前内容数算（没内容就是 0，不扩）。</summary>
+    private static readonly TableRequest[] EquipRequests = BuildEquipRequests();
+
+    private static TableRequest[] BuildEquipRequests()
+    {
+        var requests = new List<TableRequest>(EquipTable.Parts.Length + 4);
+        foreach (var part in EquipTable.Parts)
+        {
+            var item = part;
+            requests.Add(new TableRequest(EquipTable.Set(item), () => EquipTable.Target(item)));
+            foreach (var companion in EquipTable.CompanionSets(item))
+                requests.Add(new TableRequest(companion, () => EquipTable.Target(item)));
+        }
+        return requests.ToArray();
+    }
+
 
     private static IModLog Log => LoaderHost.Current.Log;
 
@@ -488,27 +509,33 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
             // 直接判定完成、一张表都不扩 —— 槽位发出去却没人能写，游戏画到就是越界空指针。
             var total = EquipTable.Vanilla(type) + count;
 
-            new TypeTables.TableGrower(EquipTable.Kind(type), total).NextBatch(16, Log.Info);
+            TableMaintenance.Ensure(EquipTable.Set(type), total).GrowAll(Log.Info);
 
-            var companions = EquipTable.CompanionKinds(type);
+            var companions = EquipTable.CompanionSets(type);
             for (var index = 0; index < companions.Length; index++)
-                new TypeTables.TableGrower(companions[index], total).NextBatch(16, Log.Info);
+                TableMaintenance.Ensure(companions[index], total).GrowAll(Log.Info);
 
             // 原版用 ArmorIDs.<部位>.Count 当槽位上界：槽位发到 Count 就等于越界，绘制时整件跳过。
             // 只扩 TextureAssets / Item.*Type 而不写 Count，盔甲就是"贴图在表里、人身上不画"。
-            if (!TypeTables.WriteArmorCount(PartName(type), total, type is EquipType.Face or EquipType.Beard))
-                Log.Warn($"[equip] {PartName(type)} 的槽位上界（ArmorIDs.Count）没写进去");
+            EquipTables.WriteCount(type, total);
 
             // 游戏侧还有一张"槽位 → 物品编号"的表（Item.headType / bodyType / legType）：
             // 时装绘制与默认的时装套判定都按槽位反查物品，不补长、不写进去的话 mod 盔甲画不出来。
-            var field = type switch
+            switch (type)
             {
-                EquipType.Head => "headType",
-                EquipType.Body => "bodyType",
-                EquipType.Legs => "legType",
-                _ => null,
-            };
-            if (field is not null) TypeTables.GrowStaticArray("Terraria", "Item", field, total);
+                case EquipType.Head:
+                    var heads = Item.headType;
+                    if (ArrayGrow.Grow(ref heads, total)) Item.headType = heads;
+                    break;
+                case EquipType.Body:
+                    var bodies = Item.bodyType;
+                    if (ArrayGrow.Grow(ref bodies, total)) Item.bodyType = bodies;
+                    break;
+                case EquipType.Legs:
+                    var legs = Item.legType;
+                    if (ArrayGrow.Grow(ref legs, total)) Item.legType = legs;
+                    break;
+            }
         }
     }
 
@@ -564,9 +591,9 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
     /// </summary>
     private static void WriteSwitches()
     {
-        NewFraming("Body", EquipType.Body);
-        NewFraming("HandOn", EquipType.HandOn);
-        NewFraming("HandOff", EquipType.HandOff);
+        NewFraming(EquipType.Body);
+        NewFraming(EquipType.HandOn);
+        NewFraming(EquipType.HandOff);
 
         RefillWingStats();
     }
@@ -581,7 +608,7 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         if (wings.Count == 0) return;
 
         var first = wings[0].Slot;
-        var filled = TypeTables.FillWingStats(first, wings[wings.Count - 1].Slot + 1);
+        var filled = EquipTables.FillWingStats(first, wings[wings.Count - 1].Slot + 1);
         if (filled > 0) Log.Info($"[equip] 翅膀飞行数值（飞行时间 100）：{filled} 槽");
         else if (!_wingStatsWarned)
         {
@@ -603,25 +630,25 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         if (slot <= 0) return;
         if (EquipTable.OfSlot(EquipType.Wing, slot) is null) return;
 
-        if (TypeTables.WingFlyTime(slot) <= 0) RefillWingStats();
+        if (EquipTables.WingFlyTime(slot) <= 0) RefillWingStats();
 
         if (player.wingTimeMax > 0f) return;
 
-        var flyTime = TypeTables.WingFlyTime(slot);
+        var flyTime = EquipTables.WingFlyTime(slot);
         if (flyTime > 0) player.wingTimeMax = flyTime;
     }
 
-    private static void NewFraming(string part, EquipType type)
+    private static void NewFraming(EquipType type)
     {
         var list = EquipTable.Of(type);
         var written = 0;
 
         for (var index = 0; index < list.Count; index++)
         {
-            if (TypeTables.WriteArmorSetFlag(part, "UsesNewFramingCode", list[index].Slot, true)) written++;
+            if (EquipTables.SetFlag(type, list[index].Slot, true)) written++;
         }
 
-        if (written > 0) Log.Info($"[equip] {part} 新帧码：{written} 槽");
+        if (written > 0) Log.Info($"[equip] {PartName(type)} 新帧码：{written} 槽");
     }
 
     private static void Write()
@@ -674,5 +701,144 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         }
 
         if (EquipTable.Count > 0) Log.Info($"[equip] 贴图写槽：{written}");
+    }
+}
+
+/// <summary>
+/// 装备贴图的 19 类原生表（15 个部位 + 复合层 / 手臂层），以及只和装备槽位有关的原生读写。
+/// 谁用装备贴图谁从这里取表；扩容/补扩由框架统一调度。
+/// </summary>
+internal static class EquipTables
+{
+    private static readonly TableClass[] Classes =
+    [
+        new("Terraria.GameContent", "TextureAssets"),
+        new("Terraria.ID", "ArmorIDs", "Head", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "Body", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "Legs", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "HandOn", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "HandOff", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "Back", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "Front", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "Shoe", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "Waist", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "Wing", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "Shield", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "Neck", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "Face", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "Balloon", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "Beard", "Sets"),
+    ];
+
+    internal static readonly TableSet Head = new("头盔贴图", () => Vanilla(0, TextureTable.ArmorHead), () => Classes);
+    internal static readonly TableSet Body = new("胸甲贴图", () => Vanilla(1, TextureTable.ArmorBody), () => Classes);
+    internal static readonly TableSet Legs = new("护腿贴图", () => Vanilla(2, TextureTable.ArmorLeg), () => Classes);
+    internal static readonly TableSet HandOn = new("手部（前面）贴图", () => Vanilla(3, TextureTable.AccHandsOn), () => Classes);
+    internal static readonly TableSet HandOff = new("手部（后面）贴图", () => Vanilla(4, TextureTable.AccHandsOff), () => Classes);
+    internal static readonly TableSet Back = new("背部贴图", () => Vanilla(5, TextureTable.AccBack), () => Classes);
+    internal static readonly TableSet Front = new("胸前贴图", () => Vanilla(6, TextureTable.AccFront), () => Classes);
+    internal static readonly TableSet Shoes = new("鞋贴图", () => Vanilla(7, TextureTable.AccShoes), () => Classes);
+    internal static readonly TableSet Waist = new("腰贴图", () => Vanilla(8, TextureTable.AccWaist), () => Classes);
+    internal static readonly TableSet Wing = new("翅膀贴图", () => Vanilla(9, TextureTable.Wings), () => Classes);
+    internal static readonly TableSet Shield = new("盾贴图", () => Vanilla(10, TextureTable.AccShield), () => Classes);
+    internal static readonly TableSet Neck = new("项链贴图", () => Vanilla(11, TextureTable.AccNeck), () => Classes);
+    internal static readonly TableSet Face = new("面部贴图", () => Vanilla(12, TextureTable.AccFace), () => Classes);
+    internal static readonly TableSet Balloon = new("气球贴图", () => Vanilla(13, TextureTable.AccBalloon), () => Classes);
+    internal static readonly TableSet Beard = new("胡子贴图", () => Vanilla(14, TextureTable.AccBeard), () => Classes);
+    internal static readonly TableSet BodyComposite = new("胸甲复合贴图", () => Vanilla(15, TextureTable.ArmorBodyComposite), () => Classes);
+    internal static readonly TableSet Arm = new("手臂贴图", () => Vanilla(16, TextureTable.ArmorArm), () => Classes);
+    internal static readonly TableSet HandOnComposite = new("手部前复合贴图", () => Vanilla(17, TextureTable.AccHandsOnComposite), () => Classes);
+    internal static readonly TableSet HandOffComposite = new("手部后复合贴图", () => Vanilla(18, TextureTable.AccHandsOffComposite), () => Classes);
+
+    private static readonly int[] VanillaCache = new int[24];
+
+    /// <summary>原版装备贴图表长：没有编译期常量，只能在扩表之前按表长捕获一次（按部位缓存）。</summary>
+    internal static int Vanilla(int part, TextureTable table)
+    {
+        if ((uint)part < (uint)VanillaCache.Length && VanillaCache[part] > 0) return VanillaCache[part];
+
+        var length = TextureSlots.Length(table);
+        if (length > 0 && (uint)part < (uint)VanillaCache.Length) VanillaCache[part] = length;
+        return length > 0 ? length : 0;
+    }
+
+    /// <summary>
+    /// 写 <c>ArmorIDs.&lt;部位&gt;.Count</c>：原版拿它当装备槽位上界（<c>槽位 &lt; Count</c> 才画），
+    /// 只扩表不写它就是"贴图有了、槽位发出去了，原版判定越界整件跳过"。Face / Beard 的字段是 sbyte，其余是 int。
+    /// </summary>
+    internal static void WriteCount(EquipType part, int total)
+    {
+        switch (part)
+        {
+            case EquipType.Head: ArmorIDs.Head.Count = total; break;
+            case EquipType.Body: ArmorIDs.Body.Count = total; break;
+            case EquipType.Legs: ArmorIDs.Legs.Count = total; break;
+            case EquipType.HandOn: ArmorIDs.HandOn.Count = total; break;
+            case EquipType.HandOff: ArmorIDs.HandOff.Count = total; break;
+            case EquipType.Back: ArmorIDs.Back.Count = total; break;
+            case EquipType.Front: ArmorIDs.Front.Count = total; break;
+            case EquipType.Shoes: ArmorIDs.Shoe.Count = total; break;
+            case EquipType.Waist: ArmorIDs.Waist.Count = total; break;
+            case EquipType.Wing: ArmorIDs.Wing.Count = total; break;
+            case EquipType.Shield: ArmorIDs.Shield.Count = total; break;
+            case EquipType.Neck: ArmorIDs.Neck.Count = total; break;
+            case EquipType.Balloon: ArmorIDs.Balloon.Count = total; break;
+            case EquipType.Face: ArmorIDs.Face.Count = (sbyte)total; break;
+            case EquipType.Beard: ArmorIDs.Beard.Count = (sbyte)total; break;
+        }
+    }
+
+    /// <summary>
+    /// 给 <c>ArmorIDs.&lt;部位&gt;.Sets</c> 里"逐槽开关"的某一位置值。
+    /// 表短了返回 false：这些开关是画角色时逐槽读的，越界写会踩到邻居的内存。
+    /// </summary>
+    internal static bool SetFlag(EquipType part, int slot, bool value)
+    {
+        var flags = part switch
+        {
+            EquipType.Body => ArmorIDs.Body.Sets.UsesNewFramingCode,
+            EquipType.HandOn => ArmorIDs.HandOn.Sets.UsesNewFramingCode,
+            EquipType.HandOff => ArmorIDs.HandOff.Sets.UsesNewFramingCode,
+            _ => null,
+        };
+
+        if (flags is null || (uint)slot >= (uint)flags.Length) return false;
+        flags[slot] = value;
+        return true;
+    }
+
+    /// <summary>
+    /// 给 <c>ArmorIDs.Wing.Sets.Stats</c> 的 [from, to) 写一份默认翅膀数值（飞行时间 100 等）。
+    /// 这张表决定 <c>wingTimeMax</c> 与平飞/悬停下坠速度：新槽位留 0 就是 FlyTime=0 —— 翅膀画得出来、
+    /// 一格都飞不动（按跳跃键毫无反应）。返回实际写了几槽（表还没建/太短返回 0）。
+    /// </summary>
+    internal static int FillWingStats(int from, int to)
+    {
+        var stats = ArmorIDs.Wing.Sets.Stats;
+        if (stats is null || from < 0 || to <= from || to > stats.Length) return 0;
+
+        for (var slot = from; slot < to; slot++)
+        {
+            var value = stats[slot];
+            value.FlyTime = 100;
+            value.AccRunSpeedOverride = -1f;
+            value.AccRunAccelerationMult = 1f;
+            value.HasDownHoverStats = false;
+            value.DownHoverSpeedOverride = -1f;
+            value.DownHoverAccelerationMult = 1f;
+            stats[slot] = value;
+        }
+        return to - from;
+    }
+
+    /// <summary>
+    /// 读 <c>ArmorIDs.Wing.Sets.Stats[slot].FlyTime</c>：-1 = 表没有/太短，0 = 这个槽位还没写飞行数值。
+    /// 游戏会整张重建这张表（WingStats 初始化器），所以调用方靠它判断"要不要重写一遍"。
+    /// </summary>
+    public static int WingFlyTime(int slot)
+    {
+        var stats = ArmorIDs.Wing.Sets.Stats;
+        if (stats is null || (uint)slot >= (uint)stats.Length) return -1;
+        return stats[slot].FlyTime;
     }
 }

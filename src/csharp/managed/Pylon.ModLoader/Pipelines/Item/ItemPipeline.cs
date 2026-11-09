@@ -1,3 +1,4 @@
+using Pylon.ModLoader.Textures;
 using Il2CppMicrosoft.Xna.Framework;
 using Terraria;
 using Terraria.DataStructures;
@@ -21,6 +22,10 @@ internal sealed class ItemPipeline : ILoaderModule
     private ItemPipeline() => _defaults = new ItemDefaults(_binding);
 
     public string Name => "item";
+
+    public IReadOnlyList<TableRequest> Tables =>
+        [new(ItemTables.Set, () => ModContent.NextType(ContentKind.Item), early: true)];
+
 
     private static IModLog Log => LoaderHost.Current.Log;
 
@@ -341,4 +346,31 @@ internal sealed class ItemPipeline : ILoaderModule
             return orig(spawnSource, x, y, speedX, speedY, type, damage, knockBack, owner, ai0, ai1, ai2, modifier);
         }
     }
+}
+
+/// <summary>物品编号相关的原生表：物品、Lang、贴图、配方、前缀饰品槽……</summary>
+internal static class ItemTables
+{
+    private static readonly TableClass[] Classes =
+    [
+        new("Terraria.ID", "ItemID", "Sets"),
+        new("Terraria.ID", "ItemID"),
+        new("Terraria.ID", "AmmoID", "Sets"),
+        new("Terraria", "Item"),
+        new("Terraria", "Lang"),
+        new("Terraria", "Main"),
+        new("Terraria", "Player"),
+        new("Terraria", "Recipe"),
+        new("Terraria.GameContent", "TextureAssets"),
+        new("Terraria.GameContent", "EmergencyStacking"),
+        new("Terraria.GameContent.Items", "ItemVariants"),
+        new("Terraria.GameContent.Prefixes", "PrefixLegacy", "ItemSets"),
+        new("Terraria.DataStructures", "ArmorSetBonuses"),
+        new("Terraria.UI", "ItemSorting"),
+        new("Terraria.UI", "ItemSlot"),
+        new("", "VirtualControllerInputState"),   // 触控控制器（全局命名空间）
+    ];
+
+    internal static readonly TableSet Set = new("物品", () => Terraria.ID.ItemID.Count, () => Classes);
+
 }

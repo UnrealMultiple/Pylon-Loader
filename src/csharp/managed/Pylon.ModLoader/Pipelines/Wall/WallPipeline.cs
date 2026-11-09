@@ -18,6 +18,10 @@ internal sealed class WallPipeline : ILoaderModule
 
     public string Name => "wall";
 
+    public IReadOnlyList<TableRequest> Tables =>
+        [new(WallTables.Set, () => ModContent.NextType(ContentKind.Wall), early: true)];
+
+
     private static IModLog Log => LoaderHost.Current.Log;
 
     public bool Install()
@@ -48,10 +52,10 @@ internal sealed class WallPipeline : ILoaderModule
         var total = VanillaCounts.Wall + ModContent.Count(ContentKind.Wall);
         if (total <= VanillaCounts.Wall) return;
 
-        var written = TypeTables.WriteStaticCount("Terraria.ID", "WallID", "Count", total);
-        var blended = TypeTables.FillWallBlend(VanillaCounts.Wall, total);
+        Terraria.ID.WallID.Count = (ushort)total;
+        var blended = WallTables.FillWallBlend(VanillaCounts.Wall, total);
 
-        Log.Info($"[wall] WallID.Count → {total}（{(written ? "写入成功" : "写入失败")}），wallBlend 补 {blended} 槽");
+        Log.Info($"[wall] WallID.Count → {total}（当前 {Terraria.ID.WallID.Count}），wallBlend 补 {blended} 槽");
     }
 
     private void Kill(On.Terraria.WorldGen.orig_KillWall orig, int i, int j, bool fail)
@@ -222,5 +226,39 @@ internal sealed class WallPipeline : ILoaderModule
     {
         if (!_reported.Add(HashCode.Combine(wall.Type, hook))) return;
         ContentErrors.Report($"[wall] {wall.GetType().Name}.{hook} 异常：{Safe.Describe(exception)}");
+    }
+}
+
+/// <summary>墙壁编号相关的原生表：墙、Sets、贴图、地图颜色。</summary>
+internal static class WallTables
+{
+    private static readonly TableClass[] Classes =
+    [
+        new("Terraria", "Main"),
+        new("Terraria.ID", "WallID", "Sets"),
+        new("Terraria.ID", "WallID", "Sets", "Conversion"),
+        new("Terraria.GameContent", "TextureAssets"),
+        new("Terraria.Map", "MapHelper"),
+    ];
+
+    internal static readonly TableSet Set = new("墙壁", () => 367, () => Classes);
+
+    /// <summary>
+    /// <c>Main.wallBlend</c> 里新墙的空槽填成自身（原版约定 <c>wallBlend[i] == i</c>）。
+    /// 留 0 的话边框混合会去查原版墙 0 的样式，mod 墙的边框会闪/错位。返回填了几槽。
+    /// </summary>
+    internal static int FillWallBlend(int from, int to)
+    {
+        var blend = Terraria.Main.wallBlend;
+        if (blend is null || to <= from || to > blend.Length) return 0;
+
+        var filled = 0;
+        for (var type = from; type < to; type++)
+        {
+            if (blend[type] != 0) continue;
+            blend[type] = type;
+            filled++;
+        }
+        return filled;
     }
 }

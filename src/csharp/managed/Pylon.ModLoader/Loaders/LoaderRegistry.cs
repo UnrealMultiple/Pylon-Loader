@@ -1,3 +1,4 @@
+using Pylon.ModLoader.Textures;
 namespace Pylon.ModLoader;
 
 /// <summary>
@@ -57,6 +58,21 @@ internal static class LoaderRegistry
         InterfaceLayerPipeline.Instance,
         SystemDrawPipeline.Instance,
     ];
+
+    private static List<TableRequest>? _tables;
+
+    /// <summary>全部模块声明的扩表请求（谁用到谁声明，框架统一执行）。表集合本身不变，取到就缓存。</summary>
+    public static IReadOnlyList<TableRequest> Tables
+    {
+        get
+        {
+            if (_tables is not null) return _tables;
+
+            _tables = new List<TableRequest>(32);
+            for (var i = 0; i < Modules.Length; i++) _tables.AddRange(Modules[i].Tables);
+            return _tables;
+        }
+    }
 
     private static int _installed;
 

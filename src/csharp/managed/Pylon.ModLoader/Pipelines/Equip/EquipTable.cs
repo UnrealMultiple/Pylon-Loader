@@ -35,26 +35,34 @@ internal static class EquipTable
 
     internal static List<EquipTexture> Of(EquipType part) => ByPart[(int)part];
 
-    internal static int Vanilla(EquipType part) => TypeTables.EquipVanilla((int)part, Table(part));
+    internal static int Vanilla(EquipType part) => EquipTables.Vanilla((int)part, Table(part));
 
-    internal static TypeTables.TableKind Kind(EquipType part) => part switch
+    /// <summary>这个部位要随内容变长的原生贴图表。</summary>
+    internal static TableSet Set(EquipType part) => part switch
     {
-        EquipType.Head => TypeTables.TableKind.ArmorHead,
-        EquipType.Body => TypeTables.TableKind.ArmorBody,
-        EquipType.Legs => TypeTables.TableKind.ArmorLeg,
-        EquipType.HandOn => TypeTables.TableKind.EquipHandOn,
-        EquipType.HandOff => TypeTables.TableKind.EquipHandOff,
-        EquipType.Back => TypeTables.TableKind.EquipBack,
-        EquipType.Front => TypeTables.TableKind.EquipFront,
-        EquipType.Shoes => TypeTables.TableKind.EquipShoes,
-        EquipType.Waist => TypeTables.TableKind.EquipWaist,
-        EquipType.Wing => TypeTables.TableKind.EquipWings,
-        EquipType.Shield => TypeTables.TableKind.EquipShield,
-        EquipType.Neck => TypeTables.TableKind.EquipNeck,
-        EquipType.Face => TypeTables.TableKind.EquipFace,
-        EquipType.Balloon => TypeTables.TableKind.EquipBalloon,
-        _ => TypeTables.TableKind.EquipBeard,
+        EquipType.Head => EquipTables.Head,
+        EquipType.Body => EquipTables.Body,
+        EquipType.Legs => EquipTables.Legs,
+        EquipType.HandOn => EquipTables.HandOn,
+        EquipType.HandOff => EquipTables.HandOff,
+        EquipType.Back => EquipTables.Back,
+        EquipType.Front => EquipTables.Front,
+        EquipType.Shoes => EquipTables.Shoes,
+        EquipType.Waist => EquipTables.Waist,
+        EquipType.Wing => EquipTables.Wing,
+        EquipType.Shield => EquipTables.Shield,
+        EquipType.Neck => EquipTables.Neck,
+        EquipType.Face => EquipTables.Face,
+        EquipType.Balloon => EquipTables.Balloon,
+        _ => EquipTables.Beard,
     };
+
+    /// <summary>这个部位扩表要的目标长度（没有内容就是 0 = 不用扩）。</summary>
+    internal static int Target(EquipType part)
+    {
+        var count = Of(part).Count;
+        return count <= 0 ? 0 : Vanilla(part) + count;
+    }
 
     internal static TextureTable Table(EquipType part) => part switch
     {
@@ -84,11 +92,11 @@ internal static class EquipTable
         _ => [],
     };
 
-    internal static TypeTables.TableKind[] CompanionKinds(EquipType part) => part switch
+    internal static TableSet[] CompanionSets(EquipType part) => part switch
     {
-        EquipType.Body => [TypeTables.TableKind.ArmorBodyComposite, TypeTables.TableKind.ArmorArm],
-        EquipType.HandOn => [TypeTables.TableKind.EquipHandOnComposite],
-        EquipType.HandOff => [TypeTables.TableKind.EquipHandOffComposite],
+        EquipType.Body => [EquipTables.BodyComposite, EquipTables.Arm],
+        EquipType.HandOn => [EquipTables.HandOnComposite],
+        EquipType.HandOff => [EquipTables.HandOffComposite],
         _ => [],
     };
 

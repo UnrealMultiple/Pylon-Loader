@@ -1,3 +1,4 @@
+using Pylon.ModLoader.Textures;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
@@ -17,6 +18,10 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
     private readonly HashSet<int> _reported = [];
 
     public string Name => "buff";
+
+    public IReadOnlyList<TableRequest> Tables =>
+        [new(BuffTables.Set, () => ModContent.NextType(ContentKind.Buff), early: true)];
+
 
     private static IModLog Log => LoaderHost.Current.Log;
 
@@ -640,4 +645,19 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         if (!_reported.Add(HashCode.Combine(name.GetHashCode(), hook))) return;
         ContentErrors.Report($"[buff] {hook} 异常：{Safe.Describe(exception)}");
     }
+}
+
+/// <summary>Buff 编号相关的原生表：Buff、Lang、贴图、物品上的 Buff 槽。</summary>
+internal static class BuffTables
+{
+    private static readonly TableClass[] Classes =
+    [
+        new("Terraria.ID", "BuffID", "Sets"),
+        new("Terraria", "Main", null, null, ["item", "timeItemSlotCannotBeReusedFor", "itemFrame", "itemFrameCounter"]),
+        new("Terraria", "Lang"),
+        new("Terraria.GameContent", "TextureAssets"),
+    ];
+
+    internal static readonly TableSet Set = new("Buff", () => Terraria.ID.BuffID.Count, () => Classes);
+
 }

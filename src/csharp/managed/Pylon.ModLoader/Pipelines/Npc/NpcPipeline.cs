@@ -1,3 +1,4 @@
+using Pylon.ModLoader.Textures;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using ReLogic.Content;
@@ -46,6 +47,10 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
     }
 
     public string Name => "npc";
+
+    public IReadOnlyList<TableRequest> Tables =>
+        [new(NpcTables.Set, () => ModContent.NextType(ContentKind.Npc), early: true)];
+
 
     private static IModLog Log => LoaderHost.Current.Log;
 
@@ -1174,5 +1179,23 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         public ModNpc? Mod;
     }
 #endregion
+
+}
+
+/// <summary>NPC 编号相关的原生表：NPC、Lang、贴图、对话、表情。</summary>
+internal static class NpcTables
+{
+    private static readonly TableClass[] Classes =
+    [
+        new("Terraria.ID", "NPCID", "Sets"),
+        new("Terraria", "Main"),
+        new("Terraria", "Lang"),
+        new("Terraria", "NPC"),
+        new("Terraria.GameContent", "TextureAssets"),
+        new("Terraria.GameContent.UI", "EmoteBubble"),
+        new("Terraria.GameContent", "ConditionalDialogue"),
+    ];
+
+    internal static readonly TableSet Set = new("NPC", () => Terraria.ID.NPCID.Count, () => Classes);
 
 }

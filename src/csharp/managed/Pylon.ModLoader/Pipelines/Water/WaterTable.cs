@@ -4,7 +4,7 @@ namespace Pylon.ModLoader;
 
 /// <summary>
 /// 水样式侧表：编号 = 原版表长 + 注册序。原版总数只在运行期读（`WaterStyleID` 没有 Count），
-/// 由 <see cref="TypeTables.WaterVanilla"/> 在扩表之前捕获一次。
+/// 由 <see cref="WaterTables.Vanilla"/> 在扩表之前捕获一次。
 /// </summary>
 internal static class WaterTable
 {
@@ -14,7 +14,7 @@ internal static class WaterTable
     private static int _next;
 
     /// <summary>原版水样式表长（自定义编号的起点）。</summary>
-    internal static int Base => TypeTables.WaterVanilla;
+    internal static int Base => WaterTables.Vanilla;
 
     internal static int Count => _next;
 

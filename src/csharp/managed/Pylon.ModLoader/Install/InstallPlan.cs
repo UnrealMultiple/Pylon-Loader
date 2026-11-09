@@ -142,50 +142,16 @@ internal static class InstallPlan
         private void RunOne(Mod mod) => Safe.Run(mod.Name + "." + hook, () => invoke(mod));
     }
 
-    /// <summary>扩内容表：每帧扩一批，全部扩完才让后面的步骤写槽。</summary>
+    /// <summary>
+    /// 扩"内容装配之前必须扩好"的表（物品 / 弹幕 / NPC / Buff / 方块 / 墙壁）：
+    /// 谁用到谁在模块的 <c>Tables</c> 里声明，这里只负责催框架一次扩完；表还没建就等下一帧。
+    /// </summary>
     private sealed class GrowTablesStep(LoaderHost host) : IInstallStep
     {
-        private static readonly TypeTables.TableKind[] Order =
-        [
-            TypeTables.TableKind.Item, TypeTables.TableKind.Projectile,
-            TypeTables.TableKind.Npc, TypeTables.TableKind.Buff,
-            TypeTables.TableKind.Tile, TypeTables.TableKind.Wall,
-        ];
-
-        private const int BatchBudget = 256;
-
-        private readonly int[] _grown = new int[Order.Length];
-        private TypeTables.TableGrower? _grower;
-        private int _index;
-
         public string Name => "扩表";
 
         public InstallStage Stage => InstallStage.Layout;
 
-        public bool Run()
-        {
-            _grower ??= new TypeTables.TableGrower(Order[_index], ModContent.NextType(KindOf(Order[_index])));
-
-            _grown[_index] += _grower.NextBatch(BatchBudget, host.Log.Info);
-
-            if (!_grower.Done) return false;
-
-            _grower = null;
-            if (++_index < Order.Length) return false;
-
-            host.Log.Info($"内容表扩容：物品 {_grown[0]}、弹幕 {_grown[1]}、NPC {_grown[2]}、" +
-                          $"Buff {_grown[3]}、方块 {_grown[4]}、墙壁 {_grown[5]}");
-            return true;
-        }
-
-        private static ContentKind KindOf(TypeTables.TableKind kind) => kind switch
-        {
-            TypeTables.TableKind.Item => ContentKind.Item,
-            TypeTables.TableKind.Projectile => ContentKind.Projectile,
-            TypeTables.TableKind.Npc => ContentKind.Npc,
-            TypeTables.TableKind.Buff => ContentKind.Buff,
-            TypeTables.TableKind.Tile => ContentKind.Tile,
-            _ => ContentKind.Wall,
-        };
+        public bool Run() => TableMaintenance.PumpEarly(host.Log.Info);
     }
 }

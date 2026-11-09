@@ -1,3 +1,5 @@
+using Pylon.ModLoader.Textures;
+
 namespace Pylon.ModLoader;
 
 /// <summary>
@@ -11,6 +13,12 @@ internal interface ILoaderModule
 
     /// <summary>挂钩子；幂等。返回 false 表示前提未满足，下次注册再试。</summary>
     bool Install();
+
+    /// <summary>
+    /// 本管线要随内容编号变长的原生表（谁用到谁声明）。框架负责扩容、补扩与重建维护；
+    /// Early 的表在内容装配之前扩好，其余的由管线在自己的 Build 里 <see cref="TableMaintenance.Ensure"/> 后立即推进。
+    /// </summary>
+    IReadOnlyList<TableRequest> Tables => [];
 }
 
 /// <summary>需要在每次 Mod 注册后刷新门控缓存的模块（例如 Global 覆写判定）。</summary>

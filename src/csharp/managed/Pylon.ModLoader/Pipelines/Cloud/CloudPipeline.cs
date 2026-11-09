@@ -14,6 +14,7 @@ internal sealed class CloudPipeline : ILoaderModule, ILoaderModuleRefresh
 
     public string Name => "cloud";
 
+
     private static IModLog Log => LoaderHost.Current.Log;
 
     public bool Install()
@@ -34,7 +35,7 @@ internal sealed class CloudPipeline : ILoaderModule, ILoaderModuleRefresh
         // 精确扩 TextureAssets.Cloud 一张表，
         // 再把 TextureMaskManager.CloudMasks 扩到同长并给每朵云建 TextureMask（游戏画云前查遮罩，空槽位解引用就是主菜单 SIGSEGV）。
         var total = CloudTable.Total;
-        if (total > TypeTables.CloudVanilla && total > 0)
+        if (total > CloudTable.Base && total > 0)
         {
             // 扩哪张表由本管线自己声明：取静态属性 → 交给 ArrayGrow → 写回。
             var clouds = Terraria.GameContent.TextureAssets.Cloud;
