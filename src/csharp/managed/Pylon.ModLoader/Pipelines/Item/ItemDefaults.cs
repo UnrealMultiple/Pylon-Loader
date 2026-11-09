@@ -54,25 +54,27 @@ internal sealed class ItemDefaults(ItemBinding binding)
 
         foreach (var (part, slot) in slots)
         {
-            if (slot < 0 || slot > 127) continue;
+            // 槽位字段是 int（原版头盔槽已经排到 293），不要按 sbyte 截断、也不要卡 127。
+            if (slot < 0) continue;
 
             switch (part)
             {
-                case EquipType.Head: item.headSlot = (sbyte)slot; break;
-                case EquipType.Body: item.bodySlot = (sbyte)slot; break;
-                case EquipType.Legs: item.legSlot = (sbyte)slot; break;
-                case EquipType.HandOn: item.handOnSlot = (sbyte)slot; break;
-                case EquipType.HandOff: item.handOffSlot = (sbyte)slot; break;
-                case EquipType.Back: item.backSlot = (sbyte)slot; break;
-                case EquipType.Front: item.frontSlot = (sbyte)slot; break;
-                case EquipType.Shoes: item.shoeSlot = (sbyte)slot; break;
-                case EquipType.Waist: item.waistSlot = (sbyte)slot; break;
-                case EquipType.Wing: item.wingSlot = (sbyte)slot; break;
-                case EquipType.Shield: item.shieldSlot = (sbyte)slot; break;
-                case EquipType.Neck: item.neckSlot = (sbyte)slot; break;
-                case EquipType.Face: item.faceSlot = (sbyte)slot; break;
-                case EquipType.Balloon: item.balloonSlot = (sbyte)slot; break;
-                case EquipType.Beard: item.beardSlot = (sbyte)slot; break;
+                case EquipType.Head: item.headSlot = slot; break;
+                case EquipType.Body: item.bodySlot = slot; break;
+                case EquipType.Legs: item.legSlot = slot; break;
+                case EquipType.HandOn when slot <= sbyte.MaxValue: item.handOnSlot = (sbyte)slot; break;
+                case EquipType.HandOff when slot <= sbyte.MaxValue: item.handOffSlot = (sbyte)slot; break;
+                case EquipType.Back when slot <= sbyte.MaxValue: item.backSlot = (sbyte)slot; break;
+                case EquipType.Front when slot <= sbyte.MaxValue: item.frontSlot = (sbyte)slot; break;
+                // 鞋/腰/翅膀/盾与下面四个在原版里还是 sbyte（超过 127 的槽写不进去，跳过）。
+                case EquipType.Shoes when slot <= sbyte.MaxValue: item.shoeSlot = (sbyte)slot; break;
+                case EquipType.Waist when slot <= sbyte.MaxValue: item.waistSlot = (sbyte)slot; break;
+                case EquipType.Wing when slot <= sbyte.MaxValue: item.wingSlot = (sbyte)slot; break;
+                case EquipType.Shield when slot <= sbyte.MaxValue: item.shieldSlot = (sbyte)slot; break;
+                case EquipType.Neck when slot <= sbyte.MaxValue: item.neckSlot = (sbyte)slot; break;
+                case EquipType.Face when slot <= sbyte.MaxValue: item.faceSlot = (sbyte)slot; break;
+                case EquipType.Balloon when slot <= sbyte.MaxValue: item.balloonSlot = (sbyte)slot; break;
+                case EquipType.Beard when slot <= sbyte.MaxValue: item.beardSlot = (sbyte)slot; break;
             }
         }
     }

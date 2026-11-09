@@ -22,6 +22,7 @@ public enum TextureTable
     ArmorBody,
     ArmorLeg,
     ArmorBodyComposite,
+    FemaleBody,
     ArmorArm,
     AccHandsOn,
     AccHandsOnComposite,

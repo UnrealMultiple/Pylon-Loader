@@ -78,7 +78,7 @@ internal static class EquipTable
     /// <summary>这个部位还要写哪张平行表（复合层 / 手臂层）；没有就是空。</summary>
     internal static TextureTable[] Companions(EquipType part) => part switch
     {
-        EquipType.Body => [TextureTable.ArmorBodyComposite, TextureTable.ArmorArm],
+        EquipType.Body => [TextureTable.ArmorBodyComposite, TextureTable.ArmorArm, TextureTable.FemaleBody],
         EquipType.HandOn => [TextureTable.AccHandsOnComposite],
         EquipType.HandOff => [TextureTable.AccHandsOffComposite],
         _ => [],

@@ -21,6 +21,7 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
     public bool Install()
     {
         On.Terraria.Player.UpdateEquips += UpdateEquips;
+        On.Terraria.Player.UpdateArmorSets += UpdateArmorSets;
         On.Terraria.Player.ApplyEquipFunctional += ApplyEquipFunctional;
         On.Terraria.Player.ApplyEquipVanity += ApplyEquipVanity;
         On.Terraria.Player.SetMatch += SetMatch;
@@ -29,7 +30,7 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.Player.WingAirLogicTweaks += WingAirLogicTweaks;
         On.Terraria.UI.ItemSlot.CanEquipBothAccessories += CanEquipBothAccessories;
 
-        Log.Info("[equip] 已挂（15 个部位：编号 / 扩表 / 写贴图 / 效果回调 / 时装套 / SetMatch / 翅膀动画）");
+        Log.Info("[equip] 已挂（15 个部位：编号 / 扩表 / 写贴图 / 效果回调 / 套装 / 时装套 / SetMatch / 翅膀动画）");
         return true;
     }
 
@@ -117,11 +118,12 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
     {
         var result = orig(request, ref somethingSpecial);
 
+        // 用请求里带的三个槽位（原版按它们取贴图），不是玩家当前穿的：绘制时装/替换时两者可能不同。
         var slot = request.ArmorSlotRequested switch
         {
-            0 => request.Player.head,
-            1 => request.Player.body,
-            _ => request.Player.legs,
+            0 => request.Head,
+            1 => request.Body,
+            _ => request.Legs,
         };
 
         if (EquipTable.OfSlot(request.ArmorSlotRequested == 0 ? EquipType.Head
@@ -142,6 +144,7 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         somethingSpecial = robes;
         return equipSlot;
     }
+
 
     /// <summary>空中穿的 mod 翅膀（找 3..9 号饰品槽里 wingSlot 等于 logic 的那件）。</summary>
     private static Item? EquippedWings(Player player, int logic)
@@ -328,8 +331,12 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
             var speed = self.accRunSpeed;
             var acceleration = self.runAcceleration;
             equip.HorizontalWingSpeeds(self, ref speed, ref acceleration);
+
             self.accRunSpeed = speed;
             self.runAcceleration = acceleration;
+            // 原版平飞时水平速度上限也按 accRunSpeed 走；只改 accRunSpeed 不动 maxRunSpeed，
+            // 移动会被 maxRunSpeed（步行速度 3）夹住 —— 表现就是翅膀能飞、平飞按左右没反应。
+            self.maxRunSpeed = speed;
         }
         catch (Exception e)
         {
@@ -364,6 +371,8 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
 
         if (EquipTable.Count == 0) return;
 
+        EnsureWingStats(self);
+
         var armor = self.armor;
         if (armor is null || armor.Length < 3) return;
 
@@ -378,6 +387,42 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         Vanity(EquipType.Head, head, head, body, legs, self);
         Vanity(EquipType.Body, body, head, body, legs, self);
         Vanity(EquipType.Legs, legs, head, body, legs, self);
+    }
+
+    /// <summary>穿齐三件时的套装效果：三件里任一件认这套，就跑它的 UpdateArmorSet。</summary>
+    private static void UpdateArmorSets(On.Terraria.Player.orig_UpdateArmorSets orig, Player self, int i)
+    {
+        orig(self, i);
+
+        if (EquipTable.Count == 0) return;
+
+        var armor = self.armor;
+        if (armor is null || armor.Length < 3) return;
+
+        var head = armor[0];
+        var body = armor[1];
+        var legs = armor[2];
+        if (head is null || body is null || legs is null) return;
+
+        SetBonus(head, head, body, legs, self);
+        SetBonus(body, head, body, legs, self);
+        SetBonus(legs, head, body, legs, self);
+    }
+
+    private static void SetBonus(Item piece, Item head, Item body, Item legs, Player player)
+    {
+        if (piece.IsAir) return;
+        if (ModContent.Find(ContentKind.Item, piece.type) is not ModItem mod) return;
+
+        try
+        {
+            if (!mod.IsArmorSet(head, body, legs)) return;
+            mod.UpdateArmorSet(piece, player);
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report($"[equip] {mod.Name} 的套装回调异常：{Safe.Describe(e)}");
+        }
     }
 
     private static void Frame(EquipType part, int slot, Player player)
@@ -425,6 +470,8 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
 
         EquipTable.Assign();
         Write();
+        WriteSlotOwners();
+        WriteSwitches();
 
         if (EquipTable.Count > 0) Log.Info($"[equip] 安装：{EquipTable.Count} 张装备贴图");
     }
@@ -437,12 +484,144 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
             var count = EquipTable.Of(type).Count;
             if (count <= 0) continue;
 
-            new TypeTables.TableGrower(EquipTable.Kind(type), count).NextBatch(count, Log.Info);
+            // 扩表器收的是"目标总长"，不是 mod 数量：传 mod 数量的话它认为新长度还不如原版长，
+            // 直接判定完成、一张表都不扩 —— 槽位发出去却没人能写，游戏画到就是越界空指针。
+            var total = EquipTable.Vanilla(type) + count;
+
+            new TypeTables.TableGrower(EquipTable.Kind(type), total).NextBatch(16, Log.Info);
 
             var companions = EquipTable.CompanionKinds(type);
             for (var index = 0; index < companions.Length; index++)
-                new TypeTables.TableGrower(companions[index], count).NextBatch(count, Log.Info);
+                new TypeTables.TableGrower(companions[index], total).NextBatch(16, Log.Info);
+
+            // 原版用 ArmorIDs.<部位>.Count 当槽位上界：槽位发到 Count 就等于越界，绘制时整件跳过。
+            // 只扩 TextureAssets / Item.*Type 而不写 Count，盔甲就是"贴图在表里、人身上不画"。
+            if (!TypeTables.WriteArmorCount(PartName(type), total, type is EquipType.Face or EquipType.Beard))
+                Log.Warn($"[equip] {PartName(type)} 的槽位上界（ArmorIDs.Count）没写进去");
+
+            // 游戏侧还有一张"槽位 → 物品编号"的表（Item.headType / bodyType / legType）：
+            // 时装绘制与默认的时装套判定都按槽位反查物品，不补长、不写进去的话 mod 盔甲画不出来。
+            var field = type switch
+            {
+                EquipType.Head => "headType",
+                EquipType.Body => "bodyType",
+                EquipType.Legs => "legType",
+                _ => null,
+            };
+            if (field is not null) TypeTables.GrowStaticArray("Terraria", "Item", field, total);
         }
+    }
+
+    private static string PartName(EquipType type) => type switch
+    {
+        EquipType.HandOn => "HandOn",
+        EquipType.HandOff => "HandOff",
+        EquipType.Shoes => "Shoe",
+        EquipType.Wing => "Wing",
+        _ => type.ToString(),
+    };
+
+    /// <summary>把"槽位 → 物品编号"写进游戏那张表（原版靠它按时装槽位找物品）。</summary>
+    private static void WriteSlotOwners()
+    {
+        for (var part = 0; part < EquipTable.Parts.Length; part++)
+        {
+            var type = EquipTable.Parts[part];
+            var list = EquipTable.Of(type);
+
+            for (var index = 0; index < list.Count; index++)
+            {
+                var equip = list[index];
+                var owner = equip.Item;
+                if (owner is null || owner.Type <= 0) continue;
+
+                try
+                {
+                    switch (type)
+                    {
+                        case EquipType.Head when equip.Slot < Terraria.Item.headType.Length:
+                            Terraria.Item.headType[equip.Slot] = owner.Type;
+                            break;
+                        case EquipType.Body when equip.Slot < Terraria.Item.bodyType.Length:
+                            Terraria.Item.bodyType[equip.Slot] = owner.Type;
+                            break;
+                        case EquipType.Legs when equip.Slot < Terraria.Item.legType.Length:
+                            Terraria.Item.legType[equip.Slot] = owner.Type;
+                            break;
+                    }
+                }
+                catch (Exception e)
+                {
+                    ContentErrors.Report($"[equip] {equip.Name} 写槽位主人失败：{Safe.Describe(e)}");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 游戏侧的逐槽开关：复合贴图的新帧码表，以及翅膀的飞行数值表。
+    /// 缺了它们盔甲画得出来但帧号错位（走动时一团马赛克），翅膀看得见却一格都飞不动。
+    /// </summary>
+    private static void WriteSwitches()
+    {
+        NewFraming("Body", EquipType.Body);
+        NewFraming("HandOn", EquipType.HandOn);
+        NewFraming("HandOff", EquipType.HandOff);
+
+        RefillWingStats();
+    }
+
+    /// <summary>
+    /// 给翅膀槽位写飞行数值。这张表游戏会整张重建（WingStats 的初始化器），重建后新槽位的
+    /// FlyTime 归零、表也缩回原版长度 —— 表现就是翅膀画得出来却一格都飞不动，所以要能反复补。
+    /// </summary>
+    private static void RefillWingStats()
+    {
+        var wings = EquipTable.Of(EquipType.Wing);
+        if (wings.Count == 0) return;
+
+        var first = wings[0].Slot;
+        var filled = TypeTables.FillWingStats(first, wings[wings.Count - 1].Slot + 1);
+        if (filled > 0) Log.Info($"[equip] 翅膀飞行数值（飞行时间 100）：{filled} 槽");
+        else if (!_wingStatsWarned)
+        {
+            _wingStatsWarned = true;
+            Log.Warn("[equip] 翅膀飞行数值没写进去：ArmorIDs.Wing.Sets.Stats 找不到");
+        }
+    }
+
+    private static bool _wingStatsWarned;
+
+    /// <summary>
+    /// 每帧确认一次：穿着 mod 翅膀但飞行数值是 0（表被重建过）就重写；
+    /// 顺手把飞行时间补上 —— 原版是按 wingsLogic 一条条分支写 <c>wingTimeMax</c> 的，
+    /// mod 槽位走不到任何分支，不补就是 0（按跳跃键毫无反应）。
+    /// </summary>
+    private static void EnsureWingStats(Player player)
+    {
+        var slot = player.wings;
+        if (slot <= 0) return;
+        if (EquipTable.OfSlot(EquipType.Wing, slot) is null) return;
+
+        if (TypeTables.WingFlyTime(slot) <= 0) RefillWingStats();
+
+        if (player.wingTimeMax > 0f) return;
+
+        var flyTime = TypeTables.WingFlyTime(slot);
+        if (flyTime > 0) player.wingTimeMax = flyTime;
+    }
+
+    private static void NewFraming(string part, EquipType type)
+    {
+        var list = EquipTable.Of(type);
+        var written = 0;
+
+        for (var index = 0; index < list.Count; index++)
+        {
+            if (TypeTables.WriteArmorSetFlag(part, "UsesNewFramingCode", list[index].Slot, true)) written++;
+        }
+
+        if (written > 0) Log.Info($"[equip] {part} 新帧码：{written} 槽");
     }
 
     private static void Write()

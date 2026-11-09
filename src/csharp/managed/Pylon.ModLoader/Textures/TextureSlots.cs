@@ -46,6 +46,7 @@ public static class TextureSlots
                 TextureTable.ArmorBody => TextureAssets.ArmorBody,
                 TextureTable.ArmorLeg => TextureAssets.ArmorLeg,
                 TextureTable.ArmorBodyComposite => TextureAssets.ArmorBodyComposite,
+                TextureTable.FemaleBody => TextureAssets.FemaleBody,
                 TextureTable.ArmorArm => TextureAssets.ArmorArm,
                 TextureTable.AccHandsOn => TextureAssets.AccHandsOn,
                 TextureTable.AccHandsOnComposite => TextureAssets.AccHandsOnComposite,

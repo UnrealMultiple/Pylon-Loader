@@ -133,8 +133,28 @@ public static class TypeTables
     // 瀑布样式：贴图表是 WaterfallManager 的私有静态字段（interop 只暴露这一张，没有 ID 平行表）。
     private static readonly TableClass[] WaterfallClasses = [new("Terraria", "WaterfallManager")];
 
-    // 装备贴图（盔甲 + 饰品 / 翅膀 / 胡子）：都只有一张贴图表，没有 Sets 平行表。
-    private static readonly TableClass[] EquipClasses = [new("Terraria.GameContent", "TextureAssets")];
+    // 装备贴图（盔甲 + 饰品 / 翅膀 / 胡子）：一张贴图表，外加各部位的 <c>ArmorIDs.&lt;部位&gt;.Sets</c> 平行表。
+    // Sets 里那些逐槽开关（UsesNewFramingCode / DrawHatHair / …）游戏画角色时直接按槽位下标读：
+    // 不跟着扩就是越界读到邻居的内存 —— 表现是 mod 盔甲画成一团马赛克、走动时还随帧号乱变。
+    private static readonly TableClass[] EquipClasses =
+    [
+        new("Terraria.GameContent", "TextureAssets"),
+        new("Terraria.ID", "ArmorIDs", "Head", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "Body", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "Legs", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "HandOn", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "HandOff", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "Back", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "Front", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "Shoe", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "Waist", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "Wing", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "Shield", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "Neck", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "Face", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "Balloon", "Sets"),
+        new("Terraria.ID", "ArmorIDs", "Beard", "Sets"),
+    ];
 
     public enum TableKind
     {
@@ -653,6 +673,39 @@ public static class TypeTables
     }
 
     /// <summary>
+    /// 写 <c>ArmorIDs.&lt;部位&gt;.Count</c>：原版拿它当装备槽位上界（<c>槽位 &lt; Count</c> 才画），
+    /// 只扩表不写它就是"贴图有了、槽位发出去了，原版判定越界整件跳过"。
+    /// Face / Beard 的字段是 sbyte，其余部位是 int。
+    /// </summary>
+    internal static unsafe bool WriteArmorCount(string part, int value, bool narrow)
+    {
+        try
+        {
+            var klass = FindClass(new TableClass("Terraria.ID", "ArmorIDs", part));
+            if (klass == IntPtr.Zero) return false;
+
+            var field = FindField(klass, "Count");
+            if (field == IntPtr.Zero) return false;
+
+            if (narrow)
+            {
+                var small = (byte)value;
+                IL2CPP.il2cpp_field_static_set_value(field, &small);
+            }
+            else
+            {
+                IL2CPP.il2cpp_field_static_set_value(field, &value);
+            }
+
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
     /// <c>Main.wallBlend</c> 里新墙的空槽填成自身（原版约定 <c>wallBlend[i] == i</c>）。
     /// 留 0 的话边框混合会去查原版墙 0 的样式，mod 墙的边框会闪/错位。返回填了几槽。
     /// </summary>
@@ -684,6 +737,156 @@ public static class TypeTables
         {
             return 0;
         }
+    }
+
+    /// <summary>
+    /// 取一张嵌套静态数组（<c>类.嵌套类.嵌套类.字段</c>）并保证它至少 <paramref name="total"/> 长。
+    /// 与 <see cref="GrowStaticArray"/> 的区别：能走两层嵌套，且不假设"当前长度就是原版数"。
+    /// </summary>
+    private static bool EnsureNestedArray(string ns, string cls, string nested, string? nested2, string fieldName,
+                                          int total, out IntPtr array)
+    {
+        array = IntPtr.Zero;
+        try
+        {
+            var klass = FindClass(new TableClass(ns, cls, nested, nested2));
+            if (klass == IntPtr.Zero) return false;
+
+            var field = FindField(klass, fieldName);
+            if (field == IntPtr.Zero) return false;
+
+            array = ReadStatic(field);
+            if (array == IntPtr.Zero) return false;
+
+            if (ArrayLength(array) < total)
+            {
+                var grown = GrowArray(array, total);
+                if (grown == IntPtr.Zero) return false;
+                WriteStatic(field, grown);
+                array = grown;
+            }
+
+            return ArrayLength(array) >= total;
+        }
+        catch
+        {
+            array = IntPtr.Zero;
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 写 <c>ArmorIDs.&lt;部位&gt;.Sets.&lt;字段&gt;</c> 的第 <paramref name="index"/> 位（bool）。
+    /// 表短了先扩到 <c>index + 1</c>：这些开关是游戏画角色时逐槽读的，槽位越界读到的是邻居的内存。
+    /// </summary>
+    internal static unsafe bool WriteArmorSetFlag(string part, string fieldName, int index, bool value)
+    {
+        if (index < 0) return false;
+        if (!EnsureNestedArray("Terraria.ID", "ArmorIDs", part, "Sets", fieldName, index + 1, out var array)) return false;
+
+        try
+        {
+            ArrayData(array)[index] = value ? (byte)1 : (byte)0;   // bool[] 元素一字节
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 给 <c>ArmorIDs.Wing.Sets.Stats</c> 的 [from, to) 写一份默认翅膀数值（飞行时间 100 等）。
+    /// 这张表决定 <c>wingTimeMax</c> 与平飞/悬停下坠速度：新槽位留 0 就是 FlyTime=0 —— 翅膀画得出来、
+    /// 一格都飞不动（按跳跃键毫无反应）。
+    /// </summary>
+    internal static unsafe int FillWingStats(int from, int to)
+    {
+        if (to <= from || from < 0) return 0;
+        if (!EnsureNestedArray("Terraria.ID", "ArmorIDs", "Wing", "Sets", "Stats", to, out var array)) return 0;
+
+        try
+        {
+            var element = ArrayGrow.ElementClassOf(array);
+            if (element == IntPtr.Zero) return 0;
+
+            var align = 0u;
+            var size = IL2CPP.il2cpp_class_value_size(element, ref align);
+            if (size <= 0 || size > 128) return 0;
+
+            var slot = stackalloc byte[size];
+            new Span<byte>(slot, size).Clear();
+            SetStatInt(element, slot, "FlyTime", 100);
+            SetStatFloat(element, slot, "AccRunSpeedOverride", -1f);
+            SetStatFloat(element, slot, "AccRunAccelerationMult", 1f);
+            SetStatInt(element, slot, "HasDownHoverStats", 0);
+            SetStatFloat(element, slot, "DownHoverSpeedOverride", -1f);
+            SetStatFloat(element, slot, "DownHoverAccelerationMult", 1f);
+
+            var data = ArrayData(array);
+            var filled = 0;
+            for (var index = from; index < to; index++)
+            {
+                Buffer.MemoryCopy(slot, data + index * size, size, size);
+                filled++;
+            }
+            return filled;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// 读 <c>ArmorIDs.Wing.Sets.Stats[slot].FlyTime</c>：-1 = 表没有/太短，0 = 这个槽位还没写飞行数值。
+    /// 游戏会整张重建这张表（WingStats 初始化器），所以调用方靠它判断"要不要重写一遍"。
+    /// </summary>
+    public static unsafe int WingFlyTime(int slot)
+    {
+        if (slot < 0) return -1;
+
+        try
+        {
+            var klass = FindClass(new TableClass("Terraria.ID", "ArmorIDs", "Wing", "Sets"));
+            if (klass == IntPtr.Zero) return -1;
+
+            var field = FindField(klass, "Stats");
+            if (field == IntPtr.Zero) return -1;
+
+            var array = ReadStatic(field);
+            if (array == IntPtr.Zero || ArrayLength(array) <= slot) return -1;
+
+            var element = ArrayGrow.ElementClassOf(array);
+            if (element == IntPtr.Zero) return -1;
+
+            var flyTime = FindField(element, "FlyTime");
+            if (flyTime == IntPtr.Zero) return -1;
+
+            var align = 0u;
+            var size = IL2CPP.il2cpp_class_value_size(element, ref align);
+            if (size <= 0) return -1;
+
+            return *(int*)(ArrayData(array) + slot * size + Meta.OffsetOf(flyTime));
+        }
+        catch
+        {
+            return -1;
+        }
+    }
+
+    private static unsafe void SetStatInt(IntPtr element, byte* at, string fieldName, int value)
+    {
+        var field = FindField(element, fieldName);
+        if (field == IntPtr.Zero) return;
+        *(int*)(at + Meta.OffsetOf(field)) = value;
+    }
+
+    private static unsafe void SetStatFloat(IntPtr element, byte* at, string fieldName, float value)
+    {
+        var field = FindField(element, fieldName);
+        if (field == IntPtr.Zero) return;
+        *(float*)(at + Meta.OffsetOf(field)) = value;
     }
 
     /// <summary>已经跑过（还在盯着的）扩表器：每帧补 pending / 每 120 帧查重建。</summary>
