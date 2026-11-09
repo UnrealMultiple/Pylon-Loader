@@ -52,6 +52,7 @@ public sealed class PipelineTestMod : Mod
         Tests.AchievementTests.Register();
         Tests.EmoteBubbleTests.Register();
         Tests.BiomeTests.Register();
+        Tests.SceneEffectTests.Register();
 
         PT.Boot();
         Logger.Info("[PT] 组开关: " + (PT.Enabled is { } e ? string.Join(",", e) : "全部"));
