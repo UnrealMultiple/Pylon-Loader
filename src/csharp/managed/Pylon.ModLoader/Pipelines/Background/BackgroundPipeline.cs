@@ -1,13 +1,16 @@
+using System;
+using System.Collections.Generic;
+using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Terraria;
 using Terraria.GameContent;
+using Terraria.Graphics.Effects;
 
 namespace Pylon.ModLoader;
 
 /// <summary>
-/// 背景管线：场景效果赢家声明了表层背景风格就写 <c>Main.bgStyle</c>，并在 <c>Main.DrawBackground</c>
-/// 里接管 mod 槽位的绘制（用作者自己的贴图、只画一层）。见 docs/pipeline/content-background.md。
+/// 见 docs/pipeline/content-background.md。
 /// </summary>
 internal sealed class BackgroundPipeline : ILoaderModule, ILoaderModuleRefresh
 {
@@ -17,39 +20,66 @@ internal sealed class BackgroundPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static IModLog Log => LoaderHost.Current.Log;
 
+    private sealed class Fill
+    {
+        public int[] Slots = [];
+        public Texture2D?[] Textures = [];
+    }
+
+    private static readonly Dictionary<int, Fill?> Fills = new();
+
+    private static bool Step1Pending;
+    private static float Step1Top;
+    private static int Step1Push;
+    private static float[] FadeBuffer = [];
+
     public bool Install()
     {
-        On.Terraria.Main.DrawBackground += DrawBackground;
-        On.Terraria.Main.DrawSurfaceBG += DrawSurfaceBG;
-        On.Terraria.Main.DrawSurfaceBG_BackMountainsStep1 += BackMountainsStep1;
+        On.Terraria.Main.GetPreferredBGStyleForPlayer += PreferredStyle;
+        On.Terraria.Main.UpdateBGVisibility_BackLayer += BackLayer;
+        On.Terraria.Main.UpdateBGVisibility_FrontLayer += FrontLayer;
+        On.Terraria.Main.DrawSurfaceBG_BackMountainsStep1 += Step1Hook;
+        On.Terraria.Main.DrawSurfaceBG_BackMountainsStep2 += Step2Hook;
+        On.Terraria.Main.DrawSurfaceBG_GetFogPower += FogPower;
+
         On.Terraria.Main.DrawBackground_PickUndergroundBackgroundStyle += PickUnderground;
         On.Terraria.Main.get_backTextureValues += BackTextureValues;
         On.Terraria.Main.get_oldBackTextureValues += OldBackTextureValues;
 
-        Log.Info("[background] 已挂（mod 槽位接管绘制 / 赢家写 bgStyle）；三层视差与地下背景本版不接");
+        Log.Info("[background] 已挂（背景号固定 / 远中近三层 / 淡入淡出 / 地下 5 层）");
         return true;
     }
 
-    public void Refresh() => BackgroundTable.Assign();
+    public void Refresh()
+    {
+        BackgroundTable.Assign();
+        BackgroundTable.AssignUnderground();
+    }
 
-    /// <summary>安装期一次：发号 + 静态默认值。</summary>
+    /// <summary>安装期一次：发号 + 静态默认值 + 背景贴图扩表。</summary>
     internal void Build()
     {
+        // 先收各 Mod 的背景贴图（ResizeArrays 要用），再发号。
+        var mods = LoaderHost.Current.Mods;
+        for (var i = 0; i < mods.Count; i++) BackgroundTextureLoader.AutoloadBackgrounds(mods.Mods[i]);
+
         BackgroundTable.Assign();
         BackgroundTable.AssignUnderground();
 
         foreach (var style in BackgroundTable.All) style.SetStaticDefaults();
         foreach (var style in BackgroundTable.UndergroundStyles) style.SetStaticDefaults();
+        foreach (var global in BackgroundTable.GlobalStyles) global.SetStaticDefaults();
+
+        BackgroundTextureLoader.ResizeArrays();
 
         if (BackgroundTable.Count > 0) Log.Info($"[background] 安装：{BackgroundTable.Count} 个表层风格");
     }
 
-    // ===================== 每帧 =====================
+    // ===================== 每帧：赢家写 bgStyle =====================
 
-    /// <summary>
-    /// 赢家声明了表层背景风格就写上；没声明、或这一帧的档位压不过原版（<paramref name="allowed"/> = false）
-    /// 就一个字都不动——保持游戏自己算的值，同时把淡入淡出的来源清掉（否则会一直改上一位的风格）。
-    /// </summary>
+    /// <summary>这一帧的表层风格赢家（画淡入淡出时要用）。</summary>
+    internal static ModSurfaceBackgroundStyle? CurrentSurface;
+
     internal void Apply(ModSceneEffect? effect, bool allowed)
     {
         CurrentSurface = null;
@@ -78,56 +108,260 @@ internal sealed class BackgroundPipeline : ILoaderModule, ILoaderModuleRefresh
         CurrentSurface = style;
     }
 
-    /// <summary>这一帧的表层风格赢家（画淡入淡出时要用）。</summary>
-    private static ModSurfaceBackgroundStyle? CurrentSurface;
+    // ===================== 背景号 =====================
 
-    // ===================== 淡入淡出 =====================
-
-    /// <summary>淡入淡出的过渡速度：游戏那个字段是私有静态，没有属性，用原版的量级。</summary>
-    private const float TransitionSpeed = 0.005f;
-
-    /// <summary>原版画表层背景之前，按赢家改一遍各层透明度：改的是 <c>Main.bgAlphaFrontLayer</c> 这个静态字段。</summary>
-    private static void DrawSurfaceBG(On.Terraria.Main.orig_DrawSurfaceBG orig, Main self)
+    private static int PreferredStyle(On.Terraria.Main.orig_GetPreferredBGStyleForPlayer orig)
     {
-        ApplyFarFades();
-        orig(self);
-    }
-
-    private static void ApplyFarFades()
-    {
-        if (CurrentSurface is not { } style) return;
-        if (BackgroundTable.Count == 0) return;
-
-        var fades = Main.bgAlphaFrontLayer;
-        if (fades is null || fades.Length == 0) return;
-
-        var length = fades.Length;
-        if (FarFadeBuffer is null || FarFadeBuffer.Length != length) FarFadeBuffer = new float[length];
-
-        for (var index = 0; index < length; index++) FarFadeBuffer[index] = fades[index];
+        var vanilla = orig();
+        var style = vanilla;
 
         try
         {
-            style.ModifyFarFades(FarFadeBuffer, TransitionSpeed);
+            style = ChooseSurface(vanilla);
+            foreach (var global in BackgroundTable.GlobalStyles) global.ChooseSurfaceBackgroundStyle(ref style);
+            if (style >= BackgroundTable.Base || Main.bgStyle >= BackgroundTable.Base) Ensure();
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[background] {style.Name}.ModifyFarFades 异常：{Safe.Describe(e)}");
+            ContentErrors.Report("[background] 选表层风格异常：" + Safe.Describe(e));
+            return vanilla;
+        }
+
+        return style;
+    }
+
+    private static int ChooseSurface(int vanilla)
+    {
+        if (Main.gameMenu) return vanilla;
+        return CurrentSurface is { } style ? style.Slot : vanilla;
+    }
+
+    private static void Ensure()
+    {
+        var total = BackgroundTable.TotalCount;
+
+        var front = Main.bgAlphaFrontLayer;
+        if (front is null || front.Length < total)
+        {
+            if (Tables.ArrayGrow.Grow(ref front, total)) Main.bgAlphaFrontLayer = front;
+        }
+
+        var far = Main.bgAlphaFarBackLayer;
+        if (far is null || far.Length < total)
+        {
+            if (Tables.ArrayGrow.Grow(ref far, total)) Main.bgAlphaFarBackLayer = far;
+        }
+    }
+
+    // ===================== 透明度 =====================
+
+    private static void BackLayer(On.Terraria.Main.orig_UpdateBGVisibility_BackLayer orig, Main self,
+        Il2CppSystem.Nullable<int> targetBiomeOverride, Il2CppSystem.Nullable<float> transitionAmountOverride)
+    {
+        // 不读 Il2CppSystem.Nullable.HasValue（真机上会 NRE）；override 参数原样交回原版。
+        var style = CurrentSurface?.Slot ?? Main.bgStyle;
+        if (BackgroundTable.Get(style) is null)
+        {
+            orig(self, targetBiomeOverride, transitionAmountOverride);
             return;
         }
 
-        for (var index = 0; index < length; index++) fades[index] = FarFadeBuffer[index];
+        try
+        {
+            Ensure();
+
+            var fades = Main.bgAlphaFarBackLayer;
+            if (fades is null || style >= fades.Length)
+            {
+                orig(self, targetBiomeOverride, transitionAmountOverride);
+                return;
+            }
+
+            // 不调 DrawBG_ModifyBGFarBackLayerAlpha（它吃的 Il2CppSystem.Nullable 在真机上会 NRE）；
+            // 它做的事就是按过渡速度把这一层的远层透明度推上去、其余压下来。
+            var farFades = Main.bgAlphaFarBackLayer!;
+            var speed = Main.backgroundLayerTransitionSpeed;
+            if (!(speed > 0f)) speed = 0.005f;
+            for (var i = 0; i < farFades.Length; i++)
+            {
+                farFades[i] = i == style
+                    ? Math.Min(1f, farFades[i] + speed)
+                    : Math.Max(0f, farFades[i] - speed);
+            }
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report("[background] 远层可见性异常：" + Safe.Describe(e));
+            orig(self, targetBiomeOverride, transitionAmountOverride);
+        }
     }
 
-    private static float[]? FarFadeBuffer;
+    private static void FrontLayer(On.Terraria.Main.orig_UpdateBGVisibility_FrontLayer orig, Main self,
+        Il2CppSystem.Nullable<int> targetBiomeOverride, Il2CppSystem.Nullable<float> transitionAmountOverride)
+    {
+        orig(self, targetBiomeOverride, transitionAmountOverride);
 
-    // ===================== 地下背景 =====================
+        // 这一帧的赢家优先（Main.bgStyle 由 Player.Update 里的 Apply 写，可能晚于本钩子）。
+        var style = CurrentSurface?.Slot ?? Main.bgStyle;
+        if (BackgroundTable.Get(style) is null && BackgroundTable.GlobalStyles.Count == 0) return;
 
-    /// <summary>赢家声明了地下风格就换号；没声明就保持原版。</summary>
+        try
+        {
+            Ensure();
+
+            var fades = Main.bgAlphaFrontLayer;
+            if (fades is null) return;
+
+            var length = fades.Length;
+            if (FadeBuffer.Length != length) FadeBuffer = new float[length];
+            for (var i = 0; i < length; i++) FadeBuffer[i] = fades[i];
+
+            BackgroundTable.ModifyFarFades(style, FadeBuffer, Main.backgroundLayerTransitionSpeed);
+
+            for (var i = 0; i < length; i++) fades[i] = FadeBuffer[i];
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report("[background] ModifyFarFades 异常：" + Safe.Describe(e));
+        }
+    }
+
+    // ===================== 远 / 中 / 近 =====================
+
+    private static void Step1Hook(On.Terraria.Main.orig_DrawSurfaceBG_BackMountainsStep1 orig, Main self,
+        float backgroundTopMagicNumber, float bgGlobalScaleMultiplier, int pushBGTopHack)
+    {
+        orig(self, backgroundTopMagicNumber, bgGlobalScaleMultiplier, pushBGTopHack);
+        Step1Pending = true;
+        Step1Top = backgroundTopMagicNumber;
+        Step1Push = pushBGTopHack;
+        DrawBack(self, false);
+    }
+
+    private static void Step2Hook(On.Terraria.Main.orig_DrawSurfaceBG_BackMountainsStep2 orig, Main self, int pushBGTopHack)
+    {
+        orig(self, pushBGTopHack);
+        DrawBack(self, true);
+    }
+
+    private static float FogPower(On.Terraria.Main.orig_DrawSurfaceBG_GetFogPower orig)
+    {
+        if (Step1Pending)
+        {
+            Step1Pending = false;
+            DrawClose(Main.instance);
+        }
+
+        return orig();
+    }
+
+    private static void Blit(Texture2D texture, float x, float y, int w, int h, Color color, float scale) =>
+        Main.spriteBatch.Draw(texture, new Vector2(x, y), new Il2CppSystem.Nullable<Rectangle>(new Rectangle(0, 0, w, h)),
+                              color, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+
+    private static void DrawBack(Main self, bool middle)
+    {
+        if (BackgroundTable.All.Count == 0) return;
+
+        var fades = Main.bgAlphaFarBackLayer;
+        foreach (var style in BackgroundTable.All)
+        {
+            var alpha = style.Slot < fades.Length ? fades[style.Slot] : 0f;
+            if (!(alpha > 0f)) continue;
+
+            try
+            {
+                var slot = middle ? style.ChooseMiddleTexture() : style.ChooseFarTexture();
+                if (BackgroundTextureLoader.Texture(slot) is not { } texture) continue;
+
+                var color = Main.ColorOfSurfaceBackgroundsBase * alpha;
+                Main.ColorOfSurfaceBackgroundsModified = color;
+
+                var w = Main.backgroundWidth[slot];
+                var h = Main.backgroundHeight[slot];
+                var loops = self.bgLoops;
+                var startX = self.bgStartX;
+                var step = Main.bgWidthScaled;
+                float topY = self.bgTopY;
+                var scale = Main.bgScale;
+
+                for (var k = 0; k < loops; k++) Blit(texture, startX + step * k, topY, w, h, color, scale);
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[background] {style.Name}.{(middle ? "ChooseMiddleTexture" : "ChooseFarTexture")} 异常：{Safe.Describe(e)}");
+            }
+        }
+    }
+
+    private static void DrawClose(Main self)
+    {
+        if (BackgroundTable.All.Count == 0) return;
+
+        var fades = Main.bgAlphaFrontLayer;
+        foreach (var style in BackgroundTable.All)
+        {
+            var alpha = style.Slot < fades.Length ? fades[style.Slot] : 0f;
+            if (!(alpha > 0f)) continue;
+
+            try
+            {
+                if (!style.PreDrawCloseBackground(Main.spriteBatch)) continue;
+
+                float scale = 1.25f, a = 1800f, b = 1750f;
+                double parallax = 0.37;
+                var slot = style.ChooseCloseTexture(ref scale, ref parallax, ref a, ref b);
+                if (BackgroundTextureLoader.Texture(slot) is not { } texture) continue;
+
+                var bgScale = scale * 2f;
+                var w = Main.backgroundWidth[slot];
+                var h = Main.backgroundHeight[slot];
+                var width = (int)(w * bgScale);
+                if (width <= 0 || !(parallax > 0)) continue;
+
+                SkyManager.Instance.DrawToDepth(Main.spriteBatch, (float)(1.0 / parallax));
+
+                var screen = Main.screenPosition;
+                if (screen.Y >= Main.worldSurface * 16.0 + 16.0) continue;
+
+                var x = screen.X * parallax;
+                var startX = (int)(-Math.IEEERemainder(x, width) - width / 2);
+                var topY = (int)(Step1Top * a + b) + (int)self.scAdj + Step1Push;
+                var loops = Main.screenWidth / width + 2;
+                var color = Main.ColorOfSurfaceBackgroundsBase * alpha;
+                Main.ColorOfSurfaceBackgroundsModified = color;
+
+                for (var k = 0; k < loops; k++) Blit(texture, startX + width * k, topY, w, h, color, bgScale);
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[background] {style.Name} 近层异常：{Safe.Describe(e)}");
+            }
+        }
+    }
+
+    // ===================== 地下 =====================
+
     private static int PickUnderground(On.Terraria.Main.orig_DrawBackground_PickUndergroundBackgroundStyle orig, double magmaLayer)
     {
         var vanilla = orig(magmaLayer);
-        return CurrentUnderground() is { } style ? style.Slot : vanilla;
+        lock (Fills) Fills.Clear();
+
+        var style = vanilla;
+        try
+        {
+            if (!Main.gameMenu && CurrentUnderground() is { } underground && Main.BackgroundEnabled)
+                style = underground.Slot;
+
+            foreach (var global in BackgroundTable.GlobalStyles) global.ChooseUndergroundBackgroundStyle(ref style);
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report("[background] 选地下风格异常：" + Safe.Describe(e));
+            return vanilla;
+        }
+
+        return style;
     }
 
     private static ModUndergroundBackgroundStyle? CurrentUnderground()
@@ -148,235 +382,90 @@ internal sealed class BackgroundPipeline : ILoaderModule, ILoaderModuleRefresh
         return style is not null && style.Slot >= 0 ? style : null;
     }
 
-    private static Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<Texture2D> BackTextureValues(
-        On.Terraria.Main.orig_get_backTextureValues orig, Main self)
+    private static Il2CppReferenceArray<Texture2D> BackTextureValues(On.Terraria.Main.orig_get_backTextureValues orig, Main self)
     {
         var values = orig(self);
-        PatchUnderground(values, CurrentUnderground());
+        Patch(self, false, values);
         return values;
     }
 
-    private static Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<Texture2D> OldBackTextureValues(
-        On.Terraria.Main.orig_get_oldBackTextureValues orig, Main self)
+    private static Il2CppReferenceArray<Texture2D> OldBackTextureValues(On.Terraria.Main.orig_get_oldBackTextureValues orig, Main self)
     {
         var values = orig(self);
-        PatchUnderground(values, CurrentUnderground());
+        Patch(self, true, values);
         return values;
     }
 
-    /// <summary>5 层贴图换成作者的：先看 FillTextureArray 给的编号，落不到就整层用作者自己的图。</summary>
-    private static void PatchUnderground(
-        Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<Texture2D>? values,
-        ModUndergroundBackgroundStyle? style)
+    private static Fill? FillOf(int style, Main self, bool old)
     {
-        if (values is null || style is null) return;
-
-        var slots = new int[5];
-        for (var index = 0; index < slots.Length; index++) slots[index] = -1;
-
-        try
+        lock (Fills)
         {
-            style.FillTextureArray(slots);
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report($"[background] {style.Name}.FillTextureArray 异常：{Safe.Describe(e)}");
+            if (Fills.TryGetValue(style, out var known)) return known;
         }
 
-        Texture2D? own;
-        try
+        Fill? fill = null;
+        var mod = BackgroundTable.OfUnderground(style) is not null;
+        if (mod || BackgroundTable.GlobalStyles.Count > 0)
         {
-            own = style.Texture?.Value;
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report($"[background] {style.Name}.Texture 异常：{Safe.Describe(e)}");
-            own = null;
-        }
-
-        var table = TextureAssets.Background;
-        var count = Math.Min(values.Length, 5);
-
-        for (var index = 0; index < count; index++)
-        {
-            Texture2D? texture = null;
-
-            var id = slots[index];
-            if (id >= 0 && table is not null && id < table.Length)
+            var slots = new[] { -1, -1, -1, -1, 6 };
+            if (!mod)
             {
-                try
-                {
-                    texture = table[id]?.Value;
-                }
-                catch
-                {
-                    texture = null;
-                }
+                var numbers = old ? self.oldBackTexture : self.backTexture;
+                for (var k = 0; k < 5 && k < numbers.Length; k++) slots[k] = numbers[k];
             }
 
-            texture ??= own;
-            if (texture is not null) values[index] = texture;
+            BackgroundTable.FillUndergroundTextureArray(style, slots);
+
+            var textures = new Texture2D?[5];
+            var any = false;
+            for (var k = 0; k < 5; k++)
+            {
+                textures[k] = BackgroundTextureLoader.Texture(slots[k]);
+                any |= textures[k] is not null;
+            }
+
+            if (any) fill = new Fill { Slots = slots, Textures = textures };
         }
+
+        lock (Fills) Fills[style] = fill;
+        return fill;
     }
 
-    // ===================== 绘制 =====================
-
-    private static void DrawBackground(On.Terraria.Main.orig_DrawBackground orig, Main self)
+    private static void Patch(Main self, bool old, Il2CppReferenceArray<Texture2D> values)
     {
-        if (BackgroundTable.Count == 0)
-        {
-            orig(self);
-            return;
-        }
+        if (values is null || values.Length < 5) return;
 
-        var slot = Main.bgStyle;
-        if (BackgroundTable.Of(slot) is not { } style)
-        {
-            orig(self);
-            return;
-        }
-
-        Draw(style);
-    }
-
-    /// <summary>一层：作者自己的贴图，按 scale 缩放、按 parallax 横向平铺。</summary>
-    private static void Draw(ModSurfaceBackgroundStyle style)
-    {
-        var spriteBatch = Main.spriteBatch;
-        if (spriteBatch is null) return;
-
-        DrawVanillaLayer(style, spriteBatch, false, 0.12f);
-        DrawVanillaLayer(style, spriteBatch, true, 0.22f);
-        DrawClose(style, spriteBatch);
-    }
-
-    /// <summary>近层：a/b 是"山顶到屏幕"的两段系数，作者可写引用。</summary>
-    private static void DrawClose(ModSurfaceBackgroundStyle style, SpriteBatch spriteBatch)
-    {
-        Texture2D? texture;
-        try
-        {
-            texture = style.Texture?.Value;
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report($"[background] {style.Name}.Texture 异常：{Safe.Describe(e)}");
-            return;
-        }
-
-        if (texture is null) return;
-
-        float scale = 1.25f, a = 1800f, b = 1750f, parallax = 0.37f;
+        var style = PickUndergroundStyle(self, old);
+        if (style < BackgroundTable.UndergroundBase && BackgroundTable.GlobalStyles.Count == 0) return;
 
         try
         {
-            style.ChooseCloseTexture(ref scale, ref parallax, ref a, ref b);
+            if (FillOf(style, self, old) is not { } fill) return;
+
+            var numbers = old ? self.oldBackTexture : self.backTexture;
+            for (var k = 0; k < 5 && k < values.Length; k++)
+            {
+                if (fill.Textures[k] is not { } texture) continue;
+                values[k] = texture;
+                if (k < numbers.Length) numbers[k] = fill.Slots[k];
+            }
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[background] {style.Name}.ChooseCloseTexture 异常：{Safe.Describe(e)}");
-            return;
+            ContentErrors.Report("[background] 地下 FillTextureArray 异常：" + Safe.Describe(e));
         }
+    }
 
-        if (scale <= 0f || parallax <= 0f) return;
-
-        var bgScale = scale * 2f;
-        var w = texture.Width;
-        var h = texture.Height;
-        var width = (int)(w * bgScale);
-        if (width <= 0) return;
-
-        var screen = Main.screenPosition;
-        if (screen.Y >= Main.worldSurface * 16.0 + 16.0) return;
-
-        var x = screen.X * parallax;
-        var startX = (int)(-x % width - width / 2);
-
-        // a/b 在这里生效：山顶 magic number × a + b，再加上游戏自己的两个修正量 scAdj 与 push。
-        // 注意是整数截断后再加，和原版行为一致。
-        var topY = (int)(Step1Top * a + b) + (int)Main.instance.scAdj + Step1Push;
-
-        var loops = Main.screenWidth / width + 2;
-
-        var origin = new Il2CppSystem.Nullable<Vector2>(Vector2.Zero);
-        var scaleNullable = new Il2CppSystem.Nullable<Vector2>(new Vector2(bgScale, bgScale));
-        var colorNullable = new Il2CppSystem.Nullable<Color>(Color.White);
-
-        for (var k = 0; k < loops; k++)
-        {
-            var position = new Il2CppSystem.Nullable<Vector2>(new Vector2(startX + width * k, topY));
-            spriteBatch.Draw(texture, position, null, null, origin, 0f, scaleNullable, colorNullable, SpriteEffects.None, 0f);
-        }
-
+    /// <summary>当前地下风格（原版值）——用游戏自己的字段推：backTexture 存在时就是它。</summary>
+    private static int PickUndergroundStyle(Main self, bool old)
+    {
         try
         {
-            style.PreDrawCloseBackground(spriteBatch);
+            return old ? Main.oldUndergroundBackground : Main.undergroundBackground;
         }
-        catch (Exception e)
+        catch
         {
-            ContentErrors.Report($"[background] {style.Name}.PreDrawCloseBackground 异常：{Safe.Describe(e)}");
-        }
-    }
-
-    /// <summary>山顶的 magic number，从 <c>DrawSurfaceBG_BackMountainsStep1</c> 的参数里存下来。</summary>
-    private static float Step1Top;
-
-    /// <summary>Step1 的 push 值。</summary>
-    private static int Step1Push;
-
-    private static void BackMountainsStep1(On.Terraria.Main.orig_DrawSurfaceBG_BackMountainsStep1 orig, Main self,
-        float backgroundTopMagicNumber, float bgGlobalScaleMultiplier, int pushBGTopHack)
-    {
-        orig(self, backgroundTopMagicNumber, bgGlobalScaleMultiplier, pushBGTopHack);
-        Step1Top = backgroundTopMagicNumber;
-        Step1Push = pushBGTopHack;
-    }
-
-    /// <summary>远层 / 中层：作者返回游戏背景表的编号，越界或空资源就跳过。</summary>
-    private static void DrawVanillaLayer(ModSurfaceBackgroundStyle style, SpriteBatch spriteBatch, bool middle, float parallax)
-    {
-        int id;
-        try
-        {
-            id = middle ? style.ChooseMiddleTexture() : style.ChooseFarTexture();
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report($"[background] {style.Name}.Choose{(middle ? "Middle" : "Far")}Texture 异常：{Safe.Describe(e)}");
-            return;
-        }
-
-        if (id < 0) return;
-
-        var table = TextureAssets.Background;
-        if (table is null || id >= table.Length) return;
-
-        var texture = table[id]?.Value;
-        if (texture is null) return;
-
-        DrawTiled(spriteBatch, texture, 1.25f, parallax, true);
-    }
-
-    /// <summary>横向平铺：视差决定水平偏移，<paramref name="centered"/> = 垂直居中。</summary>
-    private static void DrawTiled(SpriteBatch spriteBatch, Texture2D texture, float scale, float parallax, bool centered)
-    {
-        if (scale <= 0f) scale = 1f;
-        if (parallax <= 0f) parallax = 0.1f;
-
-        var width = texture.Width * scale;
-        if (width <= 0f) return;
-
-        var offset = -(Main.screenPosition.X * parallax) % width;
-        var y = centered ? (Main.screenHeight - texture.Height * scale) * 0.5f : 0f;
-
-        var origin = new Il2CppSystem.Nullable<Vector2>(Vector2.Zero);
-        var scaleNullable = new Il2CppSystem.Nullable<Vector2>(new Vector2(scale, scale));
-        var color = new Il2CppSystem.Nullable<Color>(Color.White);
-
-        for (var x = offset - width; x < Main.screenWidth; x += width)
-        {
-            var position = new Il2CppSystem.Nullable<Vector2>(new Vector2(x, y));
-            spriteBatch.Draw(texture, position, null, null, origin, 0f, scaleNullable, color, SpriteEffects.None, 0f);
+            return -1;
         }
     }
 }

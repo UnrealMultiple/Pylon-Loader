@@ -28,8 +28,7 @@ public abstract class ModSurfaceBackgroundStyle : ModType
     /// <summary>最前面那层画之前；false = 不画这层，自己画的画进 spriteBatch。</summary>
     public virtual bool PreDrawCloseBackground(SpriteBatch spriteBatch) => true;
 
-    /// <summary>最前面那层的贴图编号和参数（可改；默认 scale 1.25、parallax 0.37、a 1800、b 1750；高度 = a × 位置 + b）；-1 = 不画。</summary>
-    public virtual int ChooseCloseTexture(ref float scale, ref float parallax, ref float a, ref float b) => -1;
+    public virtual int ChooseCloseTexture(ref float scale, ref double parallax, ref float a, ref float b) => -1;
 
     /// <summary>只放共享数值，不要碰游戏对象。</summary>
     public override void SetStaticDefaults() { }

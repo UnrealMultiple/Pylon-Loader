@@ -16,7 +16,6 @@ public class HurtModifiers
     private bool _dust;
     private bool _sound;
 
-    /// <summary>抓住要打在玩家身上的这一下；默认值照参考：伤害 0、可闪避、没有上限。</summary>
     public HurtModifiers(object source = null!, int damage = 0, int hitDirection = 0, bool pvp = false, int cooldownCounter = -1, bool dodgeable = true, bool quiet = false, bool crit = false)
     {
         _damage = damage;

@@ -3,7 +3,6 @@ using Terraria;
 
 namespace Pylon.ModLoader;
 
-/// <summary>画一格 tile 时要用的数据（对应参考里的 drawData）；改字段就改了这次的画法。</summary>
 public sealed class TileDrawData
 {
     /// <summary>这一格的帧 X。</summary>

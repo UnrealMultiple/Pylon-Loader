@@ -10,7 +10,7 @@ namespace Pylon.ModLoader;
 /// </summary>
 public class DrawableTooltipLine : TooltipLine
 {
-    public DrawableTooltipLine(TooltipLine parent, int index, float x, float y, Color color)
+    public DrawableTooltipLine(TooltipLine parent, int index, int x, int y, Color color)
         : base(parent.Mod, parent.Name, parent.Text)
     {
         IsModifier = parent.IsModifier;
@@ -29,15 +29,15 @@ public class DrawableTooltipLine : TooltipLine
         Spread = 2;
     }
 
-    public int Index;
+    public readonly int Index;
 
-    public float OriginalX;
+    public readonly int OriginalX;
 
-    public float X;
+    public int X;
 
-    public float OriginalY;
+    public readonly int OriginalY;
 
-    public float Y;
+    public int Y;
 
     public Color Color;
 

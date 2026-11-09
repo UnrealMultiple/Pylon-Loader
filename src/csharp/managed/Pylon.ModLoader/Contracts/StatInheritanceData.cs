@@ -29,7 +29,6 @@ public sealed class StatInheritanceData
     /// <summary>击退加成的继承比例（1 = 全继承）。</summary>
     public float KnockbackInheritance;
 
-    /// <summary>全继承（1、1、1、1、1）；每次读返回新实例（参考共用会被 Object.assign 改坏）。</summary>
     public static StatInheritanceData Full => new(1, 1, 1, 1, 1);
 
     /// <summary>什么都不继承（全 0）；每次读都返回新实例。</summary>

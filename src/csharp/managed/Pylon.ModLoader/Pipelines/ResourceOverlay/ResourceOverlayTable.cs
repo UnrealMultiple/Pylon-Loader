@@ -1,6 +1,6 @@
 namespace Pylon.ModLoader;
 
-/// <summary>资源覆盖层的有序表：按注册序逐条分派；位集用来跳过"没覆写单颗绘制"的覆盖层。</summary>
+/// <summary>资源覆盖层的有序表：按注册序逐条分派；位集用来跳过"没覆写这一组钩子"的覆盖层。</summary>
 internal static class ResourceOverlayTable
 {
     private static readonly List<ModResourceOverlay> Overlays = [];
@@ -21,6 +21,17 @@ internal static class ResourceOverlayTable
         {
             var mask = Masks[i];
             if (mask.Has(HookId.PreDrawResource) || mask.Has(HookId.PostDrawResource)) return true;
+        }
+        return false;
+    }
+
+    /// <summary>有没有覆盖层要看整条的生命 / 魔力条。</summary>
+    internal static bool AnyDisplay()
+    {
+        for (var i = 0; i < Masks.Count; i++)
+        {
+            var mask = Masks[i];
+            if (mask.Has(HookId.PreDrawResourceDisplay) || mask.Has(HookId.PostDrawResourceDisplay)) return true;
         }
         return false;
     }

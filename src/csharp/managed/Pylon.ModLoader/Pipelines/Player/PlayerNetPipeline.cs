@@ -26,6 +26,9 @@ internal sealed class PlayerNetPipeline : ILoaderModule
         On.Terraria.Main.UpdateClient += UpdateClient;
         On.Terraria.NetMessage.SyncOnePlayer += SyncOnePlayer;
         On.Terraria.NetMessage.SyncDisconnectedPlayer += SyncDisconnectedPlayer;
+        On.Terraria.Player.Hooks.PlayerConnect += Connected;
+        On.Terraria.Player.Hooks.PlayerDisconnect += Disconnected;
+        On.Terraria.Player.Hooks.EnterWorld += EnteredWorld;
 
         Log.Info("[playernet] 已挂（同步 / 客户端状态比对 / 断线）");
         return true;
@@ -162,6 +165,108 @@ internal sealed class PlayerNetPipeline : ILoaderModule
             catch (Exception e)
             {
                 ContentErrors.Report($"[playernet] {mods[i].GetType().Name}.SyncPlayer 异常：{Safe.Describe(e)}");
+            }
+        }
+    }
+
+    /// <summary>玩家连上（含本机）：作者在这里初始化联机状态。</summary>
+    private void Connected(On.Terraria.Player.Hooks.orig_PlayerConnect orig, int playerIndex)
+    {
+        orig(playerIndex);
+
+        if (Main.netMode == 0 || playerIndex < 0 || playerIndex >= Main.player.Length) return;
+
+        var player = Main.player[playerIndex];
+        if (player is null || !player.active) return;
+
+        var mods = PlayerPipeline.Instance.ModsOf(player);
+        for (var i = 0; i < mods.Length; i++)
+        {
+            if (!mods[i].HookEnabled(HookId.PlayerConnect)) continue;
+
+            try
+            {
+                mods[i].PlayerConnect(player);
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[playernet] {mods[i].GetType().Name}.PlayerConnect 异常：{Safe.Describe(e)}");
+            }
+        }
+    }
+
+    /// <summary>游戏侧报告的断线：和 NetMessage 的清场钩子互补。</summary>
+    private void Disconnected(On.Terraria.Player.Hooks.orig_PlayerDisconnect orig, int playerIndex)
+    {
+        if (Main.netMode != 0 && playerIndex >= 0 && playerIndex < Main.player.Length)
+        {
+            var player = Main.player[playerIndex];
+            if (player is not null)
+            {
+                var mods = PlayerPipeline.Instance.ModsOf(player);
+                for (var i = 0; i < mods.Length; i++)
+                {
+                    if (!mods[i].HookEnabled(HookId.PlayerDisconnect)) continue;
+
+                    try
+                    {
+                        mods[i].PlayerDisconnect(player);
+                    }
+                    catch (Exception e)
+                    {
+                        ContentErrors.Report($"[playernet] {mods[i].GetType().Name}.PlayerDisconnect(Hooks) 异常：{Safe.Describe(e)}");
+                    }
+                }
+            }
+        }
+
+        orig(playerIndex);
+
+        if (playerIndex == Main.myPlayer) _hasBaseline = false;
+    }
+
+    /// <summary>进世界：本机客户端再发一次 SyncPlayer(-1, whoAmI, true)，并派发 OnEnterWorld。</summary>
+    private void EnteredWorld(On.Terraria.Player.Hooks.orig_EnterWorld orig, int playerIndex)
+    {
+        orig(playerIndex);
+
+        if (playerIndex < 0 || playerIndex >= Main.player.Length) return;
+
+        var player = Main.player[playerIndex];
+        if (player is null) return;
+
+        if (Main.netMode == 1 && playerIndex == Main.myPlayer)
+        {
+            var mods = PlayerPipeline.Instance.ModsOf(player);
+            for (var i = 0; i < mods.Length; i++)
+            {
+                if (!mods[i].HookEnabled(HookId.SyncPlayer)) continue;
+
+                try
+                {
+                    mods[i].SyncPlayer(player, -1, playerIndex, newPlayer: true);
+                }
+                catch (Exception e)
+                {
+                    ContentErrors.Report($"[playernet] {mods[i].GetType().Name}.SyncPlayer(EnterWorld) 异常：{Safe.Describe(e)}");
+                }
+            }
+        }
+
+        if (!Wants(HookId.OnEnterWorld)) return;
+
+        var list = PlayerPipeline.Instance.ModsOf(player);
+        for (var i = 0; i < list.Length; i++)
+        {
+            if (!list[i].HookEnabled(HookId.OnEnterWorld)) continue;
+
+            try
+            {
+                list[i].OnEnterWorld(player);
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[playernet] {list[i].GetType().Name}.OnEnterWorld 异常：{Safe.Describe(e)}");
             }
         }
     }

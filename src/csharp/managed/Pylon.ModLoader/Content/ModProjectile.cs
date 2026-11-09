@@ -19,7 +19,6 @@ public abstract class ModProjectile : ModType
     /// <summary>钩子的 AI 风格（本版没有 ProjAIStyleID.Hook 常量，取它的值 7）。</summary>
     public const int HookAIStyle = 7;
 
-    /// <summary>模板弹幕：只在 SetStaticDefaults 期间由加载器填写，其余时候为 null（对应参考的 `this.Projectile`）。</summary>
     public Projectile Template { get; internal set; } = null!;
 
     /// <summary>当前绑定的游戏实体（SetStaticDefaults 期间为 null，那时用 <see cref="Template"/>）。</summary>

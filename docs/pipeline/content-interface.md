@@ -53,7 +53,7 @@ public override void ModifyInterfaceLayers(List<GameInterfaceLayer> layers)
 
 ### 2.5 加载器自己的层
 
-加载器的配置界面与面板走同一条链：内部登记一个 `Pylon: Loader UI` 层（`InterfaceScaleType.UI`），排在原版层之后、作者层之前。它不参与作者的增删，之前占用的 `DrawInterface_15_InvasionProgressBars` 固定钩子已删除。
+加载器的配置界面与面板走同一条链：内部登记一个 `Pylon: Loader UI` 层（`InterfaceScaleType.UI`），先于作者改动插在原版层之后；作者把层 Add 到末尾时会排到它的后面（真机验证：`…|Pylon: Loader UI|PipelineTest: Panel`）。它不参与作者的增删，之前占用的 `DrawInterface_15_InvasionProgressBars` 固定钩子已删除。
 
 ## 3. 系统绘制时机
 

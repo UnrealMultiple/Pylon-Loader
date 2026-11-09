@@ -1,6 +1,5 @@
 namespace Pylon.ModLoader;
 
-/// <summary>一个选项的声明（参考里 ConfigLoader.#Option 产出的那个对象）。</summary>
 public sealed class ModConfigOption
 {
     internal ModConfigOption(string key, OptionKind kind)
@@ -32,7 +31,6 @@ public sealed class ModConfigOption
     /// <summary>Radio / Dropdown / Cycle 的可选值。</summary>
     public string[] Choices { get; internal set; } = [];
 
-    /// <summary>每个选择的显示文本（对应参考的 choiceLabels）。</summary>
     public string[] ChoiceLabels { get; internal set; } = [];
 
     /// <summary>Header 的颜色：#RRGGBB；null = 白色。</summary>
@@ -40,7 +38,6 @@ public sealed class ModConfigOption
 
     public HeaderAlign Align { get; internal set; } = HeaderAlign.Center;
 
-    /// <summary>Button：配置里的方法名（参考接受函数或方法名，C# 里委托也接受）。</summary>
     public string Action { get; internal set; } = null!;
 
     /// <summary>Button：直接给的委托（可选）。</summary>

@@ -33,6 +33,8 @@ internal sealed class BiomePipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.SceneMetrics.Scan += Scan;
         On.Terraria.Player.Update += UpdateOther;
         On.Terraria.IO.WorldFile.LoadWorld += LoadWorld;
+        On.Terraria.WorldGen.SaveAndQuit += SaveAndQuit;
+        On.Terraria.WorldGen.clearWorld += ClearWorld;
         On.Terraria.NetMessage.SendData += SendData;
 
         Log.Info("[biome] 已挂（扫描后判定 / 进-在-出回调 / 别人的群落走网络）；音乐与背景归场景效果管线");
@@ -256,6 +258,47 @@ internal sealed class BiomePipeline : ILoaderModule, ILoaderModuleRefresh
     }
 
     // ===================== 读档 / 退出世界 =====================
+
+    /// <summary>存档并退出：在游戏动世界状态之前清干净，谁的 OnLeave 都派一遍（存档场景下人还在）。</summary>
+    private void SaveAndQuit(On.Terraria.WorldGen.orig_SaveAndQuit orig)
+    {
+        LeaveAll();
+        orig();
+    }
+
+    /// <summary>清世界（换世界 / 删档）：orig 之后行全清；此时玩家对象多数已无效，只清标记不派回调。</summary>
+    private void ClearWorld(On.Terraria.WorldGen.orig_clearWorld orig)
+    {
+        orig();
+
+        for (var who = 0; who < _flags.Length; who++) Array.Clear(_flags[who]);
+    }
+
+    /// <summary>本机玩家还在世界里时把每一行都按"离开"收尾。</summary>
+    private void LeaveAll()
+    {
+        var who = Main.myPlayer;
+        if ((uint)who >= (uint)_flags.Length) return;
+
+        var players = Main.player;
+        if (players is null || (uint)who >= (uint)players.Length) return;
+        if (players[who] is not { } player) return;
+
+        var flags = _flags[who];
+        for (var index = 0; index < flags.Length; index++)
+        {
+            if (!flags[index]) continue;
+
+            flags[index] = false;
+            if (BiomeTable.At(index) is { } biome) Leave(biome, player);
+        }
+
+        // 别人的行只清标记：归属端不在本机，没法替他们派回调。
+        for (var other = 0; other < _flags.Length; other++)
+        {
+            if (other != who) Array.Clear(_flags[other]);
+        }
+    }
 
     private void LoadWorld(On.Terraria.IO.WorldFile.orig_LoadWorld orig, bool canCheckFileState)
     {

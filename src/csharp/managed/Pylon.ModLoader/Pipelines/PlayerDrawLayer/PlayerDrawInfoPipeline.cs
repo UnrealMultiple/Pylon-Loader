@@ -36,39 +36,14 @@ internal sealed class PlayerDrawInfoPipeline : ILoaderModule
         // 缩放；作者要自己的视野倍率时改它。
         On.Terraria.Main.DoDraw_UpdateCameraPosition += UpdateCameraPosition;
 
+        // 缩放写在 GameViewMatrix 的 set_Zoom 里：拦写入点，游戏自己的按键缩放也会先过作者的钩子。
+        On.Terraria.Graphics.SpriteViewMatrix.set_Zoom += SetZoom;
+
         // 逐层：作者可以说某一层别画（VanillaDrawLayer 点名）。
         HideLayerHooks.Install();
 
         Log.Info("[playerdrawinfo] 已挂（DrawEffects / ModifyDrawInfo / TransformDrawData / DrawPlayer / ModifyScreenPosition）");
         return true;
-    }
-
-    /// <summary>
-    /// 这一层要不要跳过：问玩家身上的每个 ModPlayer（只问开了 HideDrawLayers 的）。
-    /// 没人开这个钩子时是一次 <c>Active</c> 位查询，逐层调用的开销可以忽略。
-    /// </summary>
-    internal static bool Hidden(Player player, VanillaDrawLayer layer)
-    {
-        if (player is null) return false;
-
-        var binding = Players.Binding;
-        if (!binding.Active(HookId.HideDrawLayers)) return false;
-
-        foreach (var mod in binding.Of(player))
-        {
-            if (!mod.HookEnabled(HookId.HideDrawLayers)) continue;
-
-            try
-            {
-                if (mod.HideDrawLayer(player, layer)) return true;
-            }
-            catch (Exception e)
-            {
-                ContentErrors.Report($"[playerdrawlayer] {mod.Mod?.Name}.HideDrawLayer 异常：{Safe.Describe(e)}");
-            }
-        }
-
-        return false;
     }
 
     // ===================== 钩子 =====================
@@ -95,7 +70,7 @@ internal sealed class PlayerDrawInfoPipeline : ILoaderModule
 
             try
             {
-                mod.ModifyDrawInfo(player, self);
+                mod.ModifyDrawInfo(ref self);
             }
             catch (Exception e)
             {
@@ -120,7 +95,7 @@ internal sealed class PlayerDrawInfoPipeline : ILoaderModule
 
             try
             {
-                mod.DrawEffects(player, info, ref r, ref g, ref b, ref a, ref fullBright);
+                mod.DrawEffects(info, ref r, ref g, ref b, ref a, ref fullBright);
             }
             catch (Exception e)
             {
@@ -182,7 +157,7 @@ internal sealed class PlayerDrawInfoPipeline : ILoaderModule
 
                 try
                 {
-                    mod.TransformDrawData(player, drawinfo);
+                    mod.TransformDrawData(ref drawinfo);
                 }
                 catch (Exception e)
                 {
@@ -200,18 +175,18 @@ internal sealed class PlayerDrawInfoPipeline : ILoaderModule
     {
         orig(self, camera, drawPlayer);
 
-        if (drawPlayer is null || !Players.ModsActive(HookId.DrawPlayerFull)) return;
+        if (drawPlayer is null || !Players.ModsActive(HookId.DrawPlayer)) return;
 
         var mods = Players.ModsOf(drawPlayer);
 
         for (var index = 0; index < mods.Length; index++)
         {
             var mod = mods[index];
-            if (!mod.HookEnabled(HookId.DrawPlayerFull)) continue;
+            if (!mod.HookEnabled(HookId.DrawPlayer)) continue;
 
             try
             {
-                mod.DrawPlayer(drawPlayer, camera);
+                mod.DrawPlayer(camera);
             }
             catch (Exception e)
             {
@@ -228,6 +203,9 @@ internal sealed class PlayerDrawInfoPipeline : ILoaderModule
     {
         orig();
 
+        // 菜单里没有玩家的相机可言；本地玩家也还没进来。
+        if (Main.gameMenu) return;
+
         var me = Main.LocalPlayer;
         if (me is null) return;
 
@@ -239,12 +217,49 @@ internal sealed class PlayerDrawInfoPipeline : ILoaderModule
 
             try
             {
-                if (mod.HookEnabled(HookId.ModifyScreenPosition)) mod.ModifyScreenPosition(me);
+                if (mod.HookEnabled(HookId.ModifyScreenPosition)) mod.ModifyScreenPosition();
             }
             catch (Exception e)
             {
                 ContentErrors.Report($"[playerdrawinfo] {mod.Mod?.Name}.ModifyScreenPosition 异常：{Safe.Describe(e)}");
             }
         }
+    }
+
+    /// <summary>
+    /// 拦 GameViewMatrix 的缩放写入：游戏的原始值先进来，问过作者之后按比例折算回去。
+    /// 作者给的必须是正的有限数；不然按没改处理。菜单里与别的矩阵不拦。
+    /// </summary>
+    private static void SetZoom(On.Terraria.Graphics.SpriteViewMatrix.orig_set_Zoom orig,
+                                 SpriteViewMatrix self, Il2CppMicrosoft.Xna.Framework.Vector2 value)
+    {
+        if (Main.gameMenu || self is null || Main.GameViewMatrix is null ||
+            self.Pointer != Main.GameViewMatrix.Pointer || value.X <= 0f ||
+            !Players.ModsActive(HookId.ModifyZoom) || Main.LocalPlayer is not { } me)
+        {
+            orig(self, value);
+            return;
+        }
+
+        var zoom = value.X;
+        var mods = Players.ModsOf(me);
+
+        for (var index = 0; index < mods.Length; index++)
+        {
+            var mod = mods[index];
+            if (!mod.HookEnabled(HookId.ModifyZoom)) continue;
+
+            try
+            {
+                mod.ModifyZoom(ref zoom);
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[playerdrawinfo] {mod.Mod?.Name}.ModifyZoom 异常：{Safe.Describe(e)}");
+            }
+        }
+
+        var factor = float.IsFinite(zoom) && zoom > 0f ? zoom / value.X : 1f;
+        orig(self, factor == 1f ? value : new Il2CppMicrosoft.Xna.Framework.Vector2(value.X * factor, value.Y * factor));
     }
 }

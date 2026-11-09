@@ -2,6 +2,7 @@ using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Terraria;
 using Terraria.DataStructures;
+using Terraria.GameContent.UI;
 using Terraria.GameContent.Bestiary;
 using Terraria.GameContent.ItemDropRules;
 
@@ -191,6 +192,13 @@ public abstract class ModNpc : ModType
 
     /// <summary>首领图标的镜像（初值是游戏算的）。</summary>
     public virtual void BossHeadSpriteEffects(NPC npc, ref SpriteEffects spriteEffects) { }
+
+    /// <summary>这个 NPC 被表情气泡点名时：返回要回应的表情号（<c>null</c> = 从 emoteList 里随机挑一个）。
+    /// emoteList 的第一项是泡泡当前的表情号；可以直接往里追加候选。</summary>
+    public virtual int? PickEmote(Player closestPlayer, List<int> emoteList, WorldUIAnchor otherAnchor) => null;
+
+    /// <summary>这个 NPC 的表情气泡摆哪儿（拿到的是游戏算好的初值）。</summary>
+    public virtual void EmoteBubblePosition(ref Vector2 position, ref SpriteEffects spriteEffects) { }
 
     /// <summary>每帧；false 跳过游戏 AI 与 AI。</summary>
     public virtual bool PreAI(NPC npc) => true;

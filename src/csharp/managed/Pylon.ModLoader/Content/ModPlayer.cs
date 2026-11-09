@@ -146,26 +146,26 @@ public abstract class ModPlayer
     public virtual void OnEquipmentLoadoutSwitched(Player player, int oldLoadoutIndex, int loadoutIndex) { }
 
     /// <summary>绘图准备之后：r/g/b/a 是四个颜色倍率（可写引用），fullBright 是那次的满亮开关。</summary>
-    public virtual void DrawEffects(Player player, PlayerDrawSet drawInfo, ref float r, ref float g, ref float b,
+    public virtual void DrawEffects(PlayerDrawSet drawInfo, ref float r, ref float g, ref float b,
                                     ref float a, ref bool fullBright) { }
 
     /// <summary>游戏把玩家整个画完之后。</summary>
-    public virtual void DrawPlayer(Player player, Camera camera) { }
+    public virtual void DrawPlayer(Camera camera) { }
 
-    /// <summary>这一次的绘制里藏掉哪几层（PlayerDrawLayer.Hide()）。</summary>
-    public virtual void HideDrawLayers(Player player, PlayerDrawSet drawInfo) { }
+    /// <summary>这一次的绘制里藏掉哪几层（拿到层实例调 <see cref="PlayerDrawLayer.Hide"/>）。</summary>
+    public virtual void HideDrawLayers(PlayerDrawSet drawInfo) { }
 
     /// <summary>各层建起来之前改 drawInfo（PlayerDrawSet）。</summary>
-    public virtual void ModifyDrawInfo(Player player, PlayerDrawSet drawInfo) { }
+    public virtual void ModifyDrawInfo(ref PlayerDrawSet drawInfo) { }
 
     /// <summary>游戏的变换之后、渲染缓存之前。</summary>
-    public virtual void TransformDrawData(Player player, PlayerDrawSet drawInfo) { }
+    public virtual void TransformDrawData(ref PlayerDrawSet drawInfo) { }
 
     /// <summary>更新相机之后；改 Main.screenPosition。</summary>
-    public virtual void ModifyScreenPosition(Player player) { }
+    public virtual void ModifyScreenPosition() { }
 
-    /// <summary>缩放（可写引用）；各轴的比例保持不变。</summary>
-    public virtual void ModifyZoom(Player player, ref float zoom) { }
+    /// <summary>缩放（可写引用）；改的就是这一次写入 GameViewMatrix 的倍率。</summary>
+    public virtual void ModifyZoom(ref float zoom) { }
 
     /// <summary>物品与敌人掷骰之前；直接改 attempt。</summary>
     public virtual void ModifyFishingAttempt(Player player, ref FishingAttempt attempt) { }
@@ -257,14 +257,10 @@ public abstract class ModPlayer
         return true;
     }
 
-    /// <summary>本地玩家每更新一次：读触屏按钮（ModTouchButton）或键位（参考的 ModKeybind 用法）。</summary>
     public virtual void ProcessTriggers(Player player, TriggersSet triggersSet) { }
 
-    /// <summary>这一层别画（返回 true 就跳过原版那次绘制）；按 <see cref="VanillaDrawLayer"/> 点名。</summary>
-    public virtual bool HideDrawLayer(Player player, VanillaDrawLayer layer) => false;
-
-    /// <summary>改这一帧的镜头缩放（写回 <c>Main.GameViewMatrix.Zoom</c>）；只对本机玩家调。</summary>
-    public virtual void ModifyZoom(Player player, ref Vector2 zoom) { }
+    /// <summary>整表排序时改某个层的安放位置（每层默认位置之外的精细调整）。</summary>
+    public virtual void ModifyDrawLayerOrdering(IDictionary<PlayerDrawLayer, PlayerDrawLayer.Position> positions) { }
 }
 
 // 未移植：伤害/攻速/弹药那套（要 StatModifier，等 ItemCheck_Shoot 的实际形状）、受伤与命中那套（要 HurtModifiers/HurtInfo/

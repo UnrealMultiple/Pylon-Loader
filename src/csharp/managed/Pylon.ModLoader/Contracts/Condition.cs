@@ -143,13 +143,11 @@ public class Condition
     /// <summary>在宝石洞。</summary>
     public static readonly Condition InGemCave = new("Conditions.InGemCave", () => Me().ZoneGemCave);
 
-    /// <summary>在神庙里（键是 InLihzardTemple，参考就这么拼）。</summary>
     public static readonly Condition InLihzhardTemple = new("Conditions.InLihzardTemple", () => Me().ZoneLihzhardTemple);
 
     /// <summary>在墓地。</summary>
     public static readonly Condition InGraveyard = new("Conditions.InGraveyard", () => Me().ZoneGraveyard);
 
-    /// <summary>在微光（以太）里（手机端没有 NearShimmer，参考就用这个）。</summary>
     public static readonly Condition InAether = new("Conditions.InAether", () => Me().ZoneShimmer);
 
     /// <summary>在猩红或腐化之地。</summary>

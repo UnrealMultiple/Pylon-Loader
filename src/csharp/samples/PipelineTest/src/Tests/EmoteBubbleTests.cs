@@ -57,6 +57,14 @@ internal static class EmoteBubbleTests
             c.True(emote.IsUnlocked(), "默认解锁");
             c.True(!ModContent.GetInstance<Content.TestLockedEmote>().IsUnlocked(), "锁定表情");
         });
+
+        PT.Case("EMO-R4", c =>
+        {
+            // NPC 侧的两个表情钩子（挑表情 / 摆放位置）必须在 ModNpc 基类上。
+            var type = typeof(ModNpc);
+            c.NotNull(type.GetMethod("PickEmote"), "ModNpc.PickEmote");
+            c.NotNull(type.GetMethod("EmoteBubblePosition"), "ModNpc.EmoteBubblePosition");
+        });
     }
 
     private static void RunWorld()

@@ -7,8 +7,8 @@ using Terraria.GameContent;
 namespace Pylon.ModLoader;
 
 /// <summary>
-/// 菜单主题管线：把作者给的 logo / 太阳 / 月亮贴图换进 <c>TextureAssets</c>，离开主题时换回游戏原值。
-/// logo 绘制回调与切换按钮本版不接，见 docs/pipeline/content-menu.md。
+/// 菜单主题管线：作者给的 logo / 太阳 / 月亮贴图在绘制入口每帧换入 <c>TextureAssets</c>、画完还原
+/// （不持久占用游戏的贴图槽）；主题选择落盘见 <c>PylonLoader.menu.json</c>。
 /// </summary>
 internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
 {
@@ -20,12 +20,6 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static ModMenu? _current;
 
-    // 游戏原值：第一次选中主题时备份一次，之后一直用这份。
-    private static Asset<Texture2D>? _logo;
-    private static Asset<Texture2D>? _sun;
-    private static Asset<Texture2D>[]? _moon;
-    private static bool _backed;
-
     public bool Install()
     {
         On.Terraria.Main.Update += Update;
@@ -33,7 +27,11 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.Main.DrawMenu += DrawThemeButton;
         On.Terraria.Main.UpdateBGVisibility_BackLayer += UpdateBackLayer;
 
-        Log.Info("[menu] 已挂（主题贴图 / 每帧 / 菜单音乐 / logo 绘制回调）；切换按钮本版不接");
+        // 之前，MenuTable 还是空的，按注册内容判断永远判不到——所以这里无条件挂载，
+        // 由 hook 体内按 _current.OverridesSunMoon 决定是否换贴图（没重写就 orig 直通）。
+        On.Terraria.Main.DrawSunAndMoon += DrawSunAndMoon;
+
+        Log.Info("[menu] 已挂（主题贴图每帧换入 / 每帧 / 菜单音乐 / logo 绘制回调 / 日月）");
         return true;
     }
 
@@ -110,80 +108,14 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
 
     // ===================== 切换按钮 =====================
 
-    /// <summary>按钮文字的位置（右下角），与 logo/太阳那套绘制互不干扰。</summary>
-    private static readonly Vector2 ButtonAnchor = new(0.5f, 1f);
-
-    private static bool _pressedLastFrame;
-
     /// <summary>
-    /// 标题画面的"菜单主题"按钮：一行文字 + 点击切到下一个可用主题。
-    /// 只在 <c>menuMode == 0</c> 且至少有一个可用主题时出现；点完落盘（<see cref="SelectAndSave"/>）。
+    /// 只在 menuMode==0 时保留每帧钩位（未来接 UI 用）；点击逻辑随按钮一起去掉。
     /// </summary>
     private static void DrawThemeButton(On.Terraria.Main.orig_DrawMenu orig, Main self, Il2CppMicrosoft.Xna.Framework.GameTime gameTime)
     {
         orig(self, gameTime);
-
-        if (Main.gameMenu == false || Main.menuMode != 0) return;
-        if (MenuTable.Count == 0) return;
-
-        var next = NextAvailable();
-        if (next is null && _current is null) return;
-
-        var text = "菜单主题: " + (_current?.DisplayName ?? (_current?.Name ?? "原版")) + (next is null ? "" : "  [点击切换]");
-
-        try
-        {
-            var font = FontAssets.MouseText.Value;
-            var size = font.MeasureString(text) * 0.8f;
-            var screen = new Vector2(Main.screenWidth * 0.5f, Main.screenHeight - 24f);
-            var origin = new Vector2(size.X * 0.5f, 0f);
-
-            Utils.DrawBorderString(Main.spriteBatch, text, screen - new Vector2(0f, 0f), Color.White, 0.8f, 0.5f, 0f);
-
-            var down = Main.mouseLeft;
-            var box = new Il2CppMicrosoft.Xna.Framework.Rectangle((int)(screen.X - origin.X - 6f), (int)(screen.Y - 4f),
-                (int)size.X + 12, (int)size.Y + 8);
-
-            if (down && !_pressedLastFrame && box.Contains(Main.mouseX, Main.mouseY) && next is not null)
-            {
-                Instance.SelectAndSave(next);
-            }
-
-            _pressedLastFrame = down;
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report("[menu] 主题按钮绘制失败：" + Safe.Describe(e));
-        }
     }
 
-    /// <summary>下一个可用主题（在注册序上循环）；一个都没有时返回 null。</summary>
-    private static ModMenu? NextAvailable()
-    {
-        var count = MenuTable.Count;
-        if (count == 0) return null;
-
-        var start = 0;
-        if (_current is not null)
-        {
-            for (var index = 0; index < count; index++)
-            {
-                if (ReferenceEquals(MenuTable.At(index), _current))
-                {
-                    start = index + 1;
-                    break;
-                }
-            }
-        }
-
-        for (var step = 0; step < count; step++)
-        {
-            var menu = MenuTable.At((start + step) % count);
-            if (MenuTable.Available(menu)) return menu;
-        }
-
-        return null;
-    }
 
     // ===================== 持久化 =====================
 
@@ -268,12 +200,8 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
             }
         }
 
-        Restore();
-
         if (menu is null || !MenuTable.Available(menu)) return;
 
-        Backup();
-        Apply(menu);
         _current = menu;
 
         try
@@ -287,53 +215,103 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    private static void Backup()
+    /// <summary>
+    /// 换入前的原值。移动版的 logo / 太阳都有多套槽（Logo..Logo6、Sun/Sun2/Sun3），
+    /// 按 LogoA/LogoB 或背景选一套画——只换 <c>TextureAssets.Logo</c> 真机上不会变，所以全部备份/换入。
+    /// </summary>
+    private sealed class TextureBackup
     {
-        if (_backed) return;
-
-        _logo = TextureAssets.Logo;
-        _sun = TextureAssets.Sun;
-        _moon = TextureAssets.Moon;
-        _backed = true;
+        public Asset<Texture2D>? Logo, Logo2, Logo3, Logo4, Logo5, Logo6;
+        public Asset<Texture2D>? Sun, Sun2, Sun3;
+        public Asset<Texture2D>[]? Moon;
     }
 
-    /// <summary>把原值写回；备份还没做就什么都不做。</summary>
-    private static void Restore()
-    {
-        if (!_backed) return;
-
-        if (_logo is not null) TextureAssets.Logo = _logo;
-        if (_sun is not null) TextureAssets.Sun = _sun;
-        if (_moon is not null) TextureAssets.Moon = _moon;
-    }
-
-    private static void Apply(ModMenu menu)
-    {
-        var logo = ReadAsset(menu, () => menu.Logo, nameof(ModMenu.Logo));
-        if (logo is not null) TextureAssets.Logo = logo;
-
-        var sun = ReadAsset(menu, () => menu.SunTexture, nameof(ModMenu.SunTexture));
-        if (sun is not null) TextureAssets.Sun = sun;
-
-        var moon = ReadAsset(menu, () => menu.MoonTexture, nameof(ModMenu.MoonTexture));
-        if (moon is null) return;
-
-        var phases = TextureAssets.Moon;
-        if (phases is null || phases.Length == 0) return;
-
-        for (var index = 0; index < phases.Length; index++) phases[index] = moon;
-    }
-
-    private static Asset<Texture2D>? ReadAsset(ModMenu menu, Func<Asset<Texture2D>> read, string what)
+    /// <summary>作者贴图 → 游戏资产；作者没给/读失败都返回 null（读不到就别动游戏的槽）。</summary>
+    private static Asset<Texture2D>? ReadAsset(ModMenu menu, Func<Asset<Texture2D>?> read, string what)
     {
         try
         {
-            return read();
+            var asset = read();
+            return asset is null || asset.Value is null ? null : asset;
         }
         catch (Exception e)
         {
             ContentErrors.Report($"[menu] {menu.Name}.{what} 异常：{Safe.Describe(e)}");
             return null;
+        }
+    }
+
+    /// <summary>把作者贴图换进 <c>TextureAssets</c>（全部变体槽），返回原值备份；画完必须 SwapOut 还原。</summary>
+    private static TextureBackup SwapIn(ModMenu menu)
+    {
+        var backup = new TextureBackup
+        {
+            Logo = TextureAssets.Logo, Logo2 = TextureAssets.Logo2, Logo3 = TextureAssets.Logo3,
+            Logo4 = TextureAssets.Logo4, Logo5 = TextureAssets.Logo5, Logo6 = TextureAssets.Logo6,
+            Sun = TextureAssets.Sun, Sun2 = TextureAssets.Sun2, Sun3 = TextureAssets.Sun3,
+        };
+
+        var logo = ReadAsset(menu, () => menu.Logo, nameof(ModMenu.Logo));
+        if (logo is not null)
+        {
+            TextureAssets.Logo = logo;
+            TextureAssets.Logo2 = logo;
+            TextureAssets.Logo3 = logo;
+            TextureAssets.Logo4 = logo;
+            TextureAssets.Logo5 = logo;
+            TextureAssets.Logo6 = logo;
+        }
+
+        var sun = ReadAsset(menu, () => menu.SunTexture, nameof(ModMenu.SunTexture));
+        if (sun is not null)
+        {
+            TextureAssets.Sun = sun;
+            TextureAssets.Sun2 = sun;
+            TextureAssets.Sun3 = sun;
+        }
+
+        var moon = ReadAsset(menu, () => menu.MoonTexture, nameof(ModMenu.MoonTexture));
+        if (moon is not null)
+        {
+            var phases = TextureAssets.Moon;
+            if (phases is not null && phases.Length > 0)
+            {
+                backup.Moon = new Asset<Texture2D>[phases.Length];
+                for (var index = 0; index < phases.Length; index++)
+                {
+                    backup.Moon[index] = phases[index];
+                    phases[index] = moon;
+                }
+            }
+        }
+
+        return backup;
+    }
+
+    /// <summary>按备份把游戏贴图槽还原（每帧画完调用）。</summary>
+    private static void SwapOut(TextureBackup backup)
+    {
+        if (backup.Logo is not null) TextureAssets.Logo = backup.Logo;
+        if (backup.Logo2 is not null) TextureAssets.Logo2 = backup.Logo2;
+        if (backup.Logo3 is not null) TextureAssets.Logo3 = backup.Logo3;
+        if (backup.Logo4 is not null) TextureAssets.Logo4 = backup.Logo4;
+        if (backup.Logo5 is not null) TextureAssets.Logo5 = backup.Logo5;
+        if (backup.Logo6 is not null) TextureAssets.Logo6 = backup.Logo6;
+
+        if (backup.Sun is not null) TextureAssets.Sun = backup.Sun;
+        if (backup.Sun2 is not null) TextureAssets.Sun2 = backup.Sun2;
+        if (backup.Sun3 is not null) TextureAssets.Sun3 = backup.Sun3;
+
+        if (backup.Moon is not null)
+        {
+            var phases = TextureAssets.Moon;
+            if (phases is not null)
+            {
+                for (var index = 0; index < backup.Moon.Length && index < phases.Length; index++)
+                {
+                    phases[index] = backup.Moon[index];
+                }
+            }
         }
     }
 
@@ -359,6 +337,7 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
             return;
         }
 
+
         var center = new Il2CppMicrosoft.Xna.Framework.Vector2(Main.screenWidth * 0.5f, Main.screenHeight * 0.2f);
         var rotation = 0f;
         var scale = 1f;
@@ -374,15 +353,57 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
             ContentErrors.Report($"[menu] {menu.Name}.PreDrawLogo 异常：{Safe.Describe(e)}");
         }
 
-        if (draw) orig(self);
+        if (draw)
+        {
+            var backup = SwapIn(menu);
+            try
+            {
+                orig(self);
+            }
+            finally
+            {
+                SwapOut(backup);
+            }
+        }
 
         try
         {
-            menu.PostDrawLogo(batch, ref center, ref rotation, ref scale, ref color);
+            menu.PostDrawLogo(batch, center, rotation, scale, color);
         }
         catch (Exception e)
         {
             ContentErrors.Report($"[menu] {menu.Name}.PostDrawLogo 异常：{Safe.Describe(e)}");
+        }
+    }
+
+
+    /// <summary>太阳/月亮：只在作者重写了 getter 时才进这里；画前换入、画完还原。</summary>
+    private static void DrawSunAndMoon(On.Terraria.Main.orig_DrawSunAndMoon orig, Main self,
+        Main.SceneArea sceneArea, Il2CppMicrosoft.Xna.Framework.Graphics.Color moonColor,
+        Il2CppMicrosoft.Xna.Framework.Graphics.Color sunColor, float tempMushroomInfluence)
+    {
+        if (_current is not { } menu || !menu.OverridesSunMoon || !Main.gameMenu)
+        {
+            orig(self, sceneArea, moonColor, sunColor, tempMushroomInfluence);
+            return;
+        }
+        TextureBackup backup;
+        try { backup = SwapIn(menu); }
+        catch (Exception e)
+        {
+            ContentErrors.Report("[menu] 日月换入失败：" + Safe.Describe(e));
+            orig(self, sceneArea, moonColor, sunColor, tempMushroomInfluence);
+            return;
+        }
+
+        try
+        {
+            orig(self, sceneArea, moonColor, sunColor, tempMushroomInfluence);
+        }
+        finally
+        {
+            try { SwapOut(backup); }
+            catch (Exception e) { ContentErrors.Report("[menu] 日月还原失败：" + Safe.Describe(e)); }
         }
     }
 
@@ -391,9 +412,6 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
     private void Update(On.Terraria.Main.orig_Update orig, Main self, Il2CppMicrosoft.Xna.Framework.GameTime gameTime)
     {
         orig(self, gameTime);
-
-        var now = Environment.TickCount64;
-
 
         if (MenuTable.Count == 0) return;
 

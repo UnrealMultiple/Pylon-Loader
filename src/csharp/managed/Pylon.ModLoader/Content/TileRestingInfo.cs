@@ -3,7 +3,6 @@ using Terraria.GameContent;
 
 namespace Pylon.ModLoader;
 
-/// <summary>坐在/躺在哪儿的参数（对应参考里的 TileRestingInfo）。</summary>
 public sealed class TileRestingInfo
 {
     /// <summary>锚点格子（tile 坐标）。</summary>

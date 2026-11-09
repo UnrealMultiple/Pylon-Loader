@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Terraria;
@@ -30,6 +31,8 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.GameContent.UI.EmoteBubble.Draw += Draw;
         On.GUIEmotesWindow.EmoteDraw += EmoteDraw;
         On.Terraria.GameContent.UI.EmoteBubble.CheckForNPCsToReactToEmoteBubble += CheckNpcReactions;
+        On.Terraria.GameContent.UI.EmoteBubble.PickNPCEmote += PickNpcEmote;
+        On.Terraria.GameContent.UI.EmoteBubble.GetPosition += GetPosition;
         On.Terraria.GameContent.UI.EmoteBubble.ShouldFilterPlayerEmote += ShouldFilter;
         On.GUIEmotesWindow.GetEmotesGeneral += General;
         On.GUIEmotesWindow.GetEmotesRPS += Rps;
@@ -643,10 +646,12 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
     private static Vector2 Estimated(EmoteBubble self)
     {
         var anchor = self.anchor;
-        if (anchor is null) return Vector2.Zero;
+        if (anchor is null || anchor.Pointer == 0) return Vector2.Zero;
 
+        // 空锚的 entity 是 Pointer = 0 的代理：碰它的字段会崩在原生里。
         var entity = anchor.entity;
-        if (entity is not null) return entity.Center - new Vector2(0f, entity.height * 0.5f + 24f);
+        if (entity is not null && entity.Pointer != 0)
+            return entity.Center - new Vector2(0f, entity.height * 0.5f + 24f);
 
         return anchor.pos - new Vector2(0f, anchor.size.Y * 0.5f + 24f);
     }
@@ -685,6 +690,97 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
             ContentErrors.Report($"[emotebubble] 泡泡外壳取不到：{Safe.Describe(e)}");
             return null;
         }
+    }
+
+    // ===================== NPC 表情 =====================
+
+    /// <summary>泡泡锚在实体上且那实体是 NPC 时给出实例；其它（玩家/位置锚）返回 null。</summary>
+    private static NPC? AnchoredNpc(EmoteBubble bubble)
+    {
+        try
+        {
+            var anchor = bubble.anchor;
+            if (anchor is null || anchor.Pointer == 0) return null;
+
+            // 空锚的 entity 是 Pointer = 0 的代理（不是 C# null）：直接 TryCast 会带着空指针
+            // 进原生做类型判定，崩在 il2cpp 里、托管 catch 兜不住，所以先查指针。
+            var entity = anchor.entity;
+            if (entity is null || entity.Pointer == 0) return null;
+
+            // IL2CPP 接口在托管侧是代理类，不能 as，要用 TryCast 落到目标代理类。
+            return entity.TryCast<NPC>();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 原版挑完表情后问作者：返回值直接换掉泡泡的表情，或从 emoteList 追加的候选里随机挑。
+    /// 在 orig 之后改 <c>self.emote</c>，游戏的寿命、登记、绘制都不用管。
+    /// </summary>
+    private static void PickNpcEmote(On.Terraria.GameContent.UI.EmoteBubble.orig_PickNPCEmote orig,
+                                     EmoteBubble self, WorldUIAnchor other)
+    {
+        orig(self, other);
+
+        var npc = AnchoredNpc(self);
+        if (npc is null) return;
+
+        var mod = NpcPipeline.Instance.InstanceOf(npc);
+        if (mod is null || !mod.HookEnabled(HookId.PickEmote)) return;
+
+        Player closest;
+        try
+        {
+            closest = Main.player[Player.FindClosest(npc.position, npc.width, npc.height)];
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report("[emotebubble] 找最近玩家失败：" + Safe.Describe(e));
+            return;
+        }
+
+        var emotes = new List<int> { self.emote };
+        int? picked;
+        try
+        {
+            picked = mod.PickEmote(closest, emotes, other);
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report($"[emotebubble] {mod.Name}.PickEmote 异常：{Safe.Describe(e)}");
+            return;
+        }
+
+        if (picked.HasValue) self.emote = picked.Value;
+        else if (emotes.Count > 1) self.emote = emotes[Main.rand.Next(emotes.Count)];
+    }
+
+    /// <summary>游戏算完位置后让作者挪一挪；只对锚在 mod NPC 上的泡泡派发。</summary>
+    private static Vector2 GetPosition(On.Terraria.GameContent.UI.EmoteBubble.orig_GetPosition orig,
+                                       EmoteBubble self, ref SpriteEffects effect)
+    {
+        // interop 代理把 out 参数生成成 ref：原值先拿，作者层再覆写。
+        var position = orig(self, ref effect);
+
+        var npc = AnchoredNpc(self);
+        if (npc is null) return position;
+
+        var mod = NpcPipeline.Instance.InstanceOf(npc);
+        if (mod is null || !mod.HookEnabled(HookId.EmoteBubblePosition)) return position;
+
+        try
+        {
+            mod.EmoteBubblePosition(ref position, ref effect);
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report($"[emotebubble] {mod.Name}.EmoteBubblePosition 异常：{Safe.Describe(e)}");
+        }
+
+        return position;
     }
 
     // ===================== 两道下标守卫 =====================

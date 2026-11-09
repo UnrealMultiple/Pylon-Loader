@@ -2,7 +2,6 @@ using System.Globalization;
 
 namespace Pylon.ModLoader;
 
-/// <summary>选项声明的链式构造器：让 `Toggle(true).Label("Fast mode").EnabledWhen("On")` 读起来像参考的对象字面量。</summary>
 public sealed class OptionBuilder
 {
     private readonly ModConfigOption _option;
@@ -55,14 +54,12 @@ public sealed class OptionBuilder
         return this;
     }
 
-    /// <summary>每个选择的显示文本（参考的 labels: [...]）。</summary>
     public OptionBuilder Labels(params string[] labels)
     {
         _option.ChoiceLabels = labels ?? [];
         return this;
     }
 
-    /// <summary>按钮上的字（参考的 text）。</summary>
     public OptionBuilder Text(string text)
     {
         _option.Text = text;
@@ -83,7 +80,6 @@ public sealed class OptionBuilder
         return this;
     }
 
-    /// <summary>Button 也可以直接给委托（参考接受函数）。</summary>
     public OptionBuilder Action(Action<ModConfig> action)
     {
         _option.ActionDelegate = action;

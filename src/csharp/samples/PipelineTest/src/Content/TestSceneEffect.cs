@@ -42,6 +42,9 @@ public static class TestSceneEffectProbe
 
     public static bool StaticDefaultsDone;
 
+    /// <summary>background 组用：让探针 A 声明表层背景风格。</summary>
+    public static bool UseBackground;
+
     public static void Reset()
     {
         AActive = false;
@@ -76,6 +79,9 @@ public sealed class TestSceneEffectA : ModSceneEffect
     public override int Priority => TestSceneEffectProbe.APriority;
 
     public override int Music => TestSceneEffectProbe.SlotA;
+
+    public override ModSurfaceBackgroundStyle SurfaceBackgroundStyle =>
+        TestSceneEffectProbe.UseBackground ? ModContent.GetInstance<TestSurfaceBackgroundStyle>() : null!;
 
     public override bool IsSceneEffectActive(Player player)
     {

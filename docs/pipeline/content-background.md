@@ -31,6 +31,8 @@
 
 代价：`Choose*` 返回的编号在本版没有意义。这一版只从 `ChooseCloseTexture` 取它的**四个引用参数**（`scale` / `parallax` / `a` / `b`），返回值不看。
 
+**签名与参考逐行一致**：`ChooseCloseTexture(ref float scale, ref double parallax, ref float a, ref float b)`——`parallax` 是 **double**，不是 float（参考 `BackgroundHooks.DrawClose` 里就是 `double parallax = 0.37`，写错成 float 作者代码搬过来会编译不过）。
+
 ### 2.3 三层：远 / 中 / 近
 
 `DrawBackground` 钩子里，mod 槽位走我们自己的绘制，顺序是：
@@ -43,6 +45,10 @@
 ```
 
 远层与中层直接用游戏那张背景表里的贴图（返回 -1 就跳过那一层），所以作者可以复用原版素材拼自己的分层；近层用作者自己的图。
+
+**顺序与参考一致**：近层先问 `PreDrawCloseBackground(spriteBatch)`——false = 这层不画（作者自己画），然后才 `ChooseCloseTexture`、取贴图、平铺。第一版把 PreDraw 放在最后，导致任何 early return（例如贴图尺寸取不到）都会让它不计数，真机测试直接暴露成 "PreDrawCloseBackground 0 次"。
+
+**作者贴图的尺寸**：和资源覆盖层同一个坑——`LoadAsset` 建出来的游戏 `Texture2D.Width/Height` 是 0（读/写都不可靠）。近层与远/中层的平铺都改用 `PylonTexture.Size`（Unity 侧尺寸）算宽度，否则 `width <= 0` 直接跳过，画面不变。
 
 `a` / `b` 那套"高度 = a × 位置 + b"的垂直偏移**已采用**（照原版）：`topY = Step1Top × a + b + scAdj + push`，`Step1Top` 与 `push` 从 `Main.DrawSurfaceBG_BackMountainsStep1` 的参数里存下来。默认值就是游戏自己的 `a = 1800`、`b = 1750`、`scale = 1.25`、`parallax = 0.37`，作者在 `ChooseCloseTexture` 里改引用。
 

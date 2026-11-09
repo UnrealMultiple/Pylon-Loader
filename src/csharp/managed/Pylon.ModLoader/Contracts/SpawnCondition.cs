@@ -12,7 +12,6 @@ public class SpawnCondition
     /// <summary>这个条件在抽里的权重（构造默认 1）；抽到时 WeightFunc 非空就按它重算。</summary>
     public float BlockWeight { get; internal set; } = 1f;
 
-    /// <summary>抽时重算 BlockWeight 的函数（参考里 Wraith/MartianProbe/GoblinScout/OverworldFirefly 在用）；null = 用初值。</summary>
     public Func<float> WeightFunc { get; set; } = null!;
 }
 

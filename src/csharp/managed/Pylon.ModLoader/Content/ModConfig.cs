@@ -24,7 +24,6 @@ public abstract class ModConfig : ModType
     /// <summary>false：世界里不显示这份配置（世界生成那种只在进世界前有用的选项）。</summary>
     public virtual bool VisibleInWorld => true;
 
-    /// <summary>当前值（参考里是实例属性 inst[key]；这里集中存放，读写都走校验，改请用 SetOption）。</summary>
     public IReadOnlyDictionary<string, object> Values => _values;
 
     /// <summary>本配置的选项声明（注册时按 Options 建好，和加载器手里的是同一份）。</summary>
@@ -69,10 +68,12 @@ public abstract class ModConfig : ModType
     /// </summary>
     public virtual bool NeedsReload(string key) => false;
 
-    // 读值：参考里是 config.Power 这种属性，这里少一层类型转换。
 
     /// <summary>屏幕上的未保存改动（没开屏幕时为 null）；读取一律先看它。</summary>
     internal IReadOnlyDictionary<string, object>? __Overlay { get; set; }
+
+    /// <summary>读真值（绕过 overlay）：草稿/应用阶段比对"有没有真的变了"用。</summary>
+    internal object __StoredValue(string key) => _values.TryGetValue(key, out var value) ? value : null!;
 
     public object GetValue(string key)
     {
@@ -87,7 +88,6 @@ public abstract class ModConfig : ModType
     public int GetInt(string key, int fallback = 0) => (int)Math.Round(ValueConverter.Convert(GetValue(key), (double)fallback));
     public string GetString(string key, string fallback = "") => ValueConverter.Convert(GetValue(key), fallback);
 
-    /// <summary>参考的 `config[key]`；键不存在时抛（跟 JS 里读 undefined 的语义不同，早报错更好）。</summary>
     public object this[string key]
     {
         get

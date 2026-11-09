@@ -458,7 +458,6 @@ internal sealed class TilePipeline : ILoaderModule
     /// <summary>
     /// 手指/光标停在哪一格：作者的 MouseOver，以及"这一格能交互"的光标图标。
     /// 后者不只是画个图标——手机端的交互目标就是靠它认的，没有它，点 mod 方块根本走不进
-    /// <see cref="Interact"/>（点晶塔没反应就是这个原因），与参考实现一致。
     /// </summary>
     private void MouseOver(On.Terraria.Player.orig_TileInteractionsMouseOver orig, Player self, int myX, int myY)
     {

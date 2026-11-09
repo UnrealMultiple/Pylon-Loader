@@ -27,6 +27,9 @@ internal sealed class SceneEffectPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.Player.Update += Update;
         On.GUIMap.DrawMapFullscreenBackground += DrawMapBackground;
 
+        // 拍图与全屏地图的群系：赢家换了 mod 水或背景时也要跟着换，不然图上是原版的水色。
+        CaptureBiomePipeline.Install();
+
         Log.Info("[sceneeffect] 已挂（选赢家 / 音乐 / 每帧回调 / 水与背景交给各自管线）");
         return true;
     }

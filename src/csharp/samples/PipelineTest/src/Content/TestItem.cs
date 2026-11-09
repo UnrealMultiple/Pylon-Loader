@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using Il2CppMicrosoft.Xna.Framework;
 using Pylon.ModLoader;
 using Terraria;
@@ -31,6 +33,62 @@ public sealed class TestItem : ModItem
         item.shoot = Terraria.ID.ProjectileID.WoodenArrowFriendly;
         item.shootSpeed = 8f;
     }
+
+    // ---- tooltip 探针（TooltipTests 用）：开关默认全关，避免污染其它组 ----
+    public static bool MutateTooltip;
+    public static bool RemoveTooltipLine;
+    public static int CtModifyTooltips;
+    public static int CtPreDrawTooltip;
+    public static int CtPostDrawTooltip;
+    public static int CtPreDrawTooltipLine;
+    public static int CtPostDrawTooltipLine;
+    /// <summary>最后一次 ModifyTooltips 看到的行数（真机悬停时记录）。</summary>
+    /// <summary>W2 记下的改行后行数（W3 对比用）。</summary>
+    public static int MutatedLineCount;
+    public static int LastLineCount = -1;
+
+    public static void ResetTooltipProbe()
+    {
+        MutateTooltip = RemoveTooltipLine = false;
+        CtModifyTooltips = CtPreDrawTooltip = CtPostDrawTooltip = 0;
+        CtPreDrawTooltipLine = CtPostDrawTooltipLine = 0;
+        LastLineCount = -1;
+    }
+
+    public override void ModifyTooltips(List<TooltipLine> tooltips)
+    {
+        CtModifyTooltips++;
+
+        if (RemoveTooltipLine && tooltips.Count > 1)
+        {
+            // 删最后一行（名字行在第 0，删它游戏会补）
+            tooltips.RemoveAt(tooltips.Count - 1);
+        }
+
+        if (MutateTooltip)
+        {
+            if (tooltips.Count > 0) tooltips[0].Text = "[管线改写] " + tooltips[0].Text;
+            tooltips.Add(new TooltipLine(Mod, "PipelineProbe", "[管线加行] 界面探针"));
+        }
+        LastLineCount = tooltips.Count;
+
+    }
+
+    public override bool PreDrawTooltip(ReadOnlyCollection<TooltipLine> lines, ref int x, ref int y)
+    {
+        CtPreDrawTooltip++;
+        return true;
+    }
+
+    public override void PostDrawTooltip(ReadOnlyCollection<DrawableTooltipLine> lines) => CtPostDrawTooltip++;
+
+    public override bool PreDrawTooltipLine(DrawableTooltipLine line, ref int yOffset)
+    {
+        CtPreDrawTooltipLine++;
+        return true;
+    }
+
+    public override void PostDrawTooltipLine(DrawableTooltipLine line) => CtPostDrawTooltipLine++;
 
     public override void ModifyTooltipLines()
     {

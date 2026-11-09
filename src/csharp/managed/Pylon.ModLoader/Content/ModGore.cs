@@ -35,5 +35,4 @@ public abstract class ModGore : ModType
     public static int GetTypeByName(string name) => GoreTable.Find(name);
 }
 
-// 未移植：DrawBehind / PreDraw / PostDraw（整批绘制是 Main.DrawGore 一个入口，逐粒分派要重写整段批量循环，参考实现也没有这一段）、
 // Gores/*.png 自动发现（只放图片不会产生类型）、网络同步（粒子是纯表现）。

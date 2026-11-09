@@ -14,7 +14,6 @@ public class SpawnPool
     /// <summary>抽选里的类型；每次访问新建一份（Object.keys 的结果）。</summary>
     public List<int> Keys => [.. _entries.Keys];
 
-    /// <summary>加一条：类型已在抽选里就抛异常（参考抛的是 Error）。</summary>
     public void Add(int type, float weight)
     {
         if (_entries.ContainsKey(type)) throw new ArgumentException($"SpawnPool.Add: 类型 {type} 已经在抽选里");
@@ -37,7 +36,6 @@ public class SpawnPool
         List<(int Type, float Weight)> entries = [];
         foreach (var entry in _entries)
         {
-            // 参考 Math.max(0, w)：负权重（和 NaN）按 0 算。
             var weight = entry.Value > 0 ? entry.Value : 0f;
             entries.Add((entry.Key, weight));
             total += weight;

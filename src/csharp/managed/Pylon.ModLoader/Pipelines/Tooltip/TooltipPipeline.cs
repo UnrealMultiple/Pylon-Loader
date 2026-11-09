@@ -204,7 +204,7 @@ internal sealed class TooltipPipeline : ILoaderModule
         {
             try
             {
-                modItem.ModifyTooltips(item, lines);
+                modItem.ModifyTooltips(lines);
             }
             catch (Exception e)
             {
@@ -301,8 +301,8 @@ internal sealed class TooltipPipeline : ILoaderModule
         Item? item = null;
         List<TooltipLine>? lines = null;
         var go = true;
-        var fx = (float)x;
-        var fy = (float)y;
+        var fx = x;
+        var fy = y;
 
         try
         {
@@ -326,7 +326,7 @@ internal sealed class TooltipPipeline : ILoaderModule
 
         if (!go) return;
 
-        orig(self, info, rare, diff, (int)fx, (int)fy);
+        orig(self, info, rare, diff, fx, fy);
 
         if (lines is null) return;
 
@@ -336,7 +336,7 @@ internal sealed class TooltipPipeline : ILoaderModule
 
             for (var i = 0; i < lines.Count; i++)
             {
-                var drawable = new DrawableTooltipLine(lines[i], i, fx, fy + i * LineHeight, Color.White);
+                var drawable = new DrawableTooltipLine(lines[i], i, fx, fy + (int)(i * LineHeight), Color.White);
                 drawn[i] = drawable;
 
                 LineHook(item!, drawable);
@@ -350,13 +350,15 @@ internal sealed class TooltipPipeline : ILoaderModule
         }
     }
 
-    private bool PreDrawTooltip(Item item, List<TooltipLine> lines, ref float x, ref float y)
+    private bool PreDrawTooltip(Item item, List<TooltipLine> lines, ref int x, ref int y)
     {
+        var readOnly = lines.AsReadOnly();
+
         if (ItemOf(item) is { } modItem)
         {
             try
             {
-                if (!modItem.PreDrawTooltip(item, lines, ref x, ref y)) return false;
+                if (!modItem.PreDrawTooltip(readOnly, ref x, ref y)) return false;
             }
             catch (Exception e)
             {
@@ -369,7 +371,7 @@ internal sealed class TooltipPipeline : ILoaderModule
         {
             try
             {
-                if (!globals[i].PreDrawTooltip(item, lines, ref x, ref y)) return false;
+                if (!globals[i].PreDrawTooltip(item, readOnly, ref x, ref y)) return false;
             }
             catch (Exception e)
             {
@@ -383,7 +385,7 @@ internal sealed class TooltipPipeline : ILoaderModule
     /// <summary>行级钩子：改的 Text/Color/隐藏记下来，下一帧取行时套上。</summary>
     private void LineHook(Item item, DrawableTooltipLine line)
     {
-        var yOffset = 0f;
+        var yOffset = 0;
         var origin = new TooltipLine(line.Mod, line.Name, line.Text)
         {
             IsModifier = line.IsModifier,
@@ -398,7 +400,7 @@ internal sealed class TooltipPipeline : ILoaderModule
         {
             try
             {
-                go = modItem.PreDrawTooltipLine(item, line, ref yOffset);
+                go = modItem.PreDrawTooltipLine(line, ref yOffset);
             }
             catch (Exception e)
             {
@@ -432,11 +434,13 @@ internal sealed class TooltipPipeline : ILoaderModule
 
     private void PostDrawTooltip(Item item, DrawableTooltipLine[] drawn)
     {
+        var readOnly = drawn.AsReadOnly();
+
         if (ItemOf(item) is { } modItem)
         {
             try
             {
-                modItem.PostDrawTooltip(item, drawn);
+                modItem.PostDrawTooltip(readOnly);
             }
             catch (Exception e)
             {
@@ -449,7 +453,7 @@ internal sealed class TooltipPipeline : ILoaderModule
         {
             try
             {
-                globals[i].PostDrawTooltip(item, drawn);
+                globals[i].PostDrawTooltip(item, readOnly);
             }
             catch (Exception e)
             {
@@ -463,7 +467,7 @@ internal sealed class TooltipPipeline : ILoaderModule
         {
             try
             {
-                owner.PostDrawTooltipLine(item, drawn[i]);
+                owner.PostDrawTooltipLine(drawn[i]);
             }
             catch (Exception e)
             {

@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Terraria;
@@ -135,13 +137,13 @@ public abstract class GlobalItem : ModType
     public virtual void ModifyTooltips(Item item, List<TooltipLine> tooltips) { }
 
     /// <summary>画整个 tooltip 前；改 x/y 移动所有行，false = 一行都不画。</summary>
-    public virtual bool PreDrawTooltip(Item item, List<TooltipLine> lines, ref float x, ref float y) => true;
+    public virtual bool PreDrawTooltip(Item item, ReadOnlyCollection<TooltipLine> lines, ref int x, ref int y) => true;
 
     /// <summary>所有行画完后（收 DrawableTooltipLine）。</summary>
-    public virtual void PostDrawTooltip(Item item, DrawableTooltipLine[] lines) { }
+    public virtual void PostDrawTooltip(Item item, ReadOnlyCollection<DrawableTooltipLine> lines) { }
 
     /// <summary>画这一行前；改 line 的 X/Y/字体/颜色/缩放，yOffset 加在后面所有行上；false = 这行不画。</summary>
-    public virtual bool PreDrawTooltipLine(Item item, DrawableTooltipLine line, ref float yOffset) => true;
+    public virtual bool PreDrawTooltipLine(Item item, DrawableTooltipLine line, ref int yOffset) => true;
 
     /// <summary>这一行画完后（没画也跑）。</summary>
     public virtual void PostDrawTooltipLine(Item item, DrawableTooltipLine line) { }

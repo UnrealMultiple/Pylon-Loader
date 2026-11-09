@@ -1,6 +1,5 @@
 namespace Pylon.ModLoader;
 
-/// <summary>背景风格表：表层风格编号按契约从 17 起，按注册序。</summary>
 internal static class BackgroundTable
 {
     /// <summary>表层背景的起始编号（游戏 <c>SurfaceBackgroundID</c> 有 16 个）。</summary>
@@ -13,7 +12,11 @@ internal static class BackgroundTable
 
     internal static IReadOnlyList<ModSurfaceBackgroundStyle> All => Styles;
 
+    internal static int TotalCount => Base + Styles.Count;
+
     internal static ModSurfaceBackgroundStyle? Of(int slot) => BySlot.TryGetValue(slot, out var style) ? style : null;
+
+    internal static ModSurfaceBackgroundStyle? Get(int slot) => Of(slot);
 
     internal static ModSurfaceBackgroundStyle? Find(string? name)
     {
@@ -28,6 +31,18 @@ internal static class BackgroundTable
         return null;
     }
 
+    internal static void ModifyFarFades(int style, float[] fades, float transitionSpeed)
+    {
+        Of(style)?.ModifyFarFades(fades, transitionSpeed);
+        foreach (var global in Globals) global.ModifyFarSurfaceFades(style, fades, transitionSpeed);
+    }
+
+    private static readonly List<GlobalBackgroundStyle> Globals = [];
+
+    internal static IReadOnlyList<GlobalBackgroundStyle> GlobalStyles => Globals;
+
+    internal static void AddGlobal(GlobalBackgroundStyle style) => Globals.Add(style);
+
     /// <summary>地下背景的起始编号（游戏有 22 个地下风格）。</summary>
     internal const int UndergroundBase = 22;
 
@@ -38,8 +53,16 @@ internal static class BackgroundTable
 
     internal static IReadOnlyList<ModUndergroundBackgroundStyle> UndergroundStyles => Underground;
 
+    internal static int UndergroundTotalCount => UndergroundBase + Underground.Count;
+
     internal static ModUndergroundBackgroundStyle? OfUnderground(int slot) =>
         UndergroundBySlot.TryGetValue(slot, out var style) ? style : null;
+
+    internal static void FillUndergroundTextureArray(int style, int[] textureSlots)
+    {
+        OfUnderground(style)?.FillTextureArray(textureSlots);
+        foreach (var global in Globals) global.FillUndergroundTextureArray(style, textureSlots);
+    }
 
     /// <summary>给地下风格发号（22 之后）；幂等。</summary>
     internal static void AssignUnderground()
@@ -71,6 +94,13 @@ internal static class BackgroundTable
 
             Styles.Add(style);
             BySlot[slot] = style;
+        }
+
+        foreach (var global in ModContent.GetContent<GlobalBackgroundStyle>())
+        {
+            if (global.Registered) continue;
+            global.Registered = true;
+            Globals.Add(global);
         }
     }
 }

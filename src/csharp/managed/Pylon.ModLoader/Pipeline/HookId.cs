@@ -148,6 +148,8 @@ internal enum HookId
     ApplyPlayer,
     ReApplyPlayer,
     ApplyDifficultyAndPlayerScaling,
+    PickEmote,
+    EmoteBubblePosition,
     BossHeadSlot,
     BossHeadRotation,
     BossHeadSpriteEffects,
@@ -174,6 +176,8 @@ internal enum HookId
     UpdateManaRegen,
     UpdateDead,
     UpdateMovement,
+    ProcessTriggers,
+    FrameEffects,
     OnRespawn,
     Kill,
     PreModifyLuck,
@@ -267,12 +271,16 @@ internal enum HookId
     // ---- 内容：资源覆盖层 ----
     PreDrawResource,
     PostDrawResource,
+    PreDrawResourceDisplay,
+    PostDrawResourceDisplay,
+    DisplayHoverText,
 
     // ---- 内容：玩家绘制信息 ----
     ModifyDrawInfo,
     TransformDrawData,
     HideDrawLayers,
-    DrawPlayerFull,
+    ModifyDrawLayerOrdering,
+    DrawPlayer,
 
     // ---- 内容：玩家客户端状态 ----
     SyncPlayer,
@@ -296,4 +304,5 @@ internal enum HookId
     ModifyInterfaceLayers,
     PostDrawInterface,
     PostDrawTiles,
+    OnEnterWorld,
 }

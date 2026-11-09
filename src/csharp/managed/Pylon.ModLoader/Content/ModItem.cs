@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Reflection;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
@@ -87,19 +89,19 @@ public abstract class ModItem : ModType
     public virtual void ModifyTooltipLines() { }
 
     /// <summary>每次 tooltip 显示时一次（合成指南弹窗里也会，不带颜色）；直接改 tooltips 列表。</summary>
-    public virtual void ModifyTooltips(Item item, List<TooltipLine> tooltips) { }
+    public virtual void ModifyTooltips(List<TooltipLine> tooltips) { }
 
     /// <summary>画整个 tooltip 前；改 x/y 移动所有行，false = 一行都不画。</summary>
-    public virtual bool PreDrawTooltip(Item item, List<TooltipLine> lines, ref float x, ref float y) => true;
+    public virtual bool PreDrawTooltip(ReadOnlyCollection<TooltipLine> lines, ref int x, ref int y) => true;
 
     /// <summary>所有行画完后（收 DrawableTooltipLine）。</summary>
-    public virtual void PostDrawTooltip(Item item, DrawableTooltipLine[] lines) { }
+    public virtual void PostDrawTooltip(ReadOnlyCollection<DrawableTooltipLine> lines) { }
 
     /// <summary>画这一行前；改 line 的 X/Y/字体/颜色/缩放，yOffset 加在后面所有行上；false = 这行不画。</summary>
-    public virtual bool PreDrawTooltipLine(Item item, DrawableTooltipLine line, ref float yOffset) => true;
+    public virtual bool PreDrawTooltipLine(DrawableTooltipLine line, ref int yOffset) => true;
 
     /// <summary>这一行画完后（没画也跑）。</summary>
-    public virtual void PostDrawTooltipLine(Item item, DrawableTooltipLine line) { }
+    public virtual void PostDrawTooltipLine(DrawableTooltipLine line) { }
 
     /// <summary>在制作菜单做出这个物品时；item 是玩家将拿到的那份，还能改。</summary>
     public virtual void OnCraft(Item item, Player player, Recipe recipe) { }
@@ -505,7 +507,6 @@ public abstract class ModItem : ModType
     private static int SlotItemType(Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<int> table, int slot) =>
         table[slot > 0 && slot < table.Length ? slot : 0];
 
-    /// <summary>借游戏自己的套装效果当占位（跟参考里借南瓜套一模一样的做法）。</summary>
     private static ArmorSetBonus.ArmorSetEffect VanillaArmorSetEffect()
     {
         foreach (var set in ArmorSetBonuses.All)

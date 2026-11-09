@@ -93,6 +93,9 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
 
 #region 外部入口（作者 API 需要）
 
+    /// <summary>实体 → ModNpc 实例（表情等跨管线钩子要用）。</summary>
+    internal ModNpc? InstanceOf(NPC? npc) => _binding.InstanceOf(npc);
+
     internal bool StartClone(int type) => _cloning.Add(type);
 
     /// <summary>CloneDefaults 收尾：绑定换回原实例，Global 实体表按原类型重建。</summary>

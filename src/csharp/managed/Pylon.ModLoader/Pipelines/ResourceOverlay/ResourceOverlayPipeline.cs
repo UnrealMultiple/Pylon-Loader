@@ -1,11 +1,15 @@
+using Il2CppMicrosoft.Xna.Framework;
+using Il2CppMicrosoft.Xna.Framework.Graphics;
+using ReLogic.Content;
 using Terraria;
+using Terraria.GameContent;
 using Terraria.GameContent.UI.ResourceSets;
 
 namespace Pylon.ModLoader;
 
 /// <summary>
-/// 资源覆盖层管线：生命条 / 魔力条画的前后各派一次作者回调。其它资源条样式与悬停提示本版不接，
-/// 见 docs/pipeline/content-resourceoverlay.md。
+/// 资源覆盖层管线：单颗心/星绘制前后给 <see cref="ResourceOverlayDrawContext"/>，整条生命/魔力条前后给快照。
+/// <c>HeartDraw</c>/<c>StarDraw</c>；<c>PreDrawResourceDisplay</c> 的 drawText 控制生命数值画不画。
 /// </summary>
 internal sealed class ResourceOverlayPipeline : ILoaderModule, ILoaderModuleRefresh
 {
@@ -15,19 +19,24 @@ internal sealed class ResourceOverlayPipeline : ILoaderModule, ILoaderModuleRefr
 
     private static IModLog Log => LoaderHost.Current.Log;
 
+    private static PlayerStatsSnapshot _snapshot;
+    private static bool _haveSnapshot;
+    private static bool _drawLifeText = true;
+    private static ResourceOverlayDrawContext _current;
+    private static int _resourceNumber;
+
     public bool Install()
     {
-        On.Terraria.GameContent.UI.ResourceSets.ClassicPlayerResourcesDisplaySet.DrawLife += DrawLife;
-        On.Terraria.GameContent.UI.ResourceSets.ClassicPlayerResourcesDisplaySet.DrawMana += DrawMana;
-        On.Terraria.GameContent.UI.ResourceSets.FancyClassicPlayerResourcesDisplaySet.DrawLifeBar += DrawFancyLife;
-        On.Terraria.GameContent.UI.ResourceSets.HorizontalBarsPlayerResourcesDisplaySet.Draw += DrawHorizontalBars;
-        On.Terraria.GameContent.UI.ResourceSets.FancyClassicPlayerResourcesDisplaySet.DrawManaBar += DrawFancyMana;
-        On.Terraria.GameContent.UI.ResourceSets.CommonResourceBarMethods.DrawLifeMouseOver += DrawLifeMouseOver;
-        On.Terraria.GameContent.UI.ResourceSets.CommonResourceBarMethods.DrawManaMouseOver += DrawManaMouseOver;
+        // 与 menu 一样：Install 早于 Build/收表，所以无条件挂；分派时按位集跳过没覆写的覆盖层。
         On.GUIHearts.HeartDraw += HeartDraw;
         On.GUIMana.StarDraw += StarDraw;
+        On.GUIHearts.Draw += HeartsDraw;
+        On.GUIMana.Draw += ManaDraw;
+        On.GUIHearts.DrawLifeString += DrawLifeString;
 
-        Log.Info("[resourceoverlay] 已挂（生命/魔力条的绘制与悬停提示前后 + 单颗心/星前后）");
+        SpriteBatchCapture.Install();
+
+        Log.Info("[resourceoverlay] 已挂（生命/魔力条前后 + 单颗心/星前后 + 生命数值）");
         return true;
     }
 
@@ -43,236 +52,225 @@ internal sealed class ResourceOverlayPipeline : ILoaderModule, ILoaderModuleRefr
         if (ResourceOverlayTable.Count > 0) Log.Info($"[resourceoverlay] 安装：{ResourceOverlayTable.Count} 个覆盖层");
     }
 
-    // ===================== 绘制 =====================
+    // ===================== 整条 =====================
 
-    private static void DrawLife(On.Terraria.GameContent.UI.ResourceSets.ClassicPlayerResourcesDisplaySet.orig_DrawLife orig,
-                                 ClassicPlayerResourcesDisplaySet self)
+    private static IPlayerResourcesDisplaySet DisplaySet => Main.ActivePlayerResourcesSet;
+
+    private static void HeartsDraw(On.GUIHearts.orig_Draw orig, GUIHearts self) => Display(true, () => orig(self));
+
+    private static void ManaDraw(On.GUIMana.orig_Draw orig, GUIMana self) => Display(false, () => orig(self));
+
+    /// <summary>生命数值：<c>PreDrawResourceDisplay</c> 的 drawText 为 false 时这一帧不画。</summary>
+    private static void DrawLifeString(On.GUIHearts.orig_DrawLifeString orig, GUIHearts self)
     {
-        if (ResourceOverlayTable.Count == 0)
+        if (_drawLifeText) orig(self);
+    }
+
+    private static void Display(bool life, Action draw)
+    {
+        if (!ResourceOverlayTable.AnyDisplay())
         {
-            orig(self);
+            draw();
             return;
         }
 
-        Dispatch(true, false);
-        orig(self);
-        Dispatch(false, false);
-    }
+        _snapshot = new PlayerStatsSnapshot(Main.LocalPlayer);
+        _haveSnapshot = true;
+        var textColor = Color.White;
+        var drawText = true;
+        var go = true;
 
-    private static void DrawMana(On.Terraria.GameContent.UI.ResourceSets.ClassicPlayerResourcesDisplaySet.orig_DrawMana orig,
-                                 ClassicPlayerResourcesDisplaySet self)
-    {
-        if (ResourceOverlayTable.Count == 0)
+        DispatchDisplay(true, life, ref textColor, ref drawText, ref go);
+
+        if (life) _drawLifeText = drawText;
+        try
         {
-            orig(self);
-            return;
+            if (go) draw();
+        }
+        finally
+        {
+            _drawLifeText = true;
         }
 
-        Dispatch(true, true);
-        orig(self);
-        Dispatch(false, true);
+        DispatchDisplay(false, life, ref textColor, ref drawText, ref go);
     }
 
-    // FancyClassic 的条：与 Classic 同形（整条一次，spriteBatch 前后派）。
-    /// <summary>
-    /// 横条样式（HorizontalBars）把生命与法力画在同一块里，没有"生命条一次、法力条一次"的分开入口；
-    /// 所以在这里按顺序派四次：生命前、法力前 → 原版整块 → 法力后、生命后。作者拿到的是整块的时机，
-    /// 比心/星的粒度粗，但 API 语义（前后各一次）不变。
-    /// </summary>
-    private static void DrawHorizontalBars(
-        On.Terraria.GameContent.UI.ResourceSets.HorizontalBarsPlayerResourcesDisplaySet.orig_Draw orig,
-        Terraria.GameContent.UI.ResourceSets.HorizontalBarsPlayerResourcesDisplaySet self)
+    private static void DispatchDisplay(bool before, bool life, ref Color textColor, ref bool drawText, ref bool go)
     {
-        if (ResourceOverlayTable.Count == 0)
+        for (var slot = 0; slot < ResourceOverlayTable.Count; slot++)
         {
-            orig(self);
-            return;
-        }
+            var mask = ResourceOverlayTable.MaskAt(slot);
+            if (before ? !mask.Has(HookId.PreDrawResourceDisplay) : !mask.Has(HookId.PostDrawResourceDisplay)) continue;
 
-        var batch = Main.spriteBatch;
-        DispatchAll(true, false, batch);
-        DispatchAll(true, true, batch);
-
-        orig(self);
-
-        DispatchAll(false, true, batch);
-        DispatchAll(false, false, batch);
-    }
-
-    private static void DrawFancyLife(
-        On.Terraria.GameContent.UI.ResourceSets.FancyClassicPlayerResourcesDisplaySet.orig_DrawLifeBar orig,
-        Terraria.GameContent.UI.ResourceSets.FancyClassicPlayerResourcesDisplaySet self,
-        Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch spriteBatch)
-    {
-        DispatchAll(true, false, spriteBatch);
-        orig(self, spriteBatch);
-        DispatchAll(false, false, spriteBatch);
-    }
-
-    private static void DrawFancyMana(
-        On.Terraria.GameContent.UI.ResourceSets.FancyClassicPlayerResourcesDisplaySet.orig_DrawManaBar orig,
-        Terraria.GameContent.UI.ResourceSets.FancyClassicPlayerResourcesDisplaySet self,
-        Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch spriteBatch)
-    {
-        DispatchAll(true, true, spriteBatch);
-        orig(self, spriteBatch);
-        DispatchAll(false, true, spriteBatch);
-    }
-
-    /// <summary>对全部覆盖层派一次（条粒度）；Classic 与 FancyClassic 共用。</summary>
-    private static void DispatchAll(bool before, bool mana, Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch spriteBatch)
-    {
-        if (ResourceOverlayTable.Count == 0) return;
-
-        for (var index = 0; index < ResourceOverlayTable.Count; index++)
-        {
-            var overlay = ResourceOverlayTable.At(index);
-
+            var overlay = ResourceOverlayTable.At(slot);
             try
             {
                 if (before)
                 {
-                    if (mana) overlay.PreDrawMana(spriteBatch);
-                    else overlay.PreDrawLife(spriteBatch);
+                    if (!overlay.PreDrawResourceDisplay(_snapshot, DisplaySet, life, ref textColor, out var overlayDraw))
+                        go = false;
+                    drawText &= overlayDraw;
                 }
                 else
                 {
-                    if (mana) overlay.PostDrawMana(spriteBatch);
-                    else overlay.PostDrawLife(spriteBatch);
-                }
-            }
-            catch (Exception e)
-            {
-                ContentErrors.Report($"[resourceoverlay] {overlay.Name}（条粒度）异常：{Safe.Describe(e)}");
-            }
-        }
-    }
-
-    private static void DrawLifeMouseOver(On.Terraria.GameContent.UI.ResourceSets.CommonResourceBarMethods.orig_DrawLifeMouseOver orig)
-    {
-        Dispatch(true, false, true);
-        orig();
-        Dispatch(false, false, true);
-    }
-
-    private static void DrawManaMouseOver(On.Terraria.GameContent.UI.ResourceSets.CommonResourceBarMethods.orig_DrawManaMouseOver orig)
-    {
-        Dispatch(true, true, true);
-        orig();
-        Dispatch(false, true, true);
-    }
-
-    /// <summary>单颗心：作者说"这颗不画"就跳过 orig，但 Post 照样派（作者可能只想换画法）。</summary>
-    private static void HeartDraw(On.GUIHearts.orig_HeartDraw orig, GUIHearts self, ItemGrid_Layout gridLayout,
-                                 int index, Il2CppMicrosoft.Xna.Framework.Vector2 position, float scale)
-    {
-        if (!ResourceOverlayTable.AnyResourceDraw())
-        {
-            orig(self, gridLayout, index, position, scale);
-            return;
-        }
-
-        var go = DispatchResource(true, index, position, scale);
-        if (go) orig(self, gridLayout, index, position, scale);
-        DispatchResource(false, index, position, scale);
-    }
-
-    /// <summary>单颗魔力星，与心同一套语义。</summary>
-    private static void StarDraw(On.GUIMana.orig_StarDraw orig, GUIMana self, ItemGrid_Layout gridLayout, int index,
-                                Il2CppMicrosoft.Xna.Framework.Vector2 position, float scale)
-    {
-        if (!ResourceOverlayTable.AnyResourceDraw())
-        {
-            orig(self, gridLayout, index, position, scale);
-            return;
-        }
-
-        var go = DispatchResource(true, index, position, scale);
-        if (go) orig(self, gridLayout, index, position, scale);
-        DispatchResource(false, index, position, scale);
-    }
-
-    /// <summary>单颗绘制的前后派发；返回 false = 至少一位作者要求这颗不画。</summary>
-    private static bool DispatchResource(bool before, int index, Il2CppMicrosoft.Xna.Framework.Vector2 position,
-                                        float scale)
-    {
-        var go = true;
-
-        for (var slot = 0; slot < ResourceOverlayTable.Count; slot++)
-        {
-            var mask = ResourceOverlayTable.MaskAt(slot);
-            var overlay = ResourceOverlayTable.At(slot);
-
-            if (before)
-            {
-                if (!mask.Has(HookId.PreDrawResource)) continue;
-
-                try
-                {
-                    if (!overlay.PreDrawResource(index, position, scale)) go = false;
-                }
-                catch (Exception e)
-                {
-                    ContentErrors.Report($"[resourceoverlay] {overlay.Name}.PreDrawResource 异常：{Safe.Describe(e)}");
-                }
-            }
-            else
-            {
-                if (!mask.Has(HookId.PostDrawResource)) continue;
-
-                try
-                {
-                    overlay.PostDrawResource(index, position, scale);
-                }
-                catch (Exception e)
-                {
-                    ContentErrors.Report($"[resourceoverlay] {overlay.Name}.PostDrawResource 异常：{Safe.Describe(e)}");
-                }
-            }
-        }
-
-        return go;
-    }
-
-    /// <summary>逐条派；每条各自 try/catch，一个覆盖层抛异常不该让条消失。</summary>
-    private static void Dispatch(bool before, bool mana, bool hover = false)
-    {
-        var spriteBatch = Main.spriteBatch;
-        if (spriteBatch is null) return;
-
-        for (var index = 0; index < ResourceOverlayTable.Count; index++)
-        {
-            var overlay = ResourceOverlayTable.At(index);
-
-            try
-            {
-                if (hover)
-                {
-                    if (mana)
-                    {
-                        if (before) overlay.PreDrawManaMouseOver(spriteBatch);
-                        else overlay.PostDrawManaMouseOver(spriteBatch);
-                    }
-                    else
-                    {
-                        if (before) overlay.PreDrawLifeMouseOver(spriteBatch);
-                        else overlay.PostDrawLifeMouseOver(spriteBatch);
-                    }
-                }
-                else if (mana)
-                {
-                    if (before) overlay.PreDrawMana(spriteBatch);
-                    else overlay.PostDrawMana(spriteBatch);
-                }
-                else
-                {
-                    if (before) overlay.PreDrawLife(spriteBatch);
-                    else overlay.PostDrawLife(spriteBatch);
+                    overlay.PostDrawResourceDisplay(_snapshot!, DisplaySet, life, textColor, drawText);
                 }
             }
             catch (Exception e)
             {
                 ContentErrors.Report($"[resourceoverlay] {overlay.Name} 异常：{Safe.Describe(e)}");
+            }
+        }
+    }
+
+    // ===================== 单颗 =====================
+
+    private static void HeartDraw(On.GUIHearts.orig_HeartDraw orig, GUIHearts self, ItemGrid_Layout gridLayout,
+                                  int index, Vector2 position, float scale)
+    {
+        if (!ResourceOverlayTable.AnyResourceDraw())
+        {
+            orig(self, gridLayout, index, position, scale);
+            return;
+        }
+
+        Around(index, () => orig(self, gridLayout, index, position, scale));
+    }
+
+    private static void StarDraw(On.GUIMana.orig_StarDraw orig, GUIMana self, ItemGrid_Layout gridLayout,
+                                 int index, Vector2 position, float scale)
+    {
+        if (!ResourceOverlayTable.AnyResourceDraw())
+        {
+            orig(self, gridLayout, index, position, scale);
+            return;
+        }
+
+        Around(index, () => orig(self, gridLayout, index, position, scale));
+    }
+
+    /// <summary>
+    /// 经典 = Heart/Mana，FancyClassic = Heart_Fill/Star_Fill，横条 = HP_Fill/MP_Fill。
+    /// </summary>
+    /// <summary>单颗绘制：打开捕获窗口，游戏这一笔的真实参数由 <see cref="SpriteBatchCapture"/> 交出来。</summary>
+    private static void Around(int index, Action draw)
+    {
+        if (!ResourceOverlayTable.AnyResourceDraw())
+        {
+            draw();
+            return;
+        }
+
+        if (!_haveSnapshot)
+        {
+            _snapshot = new PlayerStatsSnapshot(Main.LocalPlayer);
+            _haveSnapshot = true;
+        }
+
+        _resourceNumber = index;
+        SpriteBatchCapture.Pre = OnPre;
+        SpriteBatchCapture.Post = OnPost;
+        SpriteBatchCapture.Active = true;
+
+        try
+        {
+            draw();
+        }
+        finally
+        {
+            SpriteBatchCapture.Active = false;
+            SpriteBatchCapture.Pre = null;
+            SpriteBatchCapture.Post = null;
+        }
+    }
+
+    private static bool OnPre(SpriteBatchCapture.DrawInfo info)
+    {
+        if (info.Texture is not { } texture) return true;
+
+        if (FindAsset(texture) is not { } asset) return true;
+
+        _current = new ResourceOverlayDrawContext(_snapshot, DisplaySet, _resourceNumber, asset)
+        {
+            SpriteBatch = Main.spriteBatch,
+        };
+        _current.position = info.Position;
+        _current.source = info.Source;
+        _current.color = info.Color;
+        _current.rotation = info.Rotation;
+        _current.origin = info.Origin;
+        _current.scale = info.Scale;
+        _current.effects = info.Effects;
+
+        var go = true;
+        DispatchResource(true, _current, ref go);
+        return go;
+    }
+
+    private static void OnPost(SpriteBatchCapture.DrawInfo info)
+    {
+        if (FindAsset(info.Texture) is null) return;
+
+        var go = true;
+        DispatchResource(false, _current, ref go);
+    }
+
+    /// <summary>把这一笔的贴图对回它对应的 Asset（按原生指针）；认不出就放过。</summary>
+    private static Asset<Texture2D>? FindAsset(Texture2D texture)
+    {
+        if (Matches(texture, TextureAssets.Heart)) return TextureAssets.Heart;
+        if (Matches(texture, TextureAssets.Heart2)) return TextureAssets.Heart2;
+        if (Matches(texture, TextureAssets.Mana)) return TextureAssets.Mana;
+
+        // 游戏自己加载的资产名（如 Content/Images/UI/...）：按名字请求同一张，拿到精确的 Asset。
+        try
+        {
+            var name = texture.Name;
+            if (!string.IsNullOrEmpty(name))
+                return Main.Assets.Request<Texture2D>(name, ReLogic.Content.AssetRequestMode.ImmediateLoad);
+        }
+        catch
+        {
+            // 认不出就放过这一笔。
+        }
+
+        return null;
+    }
+
+    private static bool Matches(Texture2D texture, Asset<Texture2D>? asset)
+    {
+        try
+        {
+            return asset?.Value is { } value && value.Pointer == texture.Pointer;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static void DispatchResource(bool before, ResourceOverlayDrawContext context, ref bool go)
+    {
+        for (var slot = 0; slot < ResourceOverlayTable.Count; slot++)
+        {
+            var mask = ResourceOverlayTable.MaskAt(slot);
+            if (before ? !mask.Has(HookId.PreDrawResource) : !mask.Has(HookId.PostDrawResource)) continue;
+
+            var overlay = ResourceOverlayTable.At(slot);
+            try
+            {
+                if (before)
+                {
+                    if (!overlay.PreDrawResource(context)) go = false;
+                }
+                else
+                {
+                    overlay.PostDrawResource(context);
+                }
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[resourceoverlay] {overlay.Name} {(before ? "PreDrawResource" : "PostDrawResource")} 异常：{Safe.Describe(e)}");
             }
         }
     }

@@ -63,6 +63,13 @@ internal static class PT
     public static void Later(string id, int frames, Action<Check> body) =>
         Deferred.Add(new DeferredCase { Id = id, Frames = Math.Max(1, frames), Body = body });
 
+    /// <summary>
+    /// 延迟用例的体内再排一次自己（轮询）：死亡等场景里 PostUpdate 停摆，帧数会漂，
+    /// 用「见数就判、没见重排」代替拍一个长帧数。
+    /// </summary>
+    public static void RetryLater(string id, int frames, Action<Check> body) =>
+        Later(id, frames, body);
+
     /// <summary>每帧调用：推进所有延迟用例。世界跑过之后才由 TestPlayer.PostUpdate 调用。</summary>
     public static void RunTick()
     {

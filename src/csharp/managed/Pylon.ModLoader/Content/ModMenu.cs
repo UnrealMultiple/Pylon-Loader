@@ -1,4 +1,5 @@
 using Il2CppMicrosoft.Xna.Framework;
+using System;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using ReLogic.Content;
 
@@ -8,13 +9,23 @@ namespace Pylon.ModLoader;
 public abstract class ModMenu : ModType
 {
     /// <summary>logo 贴图（Mod.LoadAsset 的 Asset&lt;Texture2D&gt;；null = 用游戏的日/夜两个 logo）。</summary>
-    public virtual Asset<Texture2D> Logo { get; set; } = null!;
+    public virtual Asset<Texture2D>? Logo => null;
 
     /// <summary>太阳贴图（null = 用游戏的）。</summary>
-    public virtual Asset<Texture2D> SunTexture { get; set; } = null!;
+    public virtual Asset<Texture2D>? SunTexture => null;
 
     /// <summary>月亮贴图，单帧、无月相（null = 用游戏的）。</summary>
-    public virtual Asset<Texture2D> MoonTexture { get; set; } = null!;
+    public virtual Asset<Texture2D>? MoonTexture => null;
+
+    /// <summary>作者有没有重写太阳/月亮的 getter（管线只在重写了才挂日月 hook）。</summary>
+    internal bool OverridesSunMoon =>
+        IsGetterOverridden(nameof(SunTexture)) || IsGetterOverridden(nameof(MoonTexture));
+
+    private bool IsGetterOverridden(string property)
+    {
+        var method = GetType().GetMethod("get_" + property, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic, binder: null, types: System.Array.Empty<System.Type>(), modifiers: null);
+        return method is not null && method.DeclaringType != typeof(ModMenu);
+    }
 
     /// <summary>菜单音乐槽（-1 = 用游戏的）；菜单音乐总是游戏的；在 SetStaticDefaults 里定一次，别用 get（每帧读）。</summary>
     public virtual int Music { get; set; } = -1;
@@ -53,7 +64,7 @@ public abstract class ModMenu : ModType
     public virtual bool PreDrawLogo(SpriteBatch spriteBatch, ref Vector2 logoDrawCenter, ref float logoRotation, ref float logoScale, ref Color drawColor) => true;
 
     /// <summary>logo 画完之后，参数是它画的时候的值。</summary>
-    public virtual void PostDrawLogo(SpriteBatch spriteBatch, ref Vector2 logoDrawCenter, ref float logoRotation, ref float logoScale, ref Color drawColor) { }
+    public virtual void PostDrawLogo(SpriteBatch spriteBatch, Vector2 logoDrawCenter, float logoRotation, float logoScale, Color drawColor) { }
 }
 
 // 未移植 register：Pylon 的注册由 ModType 发现自动做，主题切换与 SetStaticDefaults 的调用在管线里。

@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using Pylon.ModLoader;
+using Terraria;
+using PipelineTest.Content;
+using AuthorLayer = Pylon.ModLoader.GameInterfaceLayer;
 
 namespace PipelineTest;
 
@@ -11,6 +14,15 @@ public sealed class PipelineTestMod : Mod
     public static PipelineTestMod Instance { get; private set; } = null!;
 
     public PipelineTestMod() => Instance = this;
+
+    // 界面层/系统绘制探针的路由：这三个时机属于 Mod 本身，覆写挂在 Mod 上。
+    public override void ModifyInterfaceLayers(List<AuthorLayer> layers) =>
+        TestInterfaceProbe.OnModifyInterfaceLayers(layers);
+
+    public override void PostDrawTiles() => TestInterfaceProbe.OnPostDrawTiles();
+
+    public override void PostDrawInterface(Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch spriteBatch) =>
+        TestInterfaceProbe.OnPostDrawInterface(spriteBatch);
 
     public override void Load()
     {
@@ -53,6 +65,17 @@ public sealed class PipelineTestMod : Mod
         Tests.EmoteBubbleTests.Register();
         Tests.BiomeTests.Register();
         Tests.SceneEffectTests.Register();
+        Tests.PlayerDrawLayerTests.Register();
+        Tests.PlayerDrawInfoTests.Register();
+        Tests.InterfaceTests.Register();
+        Tests.PlayerTests.Register();
+        Tests.CommandTests.Register();
+        Tests.ConfigTests.Register();
+        Tests.NetTests.Register();
+        Tests.TooltipTests.Register();
+        Tests.MenuTests.Register();
+        Tests.ResourceOverlayTests.Register();
+        Tests.BackgroundTests.Register();
 
         PT.Boot();
         Logger.Info("[PT] 组开关: " + (PT.Enabled is { } e ? string.Join(",", e) : "全部"));
@@ -63,6 +86,20 @@ public sealed class PipelineTestMod : Mod
     {
         PT.RunPhase(Phase.Ready);
         PT.End();
+    }
+
+    /// <summary>tooltip 测试的光标扫描：开时每帧把触摸位置扫过热键栏第 1 格。</summary>
+    public static bool TooltipSweep;
+    private static int _sweepFrame;
+
+    public override void PostUpdateEverything()
+    {
+        if (!TooltipSweep) return;
+        // 热键栏第 1 格约在 (20..90, 20..90)（手机 UI 无缩放偏移）；逐帧小幅移动提高命中
+        Main.mouseX = 34 + _sweepFrame % 30;
+        Main.mouseY = 34 + (_sweepFrame / 30) % 30;
+        Main.mouseLeft = true;
+        _sweepFrame++;
     }
 
     public override void AddRecipes()

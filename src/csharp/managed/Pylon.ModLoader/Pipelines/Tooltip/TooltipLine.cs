@@ -20,10 +20,10 @@ public class TooltipLine
     }
 
     /// <summary>这行属于哪个 mod；游戏的行是 "Terraria"。</summary>
-    public string Mod { get; set; }
+    public string Mod { get; }
 
     /// <summary>行名（作者靠它找行）。</summary>
-    public string Name { get; set; }
+    public string Name { get; }
 
     /// <summary>行的文字（null 当空串写回）。</summary>
     public string Text { get; set; }
@@ -44,7 +44,7 @@ public class TooltipLine
     public bool Visible { get; set; } = true;
 
     /// <summary>"Mod/Name"。</summary>
-    public string FullName => Mod.Length == 0 ? Name : Mod + "/" + Name;
+    public string FullName => Mod + "/" + Name;
 
     /// <summary>行角色（name / logo / research / materials / setBonus / shared；空 = 普通行）。</summary>
     internal string Role { get; set; } = "";

@@ -14,6 +14,9 @@ internal sealed class PlayerBinding
 
     internal int Count => _templates.Count;
 
+    /// <summary>模板（没绑玩家的那一份）：给"每帧都与玩家无关"的钩子用，比如绘制层排序。</summary>
+    internal IReadOnlyList<ModPlayer> Templates => _templates;
+
     /// <summary>注册期：只记模板，位集等内容都注册完再算。</summary>
     internal void Register(ModPlayer template) => _templates.Add(template);
 

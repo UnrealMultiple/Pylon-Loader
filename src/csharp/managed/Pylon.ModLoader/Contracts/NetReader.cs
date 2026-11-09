@@ -7,7 +7,6 @@ namespace Pylon.ModLoader;
 /// <summary>Mod 侧网络读取器：构造时抓住接收到的值数组，按写入顺序读回（写侧是 NetWriter；读超界抛异常）。</summary>
 public class NetReader
 {
-    /// <summary>抓住值数组；null 当空数组（参考：不是数组就当 []）。</summary>
     public NetReader(object[] values)
     {
         Values = values ?? [];
@@ -23,7 +22,6 @@ public class NetReader
     /// <summary>还有没有没读的值（index &lt; values.length）。</summary>
     public bool HasMore => Index < Values.Length;
 
-    /// <summary>读下一个值（原样）；读超界抛异常（参考里是 RangeError，C# 用最接近的 InvalidOperationException）。</summary>
     public object Read()
     {
         if (Index >= Values.Length)
@@ -66,28 +64,20 @@ public class NetReader
         return new Vector2(v.X, v.Y);
     }
 
-    /// <summary>下一个值折算成 byte（参考里是 ReadInt32 的别名，返回值类型照名字给）。</summary>
     public byte ReadByte() => unchecked((byte)ToInt32(Read()));
 
-    /// <summary>下一个值折算成 sbyte（参考里是 ReadInt32 的别名，返回值类型照名字给）。</summary>
     public sbyte ReadSByte() => unchecked((sbyte)ToInt32(Read()));
 
-    /// <summary>下一个值折算成 short（参考里是 ReadInt32 的别名，返回值类型照名字给）。</summary>
     public short ReadInt16() => unchecked((short)ToInt32(Read()));
 
-    /// <summary>下一个值折算成 ushort（参考里是 ReadInt32 的别名，返回值类型照名字给）。</summary>
     public ushort ReadUInt16() => unchecked((ushort)ToInt32(Read()));
 
-    /// <summary>下一个值折算成 uint（参考里是 ReadInt32 的别名，返回值类型照名字给）。</summary>
     public uint ReadUInt32() => unchecked((uint)ToInt32(Read()));
 
-    /// <summary>下一个值折算成 int32（参考里是 ReadInt32 的别名，返回值类型照名字给）。</summary>
     public int Read7BitEncodedInt() => ToInt32(Read());
 
-    /// <summary>下一个值折算成 long（参考里是 ReadSingle 的别名，返回值类型照名字给 long）。</summary>
     public long ReadInt64() => ToInt64(Read());
 
-    /// <summary>下一个值折算成 double（参考里是 ReadSingle 的别名，返回值类型照名字给 double）。</summary>
     public double ReadDouble() => ToDouble(Read());
 
     // —— 以下转换内核与 TagCompound 同批同一套 JS 折算（照抄，语义一致） ——

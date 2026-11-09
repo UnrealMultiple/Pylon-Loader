@@ -1,14 +1,8 @@
-using Il2CppMicrosoft.Xna.Framework;
-using Il2CppInterop.Runtime.InteropTypes.Arrays;
-using Terraria;
-using Terraria.Graphics;
-using Terraria.Graphics.Renderers;
-
 namespace Pylon.ModLoader;
 
 /// <summary>
-/// 玩家绘制层管线：没写 <see cref="ModPlayerDrawLayer.Position"/> 的层在 <c>LegacyPlayerRenderer.DrawPlayer</c> 前后各派一次；
-/// 写了位置的层由 <see cref="PlayerDrawLayerChain"/> 插进原版逐层绘制链。
+/// 玩家绘制层管线：作者层的层位、父子关系与可见性由 <see cref="PlayerDrawLayerLoader"/> 统一排程，
+/// 真正落笔仍由原版逐层钩子（<see cref="HideLayerHooks"/>）在两次原版调用之间插进来。
 /// </summary>
 internal sealed class PlayerDrawLayerPipeline : ILoaderModule, ILoaderModuleRefresh
 {
@@ -20,66 +14,38 @@ internal sealed class PlayerDrawLayerPipeline : ILoaderModule, ILoaderModuleRefr
 
     public bool Install()
     {
-        On.Terraria.Graphics.Renderers.LegacyPlayerRenderer.DrawPlayer += DrawPlayer;
-
-        Log.Info("[playerdrawlayer] 已挂（玩家身后 / 身前两层 + 原版逐层链上的定位层）");
+        Log.Info("[playerdrawlayer] 已挂（层位排序 / 父子层 / 可见性 / 原版逐层槽位）");
         return true;
     }
 
-    public void Refresh() => PlayerDrawLayerTable.Rebuild();
+    public void Refresh() => PlayerDrawLayerLoader.Rebuild();
 
-    /// <summary>安装期一次：收表 + 静态默认值。</summary>
+    /// <summary>安装期一次：收表、跑一次静态默认值、排程。</summary>
     internal void Build()
     {
-        PlayerDrawLayerTable.Rebuild();
+        PlayerDrawLayerLoader.ResetModLayers();
 
-        foreach (var layer in PlayerDrawLayerTable.BehindLayers) layer.SetStaticDefaults();
-        foreach (var layer in PlayerDrawLayerTable.FrontLayers) layer.SetStaticDefaults();
-
-        if (PlayerDrawLayerTable.Count > 0)
+        var layers = ModContent.GetContent<PlayerDrawLayer>();
+        for (var i = 0; i < layers.Count; i++)
         {
-            Log.Info($"[playerdrawlayer] 安装：{PlayerDrawLayerTable.Count} 个层，其中 {PlayerDrawLayerTable.ChainedCount} 个插进原版链");
-        }
-    }
+            var layer = layers[i];
+            if (layer is VanillaPlayerDrawLayer) continue;
 
-    // ===================== 绘制 =====================
+            try
+            {
+                layer.SetStaticDefaults();
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[playerdrawlayer] {layer.Name}.SetStaticDefaults 异常：{Safe.Describe(e)}");
+            }
 
-    private static void DrawPlayer(On.Terraria.Graphics.Renderers.LegacyPlayerRenderer.orig_DrawPlayer orig,
-                                   LegacyPlayerRenderer self, Camera camera, Player drawPlayer, Vector2 position,
-                                   float rotation, Vector2 rotationOrigin, float shadow, float scale,
-                                   Il2CppStructArray<Vector2> positionalOffsets)
-    {
-        if (PlayerDrawLayerTable.Count == 0)
-        {
-            orig(self, camera, drawPlayer, position, rotation, rotationOrigin, shadow, scale, positionalOffsets);
-            return;
+            PlayerDrawLayerLoader.Add(layer);
         }
 
-        var behind = PlayerDrawLayerTable.BehindLayers;
-        for (var index = 0; index < behind.Count; index++)
-            Draw(behind[index], drawPlayer, position, rotation, scale);
+        PlayerDrawLayerLoader.Rebuild();
 
-        orig(self, camera, drawPlayer, position, rotation, rotationOrigin, shadow, scale, positionalOffsets);
-
-        var front = PlayerDrawLayerTable.FrontLayers;
-        for (var index = 0; index < front.Count; index++)
-            Draw(front[index], drawPlayer, position, rotation, scale);
-    }
-
-    private static void Draw(ModPlayerDrawLayer layer, Player player, Vector2 position, float rotation, float scale)
-    {
-        if (player is null) return;
-
-        var spriteBatch = Main.spriteBatch;
-        if (spriteBatch is null) return;
-
-        try
-        {
-            layer.Draw(spriteBatch, player, position, rotation, scale);
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report($"[playerdrawlayer] {layer.Name}.Draw 异常：{Safe.Describe(e)}");
-        }
+        if (PlayerDrawLayerLoader.ModCount > 0)
+            Log.Info($"[playerdrawlayer] 安装：{PlayerDrawLayerLoader.ModCount} 个层");
     }
 }

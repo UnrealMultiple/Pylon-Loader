@@ -60,6 +60,9 @@ public static class PylonTexture
         unity.filterMode = FilterMode.Point;       // 像素画：最近邻，否则糊
         unity.wrapMode = TextureWrapMode.Clamp;
         var texture = new GameTexture2D(unity);
+
+        // 注意：不要写 texture.Width/Height——真机上这两个属性读/写都会 NRE（游戏包装的尺寸由底层
+
         Logger?.Info($"贴图上传：{assetName} {unity.width}x{unity.height}");
         return texture;
     }

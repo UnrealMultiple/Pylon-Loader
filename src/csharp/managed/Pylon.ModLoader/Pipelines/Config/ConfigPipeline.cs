@@ -391,7 +391,7 @@ internal sealed class ConfigPipeline : ILoaderModule
 
             foreach (var pair in pending)
             {
-                if (!Same(pair.Value, entry.Instance.GetValue(pair.Key))) return true;
+                if (!Same(pair.Value, entry.Instance.__StoredValue(pair.Key))) return true;
             }
         }
 
@@ -462,7 +462,7 @@ internal sealed class ConfigPipeline : ILoaderModule
             var option = options[i];
             if (!HasValue(option)) continue;
             if (!pending.TryGetValue(option.Key, out var value)) continue;
-            if (Same(value, entry.Instance.GetValue(option.Key))) continue;
+            if (Same(value, entry.Instance.__StoredValue(option.Key))) continue;
 
             entry.Instance.__SetValueRaw(option.Key, value);
             changed = true;

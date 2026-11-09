@@ -15,7 +15,6 @@ public abstract class ModHair : ModType
     /// <summary>只放共享数值，不要碰游戏对象。</summary>
     public override void SetStaticDefaults() { }
 
-    /// <summary>理发师处的解锁条件（Pylon.Condition 的 IsMet 就是参考里的判定）；全满足才算解锁，默认没有条件。</summary>
     public virtual List<Condition> GetUnlockConditions() => [];
 
     /// <summary>创建角色时看 AvailableDuringCharacterCreation；理发师处看 GetUnlockConditions 是否全满足。Mod 可以直接改写这个方法，自己定一切。</summary>

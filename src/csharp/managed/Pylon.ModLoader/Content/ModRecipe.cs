@@ -16,7 +16,6 @@ public class ModRecipe
     /// <summary>一份配方最多几个材料（游戏的 requiredItem 表长）。</summary>
     public const int MaxIngredients = 15;
 
-    /// <summary>抓住当前这条配方；默认值照参考：0 个材料、没有工作台。</summary>
     public ModRecipe()
     {
         Recipe = Terraria.Recipe.currentRecipe;

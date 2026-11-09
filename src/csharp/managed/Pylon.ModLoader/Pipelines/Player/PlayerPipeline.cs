@@ -1,6 +1,7 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Terraria;
 using Terraria.DataStructures;
+using Terraria.GameInput;
 using Terraria.Graphics;
 
 namespace Pylon.ModLoader;
@@ -38,6 +39,7 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.Player.ApplyPotionDelay += PotionDelay;
 
         On.Terraria.Player.RefreshInfoAccs += InfoAccessories;
+        On.Terraria.GameInput.TriggersSet.CopyInto += TriggersCopied;
         On.Terraria.Player.KeyDoubleTap += KeyDoubleTap;
         On.Terraria.Player.KeyHoldDown += KeyHoldDown;
         On.Terraria.Player.TrySwitchingLoadout += LoadoutSwitched;
@@ -59,6 +61,49 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
     /// <summary>有人覆写这个钩子吗：没人就整段跳过。</summary>
     internal bool ModsActive(HookId hook) => _binding.Active(hook);
+
+    /// <summary>这一帧要藏哪些层：在层排序完之后、绘制之前问一次。</summary>
+    internal void HideDrawLayers(Terraria.DataStructures.PlayerDrawSet drawInfo)
+    {
+        if (!_binding.Active(HookId.HideDrawLayers)) return;
+
+        var player = drawInfo.drawPlayer;
+        if (player is null) return;
+
+        foreach (var mod in _binding.Of(player))
+        {
+            if (!mod.HookEnabled(HookId.HideDrawLayers)) continue;
+
+            try
+            {
+                mod.HideDrawLayers(drawInfo);
+            }
+            catch (Exception e)
+            {
+                Fail(mod, HookId.HideDrawLayers, e);
+            }
+        }
+    }
+
+    /// <summary>整表排序时给作者一次改层位的机会（没有玩家实例，跑模板）。</summary>
+    internal void ModifyDrawLayerOrdering(IDictionary<PlayerDrawLayer, PlayerDrawLayer.Position> positions)
+    {
+        if (!_binding.Active(HookId.ModifyDrawLayerOrdering)) return;
+
+        foreach (var mod in _binding.Templates)
+        {
+            if (!mod.HookEnabled(HookId.ModifyDrawLayerOrdering)) continue;
+
+            try
+            {
+                mod.ModifyDrawLayerOrdering(positions);
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[playerdrawinfo] {mod.Mod?.Name}.ModifyDrawLayerOrdering 异常：{Safe.Describe(e)}");
+            }
+        }
+    }
 
     public void Refresh() => _binding.Refresh();
 
@@ -124,8 +169,6 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
         orig(self, i);
 
-        // 镜头缩放只对本机玩家算一次；放在 PostUpdate 的早退之前，作者没开 PostUpdate 也要生效。
-        if (i == Main.myPlayer) ApplyZoom(self);
 
         if (!_binding.Active(HookId.PostUpdate)) return;
 
@@ -144,51 +187,6 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    /// <summary>
-    /// 让作者改这一帧的镜头缩放：改的是 <c>Main.GameViewMatrix.Zoom</c>（公开 get/set，interop 直接可写）。
-    /// 只在值真的变了才写回——写回会置矩阵的重建标记，每帧无条件写等于每帧重建一次矩阵。
-    /// </summary>
-    private void ApplyZoom(Player self)
-    {
-        if (!_binding.Active(HookId.ModifyZoom)) return;
-
-        SpriteViewMatrix? view;
-        try
-        {
-            view = Main.GameViewMatrix;
-        }
-        catch
-        {
-            return;   // 矩阵还没建（进世界前）
-        }
-
-        if (view is null) return;
-
-        var zoom = view.Zoom;
-        var before = zoom;
-
-        foreach (var mod in _binding.Of(self))
-        {
-            if (!mod.HookEnabled(HookId.ModifyZoom)) continue;
-
-            try
-            {
-                mod.ModifyZoom(self, ref zoom);
-            }
-            catch (Exception e)
-            {
-                Fail(mod, HookId.ModifyZoom, e);
-            }
-        }
-
-        if (zoom == before) return;
-
-        // 缩放必须为正：0 或负数会让视口矩阵退化，整屏黑掉。
-        if (zoom.X <= 0f || float.IsNaN(zoom.X)) zoom.X = before.X;
-        if (zoom.Y <= 0f || float.IsNaN(zoom.Y)) zoom.Y = before.Y;
-
-        view.Zoom = zoom;
-    }
 
     private void Equips(On.Terraria.Player.orig_UpdateEquips orig, Player self, int i)
     {
@@ -225,6 +223,23 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
             if (mana != 0) self.statManaMax2 += mana;
         }
 
+        if (_binding.Active(HookId.FrameEffects))
+        {
+            foreach (var mod in _binding.Of(self))
+            {
+                if (!mod.HookEnabled(HookId.FrameEffects)) continue;
+
+                try
+                {
+                    mod.FrameEffects(self);
+                }
+                catch (Exception e)
+                {
+                    Fail(mod, HookId.FrameEffects, e);
+                }
+            }
+        }
+
         if (!_binding.Active(HookId.PostUpdateEquips)) return;
 
         foreach (var mod in _binding.Of(self))
@@ -244,6 +259,23 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private void LifeRegen(On.Terraria.Player.orig_UpdateLifeRegen orig, Player self)
     {
+        if (_binding.Active(HookId.UpdateBadLifeRegen))
+        {
+            foreach (var mod in _binding.Of(self))
+            {
+                if (!mod.HookEnabled(HookId.UpdateBadLifeRegen)) continue;
+
+                try
+                {
+                    mod.UpdateBadLifeRegen(self);
+                }
+                catch (Exception e)
+                {
+                    Fail(mod, HookId.UpdateBadLifeRegen, e);
+                }
+            }
+        }
+
         orig(self);
 
         if (!_binding.Active(HookId.UpdateLifeRegen)) return;
@@ -579,9 +611,10 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private void Spawned(On.Terraria.Player.orig_Spawn orig, Player self, PlayerSpawnContext context)
     {
+        var wasDead = self.dead;
         orig(self, context);
 
-        if (!_binding.Active(HookId.OnRespawn)) return;
+        if (!wasDead || !_binding.Active(HookId.OnRespawn)) return;
 
         foreach (var mod in _binding.Of(self))
         {
@@ -640,6 +673,28 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
         if (inventory is null || slot < 0 || slot >= inventory.Length) return null;
 
         return inventory[slot];
+    }
+
+    private void TriggersCopied(On.Terraria.GameInput.TriggersSet.orig_CopyInto orig, Terraria.GameInput.TriggersSet self, Player player)
+    {
+        orig(self, player);
+
+        if (player.whoAmI != Main.myPlayer) return;
+        if (!_binding.Active(HookId.ProcessTriggers)) return;
+
+        foreach (var mod in _binding.Of(player))
+        {
+            if (!mod.HookEnabled(HookId.ProcessTriggers)) continue;
+
+            try
+            {
+                mod.ProcessTriggers(player, self);
+            }
+            catch (Exception e)
+            {
+                Fail(mod, HookId.ProcessTriggers, e);
+            }
+        }
     }
 
     /// <summary>同一 (类型, 钩子) 只记一条：这些入口多数每帧都走。</summary>
