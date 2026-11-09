@@ -36,8 +36,9 @@ internal sealed class TilePipeline : ILoaderModule
         On.Terraria.Wiring.HitWireSingle += Wire;
         On.Terraria.Player.AdjTiles += Stations;
         On.Terraria.Player.TileInteractionsUse += Interact;
+        On.Terraria.Player.TileInteractionsMouseOver += MouseOver;
 
-        Log.Info("[tile] 已挂（挖 / 尘土 / 掉落 / 边框 / 通电 / 制作站 / 右键）；逐格绘制与光照本版无入口");
+        Log.Info("[tile] 已挂（挖 / 尘土 / 掉落 / 边框 / 通电 / 制作站 / 右键 / 光标）；逐格绘制与光照本版无入口");
         return true;
     }
 
@@ -454,6 +455,64 @@ internal sealed class TilePipeline : ILoaderModule
         return (!had || last != frame) && (player.releaseUseTile || !had || frame - last > 1);
     }
 
+    /// <summary>
+    /// 手指/光标停在哪一格：作者的 MouseOver，以及"这一格能交互"的光标图标。
+    /// 后者不只是画个图标——手机端的交互目标就是靠它认的，没有它，点 mod 方块根本走不进
+    /// <see cref="Interact"/>（点晶塔没反应就是这个原因），与参考实现一致。
+    /// </summary>
+    private void MouseOver(On.Terraria.Player.orig_TileInteractionsMouseOver orig, Player self, int myX, int myY)
+    {
+        orig(self, myX, myY);
+
+        try
+        {
+            // 只有游戏自己认定的目标格才派作者钩子：屏幕上扫过的每一格都派会白跑一堆回调。
+            if (myX != Player.tileTargetX || myY != Player.tileTargetY) return;
+            if ((uint)myX >= (uint)Main.maxTilesX || (uint)myY >= (uint)Main.maxTilesY) return;
+
+            var tile = TileTable.At(myX, myY);
+            var type = Main.tile[myX, myY].type;
+
+            if (tile is not null && tile.HookEnabled(HookId.MouseOver))
+            {
+                try
+                {
+                    tile.MouseOver(myX, myY);
+                }
+                catch (Exception e)
+                {
+                    Fail(tile, HookId.MouseOver, e);
+                }
+            }
+
+            var globals = GlobalTileRegistry.For(HookId.MouseOver);
+            for (var index = 0; index < globals.Count; index++)
+            {
+                try
+                {
+                    globals[index].MouseOver(myX, myY, type);
+                }
+                catch (Exception e)
+                {
+                    Fail(tile, HookId.MouseOver, e);
+                }
+            }
+
+            // 可右键的 mod 方块要自己撑起光标图标；否则游戏当它是普通方块，手机点上去等于没用。
+            if (tile is not null && tile.HookEnabled(HookId.RightClick) && !self.cursorItemIconEnabled)
+            {
+                var style = (type >= 0 && type < TileObjectData._data.Count) ? (int)Main.tile[myX, myY].frameY / 36 : 0;
+                self.noThrow = 2;
+                self.cursorItemIconEnabled = true;
+                self.cursorItemIconID = TileTable.DropOf(type, style);
+            }
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report("[tile] 光标判定异常：" + Safe.Describe(e));
+        }
+    }
+
     private void Interact(On.Terraria.Player.orig_TileInteractionsUse orig, Player self, int myX, int myY)
     {
         var tile = TileTable.At(myX, myY);
@@ -462,11 +521,43 @@ internal sealed class TilePipeline : ILoaderModule
         // mod 方块：不是新按下就整条交互跳过（orig 也不用跑，否则原版会再处理一遍这块）。
         if (tile is not null && !fresh) return;
 
-        if (tile is not null && tile.HookEnabled(HookId.RightClick))
+        var type = Main.tile[myX, myY].type;
+        var right = tile is not null && tile.HookEnabled(HookId.RightClick);
+
+        // 原版会按"是不是箱子/梳妆台/篝火"给这次交互分派不同分支；mod 方块就算复用了这些集合的
+        // 形状，也不是原版那种容器，先临时摘掉，跑完再放回去。
+        var chest = right && IsIn(Terraria.ID.TileID.Sets.BasicChest, type) && Terraria.ID.TileID.Sets.BasicChest[type];
+        var dresser = right && IsIn(Terraria.ID.TileID.Sets.BasicDresser, type) && Terraria.ID.TileID.Sets.BasicDresser[type];
+        var fire = right && IsIn(Terraria.ID.TileID.Sets.Campfires, type) && Terraria.ID.TileID.Sets.Campfires[type];
+
+        if (right)
+        {
+            Set(Terraria.ID.TileID.Sets.BasicChest, type, false);
+            Set(Terraria.ID.TileID.Sets.BasicDresser, type, false);
+            Set(Terraria.ID.TileID.Sets.Campfires, type, false);
+        }
+
+        try
+        {
+            orig(self, myX, myY);
+        }
+        finally
+        {
+            if (right)
+            {
+                Set(Terraria.ID.TileID.Sets.BasicChest, type, chest);
+                Set(Terraria.ID.TileID.Sets.BasicDresser, type, dresser);
+                Set(Terraria.ID.TileID.Sets.Campfires, type, fire);
+            }
+        }
+
+        // 原版跑完再派作者的处理：作者要的是"游戏已经把这一格该做的事做完了"这个时机，
+        // 而它返回 true 表示这次按下已经被吃掉，要告诉游戏一声，否则同一次按下会被再消费一次。
+        if (tile is not null && right)
         {
             try
             {
-                if (tile.RightClick(myX, myY)) return;
+                if (tile.RightClick(myX, myY)) self.tileInteractionHappened = true;
             }
             catch (Exception e)
             {
@@ -474,16 +565,38 @@ internal sealed class TilePipeline : ILoaderModule
             }
         }
 
-        orig(self, myX, myY);
+        var globals = GlobalTileRegistry.For(HookId.RightClick);
+        for (var index = 0; index < globals.Count; index++)
+        {
+            try
+            {
+                globals[index].RightClick(myX, myY, type);
+            }
+            catch (Exception e)
+            {
+                Fail(tile, HookId.RightClick, e);
+            }
+        }
     }
 
     #endregion
 
-    /// <summary>同一 (类型, 钩子) 只记一条：这些入口都在高频路径上。</summary>
-    private void Fail(ModTile tile, HookId hook, Exception exception)
+    private static bool IsIn(bool[]? set, int type) => set is not null && (uint)type < (uint)set.Length;
+
+    private static void Set(bool[]? set, int type, bool value)
     {
-        if (!_reported.Add(HashCode.Combine(tile.Type, hook))) return;
-        ContentErrors.Report($"[tile] {tile.GetType().Name}.{hook} 异常：{Safe.Describe(exception)}");
+        if (!IsIn(set, type)) return;
+        set![type] = value;
+    }
+
+    /// <summary>同一 (类型, 钩子) 只记一条：这些入口都在高频路径上。</summary>
+    private void Fail(ModTile? tile, HookId hook, Exception exception)
+    {
+        var type = tile?.Type ?? -1;
+        if (!_reported.Add(HashCode.Combine(type, hook))) return;
+
+        var who = tile is null ? "GlobalTile" : tile.GetType().Name;
+        ContentErrors.Report($"[tile] {who}.{hook} 异常：{Safe.Describe(exception)}");
     }
 }
 

@@ -133,6 +133,36 @@ internal static class PylonTests
             p.Teleport(new Il2CppMicrosoft.Xna.Framework.Vector2(startX, p.position.Y), 0, 0);
         });
 
+        PT.Case("PYLON-W0A", c =>
+        {
+            // 手机端认"这一格能交互"靠的是光标图标；不点亮它，点上去游戏当普通方块处理。
+            var p = Main.player[Main.myPlayer];
+            Player.tileTargetX = _nearX + 1;
+            Player.tileTargetY = _nearFloor - 2;
+            p.cursorItemIconEnabled = false;
+            p.TileInteractionsMouseOver(_nearX + 1, _nearFloor - 2);
+            c.True(p.cursorItemIconEnabled, "光标停在晶塔上时点亮了交互图标");
+        });
+
+        PT.Case("PYLON-W0", c =>
+        {
+            // 真实点击路径：玩家真的去点那块方块时走的是 Player.TileInteractionsUse，
+            // 不是直接调 ModPylon.RightClick（直接调会绕开这层，测试绿了但手机上点不动）。
+            var p = Main.player[Main.myPlayer];
+            Main.mapFullscreen = false;
+            p.tileInteractAttempted = true;
+            p.releaseUseTile = true;
+            p.TileInteractionsUse(_nearX + 1, _nearFloor - 2);
+            c.True(Main.mapFullscreen, $"点方块打开了全屏地图（mapFullscreen={Main.mapFullscreen}）");
+
+            // 真正的手感问题在这里：地图开了一帧又被同一次按下关掉，看起来就是"点了没反应"。
+            PT.Later("PYLON-W0B", 12, c2 =>
+            {
+                c2.True(Main.mapFullscreen, $"点开的地图不会立刻被同一次按下关掉（mapFullscreen={Main.mapFullscreen}）");
+                Main.mapFullscreen = false;
+            });
+        });
+
         PT.Case("PYLON-W6", c =>
         {
             // 点晶塔开全屏地图（ModPylon.RightClick → PylonPipeline.OpenMap）。
