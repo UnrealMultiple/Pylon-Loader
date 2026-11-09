@@ -1,3 +1,4 @@
+using Pylon.ModLoader.Tables;
 using Pylon.ModLoader.Textures;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
@@ -1185,17 +1186,17 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
 /// <summary>NPC 编号相关的原生表：NPC、Lang、贴图、对话、表情。</summary>
 internal static class NpcTables
 {
-    private static readonly TableClass[] Classes =
+    private static readonly Type[] Types =
     [
-        new("Terraria.ID", "NPCID", "Sets"),
-        new("Terraria", "Main"),
-        new("Terraria", "Lang"),
-        new("Terraria", "NPC"),
-        new("Terraria.GameContent", "TextureAssets"),
-        new("Terraria.GameContent.UI", "EmoteBubble"),
-        new("Terraria.GameContent", "ConditionalDialogue"),
+        typeof(Terraria.ID.NPCID.Sets),
+        typeof(Terraria.Main),
+        typeof(Terraria.Lang),
+        typeof(Terraria.NPC),
+        typeof(Terraria.GameContent.TextureAssets),
+        typeof(Terraria.GameContent.UI.EmoteBubble),
+        typeof(Terraria.GameContent.ConditionalDialogue),
     ];
 
-    internal static readonly TableSet Set = new("NPC", () => Terraria.ID.NPCID.Count, () => Classes);
+    internal static readonly TableSet Set = new("NPC", () => Terraria.ID.NPCID.Count, Types);
 
 }

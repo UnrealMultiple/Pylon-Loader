@@ -1,3 +1,4 @@
+using Pylon.ModLoader.Tables;
 using Pylon.ModLoader.Textures;
 using Terraria;
 using Terraria.ID;
@@ -462,25 +463,25 @@ internal sealed class TilePipeline : ILoaderModule
 /// <summary>方块编号相关的原生表（754 长与 TileID.Count 一致；尾部按众数填，避免新方块变实心泥土）。</summary>
 internal static class TileTables
 {
-    private static readonly TableClass[] Classes =
+    private static readonly Type[] Types =
     [
-        new("Terraria", "Main"),
-        new("Terraria.ID", "TileID", "Sets"),
-        new("Terraria.ID", "TileID", "Sets", "Conversion"),
-        new("Terraria.ID", "TileID", "Sets", "TileCutIgnore"),
-        new("Terraria.ID", "TileID", "Sets", "ForAdvancedCollision"),
-        new("Terraria.ID", "TileID", "Sets", "RoomNeeds"),
-        new("Terraria.ID", "TileID", "Sets", "Wiring"),
-        new("Terraria.GameContent", "TextureAssets"),
-        new("Terraria", "WorldGen"),
-        new("Terraria.Map", "MapHelper"),
-        new("Terraria", "Recipe"),
-        new("Terraria.GameContent.Metadata", "TileMaterials"),
-        new("Terraria", "WorldGen", "Skyblock"),
-        new("Terraria.GameContent.Biomes", "CorruptionPitBiome"),
-        new("Terraria.GameContent.Biomes.CaveHouse", "HouseUtils"),
+        typeof(Terraria.Main),
+        typeof(Terraria.ID.TileID.Sets),
+        typeof(Terraria.ID.TileID.Sets.Conversion),
+        typeof(Terraria.ID.TileID.Sets.TileCutIgnore),
+        typeof(Terraria.ID.TileID.Sets.ForAdvancedCollision),
+        typeof(Terraria.ID.TileID.Sets.RoomNeeds),
+        typeof(Terraria.ID.TileID.Sets.Wiring),
+        typeof(Terraria.GameContent.TextureAssets),
+        typeof(Terraria.WorldGen),
+        typeof(Terraria.Map.MapHelper),
+        typeof(Terraria.Recipe),
+        typeof(Terraria.GameContent.Metadata.TileMaterials),
+        typeof(Terraria.WorldGen.Skyblock),
+        typeof(Terraria.GameContent.Biomes.CorruptionPitBiome),
+        typeof(Terraria.GameContent.Biomes.CaveHouse.HouseUtils),
     ];
 
-    internal static readonly TableSet Set = new("方块", () => 754, () => Classes, fillWithMode: true);
+    internal static readonly TableSet Set = new("方块", () => 754, Types, fillWithMode: true);
 
 }

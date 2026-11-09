@@ -1,3 +1,4 @@
+using Pylon.ModLoader.Tables;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Textures;
 using Terraria;
@@ -157,14 +158,14 @@ internal sealed class GorePipeline : ILoaderModule, ILoaderModuleRefresh
 /// <summary>血腥粒子编号相关的原生表：贴图、GoreID.Sets、ChildSafety（长度都跟着 gore 数量走）。</summary>
 internal static class GoreTables
 {
-    private static readonly TableClass[] Classes =
+    private static readonly Type[] Types =
     [
-        new("Terraria.GameContent", "TextureAssets"),
-        new("Terraria.ID", "GoreID", "Sets"),
-        new("Terraria.GameContent", "ChildSafety"),
+        typeof(Terraria.GameContent.TextureAssets),
+        typeof(Terraria.ID.GoreID.Sets),
+        typeof(Terraria.GameContent.ChildSafety),
     ];
 
-    internal static readonly TableSet Set = new("血腥粒子", () => Vanilla, () => Classes);
+    internal static readonly TableSet Set = new("血腥粒子", () => Vanilla, Types);
 
     private static int _vanilla;
 

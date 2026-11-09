@@ -1,3 +1,4 @@
+using Pylon.ModLoader.Tables;
 using System;
 using Terraria.ID;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
@@ -710,45 +711,44 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
 /// </summary>
 internal static class EquipTables
 {
-    private static readonly TableClass[] Classes =
+    private static readonly Type[] Types =
     [
-        new("Terraria.GameContent", "TextureAssets"),
-        new("Terraria.ID", "ArmorIDs", "Head", "Sets"),
-        new("Terraria.ID", "ArmorIDs", "Body", "Sets"),
-        new("Terraria.ID", "ArmorIDs", "Legs", "Sets"),
-        new("Terraria.ID", "ArmorIDs", "HandOn", "Sets"),
-        new("Terraria.ID", "ArmorIDs", "HandOff", "Sets"),
-        new("Terraria.ID", "ArmorIDs", "Back", "Sets"),
-        new("Terraria.ID", "ArmorIDs", "Front", "Sets"),
-        new("Terraria.ID", "ArmorIDs", "Shoe", "Sets"),
-        new("Terraria.ID", "ArmorIDs", "Waist", "Sets"),
-        new("Terraria.ID", "ArmorIDs", "Wing", "Sets"),
-        new("Terraria.ID", "ArmorIDs", "Shield", "Sets"),
-        new("Terraria.ID", "ArmorIDs", "Neck", "Sets"),
-        new("Terraria.ID", "ArmorIDs", "Face", "Sets"),
-        new("Terraria.ID", "ArmorIDs", "Balloon", "Sets"),
-        new("Terraria.ID", "ArmorIDs", "Beard", "Sets"),
+        typeof(Terraria.GameContent.TextureAssets),
+        typeof(Terraria.ID.ArmorIDs.Head.Sets),
+        typeof(Terraria.ID.ArmorIDs.Body.Sets),
+        typeof(Terraria.ID.ArmorIDs.Legs.Sets),
+        typeof(Terraria.ID.ArmorIDs.HandOn.Sets),
+        typeof(Terraria.ID.ArmorIDs.HandOff.Sets),
+        typeof(Terraria.ID.ArmorIDs.Back.Sets),
+        typeof(Terraria.ID.ArmorIDs.Front.Sets),
+        typeof(Terraria.ID.ArmorIDs.Shoe.Sets),
+        typeof(Terraria.ID.ArmorIDs.Waist.Sets),
+        typeof(Terraria.ID.ArmorIDs.Wing.Sets),
+        typeof(Terraria.ID.ArmorIDs.Neck.Sets),
+        typeof(Terraria.ID.ArmorIDs.Face.Sets),
+        typeof(Terraria.ID.ArmorIDs.Balloon.Sets),
+        typeof(Terraria.ID.ArmorIDs.Beard.Sets),
     ];
 
-    internal static readonly TableSet Head = new("头盔贴图", () => Vanilla(0, TextureTable.ArmorHead), () => Classes);
-    internal static readonly TableSet Body = new("胸甲贴图", () => Vanilla(1, TextureTable.ArmorBody), () => Classes);
-    internal static readonly TableSet Legs = new("护腿贴图", () => Vanilla(2, TextureTable.ArmorLeg), () => Classes);
-    internal static readonly TableSet HandOn = new("手部（前面）贴图", () => Vanilla(3, TextureTable.AccHandsOn), () => Classes);
-    internal static readonly TableSet HandOff = new("手部（后面）贴图", () => Vanilla(4, TextureTable.AccHandsOff), () => Classes);
-    internal static readonly TableSet Back = new("背部贴图", () => Vanilla(5, TextureTable.AccBack), () => Classes);
-    internal static readonly TableSet Front = new("胸前贴图", () => Vanilla(6, TextureTable.AccFront), () => Classes);
-    internal static readonly TableSet Shoes = new("鞋贴图", () => Vanilla(7, TextureTable.AccShoes), () => Classes);
-    internal static readonly TableSet Waist = new("腰贴图", () => Vanilla(8, TextureTable.AccWaist), () => Classes);
-    internal static readonly TableSet Wing = new("翅膀贴图", () => Vanilla(9, TextureTable.Wings), () => Classes);
-    internal static readonly TableSet Shield = new("盾贴图", () => Vanilla(10, TextureTable.AccShield), () => Classes);
-    internal static readonly TableSet Neck = new("项链贴图", () => Vanilla(11, TextureTable.AccNeck), () => Classes);
-    internal static readonly TableSet Face = new("面部贴图", () => Vanilla(12, TextureTable.AccFace), () => Classes);
-    internal static readonly TableSet Balloon = new("气球贴图", () => Vanilla(13, TextureTable.AccBalloon), () => Classes);
-    internal static readonly TableSet Beard = new("胡子贴图", () => Vanilla(14, TextureTable.AccBeard), () => Classes);
-    internal static readonly TableSet BodyComposite = new("胸甲复合贴图", () => Vanilla(15, TextureTable.ArmorBodyComposite), () => Classes);
-    internal static readonly TableSet Arm = new("手臂贴图", () => Vanilla(16, TextureTable.ArmorArm), () => Classes);
-    internal static readonly TableSet HandOnComposite = new("手部前复合贴图", () => Vanilla(17, TextureTable.AccHandsOnComposite), () => Classes);
-    internal static readonly TableSet HandOffComposite = new("手部后复合贴图", () => Vanilla(18, TextureTable.AccHandsOffComposite), () => Classes);
+    internal static readonly TableSet Head = new("头盔贴图", () => Vanilla(0, TextureTable.ArmorHead), Types);
+    internal static readonly TableSet Body = new("胸甲贴图", () => Vanilla(1, TextureTable.ArmorBody), Types);
+    internal static readonly TableSet Legs = new("护腿贴图", () => Vanilla(2, TextureTable.ArmorLeg), Types);
+    internal static readonly TableSet HandOn = new("手部（前面）贴图", () => Vanilla(3, TextureTable.AccHandsOn), Types);
+    internal static readonly TableSet HandOff = new("手部（后面）贴图", () => Vanilla(4, TextureTable.AccHandsOff), Types);
+    internal static readonly TableSet Back = new("背部贴图", () => Vanilla(5, TextureTable.AccBack), Types);
+    internal static readonly TableSet Front = new("胸前贴图", () => Vanilla(6, TextureTable.AccFront), Types);
+    internal static readonly TableSet Shoes = new("鞋贴图", () => Vanilla(7, TextureTable.AccShoes), Types);
+    internal static readonly TableSet Waist = new("腰贴图", () => Vanilla(8, TextureTable.AccWaist), Types);
+    internal static readonly TableSet Wing = new("翅膀贴图", () => Vanilla(9, TextureTable.Wings), Types);
+    internal static readonly TableSet Shield = new("盾贴图", () => Vanilla(10, TextureTable.AccShield), Types);
+    internal static readonly TableSet Neck = new("项链贴图", () => Vanilla(11, TextureTable.AccNeck), Types);
+    internal static readonly TableSet Face = new("面部贴图", () => Vanilla(12, TextureTable.AccFace), Types);
+    internal static readonly TableSet Balloon = new("气球贴图", () => Vanilla(13, TextureTable.AccBalloon), Types);
+    internal static readonly TableSet Beard = new("胡子贴图", () => Vanilla(14, TextureTable.AccBeard), Types);
+    internal static readonly TableSet BodyComposite = new("胸甲复合贴图", () => Vanilla(15, TextureTable.ArmorBodyComposite), Types);
+    internal static readonly TableSet Arm = new("手臂贴图", () => Vanilla(16, TextureTable.ArmorArm), Types);
+    internal static readonly TableSet HandOnComposite = new("手部前复合贴图", () => Vanilla(17, TextureTable.AccHandsOnComposite), Types);
+    internal static readonly TableSet HandOffComposite = new("手部后复合贴图", () => Vanilla(18, TextureTable.AccHandsOffComposite), Types);
 
     private static readonly int[] VanillaCache = new int[24];
 

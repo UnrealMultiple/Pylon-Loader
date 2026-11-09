@@ -1,3 +1,4 @@
+using Pylon.ModLoader.Tables;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Textures;
 using ReLogic.Content;
@@ -647,17 +648,14 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
 internal static class WaterTables
 {
     /// <summary>水样式：TextureAssets.Liquid 与 LiquidSlope 同长。</summary>
-    private static readonly TableClass[] Classes =
-    [
-        new("Terraria.GameContent", "TextureAssets"),
-    ];
+    private static readonly Type[] Types = [typeof(Terraria.GameContent.TextureAssets)];
 
-    private static readonly TableClass[] FallClasses = [new("Terraria", "WaterfallManager")];
+    private static readonly Type[] FallTypes = [typeof(Terraria.WaterfallManager)];
 
-    internal static readonly TableSet Style = new("水样式", () => Vanilla, () => Classes);
+    internal static readonly TableSet Style = new("水样式", () => Vanilla, Types);
 
     /// <summary>瀑布样式：贴图表在 WaterfallManager 的静态字段里。</summary>
-    internal static readonly TableSet Waterfall = new("瀑布贴图", () => WaterfallVanilla, () => FallClasses);
+    internal static readonly TableSet Waterfall = new("瀑布贴图", () => WaterfallVanilla, FallTypes);
 
     private static int _vanilla;
 

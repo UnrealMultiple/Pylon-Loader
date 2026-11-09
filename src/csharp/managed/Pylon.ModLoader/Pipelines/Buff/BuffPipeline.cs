@@ -1,3 +1,4 @@
+using Pylon.ModLoader.Tables;
 using Pylon.ModLoader.Textures;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Il2CppMicrosoft.Xna.Framework;
@@ -650,14 +651,22 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
 /// <summary>Buff 编号相关的原生表：Buff、Lang、贴图、物品上的 Buff 槽。</summary>
 internal static class BuffTables
 {
-    private static readonly TableClass[] Classes =
+    private static readonly Type[] Types =
     [
-        new("Terraria.ID", "BuffID", "Sets"),
-        new("Terraria", "Main", null, null, ["item", "timeItemSlotCannotBeReusedFor", "itemFrame", "itemFrameCounter"]),
-        new("Terraria", "Lang"),
-        new("Terraria.GameContent", "TextureAssets"),
+        typeof(Terraria.ID.BuffID.Sets),
+        typeof(Terraria.Main),
+        typeof(Terraria.Lang),
+        typeof(Terraria.GameContent.TextureAssets),
     ];
 
-    internal static readonly TableSet Set = new("Buff", () => Terraria.ID.BuffID.Count, () => Classes);
+    private static readonly string[] Skip =
+    [
+        "item",
+        "timeItemSlotCannotBeReusedFor",
+        "itemFrame",
+        "itemFrameCounter",
+    ];
+
+    internal static readonly TableSet Set = new("Buff", () => Terraria.ID.BuffID.Count, Types, skip: Skip);
 
 }

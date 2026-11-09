@@ -1,3 +1,4 @@
+using Pylon.ModLoader.Tables;
 using Pylon.ModLoader.Textures;
 using Terraria;
 

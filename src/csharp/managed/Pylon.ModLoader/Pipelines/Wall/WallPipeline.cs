@@ -1,3 +1,4 @@
+using Pylon.ModLoader.Tables;
 using Pylon.ModLoader.Textures;
 using Terraria;
 
@@ -232,16 +233,16 @@ internal sealed class WallPipeline : ILoaderModule
 /// <summary>墙壁编号相关的原生表：墙、Sets、贴图、地图颜色。</summary>
 internal static class WallTables
 {
-    private static readonly TableClass[] Classes =
+    private static readonly Type[] Types =
     [
-        new("Terraria", "Main"),
-        new("Terraria.ID", "WallID", "Sets"),
-        new("Terraria.ID", "WallID", "Sets", "Conversion"),
-        new("Terraria.GameContent", "TextureAssets"),
-        new("Terraria.Map", "MapHelper"),
+        typeof(Terraria.Main),
+        typeof(Terraria.ID.WallID.Sets),
+        typeof(Terraria.ID.WallID.Sets.Conversion),
+        typeof(Terraria.GameContent.TextureAssets),
+        typeof(Terraria.Map.MapHelper),
     ];
 
-    internal static readonly TableSet Set = new("墙壁", () => 367, () => Classes);
+    internal static readonly TableSet Set = new("墙壁", () => 367, Types);
 
     /// <summary>
     /// <c>Main.wallBlend</c> 里新墙的空槽填成自身（原版约定 <c>wallBlend[i] == i</c>）。

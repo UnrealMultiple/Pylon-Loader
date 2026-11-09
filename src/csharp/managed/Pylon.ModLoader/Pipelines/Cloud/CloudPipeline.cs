@@ -1,3 +1,4 @@
+using Pylon.ModLoader.Tables;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Textures;
 using Terraria;

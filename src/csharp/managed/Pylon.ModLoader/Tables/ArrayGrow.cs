@@ -3,20 +3,17 @@ using Il2CppInterop.Runtime;
 using Il2CppInterop.Runtime.InteropTypes;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 
-namespace Pylon.ModLoader.Textures;
+namespace Pylon.ModLoader.Tables;
 
 /// <summary>
-/// 扩表工具：把一张 il2cpp 数组扩到目标长度，就这一件事。
+/// 扩表工具：把一张 il2cpp 数组扩到目标长度，就这一件事（不找字段、不扫类）。
 /// <para>
-/// 不按名字找字段、不扫类、不建 interop 包装对象、不走 System.Reflection —— 要扩哪张表由调用方
-/// （各管线）自己用 interop 生成的静态属性取出来传入，跟
-/// <c>WaterStylesLoader.Grow(ref GameArray&lt;GameObject&gt;, int)</c> 一个形状。
+/// 元素按"值类型整块 memcpy / 引用元素逐格走 GC 写屏障"两条路走。引用元素不能整块搬：
+/// 那等于绕过增量 GC 的写屏障，回收时可能把对象收走 —— 现场表现是十几秒后一段无关代码
+/// 读到野指针 SIGSEGV。
 /// </para>
 /// <para>
-/// 元素按"值类型整块 memcpy / 引用元素逐格走 GC 写屏障"两条路走（
-/// <c>TypeTables::growArray</c> 对引用元素用 Array.Copy 要的就是这个屏障）。
-/// 分配用 <c>il2cpp_array_new(elementClass, n)</c>，不用 <c>array_new_specific</c>：
-/// 前者会把数组类的 GC 描述符按元素类型配好。
+/// 分配用 <c>il2cpp_array_new(elementClass, n)</c>：它会把数组类的 GC 描述符按元素类型配好。
 /// </para>
 /// </summary>
 internal static unsafe class ArrayGrow

@@ -1,3 +1,4 @@
+using Pylon.ModLoader.Tables;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Textures;
 using ReLogic.Content;
@@ -439,11 +440,14 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
 /// <summary>树的三种贴图表（树顶 / 树枝 / 树干）：与原版树共用 TextureAssets 里的同名数组。</summary>
 internal static class TreeTables
 {
-    private static readonly TableClass[] Classes = [new("Terraria.GameContent", "TextureAssets")];
+    private static readonly Type[] Types =
+    [
+        typeof(Terraria.GameContent.TextureAssets),
+    ];
 
-    internal static readonly TableSet Top = new("树顶贴图", () => TopVanilla, () => Classes);
-    internal static readonly TableSet Branch = new("树枝贴图", () => BranchVanilla, () => Classes);
-    internal static readonly TableSet Wood = new("树干贴图", () => WoodVanilla, () => Classes);
+    internal static readonly TableSet Top = new("树顶贴图", () => TopVanilla, Types);
+    internal static readonly TableSet Branch = new("树枝贴图", () => BranchVanilla, Types);
+    internal static readonly TableSet Wood = new("树干贴图", () => WoodVanilla, Types);
 
     // 树贴图没有 ID 平行表，只扩 TextureAssets 里这几张。
     private static int _top, _branch, _wood;

@@ -1,3 +1,4 @@
+using Pylon.ModLoader.Tables;
 using System.Diagnostics;
 using Pylon.ModLoader.Textures;
 using Il2CppMicrosoft.Xna.Framework;
