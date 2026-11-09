@@ -97,8 +97,12 @@ internal sealed class TableGrower
         return grown;
     }
 
-    /// <summary>游戏把表重建回原版长度：再扩一遍。</summary>
-    internal int Watch(Action<string>? log) => Ready ? SweepTargets(log) : 0;
+    /// <summary>游戏把表重建回原版长度：再扩一遍。装配期一次都没扫到过（表当时没建）就补扫。</summary>
+    internal int Watch(Action<string>? log)
+    {
+        if (!Ready) return 0;
+        return _watched.Count == 0 ? GrowAll(log) : SweepTargets(log);
+    }
 
     /// <summary>自检：该扩的表里扩到位 / 还是原版 / 还没建 各几张。</summary>
     internal void Audit(out int total, out int grown, out int stale, out int missing, List<string>? missingNames = null)
@@ -149,7 +153,7 @@ internal sealed class TableGrower
         {
             var field = IL2CPP.il2cpp_class_get_fields(klass, ref iterator);
             if (field == IntPtr.Zero) return;
-            if (!IsStaticArray(field) || IsSkipped(field)) continue;
+            if (!IsStaticArray(field) || !IsAllowed(field)) continue;
             if (_watched.Contains(field)) continue;
             _watched.Add(field);
 
@@ -200,14 +204,24 @@ internal sealed class TableGrower
         return IL2CPP.il2cpp_type_get_type(IL2CPP.il2cpp_field_get_type(field)) == TypeSzArray;
     }
 
-    private bool IsSkipped(IntPtr field)
+    private bool IsAllowed(IntPtr field)
     {
-        var skip = _set.Skip;
-        if (skip is not { Length: > 0 }) return false;
         var name = NameOf(field);
+
+        // 白名单优先：非空时只认名单里的字段（表长太普通、黑名单拦不全）。
+        var include = _set.Include;
+        if (include is { Length: > 0 })
+        {
+            foreach (var candidate in include)
+                if (string.Equals(candidate, name, StringComparison.Ordinal)) return true;
+            return false;
+        }
+
+        var skip = _set.Skip;
+        if (skip is not { Length: > 0 }) return true;
         foreach (var candidate in skip)
-            if (string.Equals(candidate, name, StringComparison.Ordinal)) return true;
-        return false;
+            if (string.Equals(candidate, name, StringComparison.Ordinal)) return false;
+        return true;
     }
 
     private static string NameOf(IntPtr field)

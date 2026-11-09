@@ -53,7 +53,7 @@ public abstract class ModTile : ModType
     public virtual int VanillaFallbackOnModDeletion => 0;
 
     /// <summary>描边贴图的路径（TileID.Sets.HasOutlines）；文件不在就没有描边。</summary>
-    public virtual string HighlightTexture => Texture + "_Highlight";
+    public virtual string HighlightTexture => TextureSibling("_Highlight");
 
     /// <summary>已登记的 <see cref="AddMapEntry"/>，按调用顺序；游戏侧读取用。</summary>
     public IReadOnlyList<MapEntry> MapEntries => _mapEntries;

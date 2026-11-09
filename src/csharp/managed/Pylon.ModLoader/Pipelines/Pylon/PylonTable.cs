@@ -16,6 +16,8 @@ internal static class PylonTable
     private static readonly Dictionary<int, ModPylon> ByType = [];
     private static readonly Dictionary<string, ModPylon> ByKey = new(StringComparer.Ordinal);
 
+    private static IModLog Log => LoaderHost.Current.Log;
+
     internal static int Count => Pylons.Count;
 
     internal static ModPylon? Of(int type) => ByType.TryGetValue(type, out var pylon) ? pylon : null;
@@ -26,12 +28,16 @@ internal static class PylonTable
         return ByKey.TryGetValue(name, out var pylon) ? pylon : null;
     }
 
-    /// <summary>发号；幂等，每次 Mod 注册后跑一次。冲突与越界直接抛。</summary>
+    /// <summary>
+    /// 发号；幂等，每次 Mod 注册后跑一次。冲突与越界直接抛。
+    /// 幂等判定只能看这张表自己（<see cref="ByKey"/>）：注册管线在建实例时就把 <c>Registered</c> 置了 true，
+    /// 用它判断会一个号都发不出去（PylonType 永远 -1）。
+    /// </summary>
     internal static void Assign()
     {
         foreach (var pylon in ModContent.GetContent<ModPylon>())
         {
-            if (pylon.Registered) continue;
+            if (ByKey.ContainsKey(pylon.Mod.Name + "/" + pylon.Name)) continue;
 
             var type = Base + Pylons.Count;
 
@@ -49,6 +55,8 @@ internal static class PylonTable
             Pylons.Add(pylon);
             ByType[type] = pylon;
             ByKey[pylon.Mod.Name + "/" + pylon.Name] = pylon;
+
+            Log.Info($"[pylon] {pylon.Mod.Name}/{pylon.Name} → 类型号 {type}");
         }
     }
 }

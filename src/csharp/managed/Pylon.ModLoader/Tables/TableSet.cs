@@ -7,13 +7,15 @@ internal sealed class TableSet
 {
     private readonly Func<int> _vanilla;
 
-    internal TableSet(string name, Func<int> vanilla, Type[] types, bool fillWithMode = false, string[]? skip = null)
+    internal TableSet(string name, Func<int> vanilla, Type[] types, bool fillWithMode = false, string[]? skip = null,
+        string[]? include = null)
     {
         Name = name;
         _vanilla = vanilla;
         Types = types;
         FillWithMode = fillWithMode;
         Skip = skip;
+        Include = include;
     }
 
     /// <summary>日志里用的中文名。</summary>
@@ -30,4 +32,7 @@ internal sealed class TableSet
 
     /// <summary>这些类里不跟着变长的字段名。</summary>
     internal string[]? Skip { get; }
+
+    /// <summary>白名单：非空时只认这些字段名（表长太普通、黑名单拦不全时用）。</summary>
+    internal string[]? Include { get; }
 }

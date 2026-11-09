@@ -27,6 +27,19 @@ public abstract class ModType
     /// <summary>贴图相对 Mod 目录的路径；null = 不要贴图。</summary>
     public virtual string TexturePath => null!;
 
+    /// <summary>
+    /// 同目录、文件名加后缀的贴图路径（"assets/tiles/X.png" + "_MapIcon" → "assets/tiles/X_MapIcon.png"）。
+    /// <see cref="Texture"/> 是 Asset，不能直接和字符串相加（会拼出类型名）。
+    /// </summary>
+    public string TextureSibling(string suffix)
+    {
+        var path = TexturePath;
+        if (string.IsNullOrEmpty(path)) return null!;
+
+        var stem = path.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ? path[..^4] : path;
+        return stem + suffix + ".png";
+    }
+
     /// <summary>相对 ModType 覆写了哪些钩子（位集，注册时算一次）。</summary>
     internal HookMask Plan { get; set; }
 

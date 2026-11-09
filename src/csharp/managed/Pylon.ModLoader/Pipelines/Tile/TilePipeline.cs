@@ -429,17 +429,44 @@ internal sealed class TilePipeline : ILoaderModule
         return false;
     }
 
+    /// <summary>上一次算"新按下"的帧号与是否按下过（按玩家，最多 256 人）。</summary>
+    private static readonly ulong[] LastPress = new ulong[256];
+    private static readonly bool[] HadPress = new bool[256];
+
+    /// <summary>
+    /// 这一次交互是不是"新按下"：手机端按住会每帧走一次 TileInteractionsUse，
+    /// 不加这道闸，晶塔会每帧重开一次地图 —— 表现就是"点了传送之后地图关不掉"。
+    /// </summary>
+    private static bool Fresh(Player player)
+    {
+        if (!player.tileInteractAttempted) return false;
+
+        var id = player.whoAmI;
+        if ((uint)id >= 256u) return false;
+
+        var frame = Main.GameUpdateCount;
+        var last = LastPress[id];
+        var had = HadPress[id];
+
+        LastPress[id] = frame;
+        HadPress[id] = true;
+
+        return (!had || last != frame) && (player.releaseUseTile || !had || frame - last > 1);
+    }
+
     private void Interact(On.Terraria.Player.orig_TileInteractionsUse orig, Player self, int myX, int myY)
     {
-        var i = Player.tileTargetX;
-        var j = Player.tileTargetY;
-        var tile = TileTable.At(i, j);
+        var tile = TileTable.At(myX, myY);
+        var fresh = Fresh(self);
+
+        // mod 方块：不是新按下就整条交互跳过（orig 也不用跑，否则原版会再处理一遍这块）。
+        if (tile is not null && !fresh) return;
 
         if (tile is not null && tile.HookEnabled(HookId.RightClick))
         {
             try
             {
-                if (tile.RightClick(i, j)) return;
+                if (tile.RightClick(myX, myY)) return;
             }
             catch (Exception e)
             {

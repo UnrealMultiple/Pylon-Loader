@@ -25,9 +25,11 @@ internal static class HookScan
             if (method.IsAbstract || method.IsStatic) continue;
             if (method.DeclaringType == baseType) continue;
 
-            // 属性钩子（如 ModTile.AdjTiles）编译成 get_AdjTiles，位集里存的是属性名。
+            // 属性钩子（如 ModTile.AdjTiles）编译成 get_AdjTiles，位集里存的是属性名；
+            // 放置钩子叫 Hook_AfterPlacement，枚举里是 AfterPlacement。
             var name = method.Name;
             if (name.StartsWith("get_", StringComparison.Ordinal)) name = name.Substring(4);
+            else if (name.StartsWith("Hook_", StringComparison.Ordinal)) name = name.Substring(5);
             if (ByName.TryGetValue(name, out var id)) builder.Add(id);
         }
 

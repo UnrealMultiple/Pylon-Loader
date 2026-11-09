@@ -263,6 +263,16 @@ public sealed class TestPlayer : ModPlayer
             inv[5] = mountItem;
         }
 
+        // 对照用：原版晶塔（纯净 / 丛林），看原版放置预览长什么样。
+        var vanillaPylons = new[] { Terraria.ID.ItemID.TeleportationPylonPurity, Terraria.ID.ItemID.TeleportationPylonJungle };
+        for (var k = 0; k < vanillaPylons.Length && 6 + k < inv.Length; k++)
+        {
+            var vanilla = new Item();
+            vanilla.SetDefaults(vanillaPylons[k], null);
+            vanilla.stack = 99;
+            inv[6 + k] = vanilla;
+        }
+
         _given = true;
 
         PT.Info($"已把测试物品放进热键栏第 1 格（type={type} 玩家槽位数={inv.Length}），方块/家具在第 2/3 格");

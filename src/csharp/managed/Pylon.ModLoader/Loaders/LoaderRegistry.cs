@@ -19,6 +19,7 @@ internal static class LoaderRegistry
         RarityPipeline.Instance,
         RecipePipeline.Instance,
         TilePipeline.Instance,
+        TileDrawPipeline.Instance,
         WallPipeline.Instance,
         TileEntityPipeline.Instance,
         GorePipeline.Instance,

@@ -67,6 +67,20 @@ internal static class TableMaintenance
         if (++_watchTicks >= 120)
         {
             _watchTicks = 0;
+
+            // 各管线声明的表按 Target() 重新取目标：装配期表还没建（Vanilla=0）时
+            // 捕获的容量是错的，这里随游戏把表建出来再抬到位并补扫/重扩。
+            foreach (var request in Requests)
+            {
+                if (request.Early) continue;
+
+                var grower = Ensure(request.Set, request.Target());
+                var n = grower.Watch(log);
+                if (n <= 0) continue;
+                grown += n;
+                Notify(regrown, grower, log);
+            }
+
             for (var i = 0; i < Active.Count; i++)
             {
                 var n = Active[i].Watch(log);

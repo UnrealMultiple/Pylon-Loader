@@ -115,6 +115,9 @@ internal enum HookId
     PostDraw,
     PreDrawExtras,
     DrawEffects,
+
+    /// <summary>方块画完之后作者自己画的点（<c>ModTile.SpecialDraw</c>）。</summary>
+    SpecialDraw,
     CanDamage,
     ModifyDamageHitbox,
     Colliding,

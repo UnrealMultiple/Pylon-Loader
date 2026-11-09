@@ -19,11 +19,10 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
 
     public IReadOnlyList<TableRequest> Tables =>
     [
-        new(TreeTables.Top, () => TreeTables.TopVanilla + TreeTable.Count * 3),
-        new(TreeTables.Branch, () => TreeTables.BranchVanilla + TreeTable.Count * 2),
+        new(TreeTables.Top, () => TreeTables.TopVanilla + TreeTable.Count),
+        new(TreeTables.Branch, () => TreeTables.BranchVanilla + TreeTable.Count),
         new(TreeTables.Wood, () => TreeTables.WoodVanilla + TreeTable.Count),
     ];
-
 
     private static IModLog Log => LoaderHost.Current.Log;
 
@@ -39,13 +38,73 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.WorldGen.IsTileTypeFitForTree += FitForTree;
         On.Terraria.WorldGen.GrowTree += GrowTreeHook;
         On.Terraria.WorldGen.TileFrame += TileFrameHook;
+        On.Terraria.WorldGen.CheckTree += CheckTreeHook;
+        On.Terraria.WorldGen.GetCommonTreeFoliageData += FoliageHook;
         On.Terraria.TileObject.CanPlace += SaplingPlaceHook;
 
         Log.Info("[tree] 已挂（风格号 / 贴图表 / 摇树 / 掉落与橡果 / 叶子 / 尘土 / 种苗 / 可种判据 / 长大即换外观）");
         return true;
     }
 
-    /// <summary>摇树：这一列是 mod 树就交给作者（ref createLeaves 能关掉原版掉落）。</summary>
+    /// <summary>
+    /// 树冠/树枝绘制前，原版用这个函数从树顶格重新解析树的位置与风格；它不认 mod 地面，
+    /// 会把 mod 树算成风格 0（森林树）或直接解析失败（树冠不画）。这里从 (i + xoffset, j)
+    /// 顺树干往下找地面，是 mod 地面就直接报告 mod 风格与地面行。
+    /// </summary>
+    private static bool FoliageHook(On.Terraria.WorldGen.orig_GetCommonTreeFoliageData orig, int i, int j,
+                                    int xoffset, ref int treeFrame, ref int treeStyle, ref int floorY,
+                                    ref int topWidth, ref int topHeight)
+    {
+        var x = i + xoffset;
+        var y = j;
+        // 顺树干往下走到地面（树干最多 300 格）。
+        for (var n = 0; n < 300; n++)
+        {
+            var below = Main.tile[x, y + 1];
+            if (below.active() && below.type == Terraria.ID.TileID.Trees) y++;
+            else break;
+        }
+
+        var ground = Main.tile[x, y + 1];
+        if (ground.active() && TreeTable.ForGround(ground.type) is { } tree)
+        {
+            treeStyle = tree.Type;
+            floorY = y + 1;
+            topWidth = 80;
+            topHeight = 80;
+            return true;
+        }
+
+        return orig(i, j, xoffset, ref treeFrame, ref treeStyle, ref floorY, ref topWidth, ref topHeight);
+    }
+
+    /// <summary>
+    /// CheckTree 只认原版地面（草地等），树下是 mod 方块就把树打断（长出即被砍）。
+    /// 检查期间把 mod 地面临时伪装成草地，orig 完必须恢复（否则世界里的地形数据会被改坏）。
+    /// </summary>
+    private static void CheckTreeHook(On.Terraria.WorldGen.orig_CheckTree orig, int i, int j)
+    {
+        var below = Main.tile[i, j + 1];
+        if (!below.active() || TreeTable.ForGround(below.type) is null)
+        {
+            orig(i, j);
+            return;
+        }
+
+        var modType = below.type;
+        var cell = Main.tile[i, j + 1];
+        cell.type = Terraria.ID.TileID.Grass;
+        orig(i, j);
+
+        var after = Main.tile[i, j + 1];
+        if (after.active() && after.type == Terraria.ID.TileID.Grass)
+        {
+            var restore = Main.tile[i, j + 1];
+            restore.type = modType;
+        }
+    }
+
+    /// <summary>摇树：这一列是 mod 树就交给作者（ref createLeaves 能关掉原版掉落）；作者接管时记进 shake 标记。</summary>
     private static void ShakeTree(On.Terraria.WorldGen.orig_ShakeTree orig, int i, int j)
     {
         if (TreeTable.Count == 0)
@@ -61,11 +120,20 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
             return;
         }
 
+        // 同一棵树只摇一次：写 treeShakeX/Y + numTreeShakes，游戏据此去重。
+        WorldGen.GetTreeBottom(i, j, out var x, out var bottom);
+        var count = WorldGen.numTreeShakes;
+        if (count >= WorldGen.maxTreeShakes) return;
+        for (var k = 0; k < count; k++)
+        {
+            if (WorldGen.treeShakeX[k] == x && WorldGen.treeShakeY[k] == bottom) return;
+        }
+
         var createLeaves = true;
         bool vanilla;
         try
         {
-            vanilla = tree.Shake(i, j, ref createLeaves);
+            vanilla = tree.Shake(x, bottom - 1, ref createLeaves);
         }
         catch (Exception e)
         {
@@ -73,7 +141,15 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
             vanilla = true;
         }
 
-        if (vanilla) orig(i, j);
+        if (vanilla)
+        {
+            orig(i, j);
+            return;
+        }
+
+        WorldGen.treeShakeX[count] = x;
+        WorldGen.treeShakeY[count] = bottom;
+        WorldGen.numTreeShakes = count + 1;
     }
 
     /// <summary>砍树掉木头：这一列是 mod 树就换成作者声明的木头（原版只认自己的风格号）。</summary>
@@ -292,9 +368,41 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
     private static bool GrowTreeHook(On.Terraria.WorldGen.orig_GrowTree orig, int i, int y, int treeHeightAddon,
                                      bool ignoreWalls)
     {
+        // mod 苗不是原版 Saplings：原版生长算法不认识它，先临时换回原版苗再长，
+        // 长不成再换回来。
+        var type = Main.tile[i, y].type;
+        if (type == Terraria.ID.TileID.Saplings || ModContent.Find(ContentKind.Tile, type) is not ModTile)
+            return OriginalGrow(orig, i, y, treeHeightAddon, ignoreWalls);
+
+        var cells = new List<int>();
+        for (var k = y; Main.tile[i, k].active() && Main.tile[i, k].type == type; k++) cells.Add(k);
+        for (var k = y - 1; Main.tile[i, k].active() && Main.tile[i, k].type == type; k--) cells.Add(k);
+
+        foreach (var k in cells)
+        {
+            var cell = Main.tile[i, k];
+            cell.type = Terraria.ID.TileID.Saplings;
+        }
+        var grew = orig(i, y, treeHeightAddon, ignoreWalls);
+        if (!grew)
+        {
+            foreach (var k in cells)
+            {
+                var cell = Main.tile[i, k];
+                cell.type = type;
+            }
+            return false;
+        }
+
+        StyleColumn(i, y);
+        return true;
+    }
+
+    private static bool OriginalGrow(On.Terraria.WorldGen.orig_GrowTree orig, int i, int y, int treeHeightAddon,
+                                     bool ignoreWalls)
+    {
         var grew = orig(i, y, treeHeightAddon, ignoreWalls);
         if (grew) StyleColumn(i, y);
-
         return grew;
     }
 
@@ -342,22 +450,12 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
     /// <summary>安装期一次：发号 → 扩表 → 写贴图。</summary>
     internal void Build()
     {
+        // 发号在前（作者的 SetStaticDefaults 可能用到 Type），作者声明 GrowsOnTileId 在后，
+        // 所以 Assign 要跑两次：第一次发号，第二次补建"地面方块 → 树"映射（幂等）。
         TreeTable.Assign();
 
-        var count = TreeTable.Count;
-        if (count > 0)
-        {
-            // 每个风格：树顶 3 张、树枝 2 张、树干 1 张；目标长度 = 原版表长 + 本次新增。
-            TableMaintenance.Ensure(TreeTables.Top, TreeTables.TopVanilla + count * 3).GrowAll(Log.Info);
-            TableMaintenance.Ensure(TreeTables.Branch, TreeTables.BranchVanilla + count * 2).GrowAll(Log.Info);
-            TableMaintenance.Ensure(TreeTables.Wood, TreeTables.WoodVanilla + count).GrowAll(Log.Info);
-        }
-
-        var written = 0;
         foreach (var tree in TreeTable.All)
         {
-            written += Write(tree);
-
             try
             {
                 tree.SetStaticDefaults();
@@ -368,31 +466,50 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
             }
         }
 
+        TreeTable.Assign();
+
+        var count = TreeTable.Count;
+        if (count > 0)
+        {
+            // 每树各占 1 槽（树顶/树枝整条图、树干单张）；表已建（Samples 阶段），Ensure/GrowAll 一次到位。
+            TableMaintenance.Ensure(TreeTables.Top, TreeTables.TopVanilla + count).GrowAll(Log.Info);
+            TableMaintenance.Ensure(TreeTables.Branch, TreeTables.BranchVanilla + count).GrowAll(Log.Info);
+            TableMaintenance.Ensure(TreeTables.Wood, TreeTables.WoodVanilla + count).GrowAll(Log.Info);
+        }
+
+        var written = 0;
+        foreach (var tree in TreeTable.All)
+        {
+            written += Write(tree);
+        }
+
         if (count > 0) Log.Info($"[tree] 安装：{count} 棵树（写槽 {written}）");
     }
 
     private static int Write(ModTree tree)
     {
         var style = tree.Type;
-        var wood = ReadAsset(tree, () => tree.GetTexture());
-        if (wood is not null && TextureSlots.TryWrite(TextureTable.TreeWood, style, wood)) { }
+        var slot = style - TreeTable.Base;              // 树顶/树枝槽 = 原版表长起每树 1 槽（= style）
+        var woodSlot = TreeTables.WoodVanilla + slot;   // 树干表基线 = 原版表长
 
+        var wood = ReadAsset(tree, () => tree.GetTexture());
+        if (wood is not null) TextureSlots.TryWrite(TextureTable.TreeWood, woodSlot, wood);
+
+        // 树顶/树枝每树 1 槽整条图；作者给了多张就只认第 1 张。
         var tops = ReadArray(tree, () => tree.GetTopTextures());
-        if (tops is not null)
+        if (tops is { Length: > 0 } && tops[0] is { } top)
         {
-            for (var index = 0; index < tops.Length && index < 3; index++)
-            {
-                if (tops[index] is { } top) TextureSlots.TryWrite(TextureTable.TreeTop, style * 3 + index, top);
-            }
+            TextureSlots.TryWrite(TextureTable.TreeTop, style, top);
+            if (tops.Length > 1)
+                ContentErrors.Report($"[tree] {tree.Name}.GetTopTextures 给了 {tops.Length} 张，只认第 1 张（每树 1 槽整条图）");
         }
 
         var branches = ReadArray(tree, () => tree.GetBranchTextures());
-        if (branches is not null)
+        if (branches is { Length: > 0 } && branches[0] is { } branch)
         {
-            for (var index = 0; index < branches.Length && index < 2; index++)
-            {
-                if (branches[index] is { } branch) TextureSlots.TryWrite(TextureTable.TreeBranch, style * 2 + index, branch);
-            }
+            TextureSlots.TryWrite(TextureTable.TreeBranch, style, branch);
+            if (branches.Length > 1)
+                ContentErrors.Report($"[tree] {tree.Name}.GetBranchTextures 给了 {branches.Length} 张，只认第 1 张");
         }
 
         return 1;
@@ -440,16 +557,15 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
 /// <summary>树的三种贴图表（树顶 / 树枝 / 树干）：与原版树共用 TextureAssets 里的同名数组。</summary>
 internal static class TreeTables
 {
-    private static readonly Type[] Types =
-    [
-        typeof(Terraria.GameContent.TextureAssets),
-    ];
+    private static readonly Type[] Types = [typeof(Terraria.GameContent.TextureAssets)];
 
-    internal static readonly TableSet Top = new("树顶贴图", () => TopVanilla, Types);
-    internal static readonly TableSet Branch = new("树枝贴图", () => BranchVanilla, Types);
-    internal static readonly TableSet Wood = new("树干贴图", () => WoodVanilla, Types);
+    // 表长（32/7）在 TextureAssets 里太普通，黑名单拦不全（Gem/AccHandsOn 都撞过车），
+    // 三个表各自用白名单点名自己的字段。
+    internal static readonly TableSet Top = new("树顶贴图", () => TopVanilla, Types, include: ["TreeTop"]);
+    internal static readonly TableSet Branch = new("树枝贴图", () => BranchVanilla, Types, include: ["TreeBranch"]);
+    internal static readonly TableSet Wood = new("树干贴图", () => WoodVanilla, Types, include: ["Wood"]);
 
-    // 树贴图没有 ID 平行表，只扩 TextureAssets 里这几张。
+    // 树贴图没有 ID 平行表，只能按表长捕获原版长度。
     private static int _top, _branch, _wood;
 
     internal static int TopVanilla => Capture(ref _top, TextureTable.TreeTop);

@@ -31,7 +31,6 @@ internal static class InstallPlan
             new Step("装备贴图安装", InstallStage.Static, () => EquipPipeline.Instance.Build()),
             new Step("成就安装", InstallStage.Static, () => AchievementPipeline.Instance.Build()),
             new Step("尘土安装", InstallStage.Static, () => DustPipeline.Instance.Build()),
-            new Step("树安装", InstallStage.Static, () => TreePipeline.Instance.Build()),
             new Step("伤害类别安装", InstallStage.Static, () => DamageClassPipeline.Instance.Build()),
             // 云 / 发型 / 水样式要先扩表再写贴图（ResizeArrays → SetupTextures）。
             // 它们原先排在写贴图之后，表还没扩写槽就全部失败，主菜单第一帧遍历这些表就空指针。
@@ -49,6 +48,9 @@ internal static class InstallPlan
             new Step("物品样例", InstallStage.Samples, InstallSteps.RegisterItemSamples),
             new Step("墙壁安装", InstallStage.Samples, () => WallPipeline.Instance.Build()),
             new Step("方块安装", InstallStage.Samples, () => TilePipeline.Instance.Build()),
+            // 树安装要排在方块安装之后：此时树贴图表才建出来，
+            // 原版长度读得到，扩表与写槽一次到位；排早了捕获不到表长，表永远扩不上。
+            new Step("树安装", InstallStage.Samples, () => TreePipeline.Instance.Build()),
             new Step("弹幕模板", InstallStage.Samples, InstallSteps.ProjectileTemplates),
             new Step("NPC 静态默认值", InstallStage.Samples, InstallSteps.NpcStaticDefaults),
             new Step("NPC 样例", InstallStage.Samples, InstallSteps.RegisterNpcSamples),

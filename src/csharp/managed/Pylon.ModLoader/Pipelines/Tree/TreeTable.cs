@@ -21,18 +21,20 @@ internal static class TreeTable
     /// <summary>这块地上长哪种树（作者没写 GrowsOnTileId 就是 null）。</summary>
     internal static ModTree? ForGround(int tileType) => ByGround.TryGetValue(tileType, out var tree) ? tree : null;
 
-    /// <summary>发号 + 建地面映射；幂等。</summary>
+    /// <summary>发号；已在册的树只补建地面映射（作者在 SetStaticDefaults 里才写 GrowsOnTileId）。幂等。</summary>
     internal static void Assign()
     {
         foreach (var tree in ModContent.GetContent<ModTree>())
         {
-            if (tree.Registered) continue;
+            if (!tree.Registered)
+            {
+                tree.Type = Base + Trees.Count;
+                tree.Registered = true;
+                Trees.Add(tree);
+                ByStyle[tree.Type] = tree;
+            }
 
-            tree.Type = Base + Trees.Count;
-            tree.Registered = true;
-            Trees.Add(tree);
-            ByStyle[tree.Type] = tree;
-
+            // 地面映射每次都重建：GrowsOnTileId 在发号之后的 SetStaticDefaults 里才就位。
             var grounds = tree.GrowsOnTileId;
             if (grounds is null) continue;
 
@@ -40,7 +42,7 @@ internal static class TreeTable
             {
                 var ground = grounds[index];
                 if (ground <= 0) continue;
-                if (ByGround.ContainsKey(ground)) continue;
+                if (ByGround.TryGetValue(ground, out var other) && other != tree) continue;
 
                 ByGround[ground] = tree;
             }

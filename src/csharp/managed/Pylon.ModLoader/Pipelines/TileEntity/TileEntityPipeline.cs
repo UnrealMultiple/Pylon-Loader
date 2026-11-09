@@ -1,4 +1,5 @@
 using Terraria;
+using Terraria.ObjectData;
 
 namespace Pylon.ModLoader;
 
@@ -38,6 +39,9 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.IO.WorldFile.InternalSaveWorld += SaveWorld;
         On.Terraria.NetMessage.SendSection += SendSection;
         On.Terraria.WorldGen.PlaceTile += PlaceTile;
+        // 多格家具（3x4 的晶塔就是）不走 WorldGen.PlaceTile 的实体钩子：玩家真正放下时游戏走的是
+        // TileObjectData.CallPostPlacementPlayerHook —— 只能从这里补，不补就没有实体、进不了晶塔列表。
+        On.Terraria.ObjectData.TileObjectData.CallPostPlacementPlayerHook += CallPostPlacement;
         On.Terraria.WorldGen.KillTile += KillTile;
 
         Log.Info("[tileentity] 已挂（每帧 / 清世界 / 读档 / 存档 / 同步 / 放置即建实体 / 拆除即摘实体）");
@@ -116,6 +120,26 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
             if (!valid) continue;
 
             TileEntityBinding.Place(template, i, j);
+        }
+
+        return placed;
+    }
+
+    /// <summary>多格家具放下后：把作者的 <see cref="ModTile.Hook_AfterPlacement"/> 补上（晶塔在这里建实体）。</summary>
+    private static bool CallPostPlacement(On.Terraria.ObjectData.TileObjectData.orig_CallPostPlacementPlayerHook orig,
+                                          int i, int j, int type, int style, int direction, int alternate, TileObject data)
+    {
+        var placed = orig(i, j, type, style, direction, alternate, data);
+
+        if (TileTableOf(type) is not { } placer || !placer.HookEnabled(HookId.AfterPlacement)) return placed;
+
+        try
+        {
+            _ = placer.Hook_AfterPlacement(i, j, type, style, direction, alternate);
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report($"[tileentity] {placer.Name}.Hook_AfterPlacement 异常：{Safe.Describe(e)}");
         }
 
         return placed;
