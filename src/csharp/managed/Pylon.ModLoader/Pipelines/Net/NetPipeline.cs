@@ -52,6 +52,7 @@ internal sealed class NetPipeline : ILoaderModule
 
         _items = new ItemSync(this);
         _items.Install();
+        ItemPvpHooks.InstallNetwork(this);
 
         ContentFingerprint.Refresh();
         Log.Info("[net] 已挂（消息 0x" + Id.ToString("X") + "；" + _byName.Count + " 个 mod 可寻址；物品附属数据走 " +

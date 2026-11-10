@@ -62,6 +62,9 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         _binding.Prime();
         _defaults.Install();
         _town.Install();
+        NpcSpawn.Install();
+        NpcHitHooks.Install();
+        NpcContactHooks.Install();
 
         On.Terraria.Main.DrawNPCs += DrawNpcs;
         On.Terraria.NPC.AI += Ai;

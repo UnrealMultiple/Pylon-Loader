@@ -38,6 +38,12 @@ public abstract class GlobalItem : ModType
     /// <summary>握着时的样子；游戏自己的样式和 ModItem 的之后跑。</summary>
     public virtual void HoldStyle(Item item, Player player, float mountOffset, Rectangle heldItemFrame) { }
 
+    /// <summary>false:该类型不能成为当前的渔夫任务;按类型调用模板,不绑定物品实体。</summary>
+    public virtual bool IsAnglerQuestAvailable(int type) => true;
+
+    /// <summary>物品模板提供任务文案后,修改描述和捕获地点;两段非空时替换渔夫原文。</summary>
+    public virtual void AnglerChat(int type, ref string description, ref string catchLocation) { }
+
     /// <summary>手里拿着时每帧一次。</summary>
     public virtual void HoldItem(Item item, Player player) { }
 
@@ -46,6 +52,27 @@ public abstract class GlobalItem : ModType
 
     /// <summary>近战挥击的特效；hitbox 是这次挥击的矩形。</summary>
     public virtual void MeleeEffects(Item item, Player player, Rectangle hitbox) { }
+
+    /// <summary>null 保留原版，false 否决本次近战目标。</summary>
+    public virtual bool? CanHitNPC(Item item, Player player, NPC target) => null;
+
+    /// <summary>修改当前目标的近战碰撞判定，不影响下一目标。</summary>
+    public virtual bool? CanMeleeAttackCollideWithNPC(Item item, Rectangle meleeAttackHitbox, Player player, NPC target) => null;
+
+    /// <summary>在物品自身修饰之后修改本次 NPC 命中。</summary>
+    public virtual void ModifyHitNPC(Item item, Player player, NPC target, ref HitModifiers modifiers) { }
+
+    /// <summary>原版确认命中之后收到实际扣血通知。</summary>
+    public virtual void OnHitNPC(Item item, Player player, NPC target, HitInfo hit, int damageDone) { }
+
+    /// <summary>false 否决当前物品的近战玩家目标。</summary>
+    public virtual bool CanHitPvp(Item item, Player player, Player target) => true;
+
+    /// <summary>物品自身回调之后修改此武器造成的 PvP 伤害。</summary>
+    public virtual void ModifyHitPvp(Item item, Player player, Player target, ref HurtModifiers modifiers) { }
+
+    /// <summary>原版实际造成 PvP 伤害之后通知全局物品实例。</summary>
+    public virtual void OnHitPvp(Item item, Player player, Player target, HurtInfo info) { }
 
     /// <summary>使用动画的长度（可写引用）。</summary>
     public virtual void UseAnimation(Item item, Player player, ref int useAnimation) { }
@@ -70,6 +97,31 @@ public abstract class GlobalItem : ModType
 
     /// <summary>false：用得了，但不发射。</summary>
     public virtual bool CanShoot(Item item, Player player) => true;
+
+    /// <summary>false:武器允许没有背包弹药时使用默认弹药样例。</summary>
+    public virtual bool NeedsAmmo(Item weapon, Player player) => true;
+
+    /// <summary>null 按类别匹配，true 允许额外类型，false 否决。</summary>
+    public virtual bool? CanChooseAmmo(Item weapon, Item ammo, Player player) => null;
+
+    /// <summary>作用于弹药实体的候选选择判断。</summary>
+    public virtual bool? CanBeChosenAsAmmo(Item ammo, Item weapon, Player player) => null;
+
+    /// <summary>false:允许发射但不扣这份弹药。</summary>
+    public virtual bool CanConsumeAmmo(Item weapon, Item ammo, Player player) => true;
+
+    /// <summary>作用于弹药实体的消耗判断。</summary>
+    public virtual bool CanBeConsumedAsAmmo(Item ammo, Item weapon, Player player) => true;
+
+    /// <summary>武器实际消耗弹药后，在空物品清理之前调用。</summary>
+    public virtual void OnConsumeAmmo(Item weapon, Item ammo, Player player) { }
+
+    /// <summary>弹药实体实际被消耗之后。</summary>
+    public virtual void OnConsumedAsAmmo(Item ammo, Item weapon, Player player) { }
+
+    /// <summary>弹药选中后修改最终弹幕参数；damage 修饰基于原版计算结果。</summary>
+    public virtual void PickAmmo(Item weapon, Item ammo, Player player, ref int type, ref float speed,
+                                 ref StatModifier damage, ref float knockback) { }
 
     /// <summary>每个弹幕之前：改 stats 的位置、速度、类型、伤害、击退。</summary>
     public virtual void ModifyShootStats(Item item, Player player, ModItem.ShootStats stats) { }

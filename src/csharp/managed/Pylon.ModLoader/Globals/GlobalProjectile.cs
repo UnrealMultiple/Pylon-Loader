@@ -44,11 +44,23 @@ public abstract class GlobalProjectile : ModType
     /// <summary>打 NPC；null = 交给游戏判断（原版对玩家弹幕的规则）。</summary>
     public virtual bool? CanHitNPC(Projectile proj, NPC target) => null;
 
+    /// <summary>弹幕本地修饰之后修改这次对目标的命中。</summary>
+    public virtual void ModifyHitNPC(Projectile proj, NPC target, ref HitModifiers modifiers) { }
+
+    /// <summary>命中后收到原版结果与目标实际可扣生命范围内的伤害。</summary>
+    public virtual void OnHitNPC(Projectile proj, NPC target, HitInfo hit, int damageDone) { }
+
     /// <summary>false 否决对玩家的 PvP 命中。</summary>
     public virtual bool CanHitPvp(Projectile proj, Player target) => true;
 
     /// <summary>false 否决对玩家的命中（敌意弹幕）。</summary>
     public virtual bool CanHitPlayer(Projectile proj, Player target) => true;
+
+    /// <summary>来源本地修饰之后、目标玩家受伤修饰之前执行。</summary>
+    public virtual void ModifyHitPlayer(Projectile proj, Player target, ref HurtModifiers modifiers) { }
+
+    /// <summary>原版实际造成正伤害后的来源通知。</summary>
+    public virtual void OnHitPlayer(Projectile proj, Player target, HurtInfo hurtInfo) { }
 
     /// <summary>画之前；lightColor 是可写引用，false 不画游戏的那张精灵（游戏画的附加部分留下）。</summary>
     public virtual bool PreDraw(Projectile proj, ref Color lightColor) => true;

@@ -60,7 +60,7 @@ function Need($path, $hint) { if (-not (Test-Path $path)) { Die "缺少 $path（
 
 function Invoke-Dotnet($project, $extra) {
     $log = Join-Path $env:TEMP ('pylon-' + (Split-Path $project -Leaf) + '.log')
-    $args = @('build', (Join-Path $root $project), '-c', $Configuration, '-v', 'minimal', '--nologo', '-m:1', '-p:RestoreUseStaticGraphEvaluation=true') + $extra
+    $args = @('build', (Join-Path $root $project), '-c', $Configuration, '-v', 'minimal', '--nologo', '-m:1', '-nr:false', '-p:NuGetAudit=false', '-p:RestoreUseStaticGraphEvaluation=true') + $extra
     & dotnet @args > $log 2>&1
     if ($LASTEXITCODE -ne 0) { Get-Content $log | Select-Object -Last 12; Die "$project 编译失败" }
 }

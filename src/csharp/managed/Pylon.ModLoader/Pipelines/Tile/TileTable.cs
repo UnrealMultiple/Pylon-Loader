@@ -140,6 +140,9 @@ internal static class TileTable
         return _meta[type].DropItem;
     }
 
+    /// <summary>按缓存类型取模板；属性覆写不一定有回调位集，因此不经过 Has 门控。</summary>
+    internal static ModTile? Of(int type) => (uint)type < (uint)_tiles.Length ? _tiles[type] : null;
+
     /// <summary>按格子取方块；不是 mod 方块返回 null。</summary>
     internal static ModTile? At(int i, int j)
     {

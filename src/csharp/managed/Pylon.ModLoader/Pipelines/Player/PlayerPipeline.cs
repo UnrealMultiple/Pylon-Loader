@@ -33,6 +33,8 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.Player.UpdateDead += Dead;
         On.Terraria.Player.Update += Update;
         On.Terraria.Player.KillMe += KillMe;
+        PlayerHurtHooks.Install();
+        PlayerUpdateHooks.Install();
 
         On.Terraria.Player.ItemCheck += ItemCheck;
         On.Terraria.Player.CanUseItem += CanUse;

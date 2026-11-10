@@ -54,6 +54,52 @@ public abstract class GlobalNpc : ModType
     /// <summary>每次挨打、在游戏自己的效果之后；<c>npc.life &lt;= 0</c> 是致命的这击。</summary>
     public virtual void HitEffect(NPC npc, int hitDirection, double damage) { }
 
+    /// <summary>接触玩家前查询；可修改本次使用的受伤冷却槽。</summary>
+    public virtual bool CanHitPlayer(NPC npc, Player target, ref int cooldownSlot) => true;
+
+    /// <summary>NPC 接触攻击造成伤害之前的来源修饰。</summary>
+    public virtual void ModifyHitNPC(NPC npc, NPC target, ref HitModifiers modifiers) { }
+
+    /// <summary>NPC 接触攻击实际造成正伤害后的通知。</summary>
+    public virtual void OnHitNPC(NPC npc, NPC target, HitInfo hit) { }
+
+    /// <summary>null 保留原版弹幕命中规则，false 否决。</summary>
+    public virtual bool? CanBeHitByProjectile(NPC npc, Projectile projectile) => null;
+
+    /// <summary>弹幕来源的目标受击修饰。</summary>
+    public virtual void ModifyHitByProjectile(NPC npc, Projectile projectile, ref HitModifiers modifiers) { }
+
+    /// <summary>弹幕造成伤害后接收实际扣除生命量。</summary>
+    public virtual void OnHitByProjectile(NPC npc, Projectile projectile, HitInfo hit, int damageDone) { }
+
+    /// <summary>false 阻止此 NPC 对目标的接触攻击。</summary>
+    public virtual bool CanHitNPC(NPC npc, NPC target) => true;
+
+    /// <summary>false 阻止此 NPC 被另一 NPC 接触攻击。</summary>
+    public virtual bool CanBeHitByNPC(NPC npc, NPC attacker) => true;
+
+
+    /// <summary>在来源本地修饰之后、目标玩家修饰之前处理伤害。</summary>
+    public virtual void ModifyHitPlayer(NPC npc, Player target, ref HurtModifiers modifiers) { }
+
+    /// <summary>正伤害命中之后，先于目标玩家的来源通知执行。</summary>
+    public virtual void OnHitPlayer(NPC npc, Player target, HurtInfo hurtInfo) { }
+
+    /// <summary>null 保留原版命中规则；false 否决。</summary>
+    public virtual bool? CanBeHitByItem(NPC npc, Player player, Item item) => null;
+
+    /// <summary>null 使用原版近战命中盒相交判定。</summary>
+    public virtual bool? CanCollideWithPlayerMeleeAttack(NPC npc, Player player, Item item, Rectangle meleeAttackHitbox) => null;
+
+    /// <summary>所有攻击来源共用的受击修饰。</summary>
+    public virtual void ModifyIncomingHit(NPC npc, ref HitModifiers modifiers) { }
+
+    /// <summary>玩家物品攻击的来源相关修饰。</summary>
+    public virtual void ModifyHitByItem(NPC npc, Player player, Item item, ref HitModifiers modifiers) { }
+
+    /// <summary>玩家物品攻击实际造成伤害后的通知。</summary>
+    public virtual void OnHitByItem(NPC npc, Player player, Item item, HitInfo hit, int damageDone) { }
+
     /// <summary>死亡时（只在服务端或单人）；false = 不掉落也不跑 OnKill。</summary>
     public virtual bool PreKill(NPC npc) => true;
 
@@ -83,6 +129,25 @@ public abstract class GlobalNpc : ModType
 
     /// <summary>旅行商人的店（<c>Main.travelShop</c> 的类型表）；nextSlot 是指向第一个空位的可写引用。</summary>
     public virtual void SetupTravelShop(int[] shop, ref int nextSlot) { }
+
+    /// <summary>原版按玩家算完生成速率和上限之后修改;spawnRate 最终至少为 1。</summary>
+    public virtual void EditSpawnRate(Player player, ref int spawnRate, ref int maxSpawns) { }
+
+    /// <summary>生成与安全矩形的半径(格);后续限制到世界边界。</summary>
+    public virtual void EditSpawnRange(Player player, ref int spawnRangeX, ref int spawnRangeY,
+                                       ref int safeRangeX, ref int safeRangeY) { }
+
+    /// <summary>原版玩家生成标记写完之后;尚未选择格子,直接改 spawner 会影响本次生成。</summary>
+    public virtual void EditSpawnFlags(NPC.Spawner spawner) { }
+
+    /// <summary>生成格已选好后改 spawner 标记;可通过 NPCSpawnInfo 读取本次坐标。</summary>
+    public virtual void EditSpawnInfo(NPC.Spawner spawner) { }
+
+    /// <summary>自然生成池:类型 0 表示保留原版抽选,清空或全零权重表示不生成。</summary>
+    public virtual void EditSpawnPool(SpawnPool pool, NPCSpawnInfo spawnInfo) { }
+
+    /// <summary>自然生成实体就绪后一次;仅对该实体适用的全局实例分发,坐标单位为格。</summary>
+    public virtual void SpawnNPC(int npc, int tileX, int tileY) { }
 
     /// <summary>false 跳过游戏自己的绘制（PostDraw 照样跑）；drawColor 是可写引用。</summary>
     public virtual bool PreDraw(NPC npc, SpriteBatch spriteBatch, Vector2 screenPos, ref Color drawColor) => true;

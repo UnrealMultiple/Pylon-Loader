@@ -44,6 +44,8 @@ internal static class PT
     }
 
     private static readonly List<GroupDef> All = [];
+    private static bool _endRequested, _ended;
+    private static int? _expectedFailures;
 
     /// <summary>注册一个组。必须在各阶段入口之前调用（Load() 里注册全部）。</summary>
     public static void Group(string name, Phase phase, Action body) =>
@@ -80,13 +82,17 @@ internal static class PT
             Deferred.RemoveAt(i);
             Case(item.Id, item.Body);
         }
+        TryEnd();
     }
 
     /// <summary>运行某个阶段的全部已启用组；每个组一轮只跑一次。</summary>
     public static void RunPhase(Phase phase)
     {
-        foreach (var group in All)
+        // 组体允许追加自检组;本轮只遍历入口时的数量,避免枚举器失效。
+        var count = All.Count;
+        for (var i = 0; i < count; i++)
         {
+            var group = All[i];
             if (group.Phase != phase || group.Done) continue;
             if (Enabled is { } enabled && !enabled.Contains(group.Name)) continue;
 
@@ -104,6 +110,7 @@ internal static class PT
             }
             Log($"[PT] GROUP {group.Name} pass={Pass - before.Pass} fail={Fail - before.Fail} skip={Skip - before.Skip}");
         }
+        TryEnd();
     }
 
     /// <summary>注册了但这一轮没跑的组（核对组开关用）。</summary>
@@ -144,8 +151,22 @@ internal static class PT
 
     public static void FailCase(string id, string detail)
     {
+        if (_expectedFailures is { } expected)
+        {
+            _expectedFailures = expected + 1;
+            Log($"[PT] EXPECTED-FAIL {id} {detail}");
+            return;
+        }
         Fail++;
         Log($"[PT] FAIL {id} {detail}");
+    }
+
+    internal static int CaptureExpectedFailures(Action body)
+    {
+        var outer = _expectedFailures;
+        _expectedFailures = 0;
+        try { body(); return _expectedFailures.GetValueOrDefault(); }
+        finally { _expectedFailures = outer; }
     }
 
     public static void SkipCase(string id, string reason)
@@ -158,7 +179,23 @@ internal static class PT
 
     public static void Boot() => Log($"[PT] BOOT groups={All.Count}");
 
-    public static void End() => Log($"[PT] END pass={Pass} fail={Fail} skip={Skip}");
+    public static void End()
+    {
+        _endRequested = true;
+        TryEnd();
+    }
+
+    private static void TryEnd()
+    {
+        if (!_endRequested || _ended || Deferred.Count != 0) return;
+        for (var i = 0; i < All.Count; i++)
+        {
+            var group = All[i];
+            if (!group.Done && (Enabled is null || Enabled.Contains(group.Name))) return;
+        }
+        _ended = true;
+        Log($"[PT] END pass={Pass} fail={Fail} skip={Skip}");
+    }
 }
 
 /// <summary>断言辅助：失败记 FAIL 并继续（一轮拿全部结果）。</summary>

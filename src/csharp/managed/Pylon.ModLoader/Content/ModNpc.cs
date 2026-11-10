@@ -160,7 +160,47 @@ public abstract class ModNpc : ModType
     /// <summary>npc 对 npc（敌人撞上居民）；false 就是挡下。命中管线（CombatLoader）未迁移，暂不分派。</summary>
     public virtual bool CanHitNPC(NPC npc, NPC target) => true;
 
-    /// <summary>npc 挨 npc 打；false 就是挡下。命中管线未迁移，暂不分派。</summary>
+    /// <summary>接触玩家前查询；可修改本次使用的受伤冷却槽。</summary>
+    public virtual bool CanHitPlayer(NPC npc, Player target, ref int cooldownSlot) => true;
+
+    /// <summary>NPC 接触攻击造成伤害之前的来源修饰。</summary>
+    public virtual void ModifyHitNPC(NPC npc, NPC target, ref HitModifiers modifiers) { }
+
+    /// <summary>NPC 接触攻击实际造成正伤害后的通知。</summary>
+    public virtual void OnHitNPC(NPC npc, NPC target, HitInfo hit) { }
+
+    /// <summary>null 保留原版弹幕命中规则，false 否决。</summary>
+    public virtual bool? CanBeHitByProjectile(NPC npc, Projectile projectile) => null;
+
+    /// <summary>弹幕来源的目标受击修饰。</summary>
+    public virtual void ModifyHitByProjectile(NPC npc, Projectile projectile, ref HitModifiers modifiers) { }
+
+    /// <summary>弹幕造成伤害后接收实际扣除生命量。</summary>
+    public virtual void OnHitByProjectile(NPC npc, Projectile projectile, HitInfo hit, int damageDone) { }
+
+
+    /// <summary>来源侧伤害修饰先于目标玩家的受伤修饰。</summary>
+    public virtual void ModifyHitPlayer(NPC npc, Player target, ref HurtModifiers modifiers) { }
+
+    /// <summary>原版实际造成正伤害后通知，收到实际伤害信息。</summary>
+    public virtual void OnHitPlayer(NPC npc, Player target, HurtInfo hurtInfo) { }
+
+    /// <summary>null 保留原版命中规则；false 否决。</summary>
+    public virtual bool? CanBeHitByItem(NPC npc, Player player, Item item) => null;
+
+    /// <summary>null 使用原版近战命中盒相交判定。</summary>
+    public virtual bool? CanCollideWithPlayerMeleeAttack(NPC npc, Player player, Item item, Rectangle meleeAttackHitbox) => null;
+
+    /// <summary>所有攻击来源共用的受击修饰。</summary>
+    public virtual void ModifyIncomingHit(NPC npc, ref HitModifiers modifiers) { }
+
+    /// <summary>玩家物品攻击的来源相关修饰。</summary>
+    public virtual void ModifyHitByItem(NPC npc, Player player, Item item, ref HitModifiers modifiers) { }
+
+    /// <summary>玩家物品攻击实际造成伤害后的通知。</summary>
+    public virtual void OnHitByItem(NPC npc, Player player, Item item, HitInfo hit, int damageDone) { }
+
+    /// <summary>npc 挨 npc 打；false 就是挡下。</summary>
     public virtual bool CanBeHitByNPC(NPC npc, NPC attacker) => true;
 
     /// <summary>生命 ≤ 0 时；false 阻止死亡（要把生命补回去，否则下一帧还会问）。</summary>
@@ -227,12 +267,16 @@ public abstract class ModNpc : ModType
     /// <summary>死亡时，在 PreKill 与游戏掉落之后。</summary>
     public virtual void OnKill(NPC npc) { }
 
-    // 自然生成：Pylon 还没有 SpawnLoader，下面两个钩子声明保留但不会被调用。
 
-    /// <summary>每次自然生成：返回权重（原版重 1，0 = 不生成）。管线未迁移，暂不调用。</summary>
+    /// <summary>每次自然生成：返回权重（原版重 1，0 = 不生成）。</summary>
     public virtual float SpawnChance(Player player, int spawnTileX, int spawnTileY, int tileType, int wallType) => 0f;
 
-    /// <summary>被抽中时怎么生成，在生成的格 (tileX, tileY)；返回 NPC 下标。管线未迁移，暂不调用。</summary>
+    /// <summary>完整生成信息入口;默认转发旧签名,保持已有作者覆写可用。</summary>
+    public virtual float SpawnChance(NPCSpawnInfo spawnInfo) =>
+        SpawnChance(spawnInfo.Player, spawnInfo.SpawnTileX, spawnInfo.SpawnTileY,
+                    spawnInfo.SpawnTileType, spawnInfo.SpawnWallType);
+
+    /// <summary>被抽中时怎么生成，在生成的格 (tileX, tileY)；返回 NPC 下标。</summary>
     public virtual int SpawnNPC(int tileX, int tileY) =>
         Terraria.NPC.NewNPC(Terraria.NPC.GetSpawnSourceForNaturalSpawn(), tileX * 16 + 8, tileY * 16, Type, 0, 0f, 0f, 0f, 0f, 255);
 

@@ -26,6 +26,7 @@ internal sealed class SceneEffectPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.Main.UpdateAudio_DecideOnTOWMusic += TowMusic;
         On.Terraria.Player.Update += Update;
         On.GUIMap.DrawMapFullscreenBackground += DrawMapBackground;
+        On.Terraria.Main.DrawMapFullscreenBackground += DrawMainMapBackground;
 
         // 拍图与全屏地图的群系：赢家换了 mod 水或背景时也要跟着换，不然图上是原版的水色。
         CaptureBiomePipeline.Install();
@@ -215,54 +216,46 @@ internal sealed class SceneEffectPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static readonly Dictionary<string, Asset<Texture2D>?> MapTextures = new(StringComparer.Ordinal);
 
-    /// <summary>原版把地图背景画完之后，赢家声明了 <c>MapBackground</c> 就盖一层自己的。</summary>
+    /// <summary>自定义背景可用时替换原版；资源或作者回调失败时保留原版路径。</summary>
     private static void DrawMapBackground(On.GUIMap.orig_DrawMapFullscreenBackground orig, GUIMap self,
                                           Vector2 screenPosition, int screenWidth, int screenHeight)
     {
-        orig(self, screenPosition, screenWidth, screenHeight);
+        if (!TryDrawMapBackground(screenPosition, screenWidth, screenHeight))
+            orig(self, screenPosition, screenWidth, screenHeight);
+    }
 
-        if (Current is not { } effect) return;
+    private static void DrawMainMapBackground(On.Terraria.Main.orig_DrawMapFullscreenBackground orig,
+                                              Vector2 screenPosition, int screenWidth, int screenHeight)
+    {
+        if (!TryDrawMapBackground(screenPosition, screenWidth, screenHeight))
+            orig(screenPosition, screenWidth, screenHeight);
+    }
 
-        string path;
+    private static bool TryDrawMapBackground(Vector2 screenPosition, int screenWidth, int screenHeight)
+    {
+        if (Main.gameMenu || Current is not { } effect) return false;
+
         try
         {
-            path = effect.MapBackground;
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report($"[sceneeffect] {effect.Name}.MapBackground 异常：{Safe.Describe(e)}");
-            return;
-        }
+            var path = effect.MapBackground;
+            if (string.IsNullOrEmpty(path)) return false;
+            var spriteBatch = Main.spriteBatch;
+            if (spriteBatch is null) return false;
+            var texture = MapTexture(effect, path);
+            if (texture is null || texture.Width <= 0 || texture.Height <= 0) return false;
 
-        if (string.IsNullOrEmpty(path)) return;
-
-        var spriteBatch = Main.spriteBatch;
-        if (spriteBatch is null) return;
-
-        var texture = MapTexture(effect, path);
-        if (texture is null) return;
-
-        if (texture.Width <= 0 || texture.Height <= 0) return;
-
-        var scale = Math.Max(screenWidth / (float)texture.Width, screenHeight / (float)texture.Height);
-
-        var color = Color.White;
-        try
-        {
+            // 视口背景覆盖屏幕而非世界坐标；表层随天空变暗，全亮选项可明确跳过染色。
+            var color = !effect.MapBackgroundFullbright && screenPosition.Y <= Main.worldSurface * 16.0
+                ? Main.ColorOfTheSkies : Color.White;
             effect.MapBackgroundColor(ref color);
+            spriteBatch.Draw(texture, new Rectangle(0, 0, screenWidth, screenHeight), color);
+            return true;
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[sceneeffect] {effect.Name}.MapBackgroundColor 异常：{Safe.Describe(e)}");
-            color = Color.White;
+            ContentErrors.Report($"[sceneeffect] {effect.Name}.MapBackground 绘制异常:{Safe.Describe(e)}");
+            return false;
         }
-
-        var origin = new Il2CppSystem.Nullable<Vector2>(Vector2.Zero);
-        var position = new Il2CppSystem.Nullable<Vector2>(new Vector2(screenPosition.X, screenPosition.Y));
-        var scaleNullable = new Il2CppSystem.Nullable<Vector2>(new Vector2(scale, scale));
-        var colorNullable = new Il2CppSystem.Nullable<Color>(color);
-
-        spriteBatch.Draw(texture, position, null, null, origin, 0f, scaleNullable, colorNullable, SpriteEffects.None, 0f);
     }
 
     /// <summary>按贴图路径缓存资源；加载失败只记一次，之后当没有。</summary>

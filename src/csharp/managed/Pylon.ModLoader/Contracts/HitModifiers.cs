@@ -130,7 +130,7 @@ public class HitModifiers
         if (SuperArmor)
         {
             var damage = crit ? CritDamage.Additive * CritDamage.Multiplicative : 1f;
-            return (int)Math.Max(1f, Math.Min(Math.Truncate(damage), Math.Min(_limit, 4f)));
+            return DamageInteger(damage, Math.Min(_limit, 4f));
         }
         var value = SourceDamage.ApplyTo(baseDamage);
         value += FlatBonusDamage + ScalingBonusDamage * value;
@@ -140,7 +140,7 @@ public class HitModifiers
         defense = Math.Max(defense - penetration, 0f);
         value = Math.Max(value - defense * DefenseEffectiveness, 1f);
         value = (crit ? CritDamage : NonCritDamage).ApplyTo(value);
-        return (int)Math.Max(1f, Math.Min(Math.Truncate(FinalDamage.ApplyTo(value)), _limit));
+        return DamageInteger(FinalDamage.ApplyTo(value), _limit);
     }
 
     /// <summary>算这一下的击退（禁了就是 0，不然 Knockback 套完夹到不低于 0）。</summary>
@@ -158,7 +158,7 @@ public class HitModifiers
         var knockback = GetKnockback(baseKnockback);
         return new HitInfo(
             DamageType,
-            Math.Max((int)Math.Truncate(IsFinite(sourceDamage) ? sourceDamage : 0f), 1),
+            DamageInteger(sourceDamage, int.MaxValue),
             _instantKill ? 1 : (IsFinite(damage) ? damage : 0),
             _crit ?? crit,
             hitDirection,
@@ -168,5 +168,12 @@ public class HitModifiers
     }
 
     /// <summary>Number.isFinite 的对应：不是 NaN 也不是无穷。</summary>
+    private static int DamageInteger(double value, double limit)
+    {
+        if (!double.IsFinite(value)) return 1;
+        var maximum = double.IsNaN(limit) ? 1d : Math.Clamp(limit, 1d, int.MaxValue);
+        return (int)Math.Clamp(Math.Truncate(value), 1d, maximum);
+    }
+
     private static bool IsFinite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
 }

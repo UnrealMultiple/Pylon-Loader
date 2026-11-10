@@ -148,6 +148,31 @@ public abstract class ModItem : ModType
     /// <summary>false：用得了，但不发射。</summary>
     public virtual bool CanShoot(Item item, Player player) => true;
 
+    /// <summary>false:没有背包弹药也可使用对应弹药类别的默认非消耗样例。</summary>
+    public virtual bool NeedsAmmo(Item weapon, Player player) => true;
+
+    /// <summary>null 按弹药类别匹配，true 允许额外类型，false 否决该候选。</summary>
+    public virtual bool? CanChooseAmmo(Item weapon, Item ammo, Player player) => null;
+
+    /// <summary>作为弹药时决定能否被这件武器选中；false 优先于任何允许。</summary>
+    public virtual bool? CanBeChosenAsAmmo(Item ammo, Item weapon, Player player) => null;
+
+    /// <summary>false:正常发射但不消耗这份弹药。</summary>
+    public virtual bool CanConsumeAmmo(Item weapon, Item ammo, Player player) => true;
+
+    /// <summary>作为弹药时否决消耗。</summary>
+    public virtual bool CanBeConsumedAsAmmo(Item ammo, Item weapon, Player player) => true;
+
+    /// <summary>实际扣除弹药之后，最后一发清空物品之前。</summary>
+    public virtual void OnConsumeAmmo(Item weapon, Item ammo, Player player) { }
+
+    /// <summary>作为弹药实际扣除之后。</summary>
+    public virtual void OnConsumedAsAmmo(Item ammo, Item weapon, Player player) { }
+
+    /// <summary>弹药被选中后修改最终弹幕参数；damage 修饰应用在游戏已经计算的伤害上。</summary>
+    public virtual void PickAmmo(Item ammo, Item weapon, Player player, ref int type, ref float speed,
+                                 ref StatModifier damage, ref float knockback) { }
+
     /// <summary>一个弹幕发射前的参数；改字段就是改这一发。</summary>
     public sealed class ShootStats
     {
@@ -184,6 +209,27 @@ public abstract class ModItem : ModType
 
     /// <summary>false：不加计时也不给药水病，回血和消耗照旧。</summary>
     public virtual bool ApplyPotionDelay(Item item, Player player, int potionDelay) => true;
+
+    /// <summary>null 保留原版命中规则，false 否决，true 允许当前近战目标。</summary>
+    public virtual bool? CanHitNPC(Item item, Player player, NPC target) => null;
+
+    /// <summary>允许额外近战碰撞时扩展本次判定矩形，不改变后续目标的判定。</summary>
+    public virtual bool? CanMeleeAttackCollideWithNPC(Item item, Rectangle meleeAttackHitbox, Player player, NPC target) => null;
+
+    /// <summary>目标防御修饰之后、原版扣血之前修改本次命中。</summary>
+    public virtual void ModifyHitNPC(Item item, Player player, NPC target, ref HitModifiers modifiers) { }
+
+    /// <summary>原版确认命中后通知，damageDone 为目标实际可扣除的生命。</summary>
+    public virtual void OnHitNPC(Item item, Player player, NPC target, HitInfo hit, int damageDone) { }
+
+    /// <summary>false 否决当前武器的近战玩家目标，不覆盖原版距离与阵营判定。</summary>
+    public virtual bool CanHitPvp(Item item, Player player, Player target) => true;
+
+    /// <summary>玩家防御计算之前修改此武器造成的 PvP 伤害。</summary>
+    public virtual void ModifyHitPvp(Item item, Player player, Player target, ref HurtModifiers modifiers) { }
+
+    /// <summary>原版实际造成 PvP 伤害之后通知武器。</summary>
+    public virtual void OnHitPvp(Item item, Player player, Player target, HurtInfo info) { }
 
     /// <summary>武器的伤害修正。</summary>
     public virtual void ModifyWeaponDamage(Item item, Player player, ref int damage) { }

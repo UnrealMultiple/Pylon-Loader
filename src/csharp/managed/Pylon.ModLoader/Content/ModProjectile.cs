@@ -162,11 +162,23 @@ public abstract class ModProjectile : ModType
     /// <summary>null = 交给游戏判断（原版对玩家弹幕的规则）。</summary>
     public virtual bool? CanHitNPC(Projectile proj, NPC target) => null;
 
+    /// <summary>目标受击修饰之后、所属玩家修饰之前修改本次命中。</summary>
+    public virtual void ModifyHitNPC(Projectile proj, NPC target, ref HitModifiers modifiers) { }
+
+    /// <summary>命中后收到实际扣血量；hit.Damage 保留原版受击结果。</summary>
+    public virtual void OnHitNPC(Projectile proj, NPC target, HitInfo hit, int damageDone) { }
+
     /// <summary>false 否决对玩家的 PvP 命中。</summary>
     public virtual bool CanHitPvp(Projectile proj, Player target) => true;
 
     /// <summary>false 否决对玩家的命中。</summary>
     public virtual bool CanHitPlayer(Projectile proj, Player target) => true;
+
+    /// <summary>来源侧修饰先于目标玩家的来源与通用受伤修饰。</summary>
+    public virtual void ModifyHitPlayer(Projectile proj, Player target, ref HurtModifiers modifiers) { }
+
+    /// <summary>原版实际造成正伤害后的来源通知。</summary>
+    public virtual void OnHitPlayer(Projectile proj, Player target, HurtInfo hurtInfo) { }
 
     /// <summary>true/false 决定是否命中；null = 用游戏的矩形相交。</summary>
     public virtual bool? Colliding(Projectile proj, Rectangle projHitbox, Rectangle targetHitbox) => null;

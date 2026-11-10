@@ -39,7 +39,10 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.Main.GetBuffTooltip += BuffTooltip;
 
         On.Terraria.Main.DrawBuffIcon += DrawIcon;
+        On.GUIBuffs.ItemDraw += DrawGuiIcon;
+        On.GUIBuffs.RemoveBuff_int += RemoveGuiBuff;
         On.Terraria.Player.DelBuff += DelBuff;
+        BuffIconCapture.Install();
 
         var count = Prime();
         PatchCompiledLimits();
@@ -417,25 +420,68 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         var type = types[buffSlotOnPlayer];
         if (type <= 0) return orig(drawBuffText, buffSlotOnPlayer, x, y);
 
+        return AroundIcon(type, buffSlotOnPlayer, new Vector2(x, y), false,
+                          () => orig(drawBuffText, buffSlotOnPlayer, x, y));
+    }
+
+    private void DrawGuiIcon(On.GUIBuffs.orig_ItemDraw orig, GUIBuffs self, ItemGrid_Layout grid,
+                             int index, Vector2 position, float scale)
+    {
+        var active = self.activeBuffs;
+        var types = Main.LocalPlayer?.buffType;
+        if (index < 0 || index >= self.numActiveBuffs || active is null || index >= active.Length || types is null)
+        {
+            orig(self, grid, index, position, scale);
+            return;
+        }
+        var slot = active[index];
+        if ((uint)slot >= (uint)types.Length || types[slot] <= 0)
+        {
+            orig(self, grid, index, position, scale);
+            return;
+        }
+        AroundIcon(types[slot], slot, position, true, () =>
+        {
+            orig(self, grid, index, position, scale);
+            return 0;
+        });
+    }
+
+    private int AroundIcon(int type, int buffSlotOnPlayer, Vector2 position, bool gui, Func<int> original)
+    {
         var mod = Of(type);
         var modPre = mod is not null && mod.HookEnabled(HookId.PreDraw);
         var modPost = mod is not null && mod.HookEnabled(HookId.PostDraw);
         var pre = GlobalBuffRegistry.For(HookId.PreDraw);
         var post = GlobalBuffRegistry.For(HookId.PostDraw);
         if (!modPre && !modPost && pre.Count == 0 && post.Count == 0)
-            return orig(drawBuffText, buffSlotOnPlayer, x, y);
+            return original();
 
         BuffDrawParams? parameters = null;
         try
         {
-            parameters = BuildDrawParams(type, buffSlotOnPlayer, x, y);
+            parameters = BuildDrawParams(type, buffSlotOnPlayer, (int)position.X, (int)position.Y);
+            if (parameters is not null && gui)
+            {
+                parameters.Position = position;
+                parameters.TextPosition = new Vector2(position.X, position.Y + parameters.Texture.Height);
+                var alphas = Main.buffAlpha;
+                var alpha = alphas is not null && (uint)buffSlotOnPlayer < (uint)alphas.Length ? alphas[buffSlotOnPlayer] : 1f;
+                parameters.DrawColor = new Color(alpha, alpha, alpha, alpha);
+            }
         }
         catch (Exception e)
         {
             Fail("buff", HookId.PreDraw, e);
         }
 
-        if (parameters is null) return orig(drawBuffText, buffSlotOnPlayer, x, y);
+        if (parameters is null) return original();
+        var before = new BuffDrawParams
+        {
+            Texture = parameters.Texture, Position = parameters.Position, TextPosition = parameters.TextPosition,
+            SourceRectangle = parameters.SourceRectangle, MouseRectangle = parameters.MouseRectangle,
+            DrawColor = parameters.DrawColor
+        };
 
         var spriteBatch = Main.spriteBatch;
         var draw = true;
@@ -465,7 +511,8 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
             }
         }
 
-        var result = draw ? orig(drawBuffText, buffSlotOnPlayer, x, y) : drawBuffText;
+        int result;
+        using (new BuffIconCapture.Scope(before, parameters, draw)) result = original();
 
         if (modPost)
         {
@@ -494,6 +541,27 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         return result;
     }
 
+    private void RemoveGuiBuff(On.GUIBuffs.orig_RemoveBuff_int orig, GUIBuffs self, int slot)
+    {
+        var types = Main.LocalPlayer?.buffType;
+        if (types is not null && (uint)slot < (uint)types.Length && types[slot] > 0)
+        {
+            var type = types[slot];
+            foreach (var global in GlobalBuffRegistry.For(HookId.RightClick))
+            {
+                try { if (!global.RightClick(type, slot)) return; }
+                catch (Exception e) { Fail(global.Name, HookId.RightClick, e); }
+            }
+            var mod = Of(type);
+            if (mod is not null && mod.HookEnabled(HookId.RightClick))
+            {
+                try { if (!mod.RightClick(slot)) return; }
+                catch (Exception e) { Fail(mod.Name, HookId.RightClick, e); }
+            }
+        }
+        orig(self, slot);
+    }
+
     private void DelBuff(On.Terraria.Player.orig_DelBuff orig, Player self, int b)
     {
         var types = self.buffType;
@@ -505,34 +573,24 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         }
 
         var type = types[b];
+        var removedTime = times[b];
         var mod = Of(type);
-        var globals = GlobalBuffRegistry.For(HookId.RightClick);
         var modRemoves = mod is not null && mod.HookEnabled(HookId.CanRemove);
 
-        if (!modRemoves && globals.Count == 0 && (mod is null || !mod.HookEnabled(HookId.OnRemove)))
+        if (!modRemoves && (mod is null || !mod.HookEnabled(HookId.OnRemove)))
         {
             orig(self, b);
             return;
         }
 
         bool? verdict = null;
-        foreach (var global in globals)
-        {
-            try
-            {
-                if (!global.RightClick(type, b)) return;
-            }
-            catch (Exception e)
-            {
-                Fail(global.Name, HookId.RightClick, e);
-            }
-        }
-
         if (modRemoves)
         {
             try
             {
-                verdict = mod!.CanRemove(self, times[b], b, Main.debuff[type]);
+                var debuffs = Main.debuff;
+                var debuff = debuffs is not null && (uint)type < (uint)debuffs.Length && debuffs[type];
+                verdict = mod!.CanRemove(self, removedTime, b, debuff);
             }
             catch (Exception e)
             {
@@ -547,7 +605,7 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         if (mod is null || !mod.HookEnabled(HookId.OnRemove)) return;
         try
         {
-            mod.OnRemove(self, times[b], b);
+            mod.OnRemove(self, removedTime, b);
         }
         catch (Exception e)
         {
@@ -555,7 +613,7 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    /// <summary>BuffDrawParams 只是给作者读的：本版不 patch SpriteBatch.Draw，改字段不会传到这次绘制。</summary>
+    /// <summary>构建作者参数基线；实际贴图变换在原版绘制窗口中按差值应用。</summary>
     private static BuffDrawParams? BuildDrawParams(int type, int slot, int x, int y)
     {
         var assets = TextureAssets.Buff;

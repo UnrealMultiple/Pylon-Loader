@@ -30,6 +30,22 @@ public class NPCSpawnInfo
     public int SpawnWallType { get; }
 
     /// <summary>tileX/tileY 是刷怪点（EditSpawnFlags 时 -1，游戏还没选点）；target 是目标玩家序号。</summary>
+    internal NPCSpawnInfo(NPC.Spawner spawner, Player player, int tileX, int tileY, int groundY,
+                          int tileType, int wallType, bool xRange = false)
+    {
+        Spawner = spawner;
+        Player = player;
+        SpawnTileX = tileX;
+        SpawnTileY = tileY;
+        GroundTileY = groundY;
+        SpawnTileType = tileType;
+        SpawnWallType = wallType;
+        SafeRangeX = xRange;
+    }
+
+    /// <summary>当前管线保存的生成上下文,不存在时返回尚未选点的上下文。</summary>
+    public static NPCSpawnInfo Of(NPC.Spawner spawner) => NpcSpawn.InfoOf(spawner);
+
     public NPCSpawnInfo(NPC.Spawner spawner, int tileX, int tileY, int target, bool xRange = false)
     {
         Spawner = spawner;
@@ -51,7 +67,14 @@ public class NPCSpawnInfo
     }
 
     /// <summary>玩家在天空高度。</summary>
-    public bool Sky => Player.ZoneSkyHeight;
+    public bool Sky => Spawner.skyMob;
+
+    public bool PlayerSafe => Spawner.spawnFriendly || Spawner.noWorms;
+    public bool Water => Spawner.waterTile;
+    public bool SpiderCave => Spawner.spawnSpider;
+    public bool PlayerInTown => Spawner.spawnFriendly;
+    public int PlayerFloorX => (int)Player.Center.X / 16;
+    public int PlayerFloorY => (int)Player.Bottom.Y / 16;
 
     /// <summary>玩家在地表高度。</summary>
     public bool Surface => Player.ZoneOverworldHeight;
@@ -153,13 +176,13 @@ public class NPCSpawnInfo
     public bool Desert => Player.ZoneDesert;
 
     /// <summary>地下沙漠。</summary>
-    public bool DesertCave => Player.ZoneUndergroundDesert;
+    public bool DesertCave => Spawner.spawnUndergroundDesert;
 
     /// <summary>大理石洞。</summary>
-    public bool Marble => Player.ZoneMarble;
+    public bool Marble => Spawner.nearMarble;
 
     /// <summary>花岗岩洞。</summary>
-    public bool Granite => Player.ZoneGranite;
+    public bool Granite => Spawner.nearGranite;
 
     /// <summary>墓地。</summary>
     public bool Graveyard => Player.ZoneGraveyard;
@@ -171,7 +194,7 @@ public class NPCSpawnInfo
     public bool Lihzahrd => Player.ZoneLihzhardTemple;
 
     /// <summary>入侵进行中。</summary>
-    public bool Invasion => Main.invasionType > 0;
+    public bool Invasion => Spawner.invaders;
 
     /// <summary>四神柱（日耀/星旋/星云/星尘）任一附近。</summary>
     public bool AnyTower => Player.ZoneTowerSolar || Player.ZoneTowerVortex || Player.ZoneTowerNebula || Player.ZoneTowerStardust;

@@ -94,14 +94,81 @@ public abstract class ModPlayer
     /// <summary>false：这一次用不了这个物品。</summary>
     public virtual bool CanUseItem(Player player, Item item) => true;
 
+    /// <summary>null 保留原版弹幕命中规则，false 否决该玩家所属弹幕的目标。</summary>
+    public virtual bool? CanHitNPCWithProj(Player player, Projectile projectile, NPC target) => null;
+
+    /// <summary>玩家所属弹幕打中 NPC 之前的修饰。</summary>
+    public virtual void ModifyHitNPCWithProj(Player player, Projectile projectile, NPC target, ref HitModifiers modifiers) { }
+
+    /// <summary>玩家所属弹幕打中 NPC 后的实际伤害通知。</summary>
+    public virtual void OnHitNPCWithProj(Player player, Projectile projectile, NPC target, HitInfo hit, int damageDone) { }
+
+    /// <summary>false 阻止该物品对玩家的 PvP 近战命中。</summary>
+    public virtual bool CanHitPvp(Player player, Item item, Player target) => true;
+
+
     /// <summary>false：跳过这一次的物品检查。</summary>
     public virtual bool PreItemCheck(Player player) => true;
+
+    /// <summary>false 否决玩家对该 NPC 的命中，所有玩家作者仍收到查询。</summary>
+    public virtual bool CanHitNPC(Player player, NPC target) => true;
+
+    public virtual bool? CanHitNPCWithItem(Player player, Item item, NPC target) => null;
+
+    public virtual bool? CanMeleeAttackCollideWithNPC(Player player, Item item, Rectangle meleeAttackHitbox, NPC target) => null;
+
+    public virtual void ModifyHitNPC(Player player, NPC target, ref HitModifiers modifiers) { }
+
+    public virtual void ModifyHitNPCWithItem(Player player, Item item, NPC target, ref HitModifiers modifiers) { }
+
+    public virtual void OnHitNPC(Player player, NPC target, HitInfo hit, int damageDone) { }
+
+    public virtual void OnHitNPCWithItem(Player player, Item item, NPC target, HitInfo hit, int damageDone) { }
 
     /// <summary>物品检查之后（被否决了也跑）。</summary>
     public virtual void PostItemCheck(Player player) { }
 
     /// <summary>false：不让死（要把生命补回去，否则下一帧还会问）。</summary>
     public virtual bool PreKill(Player player, PlayerDeathReason damageSource, double damage, int hitDirection, bool pvp) => true;
+
+    /// <summary>true 免疫这次伤害；所有作者仍会收到免疫查询。</summary>
+    public virtual bool ImmuneTo(Player player, PlayerDeathReason damageSource, int cooldownCounter, bool dodgeable) => false;
+
+    /// <summary>本地可闪避伤害的免费闪避，先于消耗型闪避。</summary>
+    public virtual bool FreeDodge(Player player, HurtInfo info) => false;
+
+    /// <summary>免费闪避未成功时查询的消耗型闪避。</summary>
+    public virtual bool ConsumableDodge(Player player, HurtInfo info) => false;
+
+    /// <summary>来源修饰之后修改本次受伤；Cancel 可取消原版调用。</summary>
+    public virtual void ModifyHurt(Player player, ref HurtModifiers modifiers) { }
+
+    /// <summary>原版确认产生伤害后，收到实际返回的伤害数值。</summary>
+    public virtual void OnHurt(Player player, HurtInfo info) { }
+
+    /// <summary>受伤后仍然存活时执行，致命伤害不调用。</summary>
+    public virtual void PostHurt(Player player, HurtInfo info) { }
+
+    /// <summary>NPC 接触命中前可否决，冷却槽可回写。</summary>
+    public virtual bool CanBeHitByNPC(Player player, NPC npc, ref int cooldownSlot) => true;
+
+    /// <summary>非 PvP 弹幕命中前可否决。</summary>
+    public virtual bool CanBeHitByProjectile(Player player, Projectile projectile) => true;
+
+    /// <summary>NPC 来源的受伤修饰，先于通用 ModifyHurt。</summary>
+    public virtual void ModifyHitByNPC(Player player, NPC npc, ref HurtModifiers modifiers) { }
+
+    /// <summary>弹幕来源的受伤修饰，先于通用 ModifyHurt。</summary>
+    public virtual void ModifyHitByProjectile(Player player, Projectile projectile, ref HurtModifiers modifiers) { }
+
+    /// <summary>NPC 来源已实际造成伤害。</summary>
+    public virtual void OnHitByNPC(Player player, NPC npc, HurtInfo info) { }
+
+    /// <summary>弹幕来源已实际造成伤害。</summary>
+    public virtual void OnHitByProjectile(Player player, Projectile projectile, HurtInfo info) { }
+
+    /// <summary>在弹幕所属玩家上查询是否允许该弹幕命中 PvP 目标。</summary>
+    public virtual bool CanHitPvpWithProj(Player player, Projectile projectile, Player target) => true;
 
     /// <summary>死掉之后。</summary>
     public virtual void Kill(Player player, PlayerDeathReason damageSource, double damage, int hitDirection, bool pvp) { }
@@ -175,6 +242,12 @@ public abstract class ModPlayer
 
     /// <summary>付款之前否决这次购买。</summary>
     public virtual bool CanBuyItem(Player player, NPC vendor, Item item) => true;
+
+    /// <summary>false:这次发射不扣弹药，不改变发射与选弹结果。</summary>
+    public virtual bool CanConsumeAmmo(Player player, Item weapon, Item ammo) => true;
+
+    /// <summary>实际扣除弹药之后；最后一发的弹药实体尚未清空。</summary>
+    public virtual void OnConsumeAmmo(Player player, Item weapon, Item ammo) { }
 
     /// <summary>买成之后；item 是光标上收到的那份。</summary>
     public virtual void PostBuyItem(Player player, NPC vendor, Item item) { }

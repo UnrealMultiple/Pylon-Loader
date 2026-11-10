@@ -22,8 +22,10 @@ internal static class HookScan
         var builder = new HookMask.Builder();
         foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Instance))
         {
-            if (method.IsAbstract || method.IsStatic) continue;
+            if (method.IsAbstract || method.IsStatic || !method.IsVirtual) continue;
             if (method.DeclaringType == baseType) continue;
+            // 同名 helper/new 隐藏方法不是作者回调；只接受目标基类虚槽的真实覆写。
+            if (method.GetBaseDefinition().DeclaringType != baseType) continue;
 
             // 属性钩子（如 ModTile.AdjTiles）编译成 get_AdjTiles，位集里存的是属性名；
             // 放置钩子叫 Hook_AfterPlacement，枚举里是 AfterPlacement。

@@ -305,4 +305,64 @@ internal enum HookId
     PostDrawInterface,
     PostDrawTiles,
     OnEnterWorld,
+
+    // ---- 弹药选择与消耗 ----
+    NeedsAmmo,
+    CanChooseAmmo,
+    CanBeChosenAsAmmo,
+    CanConsumeAmmo,
+    CanBeConsumedAsAmmo,
+    OnConsumeAmmo,
+    OnConsumedAsAmmo,
+    PickAmmo,
+
+    // ---- 玩家受伤与来源事件 ----
+    ImmuneTo,
+    FreeDodge,
+    ConsumableDodge,
+    ModifyHurt,
+    OnHurt,
+    PostHurt,
+    CanBeHitByNPC,
+    CanBeHitByProjectile,
+    ModifyHitByNPC,
+    ModifyHitByProjectile,
+    OnHitByNPC,
+    OnHitByProjectile,
+    CanHitPvpWithProj,
+
+    // ---- 玩家更新的精确时机 ----
+    PostUpdateMiscEffects,
+    PostUpdateRunSpeeds,
+    PreUpdateMovement,
+    UpdateAutopause,
+
+    // ---- 命中来源与 NPC 受击 ----
+    CanHitPlayer,
+    CanHitPvp,
+    ModifyHitPlayer,
+    OnHitPlayer,
+    CanHitNPC,
+    CanHitNPCWithItem,
+    CanMeleeAttackCollideWithNPC,
+    ModifyHitNPC,
+    ModifyHitNPCWithItem,
+    OnHitNPC,
+    OnHitNPCWithItem,
+    CanBeHitByItem,
+    CanCollideWithPlayerMeleeAttack,
+    ModifyIncomingHit,
+    ModifyHitByItem,
+    OnHitByItem,
+
+    // ---- 治疗量与快速选药 ----
+    GetHealLife,
+    GetHealMana,
+
+    // ---- 弹幕、接触攻击与 PvP ----
+    CanHitNPCWithProj,
+    ModifyHitNPCWithProj,
+    OnHitNPCWithProj,
+    ModifyHitPvp,
+    OnHitPvp,
 }

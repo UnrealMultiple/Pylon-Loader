@@ -54,16 +54,19 @@ public abstract class ModBuff : ModType
     /// <summary>点图标取消时；true/false 定，null = 交给游戏（debuff 不掉）。</summary>
     public virtual bool? CanRemove(Player player, int buffTime, int buffIndex, bool debuff) => null;
 
+    /// <summary>手动点图标取消时调用；false 否决，不影响到期或游戏逻辑删除。</summary>
+    public virtual bool RightClick(int buffIndex) => true;
+
     /// <summary>点图标取消之后。</summary>
     public virtual void OnRemove(Player player, int buffTime, int buffIndex) { }
 
     /// <summary>条上的名字和说明（三个都是可写的引用）。</summary>
     public virtual void ModifyBuffText(ref string buffName, ref string tip, ref int rare) { }
 
-    /// <summary>条上这个图标；false = 图标和时间文字都不画（见 BuffDrawParams 的限制）。</summary>
+    /// <summary>条上这个图标；false 仅取消原版图标，时间文字、输入与 PostDraw 仍运行。</summary>
     public virtual bool PreDraw(SpriteBatch spriteBatch, int buffIndex, BuffDrawParams drawParams) => true;
 
-    /// <summary>条上这个图标画完之后。</summary>
+    /// <summary>条上这个图标；false 仅取消原版图标，时间文字、输入与 PostDraw 仍运行。</summary>
     public virtual void PostDraw(SpriteBatch spriteBatch, int buffIndex, BuffDrawParams drawParams) { }
 
     /// <summary>相对 ModBuff 覆写了哪些钩子：安装时算一次挂在模板上，分派期只做位运算。</summary>

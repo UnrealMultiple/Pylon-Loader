@@ -9,6 +9,15 @@ public sealed class TestWaterStyle : ModWaterStyle
 
     // 瀑布槽没有公开 TypeOf 门面：Ready 阶段由用例断言 fall.Type 后对比
     public override int ChooseWaterfallStyle() => 0;
+
+    internal static int RainVariantCalls { get; private set; }
+    internal static int RainVariant { get; set; } = 2;
+
+    public override int GetRainVariant()
+    {
+        RainVariantCalls++;
+        return RainVariant;
+    }
 }
 
 public sealed class TestWaterfallStyle : ModWaterfallStyle

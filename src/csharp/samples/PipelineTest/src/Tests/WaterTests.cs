@@ -26,7 +26,38 @@ internal static class WaterTests
             c.Eq(Main.waterStyle, water.Type, "场景效果把 Main.waterStyle 换成 mod 水");
         });
 
-        // 手动验证：在玩家右前方挖坑灌水，屏幕上直接看 mod 水的颜色。
+        PT.Case("WATER-W3", c =>
+        {
+            var savedStyle = Main.waterStyle;
+            var savedVariant = Content.TestWaterStyle.RainVariant;
+            var rain = Main.rain;
+            var active = new bool[rain.Length];
+            for (var i = 0; i < rain.Length; i++) active[i] = rain[i] is { active: true };
+
+            try
+            {
+                Main.waterStyle = water.Type;
+                // 超出原版三列仍须完整回写，字段边界不能被误当成贴图列数。
+                Content.TestWaterStyle.RainVariant = 7;
+                var before = Content.TestWaterStyle.RainVariantCalls;
+                var index = Rain.NewRainForced(player.Center, new Il2CppMicrosoft.Xna.Framework.Vector2(0f, 1f));
+                c.True((uint)index < (uint)rain.Length, "强制雨滴取得有效槽位");
+                if ((uint)index < (uint)rain.Length)
+                {
+                    c.True(Content.TestWaterStyle.RainVariantCalls > before, "游戏创建入口派发 GetRainVariant");
+                    c.Eq((int)rain[index].type, 7, "自定义雨滴列号写回游戏实例");
+                }
+            }
+            finally
+            {
+                Main.waterStyle = savedStyle;
+                Content.TestWaterStyle.RainVariant = savedVariant;
+                // 不替换雨贴图，绘制之前回收测试雨滴，避免越界采样。
+                for (var i = 0; i < rain.Length; i++)
+                    if (!active[i] && rain[i] is { } drop) drop.active = false;
+            }
+        });
+
         PT.Case("WATER-W2", c =>
         {
             // 挖一个 10 宽 x 5 深的坑（草皮往下）

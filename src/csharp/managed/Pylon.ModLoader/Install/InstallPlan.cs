@@ -76,6 +76,8 @@ internal static class InstallPlan
             new Step("GlobalNPC 配方组", InstallStage.Mods, GlobalRecipeGroups),
             new HookStep("Mod.PostSetupContent", InstallStage.Mods, HookId.PostSetupContent, static mod => mod.PostSetupContent()),
             new Step("内容 PostSetupContent", InstallStage.Mods, () => PostSetupContent()),
+            new Step("渔夫任务鱼", InstallStage.Mods, ItemAnglerQuest.Build),
+            new Step("本地化加载完成", InstallStage.Mods, ModEnvironmentHooks.LocalizationsLoaded),
             new Step("提示重建开关", InstallStage.Mods, () => TooltipPipeline.Instance.Build()),
             new Step("GlobalNPC 静态与配方", InstallStage.Mods, GlobalNpcTasks),
 

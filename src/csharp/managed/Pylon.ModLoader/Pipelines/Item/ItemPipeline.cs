@@ -33,6 +33,10 @@ internal sealed class ItemPipeline : ILoaderModule
     public bool Install()
     {
         _defaults.Install();
+        ItemAnglerQuest.Install();
+        ItemAmmoHooks.Install();
+        ItemHealHooks.Install();
+        ItemPvpHooks.Install();
 
         On.Terraria.Player.ItemCheck_CheckCanUse_Inner += CanUse;
         On.Terraria.Player.ItemCheck_StartActualUse += Use;
@@ -52,6 +56,8 @@ internal sealed class ItemPipeline : ILoaderModule
         item is not null && ModContent.IsCustom(ContentKind.Item, item.type);
 
     private ModItem? ModOf(Item item) => _binding.InstanceOf(item);
+
+    internal ModItem? InstanceOf(Item item) => _binding.InstanceOf(item);
 
     // ===================== 使用链 =====================
 

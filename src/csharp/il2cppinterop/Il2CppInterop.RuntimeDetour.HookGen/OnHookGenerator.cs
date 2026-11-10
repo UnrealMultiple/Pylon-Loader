@@ -44,7 +44,14 @@ public static partial class OnHookGenerator
         var assembly = AssemblyDefinition.ReadAssembly(assemblyPath, new ReaderParameters { AssemblyResolver = resolver });
 
         using var detourAssembly = AssemblyDefinition.ReadAssembly(Path.GetFullPath(runtimeDetourPath));
-        var detourRef = new AssemblyNameReference(detourAssembly.Name.Name, detourAssembly.Name.Version);
+        // scope 必须使用模块表里的同一个 AssemblyRef 对象;未入表的新对象没有 RID,
+        // 写出的 ResolutionScope 会变成 0,CLR 就会错误地在代理自身寻找运行时类型。
+        var detourRef = assembly.MainModule.AssemblyReferences.FirstOrDefault(r => r.FullName == detourAssembly.Name.FullName)
+                        ?? new AssemblyNameReference(detourAssembly.Name.Name, detourAssembly.Name.Version);
+        if (!assembly.MainModule.AssemblyReferences.Contains(detourRef))
+            assembly.MainModule.AssemblyReferences.Add(detourRef);
+        foreach (var type in assembly.MainModule.GetTypeReferences())
+            if (type.Namespace == "Il2CppInterop.RuntimeDetour") type.Scope = detourRef;
 
         var generator = new Generator(assembly.MainModule, detourRef, Path.GetFullPath(runtimeDetourPath));
         var result = generator.Run();

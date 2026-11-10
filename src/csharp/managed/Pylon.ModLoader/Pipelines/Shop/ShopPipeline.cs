@@ -3,7 +3,7 @@ using Terraria;
 namespace Pylon.ModLoader;
 
 /// <summary>
-/// 商店管线：只接管 mod 槽号的装货（`InventoryStorage.SetupShop`），原版商店原样交给游戏。
+/// 商店管线：只接管 mod 槽号的装货（`InventoryStorage.SetupShop`），原版普通商店交给游戏,旅行商店在原版装货之后分派全局模板。
 /// NPC 聊天按钮、原版商店改写本版不接，见 docs/pipeline/content-shop.md。
 /// </summary>
 internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
@@ -17,6 +17,7 @@ internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
     public bool Install()
     {
         On.Terraria.InventoryStorage.SetupShop += SetupShop;
+        On.Terraria.InventoryStorage.SetupTravelShop += SetupTravelShop;
 
         Log.Info("[shop] 已挂（mod 槽号装货）；聊天按钮与原版商店改写本版不接");
         return true;
@@ -30,6 +31,34 @@ internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
         ShopTable.Rebuild();
 
         if (ShopTable.Count > 0) Log.Info($"[shop] 安装：{ShopTable.Count} 家店");
+    }
+
+    /// <summary>原版先装货,再按注册顺序让全局模板改写固定容量货架与下一个空槽。</summary>
+    private static void SetupTravelShop(On.Terraria.InventoryStorage.orig_SetupTravelShop orig)
+    {
+        orig();
+        var native = Main.travelShop;
+        if (native is null) return;
+
+        var items = new int[native.Length];
+        for (var i = 0; i < items.Length; i++) items[i] = native[i];
+        var nextSlot = 0;
+        while (nextSlot < items.Length && items[nextSlot] != 0) nextSlot++;
+
+        // 此入口没有 NPC 实体:必须用模板,不能按 AppliesToEntity 筛选或创建实体副本。
+        foreach (var global in GlobalNpcRegistry.All)
+        {
+            try
+            {
+                global.SetupTravelShop(items, ref nextSlot);
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[shop] {global.Name}.SetupTravelShop 异常:{Safe.Describe(e)}");
+            }
+        }
+
+        for (var i = 0; i < items.Length; i++) native[i] = items[i];
     }
 
     // ===================== 装货 =====================

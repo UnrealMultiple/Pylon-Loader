@@ -17,6 +17,9 @@ internal sealed class ProjectilePipeline : ILoaderModule
 {
     public static ProjectilePipeline Instance { get; } = new();
 
+    /// <summary>跨管线回调复用绑定实例，不能重新取模板或另建一份实体状态。</summary>
+    internal ModProjectile? InstanceOf(Projectile? projectile) => _binding.InstanceOf(projectile);
+
     private const int FrameDepth = 2;
 
     private readonly ProjectileBinding _binding = new();
@@ -58,6 +61,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
         On.Terraria.Projectile.GetCollisionParams += CollisionParams;
         On.Terraria.Projectile.Kill += Kill;
         On.Terraria.Projectile.Damage += Damage;
+        ProjectileHitHooks.Install();
         On.Terraria.Projectile.Damage_GetHitbox += DamageHitbox;
         On.Terraria.Projectile.Colliding += Colliding;
         On.Terraria.Projectile.CanCutTiles += CanCutTiles;

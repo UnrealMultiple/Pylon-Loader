@@ -30,6 +30,7 @@ internal sealed class TilePipeline : ILoaderModule
         On.Terraria.WorldGen.CanKillTile_int_int += CanKillFast;
         On.Terraria.WorldGen.CanKillTile_int_int_boolRef += CanKillOut;
         On.Terraria.WorldGen.KillTile += Kill;
+        On.Terraria.WorldGen.KillTile_PlaySounds += PlaySounds;
         On.Terraria.WorldGen.KillTile_MakeTileDust += MakeDust;
         On.Terraria.WorldGen.KillTile_DropItems += DropItems;
         On.Terraria.WorldGen.TileFrame += Frame;
@@ -37,6 +38,7 @@ internal sealed class TilePipeline : ILoaderModule
         On.Terraria.Player.AdjTiles += Stations;
         On.Terraria.Player.TileInteractionsUse += Interact;
         On.Terraria.Player.TileInteractionsMouseOver += MouseOver;
+        TileInteractionHooks.Install();
 
         Log.Info("[tile] 已挂（挖 / 尘土 / 掉落 / 边框 / 通电 / 制作站 / 右键 / 光标）；逐格绘制与光照本版无入口");
         return true;
@@ -247,6 +249,63 @@ internal sealed class TilePipeline : ILoaderModule
     #endregion
 
     #region 尘土与掉落
+
+    private void PlaySounds(On.Terraria.WorldGen.orig_KillTile_PlaySounds orig, int i, int j, bool fail,
+                            Tile tileCache)
+    {
+        // 按调用方传入的 Tile 取类型，不假定它一定对应当前坐标。
+        var type = tileCache.type;
+        var tile = TileTable.Of(type);
+        if (tile is not null && tile.HookEnabled(HookId.KillSound))
+        {
+            try
+            {
+                if (!tile.KillSound(i, j, fail)) return;
+            }
+            catch (Exception e)
+            {
+                Fail(tile, HookId.KillSound, e);
+            }
+        }
+
+        var globals = GlobalTileRegistry.For(HookId.KillSound);
+        for (var index = 0; index < globals.Count; index++)
+        {
+            var global = globals[index];
+            try
+            {
+                if (!global.KillSound(i, j, type, fail)) return;
+            }
+            catch (Exception e)
+            {
+                // 一个作者异常不阻断后续作者的否决；日志按实际 Global 类型独立限频。
+                if (_reported.Add(HashCode.Combine(global.GetType(), HookId.KillSound)))
+                    ContentErrors.Report($"[tile] {global.GetType().Name}.KillSound 异常:{Safe.Describe(e)}");
+            }
+        }
+
+        if (tile is not null)
+        {
+            var sound = -1;
+            try
+            {
+                sound = tile.HitSound;
+            }
+            catch (Exception e)
+            {
+                Fail(tile, HookId.KillSound, e);
+            }
+
+            // -1 保留现有作者契约：使用游戏声音；零也是有效声音号，不作空值处理。
+            if (sound >= 0)
+            {
+                Terraria.Audio.SoundEngine.PlaySound(sound, i * 16, j * 16, 1, 1f, 0f);
+                return;
+            }
+        }
+
+        orig(i, j, fail, tileCache);
+    }
 
     private int MakeDust(On.Terraria.WorldGen.orig_KillTile_MakeTileDust orig, int i, int j, Tile tileCache)
     {

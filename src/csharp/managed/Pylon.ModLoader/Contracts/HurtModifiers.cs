@@ -16,12 +16,12 @@ public class HurtModifiers
     private bool _dust;
     private bool _sound;
 
-    public HurtModifiers(object source = null!, int damage = 0, int hitDirection = 0, bool pvp = false, int cooldownCounter = -1, bool dodgeable = true, bool quiet = false, bool crit = false)
+    public HurtModifiers(object? source = null, int damage = 0, int hitDirection = 0, bool pvp = false, int cooldownCounter = -1, bool dodgeable = true, bool quiet = false, bool crit = false)
     {
         _damage = damage;
         _quiet = quiet;
         _crit = crit;
-        DamageSource = source;
+        DamageSource = source!;
         PvP = pvp;
         CooldownCounter = cooldownCounter;
         Dodgeable = dodgeable;
@@ -154,6 +154,30 @@ public class HurtModifiers
             ["Crit"] = crit
         });
 
-    /// <summary>Number.isFinite 的对应：不是 NaN 也不是无穷。</summary>
+    /// <summary>防御后修饰需要逆算回原版防御前入参。</summary>
+    internal bool ChangesAfterDefense => ArmorPenetration != 0f || ScalingArmorPenetration != 0f ||
+        !float.IsPositiveInfinity(_limit) || FinalDamage is null || !FinalDamage.Equals(StatModifier.Default);
+
+    /// <summary>结合当前防御效率，计算闪避查询所见的预计伤害。</summary>
+    public float GetDamage(float baseDamage, float defense, float defenseEffectiveness)
+    {
+        var source = SourceDamage.ApplyTo(baseDamage) * IncomingDamageMultiplier;
+        var afterDefense = Math.Max(source - EffectiveDefense(defense) * defenseEffectiveness, 1f);
+        var final = Final(afterDefense);
+        // 原版与后置信息使用整数伤害；向零截断必须发生在反推原版入参之前。
+        return (int)Math.Clamp((double)final, 1d, int.MaxValue);
+    }
+
+    /// <summary>预计受伤信息；原版返回后 Damage 会替换为实际伤害。</summary>
+    public HurtInfo ToHurtInfo(int damage, int defense, float defenseEffectiveness, float knockback, bool knockbackImmune)
+    {
+        var info = ToHurtInfo((int)GetDamage(damage, defense, defenseEffectiveness));
+        info.SourceDamage = Math.Max(1, (int)SourceDamage.ApplyTo(damage));
+        var value = Math.Max(Knockback.ApplyTo(knockback), 0f);
+        if (knockbackImmune) value *= 1f - Math.Clamp(KnockbackImmunityEffectiveness, 0f, 1f);
+        info.Knockback = value;
+        return info;
+    }
+
     private static bool IsFinite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
 }

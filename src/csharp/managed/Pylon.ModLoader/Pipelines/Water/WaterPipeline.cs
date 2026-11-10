@@ -36,6 +36,8 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.Gore.NewGore += NewGore;
         On.Terraria.GameContent.Drawing.TileDrawing.EmitLiquidDrops += EmitLiquidDrops;
         On.Terraria.Rain.MakeRain += MakeRain;
+        On.Terraria.Rain.NewRain += NewRain;
+        On.Terraria.Rain.NewRainForced += NewRainForced;
         On.Terraria.Main.DrawRain += DrawRain;
         // 原版每帧读这个返回值写 Main.waterStyle：直接赋值会被它盖掉（真机水永远是 0），必须改返回值。
         On.Terraria.Main.CalculateWaterStyle += ChooseWaterStyle;
@@ -91,6 +93,7 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         }
 
         var saved = Main.waterStyle;
+        var outer = _raining;
         Main.waterStyle = 0;
         _raining = water;
         try
@@ -100,17 +103,19 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         finally
         {
             Main.waterStyle = saved;
-            _raining = null;
+            _raining = outer;
         }
     }
 
-    /// <summary>作者给的雨滴列号，出界回落到原版 0..2。</summary>
+    /// <summary>雨滴列号存入 byte 字段，无法表示的值或作者异常回落到第 0 列。</summary>
     private static byte RainVariant(ModWaterStyle water)
     {
         try
         {
+            // 自定义雨贴图可以使用原版三列之外的列号。
+            // 作者 API 用 int,游戏字段用 byte:只拒绝目标字段无法表示的值。
             var variant = water.GetRainVariant();
-            return variant is >= 0 and <= 2 ? (byte)variant : (byte)0;
+            return variant is >= byte.MinValue and <= byte.MaxValue ? (byte)variant : (byte)0;
         }
         catch (Exception e)
         {
@@ -283,12 +288,29 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
     {
         var index = orig(position, velocity);
 
-        if (_raining is not { } water) return index;
-        if ((uint)index >= (uint)Main.rain.Length) return index;
-
-        var drop = Main.rain[index];
-        if (drop is not null) drop.type = RainVariant(water);
+        // 未覆写时保留原版已经抽出的列号，避免额外消耗随机数。
+        if (_raining is { } water && Hooks.Overrides(water.GetType(), typeof(ModWaterStyle), nameof(ModWaterStyle.GetRainVariant)))
+            SetRainType(index, water);
         return index;
+    }
+
+    /// <summary>强制降雨不经过 MakeRain，上下文直接取当前水样式。</summary>
+    private static int NewRainForced(On.Terraria.Rain.orig_NewRainForced orig,
+                                     Il2CppMicrosoft.Xna.Framework.Vector2 position,
+                                     Il2CppMicrosoft.Xna.Framework.Vector2 velocity)
+    {
+        var index = orig(position, velocity);
+        if (Current() is { } water) SetRainType(index, water);
+        return index;
+    }
+
+    private static void SetRainType(int index, ModWaterStyle water)
+    {
+        var rain = Main.rain;
+        if (rain is null || (uint)index >= (uint)rain.Length) return;
+
+        var drop = rain[index];
+        if (drop is not null) drop.type = RainVariant(water);
     }
 
     public void Refresh()

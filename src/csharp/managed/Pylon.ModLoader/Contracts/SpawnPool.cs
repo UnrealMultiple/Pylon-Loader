@@ -11,6 +11,11 @@ public class SpawnPool
     /// <summary>抽选里有几条（Object.keys 的长度）。</summary>
     public int Count => _entries.Count;
 
+    /// <summary>直接设置或替换权重,可将类型 0 的权重设为 0 禁用原版抽选。</summary>
+    public float this[int type] { get => _entries[type]; set => _entries[type] = value; }
+
+    public bool TryGetValue(int type, out float weight) => _entries.TryGetValue(type, out weight);
+
     /// <summary>抽选里的类型；每次访问新建一份（Object.keys 的结果）。</summary>
     public List<int> Keys => [.. _entries.Keys];
 
@@ -32,20 +37,28 @@ public class SpawnPool
     /// <summary>用 Main.rand 抽一个类型；总权重 0 返回 null（什么都不生成），负权重按 0 算。</summary>
     public int? Choose()
     {
+        var count = ModContent.NextType(ContentKind.Npc);
+        return Choose(Main.rand.NextDouble(), count);
+    }
+
+    /// <summary>只让有限正权重和合法类型参与,避免 NaN/Infinity 污染整个池。</summary>
+    internal int? Choose(double sample, int typeCount)
+    {
         double total = 0;
-        List<(int Type, float Weight)> entries = [];
+        foreach (var entry in _entries)
+            if (Valid(entry, typeCount)) total += entry.Value;
+        if (total <= 0) return null;
+
+        var remaining = sample * total;
         foreach (var entry in _entries)
         {
-            var weight = entry.Value > 0 ? entry.Value : 0f;
-            entries.Add((entry.Key, weight));
-            total += weight;
-        }
-        var r = Utils.NextFloat(Main.rand) * total;
-        foreach (var entry in entries)
-        {
-            if (r < entry.Weight) return entry.Type;
-            r -= entry.Weight;
+            if (!Valid(entry, typeCount)) continue;
+            if (remaining < entry.Value) return entry.Key;
+            remaining -= entry.Value;
         }
         return null;
     }
+
+    private static bool Valid(KeyValuePair<int, float> entry, int typeCount) =>
+        entry.Key >= -65 && entry.Key < typeCount && float.IsFinite(entry.Value) && entry.Value > 0;
 }

@@ -19,6 +19,8 @@ internal static class ModLifecycle
     {
         if (_installed) return;
         _installed = true;
+        ModEnvironmentHooks.Install();
+        ModWorldGenHooks.Install();
 
         On.Terraria.WorldGen.clearWorld += ClearWorldPostfix;
         On.Terraria.IO.WorldFile.LoadWorld += LoadWorld;

@@ -24,6 +24,14 @@ public sealed class PipelineTestMod : Mod
     public override void PostDrawInterface(Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch spriteBatch) =>
         TestInterfaceProbe.OnPostDrawInterface(spriteBatch);
 
+    public override void ModifySunLightColor(ref Il2CppMicrosoft.Xna.Framework.Graphics.Color tileColor,
+                                             ref Il2CppMicrosoft.Xna.Framework.Graphics.Color backgroundColor) =>
+        Tests.EnvironmentTests.Sky(ref tileColor, ref backgroundColor);
+
+    public override void ModifyLightingBrightness(ref float scale) => Tests.EnvironmentTests.Light(ref scale);
+
+    public override void PreUpdateProjectiles() => Tests.EnvironmentTests.Projectiles();
+
     public override void Load()
     {
         PT.Bind(Logger);
@@ -40,20 +48,27 @@ public sealed class PipelineTestMod : Mod
         Tests.MusicTests.Register();
         Tests.CloudTests.Register();
         Tests.WaterTests.Register();
+        Tests.EnvironmentTests.Register();
         Tests.HairTests.Register();
         Tests.ItemTests2.Register();
         Tests.ProjectileTests.Register();
+        Tests.ProjectileHitTests.Register();
         Tests.DustTests.Register();
         Tests.GoreTests.Register();
         Tests.PrefixTests.Register();
         Tests.NpcTests.Register();
+        Tests.NpcHitTests.Register();
+        Tests.NpcContactTests.Register();
         Tests.BuffTests.Register();
+        Tests.BuffInteractionTests.Register();
         Tests.LootTests.Register();
         Tests.ShopTests.Register();
         Tests.ShopHookTests.Register();
         Tests.BannerTests.Register();
         Tests.BossBarTests.Register();
         Tests.TileTests.Register();
+        Tests.TileSoundTests.Register();
+        Tests.TileInteractionTests.Register();
         Tests.MountTests.Register();
         Tests.RecipeTests.Register();
         Tests.WallTests.Register();
@@ -69,6 +84,12 @@ public sealed class PipelineTestMod : Mod
         Tests.PlayerDrawInfoTests.Register();
         Tests.InterfaceTests.Register();
         Tests.PlayerTests.Register();
+        Tests.PlayerUpdateTests.Register();
+        Tests.PlayerHurtTests.Register();
+        Tests.PlayerDamageSourceTests.Register();
+        Tests.ItemPvpTests.Register();
+        Tests.AmmoTests.Register();
+        Tests.HealTests.Register();
         Tests.CommandTests.Register();
         Tests.ConfigTests.Register();
         Tests.NetTests.Register();

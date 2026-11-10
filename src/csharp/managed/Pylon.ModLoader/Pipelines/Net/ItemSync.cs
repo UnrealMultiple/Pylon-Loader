@@ -241,11 +241,13 @@ internal sealed class ItemSync
                              Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<byte> messageData,
                              int length, ref int messageType)
     {
+        if (NetReceiveHooks.Hijack(self, ref messageData, ref length, ref messageType)) return;
+
         var packet = -1;
         var index = -1;
         var slot = 0;
 
-        if (messageData is not null && length >= 3)
+        if (messageData is not null && length >= 3 && length <= messageData.Length)
         {
             packet = messageData[0];
             if (packet == PacketInventory && length >= 4)
