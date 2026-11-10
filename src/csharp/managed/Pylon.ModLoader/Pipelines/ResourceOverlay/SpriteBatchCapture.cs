@@ -30,24 +30,24 @@ internal static class SpriteBatchCapture
 
     internal static void Install()
     {
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_2 += Draw_2;
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_3 += Draw_3;
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_4 += Draw_4;
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_5 += Draw_5;
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_6 += Draw_6;
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_7 += Draw_7;
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_11 += Draw_11;
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_12 += Draw_12;
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_14 += Draw_14;
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_16 += Draw_16;
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_18 += Draw_18;
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_20 += Draw_20;
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_21 += Draw_21;
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_Fast += Draw_Fast;
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_22 += Draw_22;
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_Texture2D_Vector2Ref_RectangleRef_ColorRef_float_Vector2_float_SpriteEffects += Draw_2;
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_Texture2D_Vector2Ref_RectangleRef_ColorRef_float_Vector2_Vector2_SpriteEffects += Draw_3;
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_Texture2D_Vector2Ref_RectangleRef_ColorRef_float_Vector2_float += Draw_4;
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_Texture2D_Vector2Ref_ColorRef_float_Vector2_float += Draw_5;
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_Texture2D_Vector2_Nullable_Rectangle_Color_float_Vector2_Vector2_SpriteEffects_float += Draw_6;
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_Texture2D_Vector2_RectangleRef_Color_float_Vector2_Vector2_SpriteEffects_float += Draw_7;
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_Texture2D_Vector2_Nullable_Rectangle_Color_float_Vector2_float_SpriteEffects_float += Draw_11;
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_Texture2D_Vector2Ref_RectangleRef_ColorRef += Draw_12;
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_Texture2D_Vector2_RectangleRef_Color_float_Vector2_float_SpriteEffects_float += Draw_14;
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_Texture2D_Rectangle_Nullable_Rectangle_Color_float_Vector2_SpriteEffects_float += Draw_16;
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_Texture2D_Vector2_Nullable_Rectangle_Color += Draw_18;
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_Texture2D_Rectangle_Nullable_Rectangle_Color += Draw_20;
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_Texture2D_Vector2_Color += Draw_21;
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_Fast_Texture2D_Vector2Ref_RectangleRef_ColorRef_SpriteEffects += Draw_Fast;
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_Texture2D_Rectangle_Color += Draw_22;
     }
     private static void Draw_Fast(
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_Fast orig,
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_Fast_Texture2D_Vector2Ref_RectangleRef_ColorRef_SpriteEffects orig,
         SpriteBatch self, Texture2D texture, ref Vector2 position, ref Rectangle source, ref Color color, SpriteEffects effects)
     {
         if (!Active) { orig(self, texture, ref position, ref source, ref color, effects); return; }
@@ -65,7 +65,7 @@ internal static class SpriteBatchCapture
     }
 
     private static void Draw_2(
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_2 orig,
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_Texture2D_Vector2Ref_RectangleRef_ColorRef_float_Vector2_float_SpriteEffects orig,
         SpriteBatch self, Texture2D texture, ref Vector2 position, ref Rectangle source, ref Color color, float rotation, Vector2 origin, float scale, SpriteEffects effects)
     {
         if (!Active) { orig(self, texture, ref position, ref source, ref color, rotation, origin, scale, effects); return; }
@@ -77,7 +77,7 @@ internal static class SpriteBatchCapture
     }
 
     private static void Draw_3(
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_3 orig,
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_Texture2D_Vector2Ref_RectangleRef_ColorRef_float_Vector2_Vector2_SpriteEffects orig,
         SpriteBatch self, Texture2D texture, ref Vector2 position, ref Rectangle source, ref Color color, float rotation, Vector2 origin, Vector2 scale, SpriteEffects effects)
     {
         if (!Active) { orig(self, texture, ref position, ref source, ref color, rotation, origin, scale, effects); return; }
@@ -89,7 +89,7 @@ internal static class SpriteBatchCapture
     }
 
     private static void Draw_4(
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_4 orig,
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_Texture2D_Vector2Ref_RectangleRef_ColorRef_float_Vector2_float orig,
         SpriteBatch self, Texture2D texture, ref Vector2 position, ref Rectangle source, ref Color color, float rotation, Vector2 origin, float scale)
     {
         if (!Active) { orig(self, texture, ref position, ref source, ref color, rotation, origin, scale); return; }
@@ -101,7 +101,7 @@ internal static class SpriteBatchCapture
     }
 
     private static void Draw_5(
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_5 orig,
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_Texture2D_Vector2Ref_ColorRef_float_Vector2_float orig,
         SpriteBatch self, Texture2D texture, ref Vector2 position, ref Color color, float rotation, Vector2 origin, float scale)
     {
         if (!Active) { orig(self, texture, ref position, ref color, rotation, origin, scale); return; }
@@ -113,7 +113,7 @@ internal static class SpriteBatchCapture
     }
 
     private static void Draw_6(
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_6 orig,
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_Texture2D_Vector2_Nullable_Rectangle_Color_float_Vector2_Vector2_SpriteEffects_float orig,
         SpriteBatch self, Texture2D texture, Vector2 position, Il2CppSystem.Nullable<Rectangle> source, Color color, float rotation, Vector2 origin, Vector2 scale, SpriteEffects effects, float depth)
     {
         if (!Active) { orig(self, texture, position, source, color, rotation, origin, scale, effects, depth); return; }
@@ -125,7 +125,7 @@ internal static class SpriteBatchCapture
     }
 
     private static void Draw_7(
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_7 orig,
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_Texture2D_Vector2_RectangleRef_Color_float_Vector2_Vector2_SpriteEffects_float orig,
         SpriteBatch self, Texture2D texture, Vector2 position, ref Rectangle source, Color color, float rotation, Vector2 origin, Vector2 scale, SpriteEffects effects, float depth)
     {
         if (!Active) { orig(self, texture, position, ref source, color, rotation, origin, scale, effects, depth); return; }
@@ -137,7 +137,7 @@ internal static class SpriteBatchCapture
     }
 
     private static void Draw_11(
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_11 orig,
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_Texture2D_Vector2_Nullable_Rectangle_Color_float_Vector2_float_SpriteEffects_float orig,
         SpriteBatch self, Texture2D texture, Vector2 position, Il2CppSystem.Nullable<Rectangle> source, Color color, float rotation, Vector2 origin, float scale, SpriteEffects effects, float depth)
     {
         if (!Active) { orig(self, texture, position, source, color, rotation, origin, scale, effects, depth); return; }
@@ -149,7 +149,7 @@ internal static class SpriteBatchCapture
     }
 
     private static void Draw_12(
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_12 orig,
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_Texture2D_Vector2Ref_RectangleRef_ColorRef orig,
         SpriteBatch self, Texture2D texture, ref Vector2 position, ref Rectangle source, ref Color color)
     {
         if (!Active) { orig(self, texture, ref position, ref source, ref color); return; }
@@ -161,7 +161,7 @@ internal static class SpriteBatchCapture
     }
 
     private static void Draw_14(
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_14 orig,
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_Texture2D_Vector2_RectangleRef_Color_float_Vector2_float_SpriteEffects_float orig,
         SpriteBatch self, Texture2D texture, Vector2 position, ref Rectangle source, Color color, float rotation, Vector2 origin, float scale, SpriteEffects effects, float depth)
     {
         if (!Active) { orig(self, texture, position, ref source, color, rotation, origin, scale, effects, depth); return; }
@@ -173,7 +173,7 @@ internal static class SpriteBatchCapture
     }
 
     private static void Draw_16(
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_16 orig,
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_Texture2D_Rectangle_Nullable_Rectangle_Color_float_Vector2_SpriteEffects_float orig,
         SpriteBatch self, Texture2D texture, Rectangle destination, Il2CppSystem.Nullable<Rectangle> source, Color color, float rotation, Vector2 origin, SpriteEffects effects, float depth)
     {
         if (!Active) { orig(self, texture, destination, source, color, rotation, origin, effects, depth); return; }
@@ -185,7 +185,7 @@ internal static class SpriteBatchCapture
     }
 
     private static void Draw_18(
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_18 orig,
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_Texture2D_Vector2_Nullable_Rectangle_Color orig,
         SpriteBatch self, Texture2D texture, Vector2 position, Il2CppSystem.Nullable<Rectangle> source, Color color)
     {
         if (!Active) { orig(self, texture, position, source, color); return; }
@@ -197,7 +197,7 @@ internal static class SpriteBatchCapture
     }
 
     private static void Draw_20(
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_20 orig,
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_Texture2D_Rectangle_Nullable_Rectangle_Color orig,
         SpriteBatch self, Texture2D texture, Rectangle destination, Il2CppSystem.Nullable<Rectangle> source, Color color)
     {
         if (!Active) { orig(self, texture, destination, source, color); return; }
@@ -209,7 +209,7 @@ internal static class SpriteBatchCapture
     }
 
     private static void Draw_21(
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_21 orig,
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_Texture2D_Vector2_Color orig,
         SpriteBatch self, Texture2D texture, Vector2 position, Color color)
     {
         if (!Active) { orig(self, texture, position, color); return; }
@@ -221,7 +221,7 @@ internal static class SpriteBatchCapture
     }
 
     private static void Draw_22(
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_22 orig,
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_Texture2D_Rectangle_Color orig,
         SpriteBatch self, Texture2D texture, Rectangle destination, Color color)
     {
         if (!Active) { orig(self, texture, destination, color); return; }

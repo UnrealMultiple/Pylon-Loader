@@ -25,7 +25,7 @@ internal sealed class PrefixPipeline : ILoaderModule
         On.Terraria.Item.CanRollPrefix += CanRoll;
         On.Terraria.Item.RollAPrefix += Roll;
         On.Terraria.Item.TryGetPrefixStatMultipliersForItem += Stats;
-        On.Terraria.Item.Prefix_1 += Applied;
+        On.Terraria.Item.Prefix_int_boolRef += Applied;
         On.Terraria.Player.GrantPrefixBenefits += AccessoryBenefits;
         On.Terraria.Lang.InitializeLegacyLocalization += AfterLegacyLocalization;
 
@@ -318,7 +318,7 @@ internal sealed class PrefixPipeline : ILoaderModule
 
     #region 应用
 
-    private bool Applied(On.Terraria.Item.orig_Prefix_1 orig, Item self, int prefixWeWant, ref bool rolledPrefixIsTopTier)
+    private bool Applied(On.Terraria.Item.orig_Prefix_int_boolRef orig, Item self, int prefixWeWant, ref bool rolledPrefixIsTopTier)
     {
         var argument = prefixWeWant;
 

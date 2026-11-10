@@ -114,6 +114,79 @@ deobfGenerateCommand.Handler = CommandHandler.Create((DeobfGenerateCommandOption
         .Run();
 });
 
+var eventsCommand = new Command("events")
+{
+    new Option<DirectoryInfo>("--input", "Directory with the proxy assembly") {IsRequired = true}.ExistingOnly(),
+    new Option<string>("--assembly", () => "Assembly-CSharp.dll", "Proxy assembly to list On.* events from"),
+    new Option<FileInfo>("--output", "Write the listing to a file instead of stdout"),
+};
+eventsCommand.Description = "List generated On.* event names and delegate signatures (for hook authoring)";
+eventsCommand.Handler = CommandHandler.Create((EventsCommandOptions opts) =>
+{
+    var assemblyPath = Path.Combine(opts.Input.FullName, opts.Assembly);
+    if (!File.Exists(assemblyPath)) throw new FileNotFoundException("Proxy assembly not found", assemblyPath);
+    var resolver = new Mono.Cecil.DefaultAssemblyResolver();
+    resolver.AddSearchDirectory(Path.GetDirectoryName(Path.GetFullPath(assemblyPath)));
+    using var assembly = Mono.Cecil.AssemblyDefinition.ReadAssembly(assemblyPath,
+        new Mono.Cecil.ReaderParameters { AssemblyResolver = resolver });
+
+    var lines = new List<string>();
+    foreach (var type in assembly.MainModule.Types)
+    {
+        if (type.Namespace != "On" && !type.Namespace.StartsWith("On.", StringComparison.Ordinal)) continue;
+        CollectEvents(type, type.FullName, lines);
+        foreach (var nested in type.NestedTypes) CollectEvents(nested, type.FullName + "." + nested.Name, lines);
+    }
+    lines.Sort(StringComparer.Ordinal);
+
+    if (opts.Output != null)
+    {
+        File.WriteAllLines(opts.Output.FullName, lines);
+        Console.WriteLine($"{lines.Count} events → {opts.Output.FullName}");
+    }
+    else
+    {
+        foreach (var line in lines) Console.WriteLine(line);
+    }
+});
+
+static string DescribeType(Mono.Cecil.TypeReference t)
+{
+    switch (t)
+    {
+        case Mono.Cecil.GenericParameter gp: return gp.Name;
+        case Mono.Cecil.ByReferenceType b: return "ref " + DescribeType(b.ElementType);
+        case Mono.Cecil.PointerType p: return DescribeType(p.ElementType) + "*";
+        case Mono.Cecil.ArrayType a: return DescribeType(a.ElementType) + "[]";
+        case Mono.Cecil.GenericInstanceType g:
+            return DescribeType(g.ElementType) + "<" + string.Join(", ", g.GenericArguments.Select(DescribeType)) + ">";
+        default: return t.FullName.Replace("/", "+");
+    }
+}
+
+static void CollectEvents(Mono.Cecil.TypeDefinition type, string path, List<string> lines)
+{
+    foreach (var ev in type.Events)
+    {
+        var invoke = ev.EventType.Resolve().Methods.FirstOrDefault(m => m.Name == "Invoke");
+        var parameters = invoke == null
+            ? "?"
+            : string.Join(", ", invoke.Parameters.Select(p => DescribeType(p.ParameterType)));
+        lines.Add($"{path}.{ev.Name} : {(invoke == null ? "?" : DescribeType(invoke.ReturnType))} ({parameters})");
+    }
+    // nested orig_/hook_ delegate types are referenced by name in handler signatures
+    foreach (var nested in type.NestedTypes)
+    {
+        if (!nested.Name.StartsWith("orig_", StringComparison.Ordinal) &&
+            !nested.Name.StartsWith("hook_", StringComparison.Ordinal)) continue;
+        var invoke = nested.Methods.FirstOrDefault(m => m.Name == "Invoke");
+        var parameters = invoke == null
+            ? "?"
+            : string.Join(", ", invoke.Parameters.Select(p => DescribeType(p.ParameterType)));
+        lines.Add($"delegate {path}.{nested.Name} : {(invoke == null ? "?" : DescribeType(invoke.ReturnType))} ({parameters})");
+    }
+}
+
 var wrapperCommand = new Command("wrapper-gen")
 {
     new Option<DirectoryInfo>("--headers",
@@ -134,12 +207,15 @@ deobfCommand.Add(deobfGenerateCommand);
 command.Add(deobfCommand);
 command.Add(generateCommand);
 command.Add(hookgenCommand);
+command.Add(eventsCommand);
 command.Add(wrapperCommand);
 
 return command.Invoke(args);
 
 
 internal record HookGenCommandOptions(DirectoryInfo Input, string Assembly, FileInfo? RuntimeDetour);
+
+internal record EventsCommandOptions(DirectoryInfo Input, string Assembly, FileInfo? Output);
 
 internal record CmdOptionsResult(GeneratorOptions Options, ILogger Logger);
 

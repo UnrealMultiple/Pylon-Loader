@@ -52,10 +52,28 @@ public static partial class OnHookGenerator
             }
 
             var used = new HashSet<string>(StringComparer.Ordinal);
+            var hookable = new List<MethodDefinition>();
             foreach (var method in type.Methods)
             {
-                if (!IsHookable(method)) continue;
-                var eventName = method.IsConstructor ? "ctor" : Escape(method.Name);
+                if (IsHookable(method)) hookable.Add(method);
+            }
+
+            // Overloaded members (same name hooked more than once, ctors included) are named by
+            // parameter types (NewProjectile_IEntitySource_float_...) instead of _1/_2 suffixes,
+            // so a subscriber can tell overloads apart; UniqueName still resolves rare collisions.
+            var overloadCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+            foreach (var method in hookable)
+            {
+                overloadCounts.TryGetValue(method.Name, out var count);
+                overloadCounts[method.Name] = count + 1;
+            }
+
+            foreach (var method in hookable)
+            {
+                var baseName = method.IsConstructor ? "ctor" : Escape(method.Name);
+                var eventName = overloadCounts[method.Name] > 1
+                    ? OverloadEventName(baseName, method)
+                    : baseName;
                 eventName = UniqueName(eventName, used);
                 var methodNode = new MethodNode { Definition = method, EventName = eventName, Index = node.Methods.Count };
                 if (method.HasGenericParameters)

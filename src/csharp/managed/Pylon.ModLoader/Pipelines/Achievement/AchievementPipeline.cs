@@ -27,8 +27,8 @@ internal sealed class AchievementPipeline : ILoaderModule, ILoaderModuleRefresh
         // 四条进度通知都从游戏的 AchievementsHelper 进来：条件自己的计数也走这里，
         // 且只有这条通道能覆盖"别的系统直接通知"的情况。
         On.Terraria.GameContent.Achievements.AchievementsHelper.NotifyNPCKilledDirect += NpcKilled;
-        On.Terraria.GameContent.Achievements.AchievementsHelper.NotifyItemPickup += ItemPickedUp;
-        On.Terraria.GameContent.Achievements.AchievementsHelper.NotifyItemPickup_1 += ItemPickedUpStack;
+        On.Terraria.GameContent.Achievements.AchievementsHelper.NotifyItemPickup_Player_Item += ItemPickedUp;
+        On.Terraria.GameContent.Achievements.AchievementsHelper.NotifyItemPickup_Player_Item_int += ItemPickedUpStack;
         On.Terraria.GameContent.Achievements.AchievementsHelper.NotifyItemCraft += ItemCrafted;
         On.Terraria.GameContent.Achievements.AchievementsHelper.NotifyTileDestroyed += TileDestroyed;
         On.GUIAchievementsMenu.AchievementDraw += AchievementIconDraw;
@@ -87,7 +87,7 @@ internal sealed class AchievementPipeline : ILoaderModule, ILoaderModuleRefresh
         Notify(entry => entry.OnTileDestroyed(player, tile), nameof(ModAchievement.OnTileDestroyed));
     }
 
-    private static void ItemPickedUp(On.Terraria.GameContent.Achievements.AchievementsHelper.orig_NotifyItemPickup orig,
+    private static void ItemPickedUp(On.Terraria.GameContent.Achievements.AchievementsHelper.orig_NotifyItemPickup_Player_Item orig,
                                      Player player, Item item)
     {
         orig(player, item);
@@ -96,7 +96,7 @@ internal sealed class AchievementPipeline : ILoaderModule, ILoaderModuleRefresh
         Pickup(player, item, item.stack);
     }
 
-    private static void ItemPickedUpStack(On.Terraria.GameContent.Achievements.AchievementsHelper.orig_NotifyItemPickup_1 orig,
+    private static void ItemPickedUpStack(On.Terraria.GameContent.Achievements.AchievementsHelper.orig_NotifyItemPickup_Player_Item_int orig,
                                           Player player, Item item, int customStack)
     {
         orig(player, item, customStack);

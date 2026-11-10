@@ -34,7 +34,7 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.WorldGen.KillTile_GetTreeDrops += TreeDropsHook;
         On.Terraria.WorldGen.KillTile_MakeTileDust += TreeDustHook;
         On.Terraria.WorldGen.AttemptToGrowTreeFromSapling += GrowSaplingHook;
-        On.Terraria.WorldGen.GetTreeType_1 += TreeTypeOfTile;
+        On.Terraria.WorldGen.GetTreeType_int += TreeTypeOfTile;
         On.Terraria.WorldGen.IsTileTypeFitForTree += FitForTree;
         On.Terraria.WorldGen.GrowTree += GrowTreeHook;
         On.Terraria.WorldGen.TileFrame += TileFrameHook;
@@ -350,7 +350,7 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
     /// mod 地面算哪种原版树：世界的种树、砍树后的重新造型都问这条。
     /// 作者给一个最接近的原版树型（<see cref="ModTree.CountsAsTreeType"/>），生成算法照旧，不用重写。
     /// </summary>
-    private static TreeTypes TreeTypeOfTile(On.Terraria.WorldGen.orig_GetTreeType_1 orig, int tileType)
+    private static TreeTypes TreeTypeOfTile(On.Terraria.WorldGen.orig_GetTreeType_int orig, int tileType)
     {
         if (TreeTable.ForGround(tileType) is { } tree) return tree.CountsAsTreeType;
 

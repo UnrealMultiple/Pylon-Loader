@@ -18,8 +18,8 @@ internal sealed class RarityPipeline : ILoaderModule
     public bool Install()
     {
         On.Terraria.GameContent.UI.ItemRarity.Initialize += Initialized;
-        On.Terraria.Item.GetPopupRarityColor_1 += PopupColor;
-        On.Terraria.Item.Prefix_1 += Prefixed;
+        On.Terraria.Item.GetPopupRarityColor_int += PopupColor;
+        On.Terraria.Item.Prefix_int_boolRef += Prefixed;
 
         Log.Info("[rarity] 已挂（颜色表 / 拾取色 / 前缀升降）");
         return true;
@@ -43,14 +43,14 @@ internal sealed class RarityPipeline : ILoaderModule
         }
     }
 
-    private static Color PopupColor(On.Terraria.Item.orig_GetPopupRarityColor_1 orig, int itemRarity)
+    private static Color PopupColor(On.Terraria.Item.orig_GetPopupRarityColor_int orig, int itemRarity)
     {
         var rarity = RarityTable.Of(itemRarity);
         return rarity is null ? orig(itemRarity) : RarityTable.ColorOf(itemRarity);
     }
 
     /// <summary>前缀挂上之后改稀有度：档位由原版的战力倍率折算，结果 clamp 到合法范围。</summary>
-    private static bool Prefixed(On.Terraria.Item.orig_Prefix_1 orig, Item self, int prefixWeWant,
+    private static bool Prefixed(On.Terraria.Item.orig_Prefix_int_boolRef orig, Item self, int prefixWeWant,
                                  ref bool rolledPrefixIsTopTier)
     {
         var baseRare = 0;

@@ -31,7 +31,7 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
     {
         On.Terraria.WaterfallManager.Draw += DrawWaterfalls;
         On.Terraria.Player.GetHairColor += HairColor;
-        On.Terraria.WaterfallManager.DrawWaterfall_1 += TintWaterfall;
+        On.Terraria.WaterfallManager.DrawWaterfall_int_int_int_float_Vector2_RectangleRef_ColorRef_SpriteEffects += TintWaterfall;
         On.Terraria.Dust.dustWater += DustWater;
         On.Terraria.Gore.NewGore += NewGore;
         On.Terraria.GameContent.Drawing.TileDrawing.EmitLiquidDrops += EmitLiquidDrops;
@@ -452,7 +452,7 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
     /// 原版瀑布直接放行，一点额外开销都不加。
     /// </summary>
     private static void TintWaterfall(
-        On.Terraria.WaterfallManager.orig_DrawWaterfall_1 orig, WaterfallManager self, int waterfallType, int x,
+        On.Terraria.WaterfallManager.orig_DrawWaterfall_int_int_int_float_Vector2_RectangleRef_ColorRef_SpriteEffects orig, WaterfallManager self, int waterfallType, int x,
         int y, float opacity,
         Il2CppMicrosoft.Xna.Framework.Vector2 position, ref Il2CppMicrosoft.Xna.Framework.Rectangle sourceRect,
         ref Il2CppMicrosoft.Xna.Framework.Graphics.Color color,

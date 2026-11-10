@@ -1,3 +1,4 @@
+using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Terraria;
@@ -39,6 +40,18 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         // 原版条不经过 DrawBar；GlobalBossBar 要在 GUIBossBar.Draw 这一层也跑一遍。
         On.GUIBossBar.Draw += GuiDraw;
 
+        // 条身皮肤：条身的底色/贴图与生命文字都走下面这一族 GUI 绘制，接管它们才能让
+        // BossBarDrawParams 的 BarTexture / BarColor / ShowText 真的生效（见 §2.4 的修正）。
+        On.GUIPanel.DrawBacking += Backing;
+        On.GUIString.Draw_String_Layout_string += Text;
+        On.GUIString.Draw_String_Layout_string_Color_bool += TextColor;
+        On.GUIString.Draw_String_Layout_StringBuilder += TextBuilder;
+        On.GUIString.Draw_String_Layout_StringBuilder_Color += TextBuilderColor;
+        On.GUIString.DrawWithShadow_String_Layout_string += ShadowText;
+        On.GUIString.DrawWithShadow_String_Layout_string_Vector2 += ShadowTextVector;
+        On.GUIString.DrawWithShadow_String_Layout_string_Vector2_Color += ShadowTextVectorColor;
+        On.GUIString.DrawWithShadow_String_Layout_string_bool_Color += ShadowTextBoolColor;
+
         Log.Info("[bossbar] 已挂（BigProgressBarSystem.Update 抓目标 / Draw 换条）");
         return true;
     }
@@ -51,6 +64,12 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
 
     /// <summary>正在画 mod 条：此时 GUIBossBar.Draw 里不再重复分派 GlobalBossBar。</summary>
     private static bool _inModBarDraw;
+
+    /// <summary>
+    ///    正在画的这条 mod 条的作者参数（null = 没在画 mod 条）。
+    ///    条身贴图/底色/生命文字的接管都只在这期间生效，原版条一个像素都不动。
+    /// </summary>
+    private static BossBarDrawParams? _skin;
 
     internal void Build()
     {
@@ -310,6 +329,7 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         {
             var shielded = draw.ShieldMax > 0f;
             _inModBarDraw = true;
+            _skin = draw;
             try
             {
                 gui.Draw(draw.Life, draw.LifeMax, draw.IconTexture, draw.IconFrame,
@@ -317,6 +337,7 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             finally
             {
+                _skin = null;
                 _inModBarDraw = false;
             }
         }
@@ -413,5 +434,82 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
             try { global.PostDraw(Main.spriteBatch, npc, draw); }
             catch (Exception e) { ContentErrors.Report($"[bossbar] {global.Name}.PostDraw 异常：{Safe.Describe(e)}"); }
         }
+    }
+
+    // ===================== 条身皮肤 =====================
+
+    /// <summary>
+    ///     条身底色与贴图。<c>GUIBossBar.Draw</c> 内部的条身是 <c>GUIPanel.DrawBacking</c> 画的，
+    ///     所以接管这一笔就能让 <see cref="BossBarDrawParams.BarTexture"/> / <see cref="BossBarDrawParams.BarColor"/> 生效。
+    ///     只在画 mod 条期间动手，作者不设（Texture 为 null、Color 为白）就一个像素都不改。
+    /// </summary>
+    private static void Backing(On.GUIPanel.orig_DrawBacking orig, Vector2 position, Vector2 size,
+                                Texture2D texture, Color color, Il2CppSystem.Nullable<Rectangle> frame)
+    {
+        if (_skin is { } skin)
+        {
+            if (skin.BarTexture is not null && !ReferenceEquals(skin.BarTexture, texture)) texture = skin.BarTexture;
+            if (skin.BarColor != Color.White) color = skin.BarColor;
+        }
+
+        orig(position, size, texture, color, frame);
+    }
+
+    /// <summary>画 mod 条期间作者要求不显文字：这一族 GUI 文字全部跳过。</summary>
+    private static bool NoText => _skin is { ShowText: false };
+
+    private static void Text(On.GUIString.orig_Draw_String_Layout_string orig, String_Layout layout, string text)
+    {
+        if (NoText) return;
+        orig(layout, text);
+    }
+
+    private static void TextColor(On.GUIString.orig_Draw_String_Layout_string_Color_bool orig, String_Layout layout,
+                                  string text, Color color, bool offset)
+    {
+        if (NoText) return;
+        orig(layout, text, color, offset);
+    }
+
+    private static void TextBuilder(On.GUIString.orig_Draw_String_Layout_StringBuilder orig, String_Layout layout,
+                                    Il2CppSystem.Text.StringBuilder text)
+    {
+        if (NoText) return;
+        orig(layout, text);
+    }
+
+    private static void TextBuilderColor(On.GUIString.orig_Draw_String_Layout_StringBuilder_Color orig,
+                                         String_Layout layout, Il2CppSystem.Text.StringBuilder text, Color color)
+    {
+        if (NoText) return;
+        orig(layout, text, color);
+    }
+
+    private static void ShadowText(On.GUIString.orig_DrawWithShadow_String_Layout_string orig, String_Layout layout,
+                                   string text)
+    {
+        if (NoText) return;
+        orig(layout, text);
+    }
+
+    private static void ShadowTextVector(On.GUIString.orig_DrawWithShadow_String_Layout_string_Vector2 orig,
+                                         String_Layout layout, string text, Vector2 offset)
+    {
+        if (NoText) return;
+        orig(layout, text, offset);
+    }
+
+    private static void ShadowTextVectorColor(On.GUIString.orig_DrawWithShadow_String_Layout_string_Vector2_Color orig,
+                                              String_Layout layout, string text, Vector2 offset, Color color)
+    {
+        if (NoText) return;
+        orig(layout, text, offset, color);
+    }
+
+    private static void ShadowTextBoolColor(On.GUIString.orig_DrawWithShadow_String_Layout_string_bool_Color orig,
+                                            String_Layout layout, string text, bool offset, Color color)
+    {
+        if (NoText) return;
+        orig(layout, text, offset, color);
     }
 }

@@ -80,8 +80,8 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.NPC.GetBossHeadTextureIndex += BossHeadSlot;
         On.Terraria.NPC.GetBossHeadRotation += BossHeadRotation;
         On.Terraria.NPC.GetBossHeadSpriteEffects += BossHeadEffects;
-        On.Terraria.Main.DrawNPCDirect += DrawDirect;
-        On.Terraria.Main.DrawNPCDirect_1 += DrawDirectLit;
+        On.Terraria.Main.DrawNPCDirect_SpriteBatch_NPC_bool_Vector2 += DrawDirect;
+        On.Terraria.Main.DrawNPCDirect_SpriteBatch_NPC_bool_Vector2_LightMap_RectangleRef += DrawDirectLit;
         On.Terraria.Main.CacheNPCDraws += CacheDraws;
 
         Log.Info("[npc] 已挂（AI / 事件 / 绘制 / 首领头像 / 城镇）");
@@ -896,7 +896,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         orig(self, behindTiles);
     }
 
-    private void DrawDirect(On.Terraria.Main.orig_DrawNPCDirect orig, Main self, SpriteBatch batch, NPC npc,
+    private void DrawDirect(On.Terraria.Main.orig_DrawNPCDirect_SpriteBatch_NPC_bool_Vector2 orig, Main self, SpriteBatch batch, NPC npc,
                             bool behindTiles, Vector2 screenPos)
     {
         if (!DrawPrefix(npc, batch, screenPos, out var go, out var frame))
@@ -917,7 +917,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         DrawPost(npc, batch, screenPos, in frame);
     }
 
-    private void DrawDirectLit(On.Terraria.Main.orig_DrawNPCDirect_1 orig, Main self, SpriteBatch batch, NPC npc,
+    private void DrawDirectLit(On.Terraria.Main.orig_DrawNPCDirect_SpriteBatch_NPC_bool_Vector2_LightMap_RectangleRef orig, Main self, SpriteBatch batch, NPC npc,
                                bool behindTiles, Vector2 screenPos, LightMap lightMap, ref Rectangle lightRegion)
     {
         if (!DrawPrefix(npc, batch, screenPos, out var go, out var frame))

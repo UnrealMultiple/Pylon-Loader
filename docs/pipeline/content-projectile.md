@@ -7,14 +7,14 @@
 | 游戏时机 | 分派的作者钩子 |
 |---|---|
 | `Projectile.SetDefaults` | 自定义弹幕跳过原版分支；`SetDefaults` / `PostSetDefaults` / `GlobalProjectile.SetDefaults` |
-| `Projectile.AI` | `OnSpawn`（首帧一次）、`PreAI` / `AI` / `PostAI`、`AIType`、`GrappleRange` / `GrappleRetreatSpeed` |
+| `Projectile.AI` | `PreAI` / `AI` / `PostAI`、`AIType`、`GrappleRange` / `GrappleRetreatSpeed` |
 | `Projectile.HandleMovement` + `GetCollisionParams` | `TileCollideStyle`、`OnTileCollide` |
 | `Projectile.Kill` | `PreKill`、`OnKill` |
 | `Projectile.Damage` / `Colliding` / `Damage_GetHitbox` | `CanDamage`、`MinionContactDamage`、`Colliding`、`ModifyDamageHitbox` |
 | `Projectile.CanCutTiles` / `CutTiles` | `CanCutTiles`、`CutTiles` |
 | `Main.DrawProjDirect` / `Projectile.GetAlpha` | `PreDrawExtras`、`PreDraw`、`PostDraw`、`GetAlpha` |
 | `Player.FireGrapple` / `AI_007_GrapplingHooks_CanTileBeLatchedOnTo` / `Player.GetGrapplingForces` | `CanUseGrapple`、`UseGrapple`、`GrappleCanLatchOnTo`、`GrappleTargetPoint`、`GrapplePullSpeed` |
-| `Projectile.NewProjectile`（浮点版） | `GlobalProjectile.OnSpawn`（`ModProjectile.OnSpawn` 不在这里，见 2.4） |
+| `Projectile.NewProjectile`（浮点版 + 向量版，两个重载都挂） | `ModProjectile.OnSpawn`（生成时一次，与 Bunny 一致）、`GlobalProjectile.OnSpawn` |
 | `Projectile.ApplyStatsFromSource` | 无钩子；补齐自定义弹幕的 `originalDamage` |
 
 **不接**（本版签名索引里没有对应 detour，或没有可靠的切入面）：
@@ -70,7 +70,7 @@ Pipelines/Projectile/
 1. **移动**：`HandleMovement` 里改 `tileCollide` / `shouldFallThrough`，`GetCollisionParams` 会在 `orig` 内部被调多次，必须把 `TileCollideStyle` 改写过的碰撞盒喂回去；`Kill` 也可能在 `orig` 内部被调用（撞块致死），必须挂起等 `OnTileCollide` 表态。
 2. **绘制**：`PreDraw` 算出的光照色要给 `GetAlpha` 用（`GetAlpha` 在 `orig(DrawProjDirect)` 内部被调）。
 
-两处都用**定长结构体栈**（深度 2）而不是堆对象：这是每帧、每实体都会走的路，`new` 一个帧对象等于给每一发弹幕每帧分配一次。深度超限时退化为"无上下文"（丢掉的是作者的光照/碰撞盒改写，不是崩溃）。`ModProjectile.OnSpawn` 的"首帧一次"用 `ModProjectile.Spawned` 挂在实例上，不用上下文。
+两处都用**定长结构体栈**（深度 2）而不是堆对象：这是每帧、每实体都会走的路，`new` 一个帧对象等于给每一发弹幕每帧分配一次。深度超限时退化为"无上下文"（丢掉的是作者的光照/碰撞盒改写，不是崩溃）。`ModProjectile.OnSpawn` 的"生成时一次"用 `ModProjectile.Spawned` 挂在实例上（`NewProjectile` 分派里置位；没走 `NewProjectile` 的实体由首帧 AI 兜底），不用上下文。
 
 ### 2.5 与安装管线的边界
 

@@ -35,7 +35,17 @@
 
 ### 2.4 参数的落地范围
 
-`BossBarDrawParams` 里能真正起作用的只有 `Life` / `LifeMax` / `Shield` / `ShieldMax` / `IconTexture` / `IconFrame`——它们能原样喂给 `GUIBossBar.Draw`。`BarTexture`、`BarCenter`、`BarColor`、`IconColor`、`IconScale`、`ShowText`、`TextOffset` 这一版**改不动**（条身贴图与位置写死在 `GUIBossBar.Draw` 内部），写进「对作者 API 的影响」，不假装生效。
+能原样喂给 `GUIBossBar.Draw` 的是 `Life` / `LifeMax` / `Shield` / `ShieldMax` / `IconTexture` / `IconFrame`。
+
+条身外观三类改为接管 `GUIBossBar.Draw` 内部的 GUI 绘制（只在画 mod 条期间生效，原版条一个像素不动）：
+
+| 参数 | 接管点 | 生效方式 |
+|---|---|---|
+| `BarTexture` | `GUIPanel.DrawBacking` | 非 null 且与游戏这一笔的贴图不同 → 换成作者的贴图 |
+| `BarColor` | `GUIPanel.DrawBacking` | 不是纯白 → 换成作者的颜色 |
+| `ShowText` | `GUIString.Draw_*` / `DrawWithShadow_*`（8 个重载） | `false` → 这一族文字整段跳过 |
+
+仍然改不动：`BarCenter`（位置写在布局里，不在 `DrawBacking` 的参数上）、`BarFrame`（无该字段）、`IconColor` / `IconScale`（头部图标由 `GUIBossBar.Draw` 直画，不经 `GUITransactionButton`）、`TextOffset`（`String_Layout` 里没有位置参数）。
 
 ### 2.5 顺序
 
@@ -86,5 +96,6 @@
 | 变更 | 说明 |
 |---|---|
 | 新增 | `ModNpc.BossBar`（`ModBossBar?`）：在 `SetDefaults` 里声明这条 NPC 用哪个血条 |
-| 本版不生效 | `BossBarDrawParams` 的绘制类字段（见 2.4） |
+| 本版生效 | `BarTexture` / `BarColor` / `ShowText`（见 2.4 的接管点表） |
+| 本版不生效 | `BarCenter` / `IconColor` / `IconScale` / `TextOffset` |
 | 语义明确 | `ModifyInfo` 返回 false = 整条不画；`PreDraw` 返回 false = 只不画条身 |

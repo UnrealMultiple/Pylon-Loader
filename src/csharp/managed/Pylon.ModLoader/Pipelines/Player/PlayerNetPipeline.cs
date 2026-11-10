@@ -21,8 +21,8 @@ internal sealed class PlayerNetPipeline : ILoaderModule
 
     public bool Install()
     {
-        On.Terraria.Player.clientClone += ClientClone;
-        On.Terraria.Player.clientClone_1 += ClientCloneSelf;
+        On.Terraria.Player.clientClone_Player += ClientClone;
+        On.Terraria.Player.clientClone_ += ClientCloneSelf;
         On.Terraria.Main.UpdateClient += UpdateClient;
         On.Terraria.NetMessage.SyncOnePlayer += SyncOnePlayer;
         On.Terraria.NetMessage.SyncDisconnectedPlayer += SyncDisconnectedPlayer;
@@ -60,7 +60,7 @@ internal sealed class PlayerNetPipeline : ILoaderModule
         }
     }
 
-    private static Il2CppSystem.Object ClientClone(On.Terraria.Player.orig_clientClone orig, Player self,
+    private static Il2CppSystem.Object ClientClone(On.Terraria.Player.orig_clientClone_Player orig, Player self,
                                                   Player clonePlayer)
     {
         var result = orig(self, clonePlayer);
@@ -70,7 +70,7 @@ internal sealed class PlayerNetPipeline : ILoaderModule
         return result;
     }
 
-    private static Player ClientCloneSelf(On.Terraria.Player.orig_clientClone_1 orig, Player self)
+    private static Player ClientCloneSelf(On.Terraria.Player.orig_clientClone_ orig, Player self)
     {
         var clone = orig(self);
         CopyInto(self, clone);

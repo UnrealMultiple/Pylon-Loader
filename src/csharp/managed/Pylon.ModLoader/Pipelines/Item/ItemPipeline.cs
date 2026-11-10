@@ -42,7 +42,7 @@ internal sealed class ItemPipeline : ILoaderModule
         On.Terraria.Player.GrantArmorBenefits += GrantArmorBenefits;
         On.Terraria.Player.UpdateEquips += UpdateInventory;
         On.Terraria.Player.ItemCheck_Shoot += ShootGate;
-        On.Terraria.Projectile.NewProjectile_1 += NewProjectile;
+        On.Terraria.Projectile.NewProjectile_IEntitySource_float_float_float_float_int_int_float_int_float_float_float_NewProjectileModifier += NewProjectile;
 
         Log.Info("[item] 已挂（使用 / 装备 / 背包 / 射击）");
         return true;
@@ -292,7 +292,7 @@ internal sealed class ItemPipeline : ILoaderModule
     }
 
     /// <summary>发射拦截：先改参数再问 Shoot；Shoot 否决时返回无槽位哨兵。</summary>
-    private int NewProjectile(On.Terraria.Projectile.orig_NewProjectile_1 orig,
+    private int NewProjectile(On.Terraria.Projectile.orig_NewProjectile_IEntitySource_float_float_float_float_int_int_float_int_float_float_float_NewProjectileModifier orig,
                               IEntitySource spawnSource, float x, float y, float speedX, float speedY,
                               int type, int damage, float knockBack, int owner,
                               float ai0, float ai1, float ai2, NewProjectileModifier modifier)

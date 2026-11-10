@@ -64,8 +64,8 @@ internal sealed class ProjectilePipeline : ILoaderModule
         On.Terraria.Projectile.CutTiles += CutTiles;
         On.Terraria.Projectile.GetAlpha += Alpha;
         On.Terraria.Projectile.AI_007_GrapplingHooks_CanTileBeLatchedOnTo += Latch;
-        On.Terraria.Projectile.NewProjectile_1 += Spawned;
-        On.Terraria.Projectile.NewProjectile += SpawnedVector;
+        On.Terraria.Projectile.NewProjectile_IEntitySource_float_float_float_float_int_int_float_int_float_float_float_NewProjectileModifier += Spawned;
+        On.Terraria.Projectile.NewProjectile_IEntitySource_Vector2_Vector2_int_int_float_int_float_float_float_NewProjectileModifier += SpawnedVector;
 
         On.Terraria.Player.FireGrapple += FireGrapple;
         On.Terraria.Player.GetGrapplingForces += GrapplingForces;
@@ -217,7 +217,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
     }
 
     /// <summary>浮点版 <c>NewProjectile(x, y, speedX, speedY, ...)</c>。</summary>
-    private int Spawned(On.Terraria.Projectile.orig_NewProjectile_1 orig, IEntitySource spawnSource,
+    private int Spawned(On.Terraria.Projectile.orig_NewProjectile_IEntitySource_float_float_float_float_int_int_float_int_float_float_float_NewProjectileModifier orig, IEntitySource spawnSource,
                         float x, float y, float speedX, float speedY, int type, int damage, float knockBack, int owner,
                         float ai0, float ai1, float ai2, NewProjectileModifier modifier)
     {
@@ -236,7 +236,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
     }
 
     /// <summary>向量版 <c>NewProjectile(position, velocity, ...)</c>：两个重载都要挂。</summary>
-    private int SpawnedVector(On.Terraria.Projectile.orig_NewProjectile orig, IEntitySource spawnSource,
+    private int SpawnedVector(On.Terraria.Projectile.orig_NewProjectile_IEntitySource_Vector2_Vector2_int_int_float_int_float_float_float_NewProjectileModifier orig, IEntitySource spawnSource,
                               Vector2 position, Vector2 velocity, int type, int damage, float knockBack, int owner,
                               float ai0, float ai1, float ai2, NewProjectileModifier modifier)
     {

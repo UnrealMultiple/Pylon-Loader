@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Mono.Cecil;
 
 namespace Il2CppInterop.RuntimeDetour.HookGen;
@@ -36,6 +37,66 @@ public static partial class OnHookGenerator
         };
 
         private static string Escape(string name) => Keywords.Contains(name) ? "@" + name : name;
+
+        /// <summary>IL primitive names -&gt; C# keyword style segments for overload event names (Single -&gt; float, Int32 -&gt; int ...).</summary>
+        private static readonly Dictionary<string, string> PrimitiveSegmentNames = new(StringComparer.Ordinal)
+        {
+            ["Single"] = "float",
+            ["Double"] = "double",
+            ["Int32"] = "int",
+            ["UInt32"] = "uint",
+            ["Int64"] = "long",
+            ["UInt64"] = "ulong",
+            ["Int16"] = "short",
+            ["UInt16"] = "ushort",
+            ["Byte"] = "byte",
+            ["SByte"] = "sbyte",
+            ["Boolean"] = "bool",
+            ["Char"] = "char",
+            ["String"] = "string",
+            ["Object"] = "object",
+            ["Decimal"] = "decimal"
+        };
+
+        /// <summary>
+        ///     One event-name segment for a parameter type: simple type name with IL primitives in
+        ///     C# keyword form (float/int/...), generics as Element_Arg1_Arg2, arrays with an Array
+        ///     suffix and ref/out params with a Ref suffix - e.g. IEntitySource, float, List_int.
+        /// </summary>
+        private static string TypeSegmentName(TypeReference type)
+        {
+            switch (type)
+            {
+                case ByReferenceType byRef:
+                    return TypeSegmentName(byRef.ElementType) + "Ref";
+                case PointerType:
+                case FunctionPointerType:
+                    return "Unsafe";
+                case ArrayType array:
+                    return TypeSegmentName(array.ElementType) + "Array";
+                case GenericParameter gp:
+                    return gp.Name;
+                case GenericInstanceType generic:
+                    {
+                        var name = TypeSegmentName(generic.ElementType);
+                        return generic.GenericArguments.Count == 0
+                            ? name
+                            : name + "_" + string.Join("_", generic.GenericArguments.Select(TypeSegmentName));
+                    }
+                default:
+                    {
+                        var simple = BaseName(type.Name);
+                        return PrimitiveSegmentNames.TryGetValue(simple, out var mapped) ? mapped : simple;
+                    }
+            }
+        }
+
+        /// <summary>
+        ///     Event name for an overloaded method: method name + "_" + parameter type segments,
+        ///     e.g. NewProjectile_IEntitySource_float_float_..._NewProjectileModifier.
+        /// </summary>
+        private static string OverloadEventName(string baseName, MethodDefinition method) =>
+            baseName + "_" + string.Join("_", method.Parameters.Select(p => TypeSegmentName(p.ParameterType)));
 
         /// <summary>Reuses the proxy method's parameter names; empty/invalid names fall back to argN; duplicates get a _1 suffix.</summary>
         private static string ParameterName(ParameterDefinition parameter, HashSet<string> used)

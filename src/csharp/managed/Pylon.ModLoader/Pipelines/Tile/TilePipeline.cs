@@ -26,9 +26,9 @@ internal sealed class TilePipeline : ILoaderModule
 
     public bool Install()
     {
-        On.Terraria.WorldGen.CanKillTile += CanKill;
-        On.Terraria.WorldGen.CanKillTile_1 += CanKillFast;
-        On.Terraria.WorldGen.CanKillTile_2 += CanKillOut;
+        On.Terraria.WorldGen.CanKillTile_int_int_SpecialKillTileContext += CanKill;
+        On.Terraria.WorldGen.CanKillTile_int_int += CanKillFast;
+        On.Terraria.WorldGen.CanKillTile_int_int_boolRef += CanKillOut;
         On.Terraria.WorldGen.KillTile += Kill;
         On.Terraria.WorldGen.KillTile_MakeTileDust += MakeDust;
         On.Terraria.WorldGen.KillTile_DropItems += DropItems;
@@ -105,7 +105,7 @@ internal sealed class TilePipeline : ILoaderModule
 
     #region 挖
 
-    private bool CanKill(On.Terraria.WorldGen.orig_CanKillTile orig, int i, int j,
+    private bool CanKill(On.Terraria.WorldGen.orig_CanKillTile_int_int_SpecialKillTileContext orig, int i, int j,
                          WorldGen.SpecialKillTileContext context)
     {
         var tile = TileTable.At(i, j);
@@ -125,7 +125,7 @@ internal sealed class TilePipeline : ILoaderModule
         }
     }
 
-    private bool CanKillFast(On.Terraria.WorldGen.orig_CanKillTile_1 orig, int i, int j)
+    private bool CanKillFast(On.Terraria.WorldGen.orig_CanKillTile_int_int orig, int i, int j)
     {
         var tile = TileTable.At(i, j);
         if (tile is null || !tile.HookEnabled(HookId.CanKillTile)) return orig(i, j);
@@ -147,7 +147,7 @@ internal sealed class TilePipeline : ILoaderModule
     private static bool _removingMulti;
 
     /// <summary><c>CanKillTile(int, int, out bool)</c> 是镐子/公开调用走的那条重载；前两条接不到它。</summary>
-    private bool CanKillOut(On.Terraria.WorldGen.orig_CanKillTile_2 orig, int i, int j, ref bool blockDamaged)
+    private bool CanKillOut(On.Terraria.WorldGen.orig_CanKillTile_int_int_boolRef orig, int i, int j, ref bool blockDamaged)
     {
         var tile = TileTable.At(i, j);
         if (tile is null || !tile.HookEnabled(HookId.CanKillTile))

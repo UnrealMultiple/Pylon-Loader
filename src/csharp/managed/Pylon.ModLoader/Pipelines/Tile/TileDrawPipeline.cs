@@ -26,15 +26,15 @@ internal sealed class TileDrawPipeline : ILoaderModule
     public bool Install()
     {
         On.Terraria.GameContent.Drawing.TileDrawing.PostDrawTiles += Draw;
-        On.Terraria.GameContent.Drawing.TileDrawing.AddSpecialLegacyPoint += AddPoint;
-        On.Terraria.GameContent.Drawing.TileDrawing.AddSpecialLegacyPoint_1 += AddPointXY;
+        On.Terraria.GameContent.Drawing.TileDrawing.AddSpecialLegacyPoint_Point += AddPoint;
+        On.Terraria.GameContent.Drawing.TileDrawing.AddSpecialLegacyPoint_int_int += AddPointXY;
 
         Log.Info("[tiledraw] 已挂（方块画完后的 DrawEffects / SpecialDraw）");
         return true;
     }
 
     /// <summary>绘制期作者要的"这一格要单独画"：先记下来，等这一遍方块回调走完再统一画。</summary>
-    private static void AddPoint(On.Terraria.GameContent.Drawing.TileDrawing.orig_AddSpecialLegacyPoint orig,
+    private static void AddPoint(On.Terraria.GameContent.Drawing.TileDrawing.orig_AddSpecialLegacyPoint_Point orig,
                                  TileDrawing self, Point point)
     {
         if (_drawing)
@@ -46,7 +46,7 @@ internal sealed class TileDrawPipeline : ILoaderModule
         orig(self, point);
     }
 
-    private static void AddPointXY(On.Terraria.GameContent.Drawing.TileDrawing.orig_AddSpecialLegacyPoint_1 orig,
+    private static void AddPointXY(On.Terraria.GameContent.Drawing.TileDrawing.orig_AddSpecialLegacyPoint_int_int orig,
                                    TileDrawing self, int x, int y)
     {
         if (_drawing)
