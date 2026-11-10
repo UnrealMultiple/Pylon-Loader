@@ -22,6 +22,7 @@ public static class TestSceneEffectProbe
     /// <summary>安装期解析出的两个音乐槽：A 固定用 test，B 用 test2。</summary>
     public static int SlotA;
     public static int SlotB;
+    public static bool UseVanillaMusic;
 
     /// <summary>B 的音乐覆盖值：null = 用 SlotB；-1 = 不选；0 = 静音。</summary>
     public static int? BMusic;
@@ -54,6 +55,7 @@ public static class TestSceneEffectProbe
         AWeight = 1f;
         BWeight = 0f;
         BMusic = null;
+        UseVanillaMusic = false;
         ThrowActiveB = false;
         ThrowWeightB = false;
         ThrowVisualsA = false;
@@ -78,7 +80,7 @@ public sealed class TestSceneEffectA : ModSceneEffect
 
     public override int Priority => TestSceneEffectProbe.APriority;
 
-    public override int Music => TestSceneEffectProbe.SlotA;
+    public override int Music => TestSceneEffectProbe.UseVanillaMusic ? Terraria.ID.MusicID.OverworldDay : TestSceneEffectProbe.SlotA;
 
     public override ModSurfaceBackgroundStyle SurfaceBackgroundStyle =>
         TestSceneEffectProbe.UseBackground ? ModContent.GetInstance<TestSurfaceBackgroundStyle>() : null!;
@@ -115,7 +117,8 @@ public sealed class TestSceneEffectB : ModSceneEffect
 {
     public override int Priority => TestSceneEffectProbe.BPriority;
 
-    public override int Music => TestSceneEffectProbe.BMusic ?? TestSceneEffectProbe.SlotB;
+    public override int Music => TestSceneEffectProbe.BMusic ??
+        (TestSceneEffectProbe.UseVanillaMusic ? Terraria.ID.MusicID.Eerie : TestSceneEffectProbe.SlotB);
 
     public override bool IsSceneEffectActive(Player player)
     {

@@ -78,11 +78,14 @@ internal static class BannerTests
             c.True(rep >= 0 && kin >= 0, $"刷出代表/同族 {rep}/{kin}");
 
             // 三次击杀：代表两次、同族一次。KillsToBanner 被作者改成 3。
+            // 旗子计数是世界级共享状态:同一世界里其它同族 NPC(含本用例刷出来的)死亡也会累加,
+            // 所以只断言这三次显式调用带来的增量,绝对值会被无关实体污染。
+            var bannerKillsBefore = BannerSystem.GetKillCount(_npcType);
             BannerSystem.AddNPCKillBy(_npcType, Main.myPlayer);
             BannerSystem.AddNPCKillBy(_kinType, Main.myPlayer);
             BannerSystem.AddNPCKillBy(_npcType, Main.myPlayer);
 
-            c.Eq(BannerSystem.GetKillCount(_npcType), 3, "击杀数");
+            c.Eq(BannerSystem.GetKillCount(_npcType) - bannerKillsBefore, 3, "击杀数增量");
             c.True(BannerSystem.IsNewBanner(_npcType), "新旗子标记");
 
             var counts = BannerSystem.GetClaimableBannerCounts();

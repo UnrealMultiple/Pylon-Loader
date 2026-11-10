@@ -61,6 +61,9 @@ internal static class PlayerTests
         {
             var p = Main.player[Main.myPlayer];
             var reason = PlayerDeathReason.ByCustomReason("管线测试：自杀");
+            p.statLife = 1;
+            p.immune = false;
+            p.immuneTime = 0;
             p.KillMe(reason, 9999.0, 0, pvp: false);
             PT.Info("已调 KillMe（9999 伤害）");
         });

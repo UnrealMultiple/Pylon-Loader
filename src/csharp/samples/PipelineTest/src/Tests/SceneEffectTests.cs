@@ -2,6 +2,7 @@ using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader;
 using PipelineTest.Content;
 using Terraria;
+using Terraria.ID;
 
 namespace PipelineTest.Tests;
 
@@ -86,50 +87,47 @@ internal static class SceneEffectTests
             return;
         }
 
-        if (TestSceneEffectProbe.SlotA <= 0 || TestSceneEffectProbe.SlotB <= 0)
-        {
-            PT.SkipCase("SCENE-W1", $"音乐文件缺失（槽 {TestSceneEffectProbe.SlotA}/{TestSceneEffectProbe.SlotB}），选赢家无从观察");
-            return;
-        }
 
         TestSceneEffectProbe.Reset();
+        MusicLoader.StopMusic();
+        TestSceneEffectProbe.UseVanillaMusic = true;
         TestSceneEffectProbe.AActive = true; // 只有 A 激活，权重 1、优先级 100
 
         // W1：赢家把音乐写进 newMusic。之后把 B 的优先级抬高一档（权重仍是 0）。
-        PT.Later("SCENE-W1", 3, c =>
+        PT.Later("SCENE-W1", 160, c =>
         {
-            c.Eq(Main.newMusic, TestSceneEffectProbe.SlotA, "赢家的 Music 写进了 Main.newMusic");
+            c.Eq(Main.newMusic, MusicID.OverworldDay, "赢家的 Music 写进了 Main.newMusic");
             TestSceneEffectProbe.BActive = true;
             TestSceneEffectProbe.BPriority = TestSceneEffectProbe.APriority + 1;
             TestSceneEffectProbe.BWeight = 0f;
         });
 
         // W2：优先级高者赢，哪怕权重是 0（把两条判据分开验）。之后把优先级拉平，让权重说话。
-        PT.Later("SCENE-W2", 6, c =>
+        PT.Later("SCENE-W2", 163, c =>
         {
-            c.Eq(Main.newMusic, TestSceneEffectProbe.SlotB, "优先级高者赢（权重为 0 也算赢）");
+            c.Eq(Main.newMusic, MusicID.Eerie, "优先级高者赢（权重为 0 也算赢）");
             TestSceneEffectProbe.BPriority = TestSceneEffectProbe.APriority;
             TestSceneEffectProbe.AWeight = 1f;
             TestSceneEffectProbe.BWeight = 0f;
         });
 
         // W3：同优先级比权重。之后把权重也拉平，进平手。
-        PT.Later("SCENE-W3", 9, c =>
+        PT.Later("SCENE-W3", 166, c =>
         {
-            c.Eq(Main.newMusic, TestSceneEffectProbe.SlotA, "同优先级时权重大者赢");
+            c.Eq(Main.newMusic, MusicID.OverworldDay, "同优先级时权重大者赢");
             TestSceneEffectProbe.BWeight = TestSceneEffectProbe.AWeight;
         });
 
         // W4/W5：优先级与权重都平手时结果是确定的：两个之一赢，且不随帧抖动。
-        PT.Later("SCENE-W4", 12, c =>
+        PT.Later("SCENE-W4", 169, c =>
         {
             var winner = Main.newMusic;
             TestSceneEffectProbe.TieValue = winner;
-            c.True(winner == TestSceneEffectProbe.SlotA || winner == TestSceneEffectProbe.SlotB,
+            c.True(winner == MusicID.OverworldDay || winner == MusicID.Eerie,
                 $"平手时仍是两个之一赢（赢家槽={winner}）");
         });
 
-        PT.Later("SCENE-W5", 15, c =>
+        PT.Later("SCENE-W5", 172, c =>
         {
             c.Eq(Main.newMusic, TestSceneEffectProbe.TieValue, "平手结果每帧一致（先注册的赢，不抖动）");
             TestSceneEffectProbe.AActive = false;
@@ -137,10 +135,10 @@ internal static class SceneEffectTests
         });
 
         // W6：没有赢家就不写 newMusic（原版这一帧的决定留着）。之后只让 B 激活，音乐改成 -1。
-        PT.Later("SCENE-W6", 18, c =>
+        PT.Later("SCENE-W6", 175, c =>
         {
             var vanilla = Main.newMusic;
-            c.True(vanilla != TestSceneEffectProbe.SlotA && vanilla != TestSceneEffectProbe.SlotB,
+            c.True(vanilla != MusicID.OverworldDay && vanilla != MusicID.Eerie,
                 $"没有赢家时不写 newMusic（原版值={vanilla}）");
             TestSceneEffectProbe.BActive = true;
             TestSceneEffectProbe.BPriority = 100;
@@ -149,50 +147,52 @@ internal static class SceneEffectTests
         });
 
         // W7：Music = -1 = 不选，交回游戏。之后改成 0（静音）。
-        PT.Later("SCENE-W7", 21, c =>
+        PT.Later("SCENE-W7", 178, c =>
         {
-            c.True(Main.newMusic != TestSceneEffectProbe.SlotB,
+            c.True(Main.newMusic != MusicID.Eerie,
                 $"Music = -1 时不写（newMusic={Main.newMusic}）");
             TestSceneEffectProbe.BMusic = 0;
         });
 
         // W8：Music = 0 = 静音，确实写进去了（原版这帧本来有曲子，被写成 0 才说明是我们的决定）。
-        PT.Later("SCENE-W8", 24, c =>
+        PT.Later("SCENE-W8", 181, c =>
         {
             c.Eq(Main.newMusic, 0, "Music = 0 静音生效");
             TestSceneEffectProbe.BMusic = null;
             TestSceneEffectProbe.ThrowActiveB = true;
-            TestSceneEffectProbe.AActive = true;
+            MusicLoader.StopMusic();
+        TestSceneEffectProbe.UseVanillaMusic = true;
+        TestSceneEffectProbe.AActive = true;
             TestSceneEffectProbe.APriority = 100;
             TestSceneEffectProbe.AWeight = 1f;
         });
 
         // W9：IsSceneEffectActive 抛异常 → 这一次当未激活（B 出局），A 照常赢，不连坐。
-        PT.Later("SCENE-W9", 27, c =>
+        PT.Later("SCENE-W9", 184, c =>
         {
-            c.Eq(Main.newMusic, TestSceneEffectProbe.SlotA, "问句抛异常的赢家被当未激活");
+            c.Eq(Main.newMusic, MusicID.OverworldDay, "问句抛异常的赢家被当未激活");
             TestSceneEffectProbe.ThrowActiveB = false;
             TestSceneEffectProbe.ThrowWeightB = true;
             TestSceneEffectProbe.BWeight = 1f; // 若异常没被吞，B 会赢
         });
 
         // W10：GetWeight 抛异常 → 用 0 参与比较，权重 1 的 A 赢。
-        PT.Later("SCENE-W10", 30, c =>
+        PT.Later("SCENE-W10", 187, c =>
         {
-            c.Eq(Main.newMusic, TestSceneEffectProbe.SlotA, "权重抛异常用 0 比较");
+            c.Eq(Main.newMusic, MusicID.OverworldDay, "权重抛异常用 0 比较");
             TestSceneEffectProbe.ThrowWeightB = false;
             TestSceneEffectProbe.ThrowVisualsA = true;
             TestSceneEffectProbe.Marker = TestSceneEffectProbe.VisualsOnB;
         });
 
         // W11/W12：A 的 SpecialVisuals 抛异常之后，派发继续走到 B（每帧都在涨）。
-        PT.Later("SCENE-W11", 33, c =>
+        PT.Later("SCENE-W11", 190, c =>
         {
             c.True(TestSceneEffectProbe.ThrowVisualsA, "A 已在注入异常");
             TestSceneEffectProbe.Marker = TestSceneEffectProbe.VisualsOnB;
         });
 
-        PT.Later("SCENE-W12", 36, c =>
+        PT.Later("SCENE-W12", 193, c =>
         {
             c.True(TestSceneEffectProbe.VisualsOnB > TestSceneEffectProbe.Marker,
                 $"A 抛异常后仍派发给下一个（B 次数 {TestSceneEffectProbe.Marker}→{TestSceneEffectProbe.VisualsOnB}）");
@@ -202,7 +202,7 @@ internal static class SceneEffectTests
         });
 
         // W13：SpecialVisuals 对未激活的也调（isActive=false），两条问句每帧都被问到。
-        PT.Later("SCENE-W13", 39, c =>
+        PT.Later("SCENE-W13", 196, c =>
         {
             c.True(TestSceneEffectProbe.VisualsOffA > 0 && TestSceneEffectProbe.VisualsOnA > 0,
                 $"未激活也调 SpecialVisuals（on={TestSceneEffectProbe.VisualsOnA} off={TestSceneEffectProbe.VisualsOffA}）");
@@ -211,9 +211,9 @@ internal static class SceneEffectTests
         });
 
         // W14：探针退出后把决定权交还原版。
-        PT.Later("SCENE-W14", 42, c =>
+        PT.Later("SCENE-W14", 199, c =>
         {
-            c.True(Main.newMusic != TestSceneEffectProbe.SlotA && Main.newMusic != TestSceneEffectProbe.SlotB,
+            c.True(Main.newMusic != MusicID.OverworldDay && Main.newMusic != MusicID.Eerie,
                 $"探针退出后交还原版（newMusic={Main.newMusic}）");
             TestSceneEffectProbe.Reset();
         });

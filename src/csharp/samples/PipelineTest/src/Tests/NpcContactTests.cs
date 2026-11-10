@@ -16,8 +16,8 @@ internal static class NpcContactTests
         if (slots.Count != 2) { PT.SkipCase("CONTACT-H1", "需要两个空闲NPC槽位"); return; }
         var a = slots[0]; var b = slots[1];
         var savedA = Main.npc[a]; var savedB = Main.npc[b];
-        var source = new NPC(); source.SetDefaults(Terraria.ID.NPCID.BlueSlime, default);
-        var victim = new NPC(); victim.SetDefaults(Terraria.ID.NPCID.Guide, default);
+        var source = new NPC(); source.SetDefaults(Terraria.ID.NPCID.BlueSlime, new NPCSpawnParams());
+        var victim = new NPC(); victim.SetDefaults(Terraria.ID.NPCID.Guide, new NPCSpawnParams());
         source.whoAmI = a; victim.whoAmI = b;
         source.active = victim.active = true;
         victim.life = victim.lifeMax = 100;

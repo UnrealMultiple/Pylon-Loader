@@ -76,7 +76,7 @@ internal static class TooltipTests
         });
 
         // W3：删行开关下行数应下降（ModifyTooltips 继续每帧派发）。
-        PT.Later("TIP-W3", 340, c =>
+        PT.Later("TIP-W3", 420, c =>
         {
             c.True(Content.TestItem.CtModifyTooltips > 0, $"删行后 ModifyTooltips 仍派发（{Content.TestItem.CtModifyTooltips} 次）");
             c.True(Content.TestItem.LastLineCount < Content.TestItem.MutatedLineCount, $"删行后行数 {Content.TestItem.LastLineCount} < 改行时 {Content.TestItem.MutatedLineCount}");

@@ -616,7 +616,8 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
         var wasDead = self.dead;
         orig(self, context);
 
-        if (!wasDead || !_binding.Active(HookId.OnRespawn)) return;
+        // 死亡状态可能在进入 Spawn 之前就被清掉,所以复活上下文也要认。
+        if ((!wasDead && context != PlayerSpawnContext.ReviveFromDeath) || !_binding.Active(HookId.OnRespawn)) return;
 
         foreach (var mod in _binding.Of(self))
         {

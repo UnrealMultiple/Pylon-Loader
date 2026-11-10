@@ -17,7 +17,7 @@ internal static class NpcHitTests
         if (index < 0) { PT.SkipCase("NPCHIT-H1", "没有空闲NPC槽位"); return; }
         var previous = Main.npc[index];
         var npc = new NPC();
-        npc.SetDefaults(Terraria.ID.NPCID.BlueSlime, default);
+        npc.SetDefaults(Terraria.ID.NPCID.BlueSlime, new NPCSpawnParams());
         npc.whoAmI = index;
         npc.life = npc.lifeMax = 100;
         npc.defense = 10;

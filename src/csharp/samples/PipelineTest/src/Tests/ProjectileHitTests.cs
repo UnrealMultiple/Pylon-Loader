@@ -24,7 +24,7 @@ internal static class ProjectileHitTests
         var oldNpc = Main.npc[npcIndex];
         var oldProjectile = Main.projectile[projectileIndex];
         var npc = new NPC();
-        npc.SetDefaults(Terraria.ID.NPCID.BlueSlime, default);
+        npc.SetDefaults(Terraria.ID.NPCID.BlueSlime, new NPCSpawnParams());
         npc.whoAmI = npcIndex;
         npc.active = true;
         npc.life = npc.lifeMax = 100;

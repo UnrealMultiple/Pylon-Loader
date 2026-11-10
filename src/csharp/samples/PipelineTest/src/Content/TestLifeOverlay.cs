@@ -33,43 +33,46 @@ public sealed class TestLifeOverlay : ModResourceOverlay
     {
         CtPreDrawResource++;
         LastResourceNumber = context.resourceNumber;
-        return true;
+
+        if (!ArtFor(context, out var art, out var offset)) return true;
+
+        context.position += offset;
+        context.texture = art!;
+        context.source = null;
+        context.Draw();
+
+        return false;
     }
 
-    public override void PostDrawResource(ResourceOverlayDrawContext context)
+    public override void PostDrawResource(ResourceOverlayDrawContext context) => CtPostDrawResource++;
+
+    private static bool ArtFor(ResourceOverlayDrawContext context, out Asset<Texture2D>? art, out Vector2 offset)
     {
-        CtPostDrawResource++;
+        art = null;
+        offset = Vector2.Zero;
 
         var asset = context.texture;
         const string fancy = "Images/UI/PlayerResourceSets/FancyClassic/";
         const string bars = "Images/UI/PlayerResourceSets/HorizontalBars/";
 
-        if (Same(asset, TextureAssets.Heart) || Same(asset, TextureAssets.Heart2) ||
+        // 只替换"实心"那笔。空心/掉血那笔(Heart2)的锚点与原版填充层不同,
+        // 用同一张实心贴图去替换会让空心的位置偏出去,看起来像多了一层阴影。
+        if (Same(asset, TextureAssets.Heart) ||
             Compare(asset, fancy + "Heart_Fill") || Compare(asset, fancy + "Heart_Fill_B"))
         {
-            Draw(context, _classic);
+            art = _classic;
+            return true;
         }
-        else if (Compare(asset, bars + "HP_Fill") || Compare(asset, bars + "HP_Fill_Honey"))
-        {
-            Draw(context, _barsFill);
-        }
-        else if (Compare(asset, fancy + "Heart_Left") || Compare(asset, fancy + "Heart_Middle") ||
-                 Compare(asset, fancy + "Heart_Right") || Compare(asset, fancy + "Heart_Right_Fancy") ||
-                 Compare(asset, fancy + "Heart_Single_Fancy"))
-        {
-            // 与原示例一致的偏移。
-            var offset = Compare(asset, fancy + "Heart_Single_Fancy") ? new Vector2(8, 8)
-                       : Compare(asset, fancy + "Heart_Left") ? new Vector2(4, 4)
-                       : new Vector2(0, 4);
 
-            context.position += offset;
-            Draw(context, _fancyPanel);
-        }
-        else if (Compare(asset, bars + "HP_Panel_Middle"))
+        if (Compare(asset, bars + "HP_Fill") || Compare(asset, bars + "HP_Fill_Honey"))
         {
-            context.position.Y += 6;
-            Draw(context, _barsPanel);
+            art = _barsFill;
+            return true;
         }
+
+        // 底板层(Heart_*)的原始贴图尺寸与示例贴图不同,替换会让填充层与底板层错位,
+        // 所以这几层交给原版画,覆盖层只接管尺寸能对齐的层。
+        return false;
     }
 
     private static bool Compare(Asset<Texture2D>? asset, string path)

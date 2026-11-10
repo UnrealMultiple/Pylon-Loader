@@ -17,6 +17,8 @@ internal static class MusicTests
     /// <summary>听感验证：直接播放 mod 槽，应能听到 Tone.ogg 的音调。</summary>
     private static void RunWorld()
     {
+        MusicLoader.StopMusic();
+        PT.Later("MUSIC-W2", 8, _ => MusicLoader.StopMusic());
         PT.Case("MUSIC-W1", c =>
         {
             var slot = MusicLoader.GetMusicSlot(PipelineTestMod.Instance, "assets/music/test");

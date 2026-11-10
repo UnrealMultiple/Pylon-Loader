@@ -12,6 +12,8 @@ internal static class HostTests
 {
     public static void Register()
     {
+        // 空组先于 host 注册:这样它在本轮 Load 阶段就会先跑一遍,后面的用例才能断言它已完成。
+        PT.Group("host-empty", Phase.Load, static () => { });
         PT.Group("host", Phase.Load, HostLoad);
         // 安装完成的断言必须放世界阶段：Mod.PostSetupContent 本身就是安装管线的第 74 步，
         // 那一刻 GameContent.Installed 必然还是 false。
@@ -71,10 +73,10 @@ internal static class HostTests
 
         PT.Case("HOST-07", c =>
         {
-            // 空组不崩：注册一个 0 用例组并执行。
-            var before = PT.Pass;
-            PT.Group("host-empty", Phase.Load, static () => { });
-            c.True(true, "空组注册不抛（执行在下一轮，本轮先验证注册面）");
+            // 空组(0 用例)不崩,且必须真的被执行过:注册在 Register() 里,
+            // 注册进用例体内的组落在本轮快照之外,会让 [PT] END 永不打印。
+            var pending = PT.PendingGroups();
+            c.True(!pending.Contains("host-empty"), "空组已在 Load 阶段执行(pending=[" + pending + "])");
         });
 
         PT.Case("HOST-08", c =>

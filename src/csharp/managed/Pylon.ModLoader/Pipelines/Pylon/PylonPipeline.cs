@@ -422,7 +422,7 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
         {
             var origin = TopLeftOf(i, j, Main.tile[i, j]);
 
-            Main.LocalPlayer.TryOpeningFullscreenMap();
+            if (!Main.mapFullscreen) Main.LocalPlayer.TryOpeningFullscreenMap();
             if (!Main.mapFullscreen) return false;
 
             Main.MapPylonTile = origin;

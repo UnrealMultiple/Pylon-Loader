@@ -49,7 +49,9 @@ internal static class RegistrationPipeline
             {
                 case ModType content:
                     content.Mod = mod;
-                    content.Plan = HookScan.Of(type, typeof(ModType));
+                    // 按"相对框架内容基类"扫描:ModItem / ModProjectile / GlobalItem 等
+                    // 各自的虚槽都要点亮,不能只认 ModType 自己声明的那几个。
+                    content.Plan = HookScan.Of(type);
                     break;
                 case ModPlayer player:
                     player.Mod = mod;

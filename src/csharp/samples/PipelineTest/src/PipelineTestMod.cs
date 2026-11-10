@@ -50,6 +50,7 @@ public sealed class PipelineTestMod : Mod
         Tests.WaterTests.Register();
         Tests.EnvironmentTests.Register();
         Tests.HairTests.Register();
+        Tests.ItemTests.Register();
         Tests.ItemTests2.Register();
         Tests.ProjectileTests.Register();
         Tests.ProjectileHitTests.Register();
@@ -109,17 +110,34 @@ public sealed class PipelineTestMod : Mod
         PT.End();
     }
 
-    /// <summary>tooltip 测试的光标扫描：开时每帧把触摸位置扫过热键栏第 1 格。</summary>
+    /// <summary>tooltip 测试的光标扫描:开时每帧把一个采样点喂给游戏光标,光栅覆盖屏幕左上区域。</summary>
     public static bool TooltipSweep;
     private static int _sweepFrame;
+
+    // 真机实测(渲染面 1920x882)热键栏不在屏幕左上角:第 1 格约在 125..220 x 305..425,
+    // 原来的 (34..63, 34..41) 差了约 300 像素的 y,而且格宽约 75 像素、原扫描范围只有 30 像素。
+    // 改成覆盖左上区域的光栅,步长(约 54 x 23 像素)明显小于格宽,保证落进格子内部。
+    // 只移动光标、不按左键:悬停本身就会让游戏设置 Main.HoverItem 并走 tooltip 入口,
+    // 而按住左键会把物品抓到光标上,破坏后面的组。
+    private const int SweepColumns = 16;
+    private const int SweepRows = 14;
+    private const float SweepWidthRatio = 0.45f;
+    private const float SweepTopRatio = 0.24f;
+    private const float SweepHeightRatio = 0.36f;
+
+    /// <summary>一轮光栅扫完需要的帧数;用例据此安排断言时机。</summary>
+    public static int SweepFrames => SweepColumns * SweepRows;
 
     public override void PostUpdateEverything()
     {
         if (!TooltipSweep) return;
-        // 热键栏第 1 格约在 (20..90, 20..90)（手机 UI 无缩放偏移）；逐帧小幅移动提高命中
-        Main.mouseX = 34 + _sweepFrame % 30;
-        Main.mouseY = 34 + (_sweepFrame / 30) % 30;
-        Main.mouseLeft = true;
+
+        var width = Math.Max(Main.screenWidth, 1);
+        var height = Math.Max(Main.screenHeight, 1);
+        var column = _sweepFrame % SweepColumns;
+        var row = (_sweepFrame / SweepColumns) % SweepRows;
+        Main.mouseX = (int)(column * (width * SweepWidthRatio) / SweepColumns);
+        Main.mouseY = (int)((SweepTopRatio * height) + row * (height * SweepHeightRatio) / SweepRows);
         _sweepFrame++;
     }
 

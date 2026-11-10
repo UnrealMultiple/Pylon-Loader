@@ -43,6 +43,7 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         // 条身皮肤：条身的底色/贴图与生命文字都走下面这一族 GUI 绘制，接管它们才能让
         // BossBarDrawParams 的 BarTexture / BarColor / ShowText 真的生效（见 §2.4 的修正）。
         On.GUIPanel.DrawBacking += Backing;
+        On.GUIPanel.Region += CapturedRegion;
         On.GUIString.Draw_String_Layout_string += Text;
         On.GUIString.Draw_String_Layout_string_Color_bool += TextColor;
         On.GUIString.Draw_String_Layout_StringBuilder += TextBuilder;
@@ -290,8 +291,8 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
             LifeMax = lifeMax,
             Shield = shield,
             ShieldMax = shieldMax,
-            BarTexture = icon,
-            BarCenter = Vector2.Zero,
+            BarTexture = null!,
+            BarCenter = Center(),
             BarColor = Color.White,
             IconColor = Color.White,
             IconScale = 1f,
@@ -400,8 +401,8 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
             LifeMax = lifeMax,
             Shield = shield,
             ShieldMax = shieldMax,
-            BarTexture = icon,
-            BarCenter = Vector2.Zero,
+            BarTexture = null!,
+            BarCenter = Center(),
             BarColor = Color.White,
             IconColor = Color.White,
             IconScale = 1f,
@@ -453,6 +454,30 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         }
 
         orig(position, size, texture, color, frame);
+    }
+
+    private static Vector2 Center()
+    {
+        if (_panel is null) return new Vector2(Main.screenWidth * 0.5f, Main.screenHeight - 50f);
+
+        try
+        {
+            var region = GUIPanel.Region(_panel);
+            return new Vector2(region.X + region.Width / 2f, region.Y + region.Height / 2f);
+        }
+        catch
+        {
+            return new Vector2(Main.screenWidth * 0.5f, Main.screenHeight - 50f);
+        }
+    }
+
+    private static Panel_Layout? _panel;
+
+    /// <summary>画 mod 条期间记下条身面板布局:Center() 才能给出真实中心。</summary>
+    private static Rectangle CapturedRegion(On.GUIPanel.orig_Region orig, Panel_Layout layout)
+    {
+        if (_skin is not null && _panel is null) _panel = layout;
+        return orig(layout);
     }
 
     /// <summary>画 mod 条期间作者要求不显文字：这一族 GUI 文字全部跳过。</summary>

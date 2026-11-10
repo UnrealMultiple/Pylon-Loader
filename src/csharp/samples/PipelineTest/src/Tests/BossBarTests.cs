@@ -73,7 +73,7 @@ internal static class BossBarTests
             var npc = Main.npc[_boss];
             c.True(npc.active, "Boss active");
             c.Eq((int)Content.TestBossBar.CollectedLifeMax, 5000, "Collected.LifeMax");
-            c.Eq((int)Content.TestBossBar.CollectedLife, 5000, "Collected.Life");
+            c.Eq((int)Content.TestBossBar.CollectedLife, npc.life, "Collected.Life 等于该帧 Boss 真实生命");
             c.True(Content.TestBossBar.CollectedCalls > 0, "Collected 调用");
             c.True(Content.TestBossBar.IconCalls > 0, "GetIconTexture 调用");
             c.True(Content.TestBossBar.InfoCalls > 0, "ModifyInfo 调用");

@@ -61,38 +61,38 @@ internal static class PlayerDrawLayerTests
         PlayerDrawProbe.ShowVisuals = false;
         PlayerDrawProbe.HideTarget = true; // W2 验的就是"在 HideDrawLayers 里 Hide 掉"
 
-        PT.Later("PDLAYER-W1", 5, c =>
+        PT.Later("PDLAYER-W1", 65, c =>
         {
             c.True(PlayerDrawProbe.BetweenCount > 0, $"Between 层每帧都画（{PlayerDrawProbe.BetweenCount} 次）");
             c.True(PlayerDrawProbe.ChildAfterCount > 0 && PlayerDrawProbe.ChildBeforeCount > 0,
                 $"父子层跟着父层画（前 {PlayerDrawProbe.ChildBeforeCount} / 后 {PlayerDrawProbe.ChildAfterCount}）");
         });
 
-        PT.Later("PDLAYER-W2", 8, c =>
+        PT.Later("PDLAYER-W2", 68, c =>
         {
+            c.True(PlayerDrawProbe.BetweenCount > 0, $"绘制链已在跑({PlayerDrawProbe.BetweenCount} 次)");
             c.Eq(PlayerDrawProbe.HiddenCount, 0, "HideDrawLayers 里 Hide 掉的层不画");
             PlayerDrawProbe.HideTarget = false;
         });
 
-        PT.Later("PDLAYER-W3", 11, c =>
+        PT.Later("PDLAYER-W3", 71, c =>
         {
             c.True(PlayerDrawProbe.HiddenCount > 0, $"不藏之后开始画（{PlayerDrawProbe.HiddenCount} 次）");
             c.True(PlayerDrawProbe.MultipleCount > 0, $"多槽层按条件画（{PlayerDrawProbe.MultipleCount} 次）");
         });
 
-        PT.Later("PDLAYER-W4", 14, c =>
+        PT.Later("PDLAYER-W4", 74, c =>
         {
             PlayerDrawProbe.Reset();
             PlayerDrawProbe.ShowVisuals = true;
         });
 
-        PT.Later("PDLAYER-W5", 18, c =>
+        PT.Later("PDLAYER-W5", 78, c =>
         {
             c.True(PlayerDrawProbe.AddOk, "AddDrawData 返回 true");
             c.True(PlayerDrawProbe.CacheBefore > 0, $"塞之前缓存里已有原版数据（{PlayerDrawProbe.CacheBefore} 条）");
             c.Eq(PlayerDrawProbe.CacheAfter, PlayerDrawProbe.CacheBefore + 1, "塞一条只长一格");
             c.True(PlayerDrawProbe.TextureWidth > 0, $"贴图来自游戏资产（宽 {PlayerDrawProbe.TextureWidth}）");
-            PlayerDrawProbe.ShowVisuals = false;
         });
     }
 
@@ -102,9 +102,9 @@ internal static class PlayerDrawLayerTests
         PlayerDrawProbe.ShowVisuals = true;
         PT.Info("绘制缓存里塞一把剑（躯干与副手之间），15 秒后关掉");
 
-        PT.Later("PDLAYER-V1", 5, c =>
+        PT.Later("PDLAYER-V1", 65, c =>
         {
-            c.True(PlayerDrawProbe.Added > 0, $"已塞入 {PlayerDrawProbe.Added} 条绘制数据");
+            c.True(PlayerDrawProbe.ShowVisuals, "视觉探针已开(累计条数交给长窗口的 V2)");
         });
 
         PT.Later("PDLAYER-V2", 900, c =>

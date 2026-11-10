@@ -53,7 +53,7 @@ internal static class PlayerDrawInfoTests
         DrawInfoProbe.Reset();
 
         // W1：五个"每帧一次"的时机都被调到了。
-        PT.Later("PDINFO-W1", 4, c =>
+        PT.Later("PDINFO-W1", 64, c =>
         {
             c.True(DrawInfoProbe.EffectsCalls > 0, $"DrawEffects 被调（{DrawInfoProbe.EffectsCalls} 次）");
             c.True(DrawInfoProbe.InfoCalls > 0, $"ModifyDrawInfo 被调（{DrawInfoProbe.InfoCalls} 次）");
@@ -63,7 +63,7 @@ internal static class PlayerDrawInfoTests
         });
 
         // W2：DrawPlayer 拿到的是真相机；TransformDrawData 看到的是已经填过的缓存。
-        PT.Later("PDINFO-W2", 7, c =>
+        PT.Later("PDINFO-W2", 67, c =>
         {
             c.True(DrawInfoProbe.CameraSeen, "DrawPlayer 拿到非空 Camera");
             c.True(DrawInfoProbe.TransformCache > 0,
@@ -71,14 +71,14 @@ internal static class PlayerDrawInfoTests
         });
 
         // W3：DrawEffects 改的红倍率落到了颜色字段上（衣服/裤子红分量变 0），随后打开染色。
-        PT.Later("PDINFO-W3", 10, c =>
+        PT.Later("PDINFO-W3", 70, c =>
         {
             c.True(DrawInfoProbe.ShirtRed >= 0 && DrawInfoProbe.PantsRed >= 0,
                 $"ModifyDrawInfo 读到颜色（衣 {DrawInfoProbe.ShirtRed} / 裤 {DrawInfoProbe.PantsRed}）");
             DrawInfoProbe.TintOn = true;
         });
 
-        PT.Later("PDINFO-W4", 14, c =>
+        PT.Later("PDINFO-W4", 74, c =>
         {
             c.Eq(DrawInfoProbe.ShirtRed, 0, "DrawEffects 把 r 置 0 后衣服红分量为 0");
             c.Eq(DrawInfoProbe.PantsRed, 0, "裤子红分量同样为 0");
@@ -86,14 +86,14 @@ internal static class PlayerDrawInfoTests
         });
 
         // W5：染色关掉后颜色回正常（探针不再影响画面）。
-        PT.Later("PDINFO-W5", 18, c =>
+        PT.Later("PDINFO-W5", 78, c =>
         {
             c.True(DrawInfoProbe.ShirtRed > 0, $"关掉染色后衣服红分量回正常（{DrawInfoProbe.ShirtRed}）");
             DrawInfoProbe.ZoomOn = true;
         });
 
         // W6：ModifyZoom(ref float) 生效，两轴都按同一倍率写回。
-        PT.Later("PDINFO-W6", 22, c =>
+        PT.Later("PDINFO-W6", 82, c =>
         {
             c.True(DrawInfoProbe.ZoomScalarCalls > 0, $"ModifyZoom 被调（{DrawInfoProbe.ZoomScalarCalls} 次）");
 
@@ -106,7 +106,7 @@ internal static class PlayerDrawInfoTests
         });
 
         // W8：非法缩放（0）被丢掉：这一帧按原版的倍率算，不会把镜头压成 0。
-        PT.Later("PDINFO-W8", 26, c =>
+        PT.Later("PDINFO-W8", 86, c =>
         {
             var zoom = Main.GameViewMatrix.Zoom;
             c.True(zoom.X > 0f && System.Math.Abs(zoom.X - 1f) < 0.01f,
@@ -117,7 +117,7 @@ internal static class PlayerDrawInfoTests
         });
 
         // W9：探针收工后缩放回到 1（不影响后续组）。
-        PT.Later("PDINFO-W9", 30, c =>
+        PT.Later("PDINFO-W9", 90, c =>
         {
             var zoom = Main.GameViewMatrix.Zoom;
             c.True(System.Math.Abs(zoom.X - 1f) < 0.01f, $"关掉后缩放松手（Zoom.X={zoom.X:0.00}）");

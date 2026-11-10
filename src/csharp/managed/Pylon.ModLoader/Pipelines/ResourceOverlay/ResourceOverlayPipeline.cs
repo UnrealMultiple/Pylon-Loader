@@ -192,7 +192,7 @@ internal sealed class ResourceOverlayPipeline : ILoaderModule, ILoaderModuleRefr
 
         _current = new ResourceOverlayDrawContext(_snapshot, DisplaySet, _resourceNumber, asset)
         {
-            SpriteBatch = Main.spriteBatch,
+            SpriteBatch = info.Batch ?? Main.spriteBatch,
         };
         _current.position = info.Position;
         _current.source = info.Source;
@@ -215,14 +215,13 @@ internal sealed class ResourceOverlayPipeline : ILoaderModule, ILoaderModuleRefr
         DispatchResource(false, _current, ref go);
     }
 
-    /// <summary>把这一笔的贴图对回它对应的 Asset（按原生指针）；认不出就放过。</summary>
+    /// <summary>把这一笔的贴图对回它对应的 Asset(按贴图自带的名字反查);认不出就放过。</summary>
     private static Asset<Texture2D>? FindAsset(Texture2D texture)
     {
         if (Matches(texture, TextureAssets.Heart)) return TextureAssets.Heart;
         if (Matches(texture, TextureAssets.Heart2)) return TextureAssets.Heart2;
         if (Matches(texture, TextureAssets.Mana)) return TextureAssets.Mana;
 
-        // 游戏自己加载的资产名（如 Content/Images/UI/...）：按名字请求同一张，拿到精确的 Asset。
         try
         {
             var name = texture.Name;
@@ -231,7 +230,6 @@ internal sealed class ResourceOverlayPipeline : ILoaderModule, ILoaderModuleRefr
         }
         catch
         {
-            // 认不出就放过这一笔。
         }
 
         return null;

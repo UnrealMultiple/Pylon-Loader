@@ -83,6 +83,12 @@ internal sealed class SceneEffectPipeline : ILoaderModule, ILoaderModuleRefresh
         var music = effect.Music;
         if (music < 0) return;
 
+        // Mod 曲槽(>= MusicTable.VanillaCount)不写 Main.newMusic。
+        // 这个字段是交给游戏音频状态机的原版曲号,游戏拿它索引原版音乐表;Mod 曲由音乐管线
+        // 经 MediaPlayer 播放,并在播出后把该字段清 0。写进去既不会生效,又会让两个管线在同一帧
+        // 互相覆盖(本管线先写,音乐管线随后清零),玩家侧表现为"场景效果的音乐永远不生效"。
+        if (music >= MusicTable.VanillaCount) return;
+
         if (vanilla != 0 && vanilla != music)
         {
             // 原版有话说：作者至少要达到原版这一帧的档；100 以上无条件压过。

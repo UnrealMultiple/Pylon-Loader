@@ -32,12 +32,23 @@ public sealed class TestManaOverlay : ModResourceOverlay
     {
         CtPreDrawResource++;
         LastResourceNumber = context.resourceNumber;
-        return true;
+
+        if (!ArtFor(context, out var art, out var offset)) return true;
+
+        context.position += offset;
+        context.texture = art!;
+        context.source = null;
+        context.Draw();
+
+        return false;
     }
 
-    public override void PostDrawResource(ResourceOverlayDrawContext context)
+    public override void PostDrawResource(ResourceOverlayDrawContext context) => CtPostDrawResource++;
+
+    private static bool ArtFor(ResourceOverlayDrawContext context, out Asset<Texture2D>? art, out Vector2 offset)
     {
-        CtPostDrawResource++;
+        art = null;
+        offset = Vector2.Zero;
 
         var asset = context.texture;
         const string fancy = "Images/UI/PlayerResourceSets/FancyClassic/";
@@ -45,25 +56,32 @@ public sealed class TestManaOverlay : ModResourceOverlay
 
         if (Same(asset, TextureAssets.Mana) || Compare(asset, fancy + "Star_Fill"))
         {
-            Draw(context, _classic);
+            art = _classic;
+            return true;
         }
-        else if (Compare(asset, bars + "MP_Fill"))
-        {
-            Draw(context, _barsFill);
-        }
-        else if (Compare(asset, fancy + "Star_A") || Compare(asset, fancy + "Star_B") ||
-                 Compare(asset, fancy + "Star_C") || Compare(asset, fancy + "Star_Single"))
-        {
-            var offset = Compare(asset, fancy + "Star_Single") ? new Vector2(4, 4) : new Vector2(4, 0);
 
-            context.position += offset;
-            Draw(context, _fancyPanel);
-        }
-        else if (Compare(asset, bars + "MP_Panel_Middle"))
+        if (Compare(asset, bars + "MP_Fill"))
         {
-            context.position.Y += 6;
-            Draw(context, _barsPanel);
+            art = _barsFill;
+            return true;
         }
+
+        if (Compare(asset, fancy + "Star_A") || Compare(asset, fancy + "Star_B") ||
+            Compare(asset, fancy + "Star_C") || Compare(asset, fancy + "Star_Single"))
+        {
+            offset = Compare(asset, fancy + "Star_Single") ? new Vector2(4, 4) : new Vector2(4, 0);
+            art = _fancyPanel;
+            return true;
+        }
+
+        if (Compare(asset, bars + "MP_Panel_Middle"))
+        {
+            offset = new Vector2(0, 6);
+            art = _barsPanel;
+            return true;
+        }
+
+        return false;
     }
 
     private static bool Compare(Asset<Texture2D>? asset, string path)

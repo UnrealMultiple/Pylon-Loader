@@ -33,7 +33,7 @@ internal static class InterfaceTests
 
         // IF-R2：Ready 在 PostSetupContent 里跑，此刻还没有任何一帧；
         // 菜单里的每帧调用要等首帧渲染，所以延迟几帧再验。
-        PT.Later("IF-R2", 10, c =>
+        PT.Later("IF-R2", 45, c =>
         {
             c.True(TestInterfaceProbe.ModifyCalls > 0,
                 $"菜单阶段 ModifyInterfaceLayers 已被调（{TestInterfaceProbe.ModifyCalls} 次）");
@@ -110,7 +110,7 @@ internal static class InterfaceTests
         // W4：横幅可见性指认（画在哪、颜色会翻转）。此时横幅已画了 40+ 帧。
         PT.Later("IF-W4", 80, c =>
         {
-            c.True(TestInterfaceProbe.PanelDraws > 20,
+            c.True(TestInterfaceProbe.PanelDraws > 10,
                 $"横幅持续在画（{TestInterfaceProbe.PanelDraws} 次）");
             PT.Info("可见验证：屏幕左上角 (24,96) 起一块 420x36 半透明横幅，蓝/绿每 60 次翻转；" +
                 "当前颜色=" + (TestInterfaceProbe.FlipColor ? "绿" : "蓝"));

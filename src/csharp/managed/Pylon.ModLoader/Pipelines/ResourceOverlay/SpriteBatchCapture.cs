@@ -11,6 +11,7 @@ internal static class SpriteBatchCapture
 {
     internal sealed class DrawInfo
     {
+        public SpriteBatch Batch = null!;
         public Texture2D Texture = null!;
         public Vector2 Position;
         public Rectangle? Source;
@@ -52,7 +53,7 @@ internal static class SpriteBatchCapture
     {
         if (!Active) { orig(self, texture, ref position, ref source, ref color, effects); return; }
 
-        var info = new DrawInfo { Texture = texture, Position = position, Source = source, Color = color, Scale = Vector2.One, Effects = effects };
+        var info = new DrawInfo { Batch = self, Texture = texture, Position = position, Source = source, Color = color, Scale = Vector2.One, Effects = effects };
         var go = Pre?.Invoke(info) ?? true;
         if (go) orig(self, texture, ref position, ref source, ref color, effects);
         Post?.Invoke(info);
@@ -70,7 +71,7 @@ internal static class SpriteBatchCapture
     {
         if (!Active) { orig(self, texture, ref position, ref source, ref color, rotation, origin, scale, effects); return; }
 
-        var info = new DrawInfo { Texture=texture, Position=position, Source=source, Color=color, Rotation=rotation, Origin=origin, Scale=new Vector2(scale,scale), Effects=effects };
+        var info = new DrawInfo { Batch = self, Texture=texture, Position=position, Source=source, Color=color, Rotation=rotation, Origin=origin, Scale=new Vector2(scale,scale), Effects=effects };
         var go = Pre?.Invoke(info) ?? true;
         if (go) orig(self, texture, ref position, ref source, ref color, rotation, origin, scale, effects);
         Post?.Invoke(info);
@@ -82,7 +83,7 @@ internal static class SpriteBatchCapture
     {
         if (!Active) { orig(self, texture, ref position, ref source, ref color, rotation, origin, scale, effects); return; }
 
-        var info = new DrawInfo { Texture=texture, Position=position, Source=source, Color=color, Rotation=rotation, Origin=origin, Scale=scale, Effects=effects };
+        var info = new DrawInfo { Batch = self, Texture=texture, Position=position, Source=source, Color=color, Rotation=rotation, Origin=origin, Scale=scale, Effects=effects };
         var go = Pre?.Invoke(info) ?? true;
         if (go) orig(self, texture, ref position, ref source, ref color, rotation, origin, scale, effects);
         Post?.Invoke(info);
@@ -94,7 +95,7 @@ internal static class SpriteBatchCapture
     {
         if (!Active) { orig(self, texture, ref position, ref source, ref color, rotation, origin, scale); return; }
 
-        var info = new DrawInfo { Texture=texture, Position=position, Source=source, Color=color, Rotation=rotation, Origin=origin, Scale=new Vector2(scale,scale) };
+        var info = new DrawInfo { Batch = self, Texture=texture, Position=position, Source=source, Color=color, Rotation=rotation, Origin=origin, Scale=new Vector2(scale,scale) };
         var go = Pre?.Invoke(info) ?? true;
         if (go) orig(self, texture, ref position, ref source, ref color, rotation, origin, scale);
         Post?.Invoke(info);
@@ -106,7 +107,7 @@ internal static class SpriteBatchCapture
     {
         if (!Active) { orig(self, texture, ref position, ref color, rotation, origin, scale); return; }
 
-        var info = new DrawInfo { Texture=texture, Position=position, Color=color, Rotation=rotation, Origin=origin, Scale=new Vector2(scale,scale) };
+        var info = new DrawInfo { Batch = self, Texture=texture, Position=position, Color=color, Rotation=rotation, Origin=origin, Scale=new Vector2(scale,scale) };
         var go = Pre?.Invoke(info) ?? true;
         if (go) orig(self, texture, ref position, ref color, rotation, origin, scale);
         Post?.Invoke(info);
@@ -118,7 +119,7 @@ internal static class SpriteBatchCapture
     {
         if (!Active) { orig(self, texture, position, source, color, rotation, origin, scale, effects, depth); return; }
 
-        var info = new DrawInfo { Texture=texture, Position=position, Source=Rect(source), Color=color, Rotation=rotation, Origin=origin, Scale=scale, Effects=effects };
+        var info = new DrawInfo { Batch = self, Texture=texture, Position=position, Source=Rect(source), Color=color, Rotation=rotation, Origin=origin, Scale=scale, Effects=effects };
         var go = Pre?.Invoke(info) ?? true;
         if (go) orig(self, texture, position, source, color, rotation, origin, scale, effects, depth);
         Post?.Invoke(info);
@@ -130,7 +131,7 @@ internal static class SpriteBatchCapture
     {
         if (!Active) { orig(self, texture, position, ref source, color, rotation, origin, scale, effects, depth); return; }
 
-        var info = new DrawInfo { Texture=texture, Position=position, Source=source, Color=color, Rotation=rotation, Origin=origin, Scale=scale, Effects=effects };
+        var info = new DrawInfo { Batch = self, Texture=texture, Position=position, Source=source, Color=color, Rotation=rotation, Origin=origin, Scale=scale, Effects=effects };
         var go = Pre?.Invoke(info) ?? true;
         if (go) orig(self, texture, position, ref source, color, rotation, origin, scale, effects, depth);
         Post?.Invoke(info);
@@ -142,7 +143,7 @@ internal static class SpriteBatchCapture
     {
         if (!Active) { orig(self, texture, position, source, color, rotation, origin, scale, effects, depth); return; }
 
-        var info = new DrawInfo { Texture=texture, Position=position, Source=Rect(source), Color=color, Rotation=rotation, Origin=origin, Scale=new Vector2(scale,scale), Effects=effects };
+        var info = new DrawInfo { Batch = self, Texture=texture, Position=position, Source=Rect(source), Color=color, Rotation=rotation, Origin=origin, Scale=new Vector2(scale,scale), Effects=effects };
         var go = Pre?.Invoke(info) ?? true;
         if (go) orig(self, texture, position, source, color, rotation, origin, scale, effects, depth);
         Post?.Invoke(info);
@@ -154,7 +155,7 @@ internal static class SpriteBatchCapture
     {
         if (!Active) { orig(self, texture, ref position, ref source, ref color); return; }
 
-        var info = new DrawInfo { Texture=texture, Position=position, Source=source, Color=color, Scale=Vector2.One };
+        var info = new DrawInfo { Batch = self, Texture=texture, Position=position, Source=source, Color=color, Scale=Vector2.One };
         var go = Pre?.Invoke(info) ?? true;
         if (go) orig(self, texture, ref position, ref source, ref color);
         Post?.Invoke(info);
@@ -166,7 +167,7 @@ internal static class SpriteBatchCapture
     {
         if (!Active) { orig(self, texture, position, ref source, color, rotation, origin, scale, effects, depth); return; }
 
-        var info = new DrawInfo { Texture=texture, Position=position, Source=source, Color=color, Rotation=rotation, Origin=origin, Scale=new Vector2(scale,scale), Effects=effects };
+        var info = new DrawInfo { Batch = self, Texture=texture, Position=position, Source=source, Color=color, Rotation=rotation, Origin=origin, Scale=new Vector2(scale,scale), Effects=effects };
         var go = Pre?.Invoke(info) ?? true;
         if (go) orig(self, texture, position, ref source, color, rotation, origin, scale, effects, depth);
         Post?.Invoke(info);
@@ -178,7 +179,7 @@ internal static class SpriteBatchCapture
     {
         if (!Active) { orig(self, texture, destination, source, color, rotation, origin, effects, depth); return; }
 
-        var info = new DrawInfo { Texture=texture, Position=new Vector2(destination.X, destination.Y), Source=Rect(source), Color=color, Rotation=rotation, Origin=origin, Scale=Vector2.One, Effects=effects };
+        var info = new DrawInfo { Batch = self, Texture=texture, Position=new Vector2(destination.X, destination.Y), Source=Rect(source), Color=color, Rotation=rotation, Origin=origin, Scale=Vector2.One, Effects=effects };
         var go = Pre?.Invoke(info) ?? true;
         if (go) orig(self, texture, destination, source, color, rotation, origin, effects, depth);
         Post?.Invoke(info);
@@ -190,7 +191,7 @@ internal static class SpriteBatchCapture
     {
         if (!Active) { orig(self, texture, position, source, color); return; }
 
-        var info = new DrawInfo { Texture=texture, Position=position, Source=Rect(source), Color=color, Scale=Vector2.One };
+        var info = new DrawInfo { Batch = self, Texture=texture, Position=position, Source=Rect(source), Color=color, Scale=Vector2.One };
         var go = Pre?.Invoke(info) ?? true;
         if (go) orig(self, texture, position, source, color);
         Post?.Invoke(info);
@@ -202,7 +203,7 @@ internal static class SpriteBatchCapture
     {
         if (!Active) { orig(self, texture, destination, source, color); return; }
 
-        var info = new DrawInfo { Texture=texture, Position=new Vector2(destination.X, destination.Y), Source=Rect(source), Color=color, Scale=Vector2.One };
+        var info = new DrawInfo { Batch = self, Texture=texture, Position=new Vector2(destination.X, destination.Y), Source=Rect(source), Color=color, Scale=Vector2.One };
         var go = Pre?.Invoke(info) ?? true;
         if (go) orig(self, texture, destination, source, color);
         Post?.Invoke(info);
@@ -214,7 +215,7 @@ internal static class SpriteBatchCapture
     {
         if (!Active) { orig(self, texture, position, color); return; }
 
-        var info = new DrawInfo { Texture=texture, Position=position, Color=color, Scale=Vector2.One };
+        var info = new DrawInfo { Batch = self, Texture=texture, Position=position, Color=color, Scale=Vector2.One };
         var go = Pre?.Invoke(info) ?? true;
         if (go) orig(self, texture, position, color);
         Post?.Invoke(info);
@@ -226,7 +227,7 @@ internal static class SpriteBatchCapture
     {
         if (!Active) { orig(self, texture, destination, color); return; }
 
-        var info = new DrawInfo { Texture=texture, Position=new Vector2(destination.X, destination.Y), Color=color, Scale=Vector2.One };
+        var info = new DrawInfo { Batch = self, Texture=texture, Position=new Vector2(destination.X, destination.Y), Color=color, Scale=Vector2.One };
         var go = Pre?.Invoke(info) ?? true;
         if (go) orig(self, texture, destination, color);
         Post?.Invoke(info);
