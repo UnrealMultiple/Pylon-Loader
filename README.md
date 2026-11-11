@@ -100,6 +100,7 @@ docs/        文档
 | 文档 | 内容 |
 |---|---|
 | [架构](docs/architecture.md) | 分层、启动时序、内核模块、线程模型、图形管线 |
+| [直调性能与 Bunny 对比](docs/directcall-performance.md) | 优化实测、标准成绩、异常回归与跨设备比较限制 |
 | [构建](docs/build.md) | 前置、三类派生文件、`pylon.ps1` 参考、CI artifact、缺件对照 |
 | [运行时导入](docs/runtime-import.md) | 目录布局、清单格式、版本门禁、PairIP 拒绝 |
 | [Mod 开发](docs/modding.md) | 工程配置、生命周期、内容类型、钩子、打包、调试 |
