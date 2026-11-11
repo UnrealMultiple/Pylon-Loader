@@ -85,6 +85,10 @@ Outcome<Session> Domain::Attach() {
     return Outcome<Session>::Good(Session(&g_symbols, domain));
 }
 
+bool Domain::Attached() {
+    return g_attached;
+}
+
 void Domain::MarkGameThread() {
     const unsigned long tid = static_cast<unsigned long>(gettid());
     if (g_gameThread.exchange(tid) == tid) return;
@@ -106,7 +110,8 @@ void Domain::MarkGameThread() {
 
 bool Domain::OnGameThread() {
     const unsigned long registered = g_gameThread.load();
-    return registered != 0 && registered == static_cast<unsigned long>(gettid());
+    thread_local const unsigned long tid = static_cast<unsigned long>(gettid());
+    return registered != 0 && registered == tid;
 }
 
 unsigned long Domain::GameThreadId() {

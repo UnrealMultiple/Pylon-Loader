@@ -44,6 +44,7 @@ public:
     static bool Ready();
 
     static Outcome<Session> Attach();
+    static bool Attached();
 
     static void MarkGameThread();
     static bool OnGameThread();

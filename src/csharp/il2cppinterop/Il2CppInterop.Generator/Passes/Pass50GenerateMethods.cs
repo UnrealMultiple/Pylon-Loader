@@ -10,7 +10,7 @@ namespace Il2CppInterop.Generator.Passes;
 
 public static class Pass50GenerateMethods
 {
-    public static void DoPass(RewriteGlobalContext context)
+    public static void DoPass(RewriteGlobalContext context, bool directInvoke = false)
     {
         foreach (var assemblyContext in context.Assemblies)
         {
@@ -178,6 +178,86 @@ public static class Pass50GenerateMethods
 
                     }
 
+                    bool direct = directInvoke && CanDirect(originalMethod);
+                    if (direct)
+                    {
+                        var methodVar = new CilLocalVariable(imports.Module.IntPtr());
+                        var retVar = new CilLocalVariable(imports.Module.IntPtr());
+                        newMethod.CilMethodBody.LocalVariables.Add(methodVar);
+                        newMethod.CilMethodBody.LocalVariables.Add(retVar);
+
+                        // 被调方法指针：虚拟方法先按对象解析出实现体（与 runtime_invoke 路径同一套代码）。
+                        if (!originalMethod.DeclaringType!.IsSealed && !originalMethod.IsFinal &&
+                            ((originalMethod.IsVirtual && !originalMethod.DeclaringType.IsValueType()) || originalMethod.IsAbstract))
+                        {
+                            bodyBuilder.Add(OpCodes.Ldarg_0);
+                            bodyBuilder.Add(OpCodes.Call, imports.IL2CPP_Il2CppObjectBaseToPtr.Value);
+                            if (methodRewriteContext.GenericInstantiationsStoreSelfSubstRef != null)
+                                bodyBuilder.Add(OpCodes.Ldsfld,
+                                    ReferenceCreator.CreateFieldReference("Pointer", imports.Module.IntPtr(),
+                                        methodRewriteContext.GenericInstantiationsStoreSelfSubstMethodRef));
+                            else
+                                bodyBuilder.Add(OpCodes.Ldsfld, methodRewriteContext.NonGenericMethodInfoPointerField);
+                            bodyBuilder.Add(OpCodes.Call, imports.IL2CPP_il2cpp_object_get_virtual_method.Value);
+                        }
+                        else if (methodRewriteContext.GenericInstantiationsStoreSelfSubstRef != null)
+                        {
+                            bodyBuilder.Add(OpCodes.Ldsfld,
+                                ReferenceCreator.CreateFieldReference("Pointer", imports.Module.IntPtr(),
+                                    methodRewriteContext.GenericInstantiationsStoreSelfSubstMethodRef));
+                        }
+                        else
+                        {
+                            bodyBuilder.Add(OpCodes.Ldsfld, methodRewriteContext.NonGenericMethodInfoPointerField);
+                        }
+                        bodyBuilder.Add(OpCodes.Stloc, methodVar);
+
+                        bodyBuilder.Add(OpCodes.Ldloc, methodVar);
+                        if (originalMethod.IsStatic)
+                            bodyBuilder.Add(OpCodes.Ldc_I4_0);
+                        else
+                            bodyBuilder.EmitObjectToPointer(originalMethod.DeclaringType.ToTypeSignature(),
+                                newMethod.DeclaringType!.ToTypeSignature(), typeContext, 0, true, false, true, true, out _);
+                        bodyBuilder.Add(OpCodes.Ldloc, argArray);
+                        bodyBuilder.Add(OpCodes.Conv_U);
+                        bodyBuilder.Add(OpCodes.Ldc_I4, newMethod.Parameters.Count);
+                        bodyBuilder.Add(OpCodes.Ldloca, retVar);
+                        bodyBuilder.Add(OpCodes.Ldloca, exceptionLocal);
+                        bodyBuilder.Add(OpCodes.Call, imports.GuardedInvoke_Invoke.Value);
+
+                        bodyBuilder.Add(OpCodes.Ldloc, exceptionLocal);
+                        bodyBuilder.Add(OpCodes.Call, imports.Il2CppException_RaiseExceptionIfNecessary.Value);
+
+                        foreach (var byRefParam in byRefParams)
+                        {
+                            var paramIndex = byRefParam.Item1;
+                            var paramVariable = byRefParam.Item2;
+                            var methodParam = newMethod.Parameters[paramIndex];
+
+                            if (methodParam.Definition!.IsOut && methodParam.ParameterType.GetElementType() is GenericParameterSignature)
+                            {
+                                bodyBuilder.Add(OpCodes.Ldtoken, methodParam.ParameterType.GetElementType().ToTypeDefOrRef());
+                                bodyBuilder.Add(OpCodes.Call, imports.Module.TypeGetTypeFromHandle());
+                                bodyBuilder.Add(OpCodes.Callvirt, imports.Module.TypeGetIsValueType());
+
+                                var continueBlock = new CilInstructionLabel();
+                                bodyBuilder.Add(OpCodes.Brtrue, continueBlock);
+                                bodyBuilder.EmitUpdateRef(newMethod.Parameters[paramIndex], paramIndex + argOffset, paramVariable, imports);
+                                bodyBuilder.Add(OpCodes.Br_S, continueBlock);
+                                continueBlock.Instruction = bodyBuilder.Add(OpCodes.Nop);
+                            }
+                            else
+                            {
+                                bodyBuilder.EmitUpdateRef(newMethod.Parameters[paramIndex], paramIndex + argOffset, paramVariable, imports);
+                            }
+                        }
+
+                        bodyBuilder.EmitPointerToObject(originalMethod.Signature!.ReturnType, newMethod.Signature.ReturnType,
+                            typeContext, retVar, true, false);
+                        bodyBuilder.Add(OpCodes.Ret);
+                    }
+                    else
+                    {
                     if (!originalMethod.DeclaringType!.IsSealed && !originalMethod.IsFinal &&
                         ((originalMethod.IsVirtual && !originalMethod.DeclaringType.IsValueType()) || originalMethod.IsAbstract))
                     {
@@ -253,8 +333,42 @@ public static class Pass50GenerateMethods
                         resultVar, false, true);
 
                     bodyBuilder.Add(OpCodes.Ret);
+                    }
                 }
             }
         }
+    }
+
+    /// <summary>直调只接 ABI 形状明确的签名；指针/泛型参数/构造/值类型实例方法等回退旧的 runtime_invoke 生成。</summary>
+    private static bool CanDirect(MethodDefinition m)
+    {
+        if (m.IsConstructor) return false;
+        if (m.GenericParameters.Count != 0) return false;
+        // 值类型实例方法的 this 在生成器里以值拷贝形式传递（不是地址），直调会把值当 this 指针。
+        if (!m.IsStatic && m.DeclaringType is { IsValueType: true }) return false;
+        // Generate game/Unity entry points; the runtime validates each ABI.
+        var asmName = m.DeclaringType?.DeclaringModule?.Assembly?.Name?.ToString() ?? "";
+        if (asmName != "Assembly-CSharp" && !asmName.StartsWith("Unity", StringComparison.Ordinal))
+            return false;
+        var ret = m.Signature!.ReturnType;
+        if (ret is ByReferenceTypeSignature || ret is PointerTypeSignature) return false;
+        if (!IsDirectType(ret)) return false;
+        foreach (var p in m.Parameters)
+        {
+            if (!IsDirectType(p.ParameterType)) return false;
+        }
+        return true;
+    }
+
+    private static bool IsDirectType(TypeSignature t)
+    {
+        return t switch
+        {
+            ByReferenceTypeSignature byRef => IsDirectType(byRef.BaseType),
+            PointerTypeSignature => false,
+            GenericParameterSignature => false,
+            GenericInstanceTypeSignature generic => generic.TypeArguments.All(IsDirectType),
+            _ => true,
+        };
     }
 }

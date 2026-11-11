@@ -22,11 +22,7 @@ public class GeneratorOptions
     public bool PassthroughNames { get; set; }
     public bool Parallel { get; set; } = true;
 
-    /// <summary>
-    ///     为生成的方法体启用"受保护直调"（Pylon GuardedCall + methodPointer）：
-    ///     参数打包进 DirectCallFrame 后由内核 PylonMod_CallGame 直调，替代 il2cpp_runtime_invoke。
-    ///     只对符合 ABI 直调条件的签名生效；不支持的签名自动回退 runtime_invoke。
-    /// </summary>
+    /// <summary>Generate guarded direct-call entries with runtime ABI fallback.</summary>
     public bool DirectInvoke { get; set; }
 
 

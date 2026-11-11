@@ -1,4 +1,4 @@
-﻿using Il2CppInterop.Common;
+using Il2CppInterop.Common;
 using Il2CppInterop.Common.XrefScans;
 using Il2CppInterop.Generator.Contexts;
 using Il2CppInterop.Generator.MetadataAccess;
@@ -141,7 +141,7 @@ internal class InteropAssemblyGeneratorRunner : IRunner
 
         using (new TimingCookie("Filling methods"))
         {
-            Pass50GenerateMethods.DoPass(rewriteContext);
+            Pass50GenerateMethods.DoPass(rewriteContext, options.DirectInvoke);
         }
 
         using (new TimingCookie("Generating implicit conversions"))

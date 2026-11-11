@@ -1,4 +1,4 @@
-﻿// ReSharper disable InconsistentNaming
+// ReSharper disable InconsistentNaming
 
 using AsmResolver.DotNet;
 using AsmResolver.DotNet.Signatures;
@@ -46,6 +46,8 @@ public class RuntimeAssemblyReferences
     public Lazy<IMethodDefOrRef> IL2CPP_il2cpp_field_static_get_value { get; private set; }
     public Lazy<IMethodDefOrRef> IL2CPP_il2cpp_field_static_set_value { get; private set; }
     public Lazy<IMethodDefOrRef> IL2CPP_il2cpp_runtime_invoke { get; private set; }
+    public Lazy<IMethodDefOrRef> GuardedInvoke_Invoke { get; private set; }
+    public Lazy<IMethodDefOrRef> GuardedInvoke_TryInvokeFrame { get; private set; }
     public Lazy<IMethodDefOrRef> IL2CPP_il2cpp_runtime_class_init { get; private set; }
     public Lazy<IMethodDefOrRef> IL2CPP_il2cpp_object_unbox { get; private set; }
     public Lazy<IMethodDefOrRef> IL2CPP_il2cpp_value_box { get; private set; }
@@ -89,6 +91,7 @@ public class RuntimeAssemblyReferences
     public TypeSignature RuntimeReflectionHelper { get; private set; }
     public TypeSignature DelegateSupport { get; private set; }
     public TypeSignature Il2CppException { get; private set; }
+    public TypeSignature GuardedInvoke { get; private set; }
 #nullable enable
     private TypeSignature ResolveType(string typeName)
     {
@@ -141,6 +144,8 @@ public class RuntimeAssemblyReferences
 
         Il2CppException = new TypeReference(Module, assemblyRef, "Il2CppInterop.Runtime", "Il2CppException").ToTypeSignature();
 
+        GuardedInvoke = new TypeReference(Module, assemblyRef, "Il2CppInterop.Runtime", "GuardedInvoke").ToTypeSignature();
+
         allTypes["Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase"] = Il2CppObjectBase;
         allTypes["Il2CppInterop.Runtime.Runtime.Il2CppObjectPool"] = Il2CppObjectPool;
         allTypes["Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppArrayBase"] = nonGenericIl2CppArrayBase;
@@ -150,6 +155,7 @@ public class RuntimeAssemblyReferences
         allTypes["Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<T>"] = Il2CppStructArray;
         allTypes["Il2CppInterop.Runtime.Il2CppException"] = Il2CppException;
         allTypes["Il2CppInterop.Runtime.IL2CPP"] = Il2Cpp;
+        allTypes["Il2CppInterop.Runtime.GuardedInvoke"] = GuardedInvoke;
     }
 
     private void InitMethodRefs()
@@ -334,6 +340,15 @@ public class RuntimeAssemblyReferences
         {
             var mr = ReferenceCreator.CreateStaticMethodReference("il2cpp_runtime_invoke", ResolveType("System.IntPtr"),
                 ResolveType("Il2CppInterop.Runtime.IL2CPP").ToTypeDefOrRef(), ResolveType("System.IntPtr"), ResolveType("System.IntPtr"), ResolveType("System.Void**"), ResolveType("System.IntPtr&"));
+            return mr;
+        });
+
+        GuardedInvoke_Invoke = new Lazy<IMethodDefOrRef>(() =>
+        {
+            var mr = ReferenceCreator.CreateStaticMethodReference("Invoke", ResolveType("System.Void"),
+                ResolveType("Il2CppInterop.Runtime.GuardedInvoke").ToTypeDefOrRef(), ResolveType("System.IntPtr"),
+                ResolveType("System.IntPtr"), ResolveType("System.IntPtr"), ResolveType("System.Int32"),
+                ResolveType("System.IntPtr&"), ResolveType("System.IntPtr&"));
             return mr;
         });
 

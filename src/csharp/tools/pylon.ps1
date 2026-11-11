@@ -292,7 +292,9 @@ function Command-Interop {
         Invoke-Dotnet 'src\csharp\il2cppinterop\Il2CppInterop.CLI\Il2CppInterop.CLI.csproj' @()
     }
     $gameAsm = 'refs\lib\arm64-v8a\libil2cpp.so'
-    $args = @($cliDll, 'generate', '--input', (Resolve-Path $DummyDir), '--output', (Join-Path $root $interopGen))
+    # --direct-invoke：生成受保护直调代理（GuardedInvoke + methodPointer，内核 PylonMod_CallFrame）。
+    # 不带这个 flag 就是旧 runtime_invoke 代理（对照组的生成方式）。
+    $args = @($cliDll, 'generate', '--input', (Resolve-Path $DummyDir), '--output', (Join-Path $root $interopGen), '--direct-invoke')
     if (Test-Path $gameAsm) { $args += @('--game-assembly', (Resolve-Path $gameAsm)) }
     & dotnet @args 2>&1 | Select-Object -Last 4
     if ($LASTEXITCODE -ne 0) { Die '生成失败' }
