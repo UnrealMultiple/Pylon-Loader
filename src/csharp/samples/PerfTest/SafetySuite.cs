@@ -55,5 +55,38 @@ internal static unsafe class SafetySuite
         }
         add("PASS: 64 DIRECT throws returned frame.Exc; each followed by DIRECT Sign(-42)=-1 and Clamp=5");
         add("PASS: repeated exception unwind + ordinary direct-call recovery (not full ABI coverage)");
+        FrameMethodPlan? certificate = null;
+        bool oldPilot = GuardedInvoke.FramePilotEnabled, oldCache = GuardedInvoke.FramePlanCacheEnabled;
+        try
+        {
+            GuardedInvoke.FramePilotEnabled = true;
+            foreach (bool cache in new[] { false, true })
+            {
+                // Call each compatible entry explicitly; production proxies remain cache-only.
+                if (GuardedInvoke.FrameDiagnosticsAvailable) GuardedInvoke.FramePlanCacheEnabled = cache;
+                for (int i = 0; i < 64; i++)
+                {
+                    PylonCallFrame frame = default;
+                    frame.D[0] = (ulong)BitConverter.DoubleToInt64Bits(double.NaN);
+                    bool invoked = cache ? GuardedInvoke.TryInvokeFrameCached(method, 4, ref certificate, ref frame)
+                        : GuardedInvoke.TryInvokeFrame(method, 4, ref frame);
+                    if (!invoked || frame.Exc == IntPtr.Zero) throw new InvalidOperationException("Frame Sign(NaN) did not capture exception");
+                    bool raised = false;
+                    try { Il2CppException.RaiseExceptionIfNecessary(frame.Exc); }
+                    catch (Il2CppException) { raised = true; }
+                    if (!raised) throw new InvalidOperationException("Frame exception was not raised to managed caller");
+                    frame = default;
+                    frame.D[0] = (ulong)BitConverter.DoubleToInt64Bits(-42d);
+                    invoked = cache ? GuardedInvoke.TryInvokeFrameCached(method, 4, ref certificate, ref frame)
+                        : GuardedInvoke.TryInvokeFrame(method, 4, ref frame);
+                    if (!invoked || frame.Exc != IntPtr.Zero || (int)frame.Out[0] != -1)
+                        throw new InvalidOperationException("Frame same-target recovery failed");
+                    if (Il2CppMicrosoft.Xna.Framework.MathHelper.Clamp(12f, 0f, 10f) != 10f)
+                        throw new InvalidOperationException("Generated frame recovery failed");
+                }
+                add($"PASS: {(cache ? "CachedFrame" : "TryInvokeFrame")} 64 IL2CPP throws captured and raised to managed caller; Sign and generated Clamp recover each time");
+            }
+        }
+        finally { GuardedInvoke.FramePilotEnabled = oldPilot; GuardedInvoke.FramePlanCacheEnabled = oldCache; }
     }
 }

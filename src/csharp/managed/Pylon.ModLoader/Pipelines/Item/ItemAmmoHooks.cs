@@ -191,11 +191,11 @@ internal static class ItemAmmoHooks
 
     private static void Pick(On.Terraria.Player.orig_PickAmmo orig, Player self, Item weapon, ref int type,
                              ref float speed, ref bool canShoot, ref int damage, ref float knockback,
-                             ref int usedAmmoItemId, bool dontConsume)
+                             out int usedAmmoItemId, bool dontConsume)
     {
         if (!WantsAmmo(weapon))
         {
-            orig(self, weapon, ref type, ref speed, ref canShoot, ref damage, ref knockback, ref usedAmmoItemId, dontConsume);
+            orig(self, weapon, ref type, ref speed, ref canShoot, ref damage, ref knockback, out usedAmmoItemId, dontConsume);
             return;
         }
         var outer = _ammo;
@@ -203,7 +203,7 @@ internal static class ItemAmmoHooks
         _ammo = scope;
         try
         {
-            orig(self, weapon, ref type, ref speed, ref canShoot, ref damage, ref knockback, ref usedAmmoItemId, dontConsume);
+            orig(self, weapon, ref type, ref speed, ref canShoot, ref damage, ref knockback, out usedAmmoItemId, dontConsume);
             Finish(scope, ref type, ref speed, canShoot, ref damage, ref knockback);
         }
         finally

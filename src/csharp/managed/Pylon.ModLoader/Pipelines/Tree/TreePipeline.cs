@@ -52,8 +52,8 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
     /// 顺树干往下找地面，是 mod 地面就直接报告 mod 风格与地面行。
     /// </summary>
     private static bool FoliageHook(On.Terraria.WorldGen.orig_GetCommonTreeFoliageData orig, int i, int j,
-                                    int xoffset, ref int treeFrame, ref int treeStyle, ref int floorY,
-                                    ref int topWidth, ref int topHeight)
+                                    int xoffset, ref int treeFrame, ref int treeStyle, out int floorY,
+                                    out int topWidth, out int topHeight)
     {
         var x = i + xoffset;
         var y = j;
@@ -75,7 +75,7 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
             return true;
         }
 
-        return orig(i, j, xoffset, ref treeFrame, ref treeStyle, ref floorY, ref topWidth, ref topHeight);
+        return orig(i, j, xoffset, ref treeFrame, ref treeStyle, out floorY, out topWidth, out topHeight);
     }
 
     /// <summary>
@@ -154,9 +154,9 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
 
     /// <summary>砍树掉木头：这一列是 mod 树就换成作者声明的木头（原版只认自己的风格号）。</summary>
     private static void KillTileDrops(On.Terraria.WorldGen.orig_KillTile_GetItemDrops orig, int x, int y, Terraria.Tile tileCache,
-        ref int dropItem, ref int dropItemStack, ref int secondaryItem, ref int secondaryItemStack, ref bool noPrefix, bool includeLargeObjectDrops)
+        out int dropItem, out int dropItemStack, out int secondaryItem, out int secondaryItemStack, out bool noPrefix, bool includeLargeObjectDrops)
     {
-        orig(x, y, tileCache, ref dropItem, ref dropItemStack, ref secondaryItem, ref secondaryItemStack, ref noPrefix, includeLargeObjectDrops);
+        orig(x, y, tileCache, out dropItem, out dropItemStack, out secondaryItem, out secondaryItemStack, out noPrefix, includeLargeObjectDrops);
 
         if (dropItem != Terraria.ID.ItemID.Wood || TreeTable.Count == 0) return;
         if (TreeAt(x, y) is not { } tree) return;
@@ -174,9 +174,9 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
 
     /// <summary>树顶叶子样式：作者给了非负的 TreeLeaf 就把 pass 换成它（负数 = 让原版自己判）。</summary>
     private static void TreeLeafHook(On.Terraria.WorldGen.orig_GetTreeLeaf orig, int x, Terraria.Tile topTile,
-                                     Terraria.Tile groundTile, ref int treeHeight, ref int treeFrame, ref int passStyle)
+                                     Terraria.Tile groundTile, ref int treeHeight, out int treeFrame, out int passStyle)
     {
-        orig(x, topTile, groundTile, ref treeHeight, ref treeFrame, ref passStyle);
+        orig(x, topTile, groundTile, ref treeHeight, out treeFrame, out passStyle);
 
         if (TreeTable.ForGround(groundTile.type) is not { } tree) return;
 
@@ -286,7 +286,7 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
     /// 没声明的 mod 树保持原版苗——放行原版逻辑。
     /// </summary>
     private static bool SaplingPlaceHook(On.Terraria.TileObject.orig_CanPlace orig, int x, int y, int type, int style,
-                                         int dir, ref TileObject objectData, bool onlyCheck,
+                                         int dir, out TileObject objectData, bool onlyCheck,
                                          Il2CppSystem.Nullable<int> forcedRandom)
     {
         if (type == Terraria.ID.TileID.Saplings && TreeTable.Count > 0)
@@ -313,7 +313,7 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
             }
         }
 
-        return orig(x, y, type, style, dir, ref objectData, onlyCheck, forcedRandom);
+        return orig(x, y, type, style, dir, out objectData, onlyCheck, forcedRandom);
     }
 
     /// <summary>

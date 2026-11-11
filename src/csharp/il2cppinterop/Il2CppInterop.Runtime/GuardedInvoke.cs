@@ -41,6 +41,17 @@ public unsafe struct PylonCallFrame
     public IntPtr Exc;            // 捕获到的 Il2CppException*
 }
 
+// Opaque ABI-v1 certificate. Only the runtime can mint one from validated metadata.
+// Stores layout, NEVER a methodPointer: hooks/replacements are observed on every call.
+public sealed class FrameMethodPlan
+{
+    internal readonly IntPtr Method;
+    internal readonly int Shape, Ret, RetSize, MethodDst;
+    internal readonly bool Indirect;
+    internal FrameMethodPlan(IntPtr method, int shape, int ret, int size, int dst, bool indirect)
+        => (Method, Shape, Ret, RetSize, MethodDst, Indirect) = (method, shape, ret, size, dst, indirect);
+}
+
 /// <summary>
 /// Pylon 直调入口。生成的代理调用 Invoke(method, self, args, argc, &amp;ret, &amp;exc)：
 /// args[i] 对值类型是"指向值的指针"、对引用类型是对象指针本身、对 byref 是地址（与旧
@@ -90,6 +101,7 @@ public static unsafe partial class GuardedInvoke
             Method = method;
             ArgCount = checked((int)IL2CPP.il2cpp_method_get_param_count(method));
             Plan = Build(method);
+            FrameShape = GetFrameShape(Plan);
             if (Plan != null) Plan.Packer = CreatePacker(Plan);
         }
     }
@@ -167,6 +179,126 @@ public static unsafe partial class GuardedInvoke
         {
             t_depth--;
         }
+    }
+
+    // ABI v1 pilot shapes. A mismatch returns before touching the native executor.
+    // Callers must default-initialize the ENTIRE frame; unoccupied registers are read too.
+    public static bool FrameDiagnosticsAvailable
+    {
+        get
+        {
+#if PYLON_FRAME_DIAGNOSTICS
+            return true;
+#else
+            return false;
+#endif
+        }
+    }
+
+    // Retain API compatibility, but never silently pretend a production build switched routes.
+    public static bool FramePilotEnabled
+    {
+#if PYLON_FRAME_DIAGNOSTICS
+        get; set;
+#else
+        get => true;
+        set { if (!value) throw new NotSupportedException("Frame route switching requires PylonFrameDiagnostics=true"); }
+#endif
+    }
+#if PYLON_FRAME_DIAGNOSTICS
+        = true;
+#endif
+
+    public static bool TryInvokeFrame(IntPtr method, int shape, ref PylonCallFrame frame)
+    {
+#if PYLON_FRAME_DIAGNOSTICS
+        if (!FramePilotEnabled) return false;
+#endif
+        if (method == IntPtr.Zero || shape is < 1 or > 4) return false;
+        CachedMethod cached = GetMethod(method);
+        if (cached.FrameShape != shape) return false;
+        MethodPlan plan = cached.Plan!;
+        return ExecuteFrame(method, plan.RetKind, plan.RetSize, plan.MethodDst, plan.Indirect, ref frame);
+    }
+
+    // Diagnostic switch compares the same generated body with/without the TLS lookup.
+    public static bool FramePlanCacheEnabled
+    {
+#if PYLON_FRAME_DIAGNOSTICS
+        get; set;
+#else
+        get => true;
+        set { if (!value) throw new NotSupportedException("Frame route switching requires PylonFrameDiagnostics=true"); }
+#endif
+    }
+#if PYLON_FRAME_DIAGNOSTICS
+        = true;
+#endif
+
+    public static bool TryInvokeFrameCached(IntPtr method, int shape, ref FrameMethodPlan? certificate, ref PylonCallFrame frame)
+    {
+#if PYLON_FRAME_DIAGNOSTICS
+        if (!FramePilotEnabled) return false;
+#endif
+        if (method == IntPtr.Zero || shape is < 1 or > 4) return false;
+#if PYLON_FRAME_DIAGNOSTICS
+        if (!FramePlanCacheEnabled)
+        {
+            // Same call depth as certificate mode: do not charge TLS for an extra entry wrapper.
+            var cached = GetMethod(method);
+            if (cached.FrameShape != shape) return false;
+            var layout = cached.Plan!;
+            return ExecuteFrame(method, layout.RetKind, layout.RetSize, layout.MethodDst, layout.Indirect, ref frame);
+        }
+#endif
+        var plan = System.Threading.Volatile.Read(ref certificate);
+        if (plan == null || plan.Method != method || plan.Shape != shape)
+        {
+            var cached = GetMethod(method);
+            if (cached.FrameShape != shape) return false;
+            var layout = cached.Plan!;
+            plan = new FrameMethodPlan(method, shape, layout.RetKind, layout.RetSize, layout.MethodDst, layout.Indirect);
+            System.Threading.Volatile.Write(ref certificate, plan);
+        }
+        return ExecuteFrame(method, plan.Ret, plan.RetSize, plan.MethodDst, plan.Indirect, ref frame);
+    }
+
+    private static bool ExecuteFrame(IntPtr method, int ret, int size, int methodDst, bool indirect, ref PylonCallFrame frame)
+    {
+        if (indirect && frame.Indirect == IntPtr.Zero)
+            throw new ArgumentException("Generated frame requires an indirect result buffer", nameof(frame));
+        frame.Ret = ret;
+        frame.RetSize = size;
+        frame.Method = method;
+        frame.Exc = IntPtr.Zero;
+        fixed (PylonCallFrame* p = &frame)
+        {
+            p->X[methodDst] = (long)method;
+            IntPtr fn = *(IntPtr*)method;
+            if (fn == IntPtr.Zero) throw new InvalidOperationException("直调:methodPointer 为空");
+            if (NativeCall(fn, p) == 0 && p->Exc == IntPtr.Zero)
+                throw new InvalidOperationException("直调失败:" + (Marshal.PtrToStringUTF8(NativeError()) ?? "未知错误"));
+        }
+        return true;
+    }
+
+    private static int GetFrameShape(MethodPlan? plan)
+    {
+        if (plan == null || plan.SelfDst != -1) return 0;
+        var args = plan.Args;
+        if (!plan.Indirect && plan.RetKind == (int)PylonRetKind.Int && plan.RetSize == 4 && plan.MethodDst == 0 &&
+            args.Length == 1 && args[0].Kind == 3 && args[0].Dst == 0) return 4;
+        if (plan.RetKind == (int)PylonRetKind.F32 && plan.RetSize == 4 && plan.MethodDst == 0)
+        {
+            if (args.Length == 3 && args[0].Kind == 2 && args[0].Dst == 0 &&
+                args[1].Kind == 2 && args[1].Dst == 1 && args[2].Kind == 2 && args[2].Dst == 2) return 1;
+            if (args.Length == 2 && args[0].Kind == 4 && args[0].Dst == 0 && args[0].Size == 8 && args[0].Count == 2 &&
+                args[1].Kind == 4 && args[1].Dst == 2 && args[1].Size == 8 && args[1].Count == 2) return 2;
+        }
+        if (plan.Indirect && plan.RetKind == (int)PylonRetKind.Indirect && plan.RetSize == 64 && plan.MethodDst == 2 &&
+            args.Length == 2 && args[0].Kind == 0 && args[0].Dst == 0 && args[0].Count == 1 && args[0].Size == 64 &&
+            args[1].Kind == 0 && args[1].Dst == 1 && args[1].Count == 1 && args[1].Size == 64) return 3;
+        return 0;
     }
 
     private unsafe delegate void ArgumentPacker(PylonCallFrame* frame, IntPtr method, IntPtr self, IntPtr args);
@@ -494,7 +626,7 @@ public static unsafe partial class GuardedInvoke
             return new ArgOp { Kind = 4, Count = (byte)leaves, Size = size };
 
         if (align > 8) return null;
-        if (size > 16) return new ArgOp { Kind = 0, Count = 1 }; // 按引用拷（args[i] 是地址）
+        if (size > 16) return new ArgOp { Kind = 0, Count = 1, Size = size }; // 按引用拷（args[i] 是地址）
         return new ArgOp { Kind = 5, Size = size };
     }
 

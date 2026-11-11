@@ -21,11 +21,21 @@ using Mono.Cecil.Cil;
 using Mono.Cecil.Rocks;
 
 namespace Il2CppInterop.RuntimeDetour.HookGen;
+/// <summary>Null filter emits the full API; a filter emits an explicitly selected profile.</summary>
+public sealed class HookGenOptions
+{
+    /// <summary>Receives the original proxy method, before any On types are emitted.</summary>
+    public Func<MethodDefinition, bool>? MethodFilter { get; set; }
+}
+
 public sealed class HookGenResult
 {
     public int Types { get; set; }
     public int Hooks { get; set; }
+    public int CandidateHooks { get; set; }
+    public int SkippedByFilter { get; set; }
     public string OutputPath { get; set; } = string.Empty;
+    public IReadOnlyList<string> Diagnostics { get; set; } = Array.Empty<string>();
 }
 
 public static partial class OnHookGenerator
@@ -34,7 +44,10 @@ public static partial class OnHookGenerator
     ///     Adds On.* to the proxy assembly in place and returns statistics. runtimeDetourPath is the
     ///     Il2CppInterop.RuntimeDetour.dll this deployment will load (used to generate exactly matching assembly references).
     /// </summary>
-    public static HookGenResult Generate(string assemblyPath, string runtimeDetourPath)
+    public static HookGenResult Generate(string assemblyPath, string runtimeDetourPath) =>
+        Generate(assemblyPath, runtimeDetourPath, null);
+
+    public static HookGenResult Generate(string assemblyPath, string runtimeDetourPath, HookGenOptions? options)
     {
         if (!File.Exists(assemblyPath)) throw new FileNotFoundException("Proxy assembly not found", assemblyPath);
         if (!File.Exists(runtimeDetourPath)) throw new FileNotFoundException("RuntimeDetour assembly not found", runtimeDetourPath);
@@ -53,7 +66,7 @@ public static partial class OnHookGenerator
         foreach (var type in assembly.MainModule.GetTypeReferences())
             if (type.Namespace == "Il2CppInterop.RuntimeDetour") type.Scope = detourRef;
 
-        var generator = new Generator(assembly.MainModule, detourRef, Path.GetFullPath(runtimeDetourPath));
+        var generator = new Generator(assembly.MainModule, detourRef, Path.GetFullPath(runtimeDetourPath), options);
         var result = generator.Run();
         result.OutputPath = assemblyPath;
 
@@ -85,14 +98,20 @@ public static partial class OnHookGenerator
         private readonly MethodReference _bindOnce;
         private readonly MethodReference _bindCompact;
         private readonly MethodReference _bindWithArgs;
+        private readonly MethodReference? _bindGenericOnce;
+        private readonly List<string> _diagnostics = new();
         private readonly MethodReference _add;
         private readonly MethodReference _remove;
 
         private int _hookCount;
         private int _typeCount;
+        private int _candidateHooks;
+        private int _skippedByFilter;
+        private readonly Func<MethodDefinition, bool>? _methodFilter;
 
-        internal Generator(ModuleDefinition module, AssemblyNameReference detourRef, string runtimeDetourPath)
+        internal Generator(ModuleDefinition module, AssemblyNameReference detourRef, string runtimeDetourPath, HookGenOptions? options = null)
         {
+            _methodFilter = options?.MethodFilter;
             _module = module;
             _detourRef = detourRef;
 
@@ -131,7 +150,7 @@ public static partial class OnHookGenerator
             // HookEndpoint and its methods: imported from the real RuntimeDetour assembly -
             // hand-written TypeReference/MethodReference scopes and signatures are easy to mismatch,
             // and would make the JIT fail with "Could not load type X from assembly" (scope landing on self).
-            var detourAssemblyResolved = AssemblyDefinition.ReadAssembly(Path.GetFullPath(runtimeDetourPath));
+            using var detourAssemblyResolved = AssemblyDefinition.ReadAssembly(Path.GetFullPath(runtimeDetourPath));
             var hookEndpointDef = detourAssemblyResolved.MainModule.Types
                 .FirstOrDefault(t => t.FullName == "Il2CppInterop.RuntimeDetour.HookEndpoint");
             if (hookEndpointDef == null)
@@ -140,16 +159,20 @@ public static partial class OnHookGenerator
             // Cecil 可能把导入类型的 scope 落成 ModuleDefinition（运行时就会去代理程序集里找
             // HookEndpoint → TypeLoadException）。显式绑到 RuntimeDetour 的 AssemblyRef。
             _endpointType.Scope = _detourRef;
-            _bindOnce = _module.ImportReference(hookEndpointDef.Methods.First(m => m.Name == "BindOnce"));
+            _bindOnce = _module.ImportReference(hookEndpointDef.Methods.First(m => m.Name == "BindOnce" &&
+                m.Parameters.Count == 6 && m.Parameters[3].ParameterType is ArrayType));
             _bindCompact = _module.ImportReference(hookEndpointDef.Methods.First(
                 m => m.Name == "BindOnce" && m.Parameters.Count == 6 && m.Parameters[3].ParameterType.Name == "Int32"));
             _bindWithArgs = _module.ImportReference(
                 hookEndpointDef.Methods.First(m => m.Name == "BindOnce" && m.Parameters.Count == 7));
+            var genericBind = hookEndpointDef.Methods.FirstOrDefault(m => m.Name == "BindGenericOnce" && m.Parameters.Count == 8);
+            _bindGenericOnce = genericBind == null ? null : _module.ImportReference(genericBind);
             _add = _module.ImportReference(hookEndpointDef.Methods.First(m => m.Name == "Add"));
             _remove = _module.ImportReference(hookEndpointDef.Methods.First(m => m.Name == "Remove"));
 
-            foreach (var method in new[] { _bindOnce, _bindCompact, _bindWithArgs, _add, _remove })
+            foreach (var method in new[] { _bindOnce, _bindCompact, _bindWithArgs, _bindGenericOnce, _add, _remove })
             {
+                if (method == null) continue;
                 if (method.DeclaringType is not null)
                 {
                     method.DeclaringType.Scope = _detourRef;
@@ -213,7 +236,8 @@ public static partial class OnHookGenerator
                 TypeAttributes.Public | TypeAttributes.Abstract | TypeAttributes.Sealed | TypeAttributes.BeforeFieldInit,
                 _objectType));
 
-            return new HookGenResult { Types = _typeCount, Hooks = _hookCount };
+            return new HookGenResult { Types = _typeCount, Hooks = _hookCount, CandidateHooks = _candidateHooks,
+                SkippedByFilter = _skippedByFilter, Diagnostics = _diagnostics.ToArray() };
         }
 
         /// <summary>

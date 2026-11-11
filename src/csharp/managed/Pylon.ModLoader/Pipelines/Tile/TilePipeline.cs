@@ -149,25 +149,24 @@ internal sealed class TilePipeline : ILoaderModule
     private static bool _removingMulti;
 
     /// <summary><c>CanKillTile(int, int, out bool)</c> 是镐子/公开调用走的那条重载；前两条接不到它。</summary>
-    private bool CanKillOut(On.Terraria.WorldGen.orig_CanKillTile_int_int_boolRef orig, int i, int j, ref bool blockDamaged)
+    private bool CanKillOut(On.Terraria.WorldGen.orig_CanKillTile_int_int_boolRef orig, int i, int j, out bool blockDamaged)
     {
         var tile = TileTable.At(i, j);
         if (tile is null || !tile.HookEnabled(HookId.CanKillTile))
-            return orig(i, j, ref blockDamaged);
+            return orig(i, j, out blockDamaged);
 
         var damaged = false;
         try
         {
             var allowed = tile.CanKillTile(i, j, ref damaged);
-            var originalDamaged = false;
-            var result = orig(i, j, ref originalDamaged);
+            var result = orig(i, j, out var originalDamaged);
             blockDamaged = damaged || originalDamaged;
             return allowed && result;
         }
         catch (Exception e)
         {
             Fail(tile, HookId.CanKillTile, e);
-            return orig(i, j, ref blockDamaged);
+            return orig(i, j, out blockDamaged);
         }
     }
 

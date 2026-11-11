@@ -92,6 +92,8 @@ public class RuntimeAssemblyReferences
     public TypeSignature DelegateSupport { get; private set; }
     public TypeSignature Il2CppException { get; private set; }
     public TypeSignature GuardedInvoke { get; private set; }
+    public TypeSignature PylonCallFrame { get; private set; }
+    public TypeSignature FrameMethodPlan { get; private set; }
 #nullable enable
     private TypeSignature ResolveType(string typeName)
     {
@@ -145,6 +147,8 @@ public class RuntimeAssemblyReferences
         Il2CppException = new TypeReference(Module, assemblyRef, "Il2CppInterop.Runtime", "Il2CppException").ToTypeSignature();
 
         GuardedInvoke = new TypeReference(Module, assemblyRef, "Il2CppInterop.Runtime", "GuardedInvoke").ToTypeSignature();
+        PylonCallFrame = new TypeReference(Module, assemblyRef, "Il2CppInterop.Runtime", "PylonCallFrame").ToTypeSignature(true);
+        FrameMethodPlan = new TypeReference(Module, assemblyRef, "Il2CppInterop.Runtime", "FrameMethodPlan").ToTypeSignature();
 
         allTypes["Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase"] = Il2CppObjectBase;
         allTypes["Il2CppInterop.Runtime.Runtime.Il2CppObjectPool"] = Il2CppObjectPool;
@@ -342,6 +346,11 @@ public class RuntimeAssemblyReferences
                 ResolveType("Il2CppInterop.Runtime.IL2CPP").ToTypeDefOrRef(), ResolveType("System.IntPtr"), ResolveType("System.IntPtr"), ResolveType("System.Void**"), ResolveType("System.IntPtr&"));
             return mr;
         });
+
+        GuardedInvoke_TryInvokeFrame = new Lazy<IMethodDefOrRef>(() =>
+            ReferenceCreator.CreateStaticMethodReference("TryInvokeFrameCached", ResolveType("System.Boolean"),
+                GuardedInvoke.ToTypeDefOrRef(), ResolveType("System.IntPtr"), ResolveType("System.Int32"),
+                FrameMethodPlan.MakeByReferenceType(), PylonCallFrame.MakeByReferenceType()));
 
         GuardedInvoke_Invoke = new Lazy<IMethodDefOrRef>(() =>
         {

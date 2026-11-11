@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Reflection;
-using System.Threading;
 
 namespace Il2CppInterop.RuntimeDetour;
 
@@ -10,12 +9,10 @@ namespace Il2CppInterop.RuntimeDetour;
 ///     A synthetic <see cref="MethodInfo"/> that forwards to a real <see cref="ConstructorInfo"/>.
 ///     The hook engine is MethodInfo-shaped end to end (handler validation, stub emission, plan
 ///     caching); instead of duplicating every branch, a constructor target is presented as an
-///     instance method named ".ctor" whose only parameter is the self object.
+///     instance method named ".ctor" with its original parameters (self is implicit).
 /// </summary>
 internal sealed class ConstructorTarget : MethodInfo
 {
-    private static readonly ConstructorInfo[] s_empty = Array.Empty<ConstructorInfo>();
-    private static ConstructorInfo[]? s_wrapped;   // mirrors GetConstructors() of the cache below
     private static readonly object s_gate = new();
 
     private static readonly Dictionary<ConstructorInfo, ConstructorTarget> s_cache = new();
@@ -26,7 +23,7 @@ internal sealed class ConstructorTarget : MethodInfo
     private ConstructorTarget(ConstructorInfo constructor)
     {
         _constructor = constructor;
-        _parameters = new ParameterInfo[] { new SelfParameter(constructor.DeclaringType!) };
+        _parameters = constructor.GetParameters();
     }
 
     /// <summary>Wraps a constructor (one synthetic instance per real constructor, cached).</summary>
@@ -59,7 +56,11 @@ internal sealed class ConstructorTarget : MethodInfo
     public override Type DeclaringType => _constructor.DeclaringType!;
     public override Type ReflectedType => _constructor.ReflectedType ?? _constructor.DeclaringType!;
     public override RuntimeMethodHandle MethodHandle => _constructor.MethodHandle;
-    public override MethodAttributes Attributes => MethodAttributes.Public | MethodAttributes.HideBySig;
+    public override MethodAttributes Attributes => _constructor.Attributes;
+    public override bool ContainsGenericParameters => _constructor.ContainsGenericParameters;
+    public override bool IsGenericMethod => false;
+    public override bool IsGenericMethodDefinition => false;
+    public override Type[] GetGenericArguments() => Type.EmptyTypes;
     public override MemberTypes MemberType => MemberTypes.Method;
     public override ICustomAttributeProvider ReturnTypeCustomAttributes => EmptyProvider.Instance;
 
@@ -83,24 +84,6 @@ internal sealed class ConstructorTarget : MethodInfo
     /// <summary>Invoking the synthetic method allocates the il2cpp object through the real constructor.</summary>
     public override object? Invoke(object? obj, BindingFlags invokeAttr, Binder? binder, object?[]? parameters, CultureInfo? culture) =>
         _constructor.Invoke(obj, invokeAttr, binder, parameters, culture);
-
-    // ---------------- the single synthetic "self" parameter ----------------
-
-    private sealed class SelfParameter : ParameterInfo
-    {
-        private readonly Type _selfType;
-
-        public SelfParameter(Type selfType) => _selfType = selfType;
-
-        public override string Name => "self";
-        public override Type ParameterType => _selfType;
-        public override int Position => 0;
-        public override ParameterAttributes Attributes => ParameterAttributes.None;
-        public override MemberInfo Member => _selfType;
-        public override bool IsDefined(Type attributeType, bool inherit) => false;
-        public override object[] GetCustomAttributes(bool inherit) => Array.Empty<object>();
-        public override object[] GetCustomAttributes(Type attributeType, bool inherit) => Array.Empty<object>();
-    }
 
     private sealed class EmptyProvider : ICustomAttributeProvider
     {

@@ -239,8 +239,9 @@ internal sealed class ItemSync
     /// <summary>原版物品包处理完之后贴附属数据：那时槽里的物品才换成新的那件。</summary>
     private void ProcessData(On.Terraria.MessageBuffer.orig_ProcessData orig, MessageBuffer self,
                              Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<byte> messageData,
-                             int length, ref int messageType)
+                             int length, out int messageType)
     {
+        messageType = 0;
         if (NetReceiveHooks.Hijack(self, ref messageData, ref length, ref messageType)) return;
 
         var packet = -1;
@@ -267,7 +268,7 @@ internal sealed class ItemSync
 
         var envelope = packet < 0 ? null : Take(Main.netMode == 1 ? 256 : self.whoAmI, packet, index, slot);
 
-        orig(self, messageData, length, ref messageType);
+        orig(self, messageData, length, out messageType);
 
         if (envelope is null) return;
 

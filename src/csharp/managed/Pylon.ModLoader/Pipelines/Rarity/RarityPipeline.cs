@@ -51,7 +51,7 @@ internal sealed class RarityPipeline : ILoaderModule
 
     /// <summary>前缀挂上之后改稀有度：档位由原版的战力倍率折算，结果 clamp 到合法范围。</summary>
     private static bool Prefixed(On.Terraria.Item.orig_Prefix_int_boolRef orig, Item self, int prefixWeWant,
-                                 ref bool rolledPrefixIsTopTier)
+                                 out bool rolledPrefixIsTopTier)
     {
         var baseRare = 0;
         try
@@ -63,7 +63,7 @@ internal sealed class RarityPipeline : ILoaderModule
             Safe.Report("rarity.prefix.read", e);
         }
 
-        var applied = orig(self, prefixWeWant, ref rolledPrefixIsTopTier);
+        var applied = orig(self, prefixWeWant, out rolledPrefixIsTopTier);
         if (!applied || prefixWeWant == -3) return applied;
 
         var rarity = RarityTable.Of(baseRare);

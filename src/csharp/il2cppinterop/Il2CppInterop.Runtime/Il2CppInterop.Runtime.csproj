@@ -15,8 +15,10 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
-  <ItemGroup>
-  </ItemGroup>
+  <!-- Explicit test build only; production proxies have no diagnostic mode branches. -->
+  <PropertyGroup Condition="'$(PylonFrameDiagnostics)' == 'true'">
+    <DefineConstants>$(DefineConstants);PYLON_FRAME_DIAGNOSTICS</DefineConstants>
+  </PropertyGroup>
 
   <ItemGroup>
     <Reference Include="Il2Cppmscorlib">

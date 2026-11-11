@@ -18,6 +18,8 @@
     <ProjectReference Include="..\Il2CppInterop.Generator\Il2CppInterop.Generator.csproj"/>
     <ProjectReference Include="..\Il2CppInterop.StructGenerator\Il2CppInterop.StructGenerator.csproj"/>
     <ProjectReference Include="..\Il2CppInterop.RuntimeDetour.HookGen\Il2CppInterop.RuntimeDetour.HookGen.csproj"/>
+    <!-- Keep the CLI default runtime-detour payload current; HookGen itself remains Cecil-only. -->
+    <ProjectReference Include="..\Il2CppInterop.RuntimeDetour\Il2CppInterop.RuntimeDetour.csproj"/>
   </ItemGroup>
 
   <ItemGroup>

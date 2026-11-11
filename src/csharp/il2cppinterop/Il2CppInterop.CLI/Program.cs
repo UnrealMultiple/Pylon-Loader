@@ -54,6 +54,7 @@ var hookgenCommand = new Command("hookgen")
     new Option<DirectoryInfo>("--input", "Directory with generated proxy assemblies") {IsRequired = true}.ExistingOnly(),
     new Option<string>("--assembly", () => "Assembly-CSharp.dll", "Proxy assembly to add On.* hooks to"),
     new Option<FileInfo>("--runtime-detour", "Il2CppInterop.RuntimeDetour.dll that the game will load"),
+    new Option<FileInfo>("--profile", "Optional UTF-8 allowlist of exact Cecil method FullName values; absent means Full mode").ExistingOnly(),
 };
 hookgenCommand.Description = "Add strongly typed On.* hook events (emitted as IL) into generated proxy assemblies";
 hookgenCommand.Handler = CommandHandler.Create((HookGenCommandOptions opts) =>
@@ -61,8 +62,25 @@ hookgenCommand.Handler = CommandHandler.Create((HookGenCommandOptions opts) =>
     var assembly = Path.Combine(opts.Input.FullName, opts.Assembly);
     var detour = opts.RuntimeDetour?.FullName
                  ?? Path.Combine(AppContext.BaseDirectory, "Il2CppInterop.RuntimeDetour.dll");
-    var result = OnHookGenerator.Generate(assembly, detour);
-    Console.WriteLine($"{result.Types} types / {result.Hooks} On.* hooks → {assembly}");
+    HashSet<string>? profile = opts.Profile is null ? null : File.ReadLines(opts.Profile.FullName)
+        .Select(line => line.Trim()).Where(line => line.Length != 0 && !line.StartsWith('#'))
+        .ToHashSet(StringComparer.Ordinal);
+    var unmatched = profile is null ? null : new HashSet<string>(profile, StringComparer.Ordinal);
+    var options = profile is null ? null : new HookGenOptions
+    {
+        MethodFilter = method =>
+        {
+            if (!profile.Contains(method.FullName)) return false;
+            unmatched!.Remove(method.FullName);
+            return true;
+        }
+    };
+    var result = OnHookGenerator.Generate(assembly, detour, options);
+    Console.WriteLine($"{result.Types} types / {result.Hooks} On.* hooks / {result.SkippedByFilter} filtered → {assembly}");
+    foreach (var diagnostic in result.Diagnostics) Console.Error.WriteLine("hookgen: " + diagnostic);
+    if (unmatched is not null)
+        foreach (var signature in unmatched.OrderBy(s => s, StringComparer.Ordinal))
+            Console.Error.WriteLine("hookgen: profile entry not matched: " + signature);
 });
 
 var deobfCommand = new Command("deobf");
@@ -135,7 +153,6 @@ eventsCommand.Handler = CommandHandler.Create((EventsCommandOptions opts) =>
     {
         if (type.Namespace != "On" && !type.Namespace.StartsWith("On.", StringComparison.Ordinal)) continue;
         CollectEvents(type, type.FullName, lines);
-        foreach (var nested in type.NestedTypes) CollectEvents(nested, type.FullName + "." + nested.Name, lines);
     }
     lines.Sort(StringComparer.Ordinal);
 
@@ -185,6 +202,9 @@ static void CollectEvents(Mono.Cecil.TypeDefinition type, string path, List<stri
             : string.Join(", ", invoke.Parameters.Select(p => DescribeType(p.ParameterType)));
         lines.Add($"delegate {path}.{nested.Name} : {(invoke == null ? "?" : DescribeType(invoke.ReturnType))} ({parameters})");
     }
+    foreach (var nested in type.NestedTypes)
+        if (nested.BaseType?.FullName != "System.MulticastDelegate")
+            CollectEvents(nested, path + "." + nested.Name, lines);
 }
 
 var wrapperCommand = new Command("wrapper-gen")
@@ -213,7 +233,7 @@ command.Add(wrapperCommand);
 return command.Invoke(args);
 
 
-internal record HookGenCommandOptions(DirectoryInfo Input, string Assembly, FileInfo? RuntimeDetour);
+internal record HookGenCommandOptions(DirectoryInfo Input, string Assembly, FileInfo? RuntimeDetour, FileInfo? Profile);
 
 internal record EventsCommandOptions(DirectoryInfo Input, string Assembly, FileInfo? Output);
 

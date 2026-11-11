@@ -114,15 +114,15 @@ internal sealed class BunnySuite
         return Terraria.Main.player[Terraria.Main.myPlayer] ?? throw new NotSupportedException("local player unavailable");
     }
     private static long Empty(int n) { long sum = 0; for (int i = 0; i < n; ++i) sum += i; return sum; }
-    private static long Clamp(int n) { float sum = 0; for (int i = 0; i < n; ++i) sum += Xna.MathHelper.Clamp(i * .5f, 0, 10); return (long)sum; }
-    private static long Distance(int n) { Xna.Vector2 a = new(1, 2), b = new(4, 6); float sum = 0; for (int i = 0; i < n; ++i) sum += Xna.Vector2.Distance(a, b); return (long)sum; }
-    private static long Matrix(int n)
+    internal static long Clamp(int n) { float sum = 0; for (int i = 0; i < n; ++i) sum += Xna.MathHelper.Clamp(i * .5f, 0, 10); return (long)sum; }
+    internal static long Distance(int n) { Xna.Vector2 a = new(1, 2), b = new(4, 6); float sum = 0; for (int i = 0; i < n; ++i) sum += Xna.Vector2.Distance(a, b); return (long)sum; }
+    internal static long Matrix(int n)
     {
         float sum = 0;
         for (int i = 0; i < n; ++i) sum += Xna.Matrix.Add(_matrixA, _matrixB).M11;
         return (long)sum;
     }
-    private static void CheckMatrix()
+    internal static void CheckMatrix()
     {
         _matrixA = Xna.Matrix.CreateScale(2f);
         _matrixB = Xna.Matrix.CreateScale(3f);

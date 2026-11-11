@@ -128,9 +128,9 @@ internal sealed class RecipePipeline : ILoaderModule
     #region 配方组
 
     private bool GroupText(On.Terraria.Recipe.orig_ProcessGroupsForText orig, Recipe self, int type,
-                           ref string theText)
+                           out string theText)
     {
-        var handled = orig(self, type, ref theText);
+        var handled = orig(self, type, out theText);
         if (handled) return true;
 
         var name = RecipeTable.NameOfGroup(type);

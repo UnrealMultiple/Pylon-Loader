@@ -20,6 +20,7 @@ internal static unsafe class Program
         Check(Marshal.OffsetOf<PylonCallFrame>(nameof(PylonCallFrame.Exc)).ToInt32() == 248, "exception frame offset");
         PackTest();
         FallbackTests();
+        FrameShapeTests();
         Console.WriteLine($"ALL {checks} CHECKS PASSED");
     }
 
@@ -71,6 +72,91 @@ internal static unsafe class Program
         packer!.DynamicInvoke(Pointer.Box(&specialized, typeof(PylonCallFrame*)), (IntPtr)0x5678, (IntPtr)0x1234, (IntPtr)args);
         Check(new ReadOnlySpan<byte>(&specialized, sizeof(PylonCallFrame)).SequenceEqual(
             new ReadOnlySpan<byte>(&frame, sizeof(PylonCallFrame))), "specialized packer matches all frame bytes");
+    }
+
+    private static void FrameShapeTests()
+    {
+        var owner = typeof(GuardedInvoke);
+        var planType = owner.GetNestedType("MethodPlan", BindingFlags.NonPublic)!;
+        var opType = owner.GetNestedType("ArgOp", BindingFlags.NonPublic)!;
+        var classify = owner.GetMethod("GetFrameShape", PrivateStatic)!;
+        object plan = Activator.CreateInstance(planType, true)!;
+        void Field(string name, object value) => planType.GetField(name)!.SetValue(plan, value);
+        void Args(params (byte kind, byte dst, byte count, int size)[] values)
+        {
+            Array ops = Array.CreateInstance(opType, values.Length);
+            for (int i = 0; i < values.Length; i++)
+            {
+                object op = Activator.CreateInstance(opType)!;
+                opType.GetField("Kind")!.SetValue(op, values[i].kind);
+                opType.GetField("Dst")!.SetValue(op, values[i].dst);
+                opType.GetField("Count")!.SetValue(op, values[i].count);
+                opType.GetField("Size")!.SetValue(op, values[i].size);
+                ops.SetValue(op, i);
+            }
+            Field("Args", ops);
+        }
+        int Shape() => (int)classify.Invoke(null, [plan])!;
+        Field("MethodDst", 0); Field("RetKind", (int)PylonRetKind.F32); Field("RetSize", 4);
+        Args((2, 0, 1, 0), (2, 1, 1, 0), (2, 2, 1, 0));
+        Check(Shape() == 1, "frame pilot scalar shape validated");
+        Field("SelfDst", 0);
+        Check(Shape() == 0, "frame pilot rejects instance ABI");
+        Field("SelfDst", -1);
+        Args((4, 0, 2, 8), (4, 2, 2, 8));
+        Check(Shape() == 2, "frame pilot HFA2 shape validated");
+        Args((4, 0, 2, 16), (4, 2, 2, 16));
+        Check(Shape() == 0, "frame pilot rejects double HFA");
+        Field("MethodDst", 2); Field("RetKind", (int)PylonRetKind.Indirect); Field("RetSize", 64); Field("Indirect", true);
+        Args((0, 0, 1, 64), (0, 1, 1, 64));
+        Check(Shape() == 3, "frame pilot Matrix shape validated");
+        Args((0, 0, 1, 0), (0, 1, 1, 0));
+        Check(Shape() == 0, "frame pilot rejects reference args disguised as Matrix");
+        PylonCallFrame frame = default;
+        frame.X[0] = 123;
+        Check(!GuardedInvoke.TryInvokeFrame(IntPtr.Zero, 1, ref frame) && frame.X[0] == 123,
+            "frame pilot null method returns untouched without native call");
+        Check(!GuardedInvoke.TryInvokeFrame((IntPtr)1, 99, ref frame), "frame pilot rejects unknown version/shape");
+        Check(!GuardedInvoke.TryInvokeFrame((IntPtr)1, 1, ref frame), "frame pilot unsupported plan falls back without native call");
+        Field("Indirect", false); Field("MethodDst", 0); Field("RetKind", (int)PylonRetKind.Int); Field("RetSize", 4);
+        Args((3, 0, 1, 0));
+        Check(Shape() == 4, "frame Sign exception-test ABI validated");
+        FrameMethodPlan? certificate = null;
+        Check(!GuardedInvoke.TryInvokeFrameCached(IntPtr.Zero, 1, ref certificate, ref frame) && certificate == null && frame.X[0] == 123,
+            "cached frame rejects null method untouched");
+        Check(!GuardedInvoke.TryInvokeFrameCached((IntPtr)1, 99, ref certificate, ref frame) && certificate == null,
+            "cached frame rejects unknown ABI shape without minting certificate");
+        Check(!GuardedInvoke.TryInvokeFrameCached((IntPtr)1, 1, ref certificate, ref frame) && certificate == null,
+            "cached frame rejects unsupported metadata without minting certificate");
+        Check(typeof(FrameMethodPlan).GetConstructors().Length == 0 && typeof(FrameMethodPlan).IsSealed,
+            "frame certificate cannot be constructed or inherited by generated callers");
+        certificate = new FrameMethodPlan((IntPtr)1, 2, 1, 4, 0, false);
+        var previous = certificate;
+        Check(!GuardedInvoke.TryInvokeFrameCached((IntPtr)1, 1, ref certificate, ref frame) && ReferenceEquals(previous, certificate),
+            "cached frame revalidates shape instead of accepting foreign certificate");
+        certificate = new FrameMethodPlan((IntPtr)2, 1, 1, 4, 0, false);
+        previous = certificate;
+        Check(!GuardedInvoke.TryInvokeFrameCached((IntPtr)1, 1, ref certificate, ref frame) && ReferenceEquals(previous, certificate),
+            "cached frame revalidates changed MethodInfo instead of retaining stale target");
+        IntPtr* slot = stackalloc IntPtr[1];
+        slot[0] = IntPtr.Zero;
+        certificate = new FrameMethodPlan((IntPtr)slot, 1, 1, 4, 0, false);
+        bool nullTarget = false;
+        try { GuardedInvoke.TryInvokeFrameCached((IntPtr)slot, 1, ref certificate, ref frame); }
+        catch (InvalidOperationException e) when (e.Message.Contains("methodPointer")) { nullTarget = true; }
+        Check(nullTarget, "cached certificate still reads and rejects null methodPointer");
+        certificate = new FrameMethodPlan((IntPtr)slot, 3, 12, 64, 2, true);
+        bool missingBuffer = false;
+        try { GuardedInvoke.TryInvokeFrameCached((IntPtr)slot, 3, ref certificate, ref frame); }
+        catch (ArgumentException) { missingBuffer = true; }
+        Check(missingBuffer, "cached certificate still requires indirect result buffer");
+        Check(!GuardedInvoke.FrameDiagnosticsAvailable, "default build has no diagnostic route switching");
+        bool rejectedSwitch = false;
+        try { GuardedInvoke.FramePlanCacheEnabled = false; } catch (NotSupportedException) { rejectedSwitch = true; }
+        Check(rejectedSwitch && GuardedInvoke.FramePlanCacheEnabled, "production cache cannot be disabled by legacy diagnostics");
+        rejectedSwitch = false;
+        try { GuardedInvoke.FramePilotEnabled = false; } catch (NotSupportedException) { rejectedSwitch = true; }
+        Check(rejectedSwitch && GuardedInvoke.FramePilotEnabled, "production frame route cannot silently become a fake A/B baseline");
     }
 
     private static void FallbackTests()

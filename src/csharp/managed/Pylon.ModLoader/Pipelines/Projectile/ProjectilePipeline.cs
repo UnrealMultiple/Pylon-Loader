@@ -453,9 +453,9 @@ internal sealed class ProjectilePipeline : ILoaderModule
 
     /// <summary>GetCollisionParams 每帧被调多次：只把 TileCollideStyle 的决定喂回去，不再问作者。</summary>
     private void CollisionParams(On.Terraria.Projectile.orig_GetCollisionParams orig, Projectile self,
-                                 ref Vector2 resizeAnchor, ref int colWidth, ref int colHeight)
+                                 out Vector2 resizeAnchor, out int colWidth, out int colHeight)
     {
-        orig(self, ref resizeAnchor, ref colWidth, ref colHeight);
+        orig(self, out resizeAnchor, out colWidth, out colHeight);
 
         if (_moveDepth == 0) return;
 
@@ -1047,10 +1047,10 @@ internal sealed class ProjectilePipeline : ILoaderModule
 
     /// <summary>挂住后把玩家拉过去：目标点是所有已挂住的钩爪中心，第一个钩爪的收绳速度决定快慢。</summary>
     private void GrapplingForces(On.Terraria.Player.orig_GetGrapplingForces orig, Player self, Vector2 fromPosition,
-                                 ref Il2CppSystem.Nullable<int> preferredDirection,
-                                 ref float velocityX, ref float velocityY)
+                                 out Il2CppSystem.Nullable<int> preferredDirection,
+                                 out float velocityX, out float velocityY)
     {
-        orig(self, fromPosition, ref preferredDirection, ref velocityX, ref velocityY);
+        orig(self, fromPosition, out preferredDirection, out velocityX, out velocityY);
 
         if (!WantsGrapplePull()) return;
 

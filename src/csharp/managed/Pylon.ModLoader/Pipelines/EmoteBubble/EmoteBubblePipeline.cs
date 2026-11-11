@@ -760,10 +760,10 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
 
     /// <summary>游戏算完位置后让作者挪一挪；只对锚在 mod NPC 上的泡泡派发。</summary>
     private static Vector2 GetPosition(On.Terraria.GameContent.UI.EmoteBubble.orig_GetPosition orig,
-                                       EmoteBubble self, ref SpriteEffects effect)
+                                       EmoteBubble self, out SpriteEffects effect)
     {
         // interop 代理把 out 参数生成成 ref：原值先拿，作者层再覆写。
-        var position = orig(self, ref effect);
+        var position = orig(self, out effect);
 
         var npc = AnchoredNpc(self);
         if (npc is null) return position;

@@ -87,6 +87,9 @@ public static class Pass50GenerateMethods
                         }
                     }
 
+                    if (directInvoke && CanDirect(originalMethod))
+                        EmitFramePilot(methodRewriteContext, valueTypeLocal);
+
                     if (originalMethod.Parameters.Count == 0)
                     {
                         bodyBuilder.Add(OpCodes.Ldc_I4_0);
@@ -337,6 +340,105 @@ public static class Pass50GenerateMethods
                 }
             }
         }
+    }
+
+    // Narrow ABI-v1 pilot. All byte offsets match the versioned PylonCallFrame contract.
+    private static void EmitFramePilot(MethodRewriteContext context, CilLocalVariable result)
+    {
+        var original = context.OriginalMethod;
+        var method = context.NewMethod;
+        var imports = context.DeclaringType.AssemblyContext.Imports;
+        if (!original.IsStatic || original.GenericParameters.Count != 0 ||
+            original.DeclaringType!.DeclaringModule!.Assembly!.Name != "Assembly-CSharp") return;
+        string owner = original.DeclaringType.FullName;
+        string name = original.Name!;
+        var parameters = original.Parameters;
+        int shape = owner == "Microsoft.Xna.Framework.MathHelper" && name == "Clamp" && parameters.Count == 3 &&
+            parameters.All(p => p.ParameterType.FullName == "System.Single") && original.Signature!.ReturnType.FullName == "System.Single" ? 1 :
+            owner == "Microsoft.Xna.Framework.Vector2" && name == "Distance" && parameters.Count == 2 &&
+            parameters.All(p => p.ParameterType.FullName == owner) && original.Signature!.ReturnType.FullName == "System.Single" ? 2 :
+            owner == "Microsoft.Xna.Framework.Matrix" && name == "Add" && parameters.Count == 2 &&
+            parameters.All(p => p.ParameterType.FullName == owner) && original.Signature!.ReturnType.FullName == owner ? 3 : 0;
+        if (shape == 0) return;
+        if (shape != 1 && context.DeclaringType.ComputedTypeSpecifics != TypeRewriteContext.TypeSpecifics.BlittableStruct) return;
+        var certificate = new FieldDefinition("PylonFramePlan_" + context.UnmangledNameWithSignature,
+            AsmResolver.PE.DotNet.Metadata.Tables.FieldAttributes.Private | AsmResolver.PE.DotNet.Metadata.Tables.FieldAttributes.Static,
+            imports.FrameMethodPlan);
+        context.DeclaringType.NewType.Fields.Add(certificate);
+        var body = method.CilMethodBody!;
+        var il = body.Instructions;
+        var fallback = new CilInstructionLabel();
+        if (shape != 1)
+        {
+            il.Add(OpCodes.Sizeof, method.Parameters[0].ParameterType.ToTypeDefOrRef());
+            il.Add(OpCodes.Ldc_I4, shape == 2 ? 8 : 64);
+            il.Add(OpCodes.Bne_Un, fallback);
+        }
+        var frame = new CilLocalVariable(imports.PylonCallFrame);
+        body.LocalVariables.Add(frame);
+        il.Add(OpCodes.Ldloca, frame);
+        il.Add(OpCodes.Initobj, imports.PylonCallFrame.ToTypeDefOrRef());
+        void Address(int offset)
+        {
+            il.Add(OpCodes.Ldloca, frame);
+            il.Add(OpCodes.Conv_U);
+            il.Add(OpCodes.Ldc_I4, offset);
+            il.Add(OpCodes.Add);
+        }
+        if (shape == 1)
+        {
+            for (int i = 0; i < 3; i++)
+            {
+                Address(128 + i * 8);
+                il.Add(OpCodes.Ldarg, method.Parameters[i]);
+                il.Add(OpCodes.Stind_R4);
+            }
+        }
+        else if (shape == 2)
+        {
+            for (int i = 0; i < 2; i++)
+                for (int leaf = 0; leaf < 2; leaf++)
+                {
+                    Address(128 + (i * 2 + leaf) * 8);
+                    il.Add(OpCodes.Ldarga, method.Parameters[i]);
+                    il.Add(OpCodes.Conv_U);
+                    il.Add(OpCodes.Ldc_I4, leaf * 4);
+                    il.Add(OpCodes.Add);
+                    il.Add(OpCodes.Ldind_R4);
+                    il.Add(OpCodes.Stind_R4);
+                }
+        }
+        else
+        {
+            for (int i = 0; i < 2; i++)
+            {
+                Address(i * 8);
+                il.Add(OpCodes.Ldarga, method.Parameters[i]);
+                il.Add(OpCodes.Conv_U);
+                il.Add(OpCodes.Stind_I);
+            }
+            Address(192);
+            il.Add(OpCodes.Ldloca, result);
+            il.Add(OpCodes.Conv_U);
+            il.Add(OpCodes.Stind_I);
+        }
+        il.Add(OpCodes.Ldsfld, context.NonGenericMethodInfoPointerField);
+        il.Add(OpCodes.Ldc_I4, shape);
+        il.Add(OpCodes.Ldsflda, certificate);
+        il.Add(OpCodes.Ldloca, frame);
+        il.Add(OpCodes.Call, imports.GuardedInvoke_TryInvokeFrame.Value);
+        il.Add(OpCodes.Brfalse, fallback);
+        Address(248);
+        il.Add(OpCodes.Ldind_I);
+        il.Add(OpCodes.Call, imports.Il2CppException_RaiseExceptionIfNecessary.Value);
+        if (shape == 3) il.Add(OpCodes.Ldloc, result);
+        else
+        {
+            Address(208);
+            il.Add(OpCodes.Ldind_R4);
+        }
+        il.Add(OpCodes.Ret);
+        fallback.Instruction = il.Add(OpCodes.Nop);
     }
 
     /// <summary>直调只接 ABI 形状明确的签名；指针/泛型参数/构造/值类型实例方法等回退旧的 runtime_invoke 生成。</summary>

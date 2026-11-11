@@ -25,18 +25,8 @@ public static partial class OnHookGenerator
         private static bool IsFree(string candidate, HashSet<string> used) =>
             !used.Contains(candidate) && !used.Contains("orig_" + candidate) && !used.Contains("hook_" + candidate);
 
-        private static readonly HashSet<string> Keywords = new(StringComparer.Ordinal)
-        {
-            "abstract","as","base","bool","break","byte","case","catch","char","checked","class","const",
-            "continue","decimal","default","delegate","do","double","else","enum","event","explicit","extern",
-            "false","finally","fixed","float","for","foreach","goto","if","implicit","in","int","interface",
-            "internal","is","lock","long","namespace","new","null","object","operator","out","override","params",
-            "private","protected","public","readonly","ref","return","sbyte","sealed","short","sizeof","stackalloc",
-            "static","string","struct","switch","this","throw","true","try","typeof","uint","ulong","unchecked",
-            "unsafe","ushort","using","virtual","void","volatile","while"
-        };
-
-        private static string Escape(string name) => Keywords.Contains(name) ? "@" + name : name;
+        // Metadata identifiers never contain C#'s source-only @ escape.
+        private static string Escape(string name) => name;
 
         /// <summary>IL primitive names -&gt; C# keyword style segments for overload event names (Single -&gt; float, Int32 -&gt; int ...).</summary>
         private static readonly Dictionary<string, string> PrimitiveSegmentNames = new(StringComparer.Ordinal)
@@ -123,40 +113,43 @@ public static partial class OnHookGenerator
         ///     (used for methods on generic types); everything else is unchanged. When typeArgs is
         ///     null this is the identity map.
         /// </summary>
-        private static TypeReference MapTypeArgs(TypeReference type, List<GenericParameter>? typeArgs)
-        {
-            switch (type)
+        private static TypeReference MapTarget(TypeReference type, IList<GenericParameter> typeArgs,
+            IList<GenericParameter> methodArgs) => MapSignature(type, p =>
             {
-                case GenericParameter gp:
-                    // method-level generic parameters !!i must be lifted to host-class ?i: replaced with the same-named entry in typeArgs
-                    return typeArgs != null && gp.Position < typeArgs.Count ? typeArgs[gp.Position] : gp;
-                case GenericInstanceType gi:
-                    {
-                        var mapped = new GenericInstanceType(gi.ElementType);
-                        foreach (var a in gi.GenericArguments) mapped.GenericArguments.Add(MapTypeArgs(a, typeArgs));
-                        return mapped;
-                    }
-                default:
-                    return type;
-            }
-        }
+                var args = p.Type == GenericParameterType.Method ? methodArgs : typeArgs;
+                return p.Position < args.Count ? args[p.Position] : p;
+            });
 
-        /// <summary>Method-level generic parameter !!i -&gt; host-class generic parameter !i (same position).</summary>
-        private static TypeReference MapMethodGeneric(TypeReference type, List<GenericParameter> args)
+        /// <summary>One recursive visitor for every signature wrapper, preserving modifiers and array bounds.</summary>
+        private static TypeReference MapSignature(TypeReference type, Func<GenericParameter, TypeReference> map)
         {
+            TypeReference Visit(TypeReference t) => MapSignature(t, map);
             switch (type)
             {
-                case GenericParameter gp:
-                    return gp.Type == GenericParameterType.Method && gp.Position < args.Count
-                        ? args[gp.Position] : gp;
-                case GenericInstanceType gi:
-                    {
-                        var mapped = new GenericInstanceType(gi.ElementType);
-                        foreach (var a in gi.GenericArguments) mapped.GenericArguments.Add(MapMethodGeneric(a, args));
-                        return mapped;
-                    }
-                default:
-                    return type;
+                case GenericParameter p: return map(p);
+                case ByReferenceType t: return new ByReferenceType(Visit(t.ElementType));
+                case PointerType t: return new PointerType(Visit(t.ElementType));
+                case PinnedType t: return new PinnedType(Visit(t.ElementType));
+                case SentinelType t: return new SentinelType(Visit(t.ElementType));
+                case RequiredModifierType t: return new RequiredModifierType(Visit(t.ModifierType), Visit(t.ElementType));
+                case OptionalModifierType t: return new OptionalModifierType(Visit(t.ModifierType), Visit(t.ElementType));
+                case ArrayType t:
+                    var array = t.IsVector ? new ArrayType(Visit(t.ElementType)) : new ArrayType(Visit(t.ElementType), t.Rank);
+                    if (!t.IsVector)
+                        for (var i = 0; i < t.Dimensions.Count; i++)
+                            array.Dimensions[i] = new ArrayDimension(t.Dimensions[i].LowerBound, t.Dimensions[i].UpperBound);
+                    return array;
+                case GenericInstanceType t:
+                    var generic = new GenericInstanceType(Visit(t.ElementType));
+                    foreach (var arg in t.GenericArguments) generic.GenericArguments.Add(Visit(arg));
+                    return generic;
+                case FunctionPointerType t:
+                    var function = new FunctionPointerType { CallingConvention = t.CallingConvention,
+                        HasThis = t.HasThis, ExplicitThis = t.ExplicitThis, ReturnType = Visit(t.ReturnType) };
+                    foreach (var p in t.Parameters)
+                        function.Parameters.Add(new ParameterDefinition(p.Name, p.Attributes, Visit(p.ParameterType)));
+                    return function;
+                default: return type;
             }
         }
     }

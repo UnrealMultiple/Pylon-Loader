@@ -21,6 +21,7 @@ internal sealed unsafe class BenchRunner(Action<string> logger, string dataDirec
     private CoverageScan? _coverage;
     private bool _prepared;
     private BunnySuite? _bunny;
+    private FrameDiagSuite? _frameDiag;
     private int _requestPoll;
     private string _runId = "";
     private const string ExternalDirectory = "/storage/emulated/0/Android/data/dev.pylon.loader/files/PerfTest";
@@ -50,6 +51,8 @@ internal sealed unsafe class BenchRunner(Action<string> logger, string dataDirec
                 else if (text == "raw") RequestRun();
                 else if (text == "coverage") RequestCoverage();
                 else if (text == "safety") RequestSafety();
+                else if (text == "frameab") Request(5);
+                else if (text == "framediag") Request(6);
                 else logger("[perf] ignored unknown request: " + text);
             }
             catch (Exception ex) { logger("[perf] request file: " + ex.Message); }
@@ -73,21 +76,23 @@ internal sealed unsafe class BenchRunner(Action<string> logger, string dataDirec
             PollRequest();
             if (Interlocked.Exchange(ref _cancel, 0) != 0 && Volatile.Read(ref _busy) != 0)
             {
+                _frameDiag?.Cancel(); _frameDiag = null;
                 Finish("CANCELLED: partial measurements are not a completed run");
                 return;
             }
             int request = Interlocked.Exchange(ref _request, 0);
-            if (request == 4)
+            if (request is 4 or 5)
             {
                 _report.Clear();
                 lock (_viewGate) _view.Clear();
-                try { SafetySuite.Run(Add); }
+                string prefix = request == 4 ? "safety" : "frameab";
+                try { if (request == 4) SafetySuite.Run(Add); else FrameAbSuite.Run(Add); }
                 catch (Exception ex) { Add("FAIL: " + ex.GetBaseException().Message); }
                 finally
                 {
                     string report = string.Join('\n', _report);
-                    Save("safety-latest.txt", report);
-                    Save($"safety-{DateTimeOffset.Now:yyyyMMdd-HHmmss-fff}.txt", report);
+                    Save($"{prefix}-latest.txt", report);
+                    Save($"{prefix}-{DateTimeOffset.Now:yyyyMMdd-HHmmss-fff}.txt", report);
                     Interlocked.Exchange(ref _busy, 0);
                     Volatile.Write(ref _status, "Safety complete; inspect PASS/FAIL (not a benchmark)");
                 }
@@ -105,6 +110,13 @@ internal sealed unsafe class BenchRunner(Action<string> logger, string dataDirec
                 lock (_viewGate) _view.Clear();
                 _bunny = new BunnySuite(Add, Save);
                 Volatile.Write(ref _status, "Bunny-compatible: one continuous 20000-call round per frame");
+            }
+            if (request == 6) _frameDiag = new FrameDiagSuite(Add, Save);
+            if (_frameDiag != null)
+            {
+                _frameDiag.Tick();
+                if (_frameDiag.Finished) { _frameDiag = null; Interlocked.Exchange(ref _busy, 0); }
+                return;
             }
             if (_bunny != null)
             {

@@ -23,7 +23,7 @@ internal object RuntimeDeploy {
     const val NATIVE_API_DLL = "Pylon.NaviteAPI.dll"
 
     /// 改了 assets 里的东西就让版本号 +1，整树重解。
-    private const val DEPLOY_VERSION = 26
+    private const val DEPLOY_VERSION = 27
 
     private const val DEPTH_LIMIT = 8
 

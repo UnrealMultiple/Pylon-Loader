@@ -24,6 +24,14 @@ public abstract class DetourBackend
     /// <returns>Zero on success; a non-zero value is translated into a readable exception by <see cref="Hook"/>.</returns>
     public abstract int Apply(IntPtr target, IntPtr detour, out IntPtr trampoline);
 
+    /// <summary>
+    /// True only if Remove guarantees that callbacks which already took the native branch can
+    /// still complete safely, and that no trampoline is freed while they can use it. The managed
+    /// in-flight counter cannot observe the gap before the first managed instruction. Backends
+    /// without a native quiescence/retention guarantee keep an idle forwarding patch installed.
+    /// </summary>
+    public virtual bool SupportsSafeRemoval => false;
+
     /// <summary>Removes a previously applied detour. Returns -1 when nothing was applied; never throws.</summary>
     public abstract int Remove(IntPtr target);
 }

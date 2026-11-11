@@ -256,12 +256,12 @@ internal static class ItemPvpHooks
     }
 
     private static void Process(On.Terraria.MessageBuffer.orig_ProcessData orig, MessageBuffer self,
-                                Il2CppStructArray<byte> data, int length, ref int messageType)
+                                Il2CppStructArray<byte> data, int length, out int messageType)
     {
         var outer = _receiving;
         if (data is not null && length >= 2 && length <= data.Length && data[0] == HurtPacket)
             _receiving = Take(Main.netMode == 1 ? 256 : self.whoAmI, data[1]);
-        try { orig(self, data!, length, ref messageType); }
+        try { orig(self, data!, length, out messageType); }
         finally { _receiving = outer; }
     }
 

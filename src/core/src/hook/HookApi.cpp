@@ -138,7 +138,12 @@ PYLON_MOD_EXPORT int PylonMod_HookRemove(void* target) {
     }
 
     const int rc = g_shUnhook(entry->second.stub);
-    if (rc != 0) LOGE("hook", "shadowhook_unhook 失败 rc=%d", rc);
+    if (rc != 0) {
+        // Keep the stub and holder retryable; forgetting a still-installed patch loses ownership.
+        entry->second.holders = 1;
+        LOGE("hook", "shadowhook_unhook 失败 rc=%d,保留记账以便重试", rc);
+        return rc;
+    }
     g_hooks.erase(entry);
     LOGI("hook", "已卸载钩子 %p rc=%d", target, rc);
     return rc;

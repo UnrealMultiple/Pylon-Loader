@@ -259,12 +259,12 @@ internal sealed class PrefixPipeline : ILoaderModule
 
     /// <summary>mod 前缀不调原版：先把 out 复位成"无变化"，再交给作者写。</summary>
     private bool Stats(On.Terraria.Item.orig_TryGetPrefixStatMultipliersForItem orig, Item self, int rolledPrefix,
-                       ref float dmg, ref float kb, ref float spd, ref float size, ref float shtspd, ref float mcst,
-                       ref int crt, ref int tagdmg, ref int arpen, ref float value)
+                       out float dmg, out float kb, out float spd, out float size, out float shtspd, out float mcst,
+                       out int crt, out int tagdmg, out int arpen, out float value)
     {
         var prefix = PrefixTable.Of(rolledPrefix);
-        if (prefix is null) return orig(self, rolledPrefix, ref dmg, ref kb, ref spd, ref size, ref shtspd, ref mcst,
-            ref crt, ref tagdmg, ref arpen, ref value);
+        if (prefix is null) return orig(self, rolledPrefix, out dmg, out kb, out spd, out size, out shtspd, out mcst,
+            out crt, out tagdmg, out arpen, out value);
 
         dmg = kb = spd = size = shtspd = mcst = value = 1f;
         crt = tagdmg = arpen = 0;
@@ -318,8 +318,9 @@ internal sealed class PrefixPipeline : ILoaderModule
 
     #region 应用
 
-    private bool Applied(On.Terraria.Item.orig_Prefix_int_boolRef orig, Item self, int prefixWeWant, ref bool rolledPrefixIsTopTier)
+    private bool Applied(On.Terraria.Item.orig_Prefix_int_boolRef orig, Item self, int prefixWeWant, out bool rolledPrefixIsTopTier)
     {
+        rolledPrefixIsTopTier = false;
         var argument = prefixWeWant;
 
         try
@@ -337,7 +338,7 @@ internal sealed class PrefixPipeline : ILoaderModule
             Fail("chance", e);
         }
 
-        var applied = orig(self, argument, ref rolledPrefixIsTopTier);
+        var applied = orig(self, argument, out rolledPrefixIsTopTier);
         if (!applied || prefixWeWant == -3) return applied;
 
         var prefix = PrefixTable.Of(self.prefix);

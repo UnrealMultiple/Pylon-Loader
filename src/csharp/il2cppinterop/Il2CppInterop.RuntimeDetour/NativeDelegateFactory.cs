@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.InteropServices;
-using System.Text;
 
 namespace Il2CppInterop.RuntimeDetour;
 
@@ -16,7 +15,7 @@ namespace Il2CppInterop.RuntimeDetour;
 /// </summary>
 internal static class NativeDelegateFactory
 {
-    private static readonly Dictionary<string, Type> s_cache = new(StringComparer.Ordinal);
+    private static readonly Dictionary<SignatureKey, Type> s_cache = new();
 
     private static readonly ModuleBuilder s_module = AssemblyBuilder
         .DefineDynamicAssembly(new AssemblyName("Pylon.Hook.Stubs"), AssemblyBuilderAccess.Run)
@@ -26,7 +25,9 @@ internal static class NativeDelegateFactory
 
     internal static Type Create(Type returnType, Type[] parameterTypes, CallingConvention convention)
     {
-        var key = BuildKey(returnType, parameterTypes, convention);
+        if (returnType is null) throw new ArgumentNullException(nameof(returnType));
+        if (parameterTypes is null) throw new ArgumentNullException(nameof(parameterTypes));
+        var key = new SignatureKey(returnType, parameterTypes, convention);
         lock (s_cache)
         {
             if (s_cache.TryGetValue(key, out var cached)) return cached;
@@ -57,12 +58,39 @@ internal static class NativeDelegateFactory
         }
     }
 
-    private static string BuildKey(Type returnType, Type[] parameterTypes, CallingConvention convention)
+    private sealed class SignatureKey : IEquatable<SignatureKey>
     {
-        var text = new StringBuilder();
-        text.Append((int)convention).Append('|').Append(returnType.FullName);
-        if (parameterTypes is not null)
-            foreach (var type in parameterTypes) text.Append('|').Append(type.FullName);
-        return text.ToString();
+        private readonly Type _returnType;
+        private readonly Type[] _parameterTypes;
+        private readonly CallingConvention _convention;
+        private readonly int _hash;
+
+        internal SignatureKey(Type returnType, Type[] parameterTypes, CallingConvention convention)
+        {
+            _returnType = returnType;
+            _parameterTypes = (Type[])parameterTypes.Clone();
+            _convention = convention;
+            var hash = new HashCode();
+            hash.Add(returnType);
+            hash.Add(convention);
+            foreach (var parameter in _parameterTypes)
+            {
+                if (parameter is null) throw new ArgumentException("Parameter type cannot be null", nameof(parameterTypes));
+                hash.Add(parameter);
+            }
+            _hash = hash.ToHashCode();
+        }
+
+        public bool Equals(SignatureKey? other)
+        {
+            if (other is null || _returnType != other._returnType || _convention != other._convention ||
+                _parameterTypes.Length != other._parameterTypes.Length) return false;
+            for (var i = 0; i < _parameterTypes.Length; i++)
+                if (_parameterTypes[i] != other._parameterTypes[i]) return false;
+            return true;
+        }
+
+        public override bool Equals(object? obj) => obj is SignatureKey other && Equals(other);
+        public override int GetHashCode() => _hash;
     }
 }

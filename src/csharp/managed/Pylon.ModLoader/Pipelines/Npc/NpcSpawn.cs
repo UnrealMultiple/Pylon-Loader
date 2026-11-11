@@ -119,9 +119,9 @@ internal static class NpcSpawn
     }
 
     private static void Rate(On.Terraria.NPC.Spawner.orig_GetSpawnRate orig, NPC.Spawner self, Player player,
-                             ref int spawnRate, ref int maxSpawns)
+                             out int spawnRate, out int maxSpawns)
     {
-        orig(self, player, ref spawnRate, ref maxSpawns);
+        orig(self, player, out spawnRate, out maxSpawns);
         if (Main.netMode == 1) return;
         Refresh();
         if (!_wantsRate) return;
@@ -134,9 +134,9 @@ internal static class NpcSpawn
     }
 
     private static void Area(On.Terraria.NPC.Spawner.orig_GetSpawnArea orig, Player player,
-                             ref Rectangle spawnArea, ref Rectangle safeArea)
+                             out Rectangle spawnArea, out Rectangle safeArea)
     {
-        orig(player, ref spawnArea, ref safeArea);
+        orig(player, out spawnArea, out safeArea);
         if (Main.netMode == 1) return;
         Refresh();
         if (!_wantsRange) return;

@@ -289,7 +289,7 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
 
     /// <summary>CanPlacePylon：一个类型世界里只留一座。</summary>
     private static bool CanPlace(On.Terraria.TileObject.orig_CanPlace orig, int x, int y, int type, int style, int dir,
-                                 ref TileObject objectData, bool onlyCheck, Il2CppSystem.Nullable<int> forcedRandom)
+                                 out TileObject objectData, bool onlyCheck, Il2CppSystem.Nullable<int> forcedRandom)
     {
         if (ModContent.Find(ContentKind.Tile, type) is ModPylon pylon)
         {
@@ -311,7 +311,7 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
             }
         }
 
-        return orig(x, y, type, style, dir, ref objectData, onlyCheck, forcedRandom);
+        return orig(x, y, type, style, dir, out objectData, onlyCheck, forcedRandom);
     }
 
     // ===================== 地图 =====================

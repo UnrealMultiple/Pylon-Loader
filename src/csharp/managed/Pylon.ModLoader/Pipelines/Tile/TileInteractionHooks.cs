@@ -106,10 +106,10 @@ internal static class TileInteractionHooks
             (info.AnchorTilePosition.Y + extraRow) * 16 + 16 + info.FinalOffset.Y);
 
     private static bool Sitting(On.Terraria.GameContent.PlayerSittingHelper.orig_GetSittingTargetInfo orig,
-                                Player player, int x, int y, ref int direction, ref Vector2 position,
-                                ref Vector2 seatOffset, ref ExtraSeatInfo extra)
+                                Player player, int x, int y, out int direction, out Vector2 position,
+                                out Vector2 seatOffset, out ExtraSeatInfo extra)
     {
-        if (!orig(player, x, y, ref direction, ref position, ref seatOffset, ref extra)) return false;
+        if (!orig(player, x, y, out direction, out position, out seatOffset, out extra)) return false;
         var tile = At(x, y);
         if (tile is null) return true;
         var info = new TileRestingInfo(x, y, seatOffset, direction, 6) { ExtraInfo = extra };
@@ -123,9 +123,9 @@ internal static class TileInteractionHooks
     }
 
     private static bool Sleeping(On.Terraria.GameContent.PlayerSleepingHelper.orig_GetSleepingTargetInfo orig,
-                                 int x, int y, ref int direction, ref Vector2 anchor, ref Vector2 visualOffset)
+                                 int x, int y, out int direction, out Vector2 anchor, out Vector2 visualOffset)
     {
-        if (!orig(x, y, ref direction, ref anchor, ref visualOffset)) return false;
+        if (!orig(x, y, out direction, out anchor, out visualOffset)) return false;
         var tile = At(x, y);
         if (tile is null) return true;
         var info = new TileRestingInfo((int)MathF.Round((anchor.X - 8) / 16),

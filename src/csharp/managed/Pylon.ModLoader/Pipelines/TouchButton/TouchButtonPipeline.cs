@@ -499,10 +499,10 @@ internal sealed class TouchButtonPipeline : ILoaderModule
 
     /// <summary>编辑器里显示作者的图标。</summary>
     private void EditIcon(On.GUIVirtualInputControllerEdit.orig_GetControlTextureFrame orig,
-                          GUIVirtualInputControllerEdit self, ContolType controlType, ref Texture2D texture,
-                          ref Rectangle frame)
+                          GUIVirtualInputControllerEdit self, ContolType controlType, out Texture2D texture,
+                          out Rectangle frame)
     {
-        orig(self, controlType, ref texture, ref frame);
+        orig(self, controlType, out texture, out frame);
 
         if (!IsModded((int)controlType)) return;
         if (ByAction((int)controlType) is not { } entry) return;
@@ -518,8 +518,8 @@ internal sealed class TouchButtonPipeline : ILoaderModule
     /// 只换图标、不换边框——按钮的外框与按下动画仍是游戏那一套，作者不用重画。
     /// </summary>
     private void QuickIconFrame(On.GUIQuickActionButton.orig_GetIconFrame orig,
-                                QuickActionButton_Layout.QuickActionControl actionType, ref Texture2D iconTexture,
-                                ref Rectangle frame)
+                                QuickActionButton_Layout.QuickActionControl actionType, out Texture2D iconTexture,
+                                out Rectangle frame)
     {
         if (!_table.IsEmpty && ByQuick((int)actionType) is { } entry)
         {
@@ -532,7 +532,7 @@ internal sealed class TouchButtonPipeline : ILoaderModule
             }
         }
 
-        orig(actionType, ref iconTexture, ref frame);
+        orig(actionType, out iconTexture, out frame);
     }
 
     private void EditDraw(On.GUIVirtualInputControllerEdit.orig_Draw orig, GUIVirtualInputControllerEdit self)

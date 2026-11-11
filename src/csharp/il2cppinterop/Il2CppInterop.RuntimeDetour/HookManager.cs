@@ -10,7 +10,7 @@ public static class HookManager
     /// <summary>Number of currently applied hooks.</summary>
     public static int AppliedCount
     {
-        get { lock (HookState.Active) return HookState.Active.Count; }
+        get { lock (HookState.Gate) return HookState.Active.Count; }
     }
 
     /// <summary>
@@ -20,7 +20,7 @@ public static class HookManager
     public static string Describe(int limit = 12)
     {
         List<Hook> snapshot;
-        lock (HookState.Active) snapshot = new(HookState.Active);
+        lock (HookState.Gate) snapshot = new(HookState.Active);
         if (snapshot.Count == 0) return "no hooks applied";
 
         var text = new StringBuilder();
@@ -33,11 +33,17 @@ public static class HookManager
         return text.ToString();
     }
 
-    /// <summary>Undoes every applied hook (host shutdown / tests).</summary>
+    /// <summary>Number of cached native sites, including safe idle forwarding sites.</summary>
+    public static int CachedSiteCount => HookState.SiteCount;
+
+    /// <summary>Retries deferred physical removal only for backends with a safe-removal guarantee.</summary>
+    public static void FlushRetired() => HookState.FlushRetired();
+
+    /// <summary>Undoes every subscription. Native forwarding sites may remain for backend safety.</summary>
     public static void UndoAll()
     {
         List<Hook> snapshot;
-        lock (HookState.Active) snapshot = new(HookState.Active);
+        lock (HookState.Gate) snapshot = new(HookState.Active);
         foreach (var hook in snapshot)
         {
             try { hook.Dispose(); }

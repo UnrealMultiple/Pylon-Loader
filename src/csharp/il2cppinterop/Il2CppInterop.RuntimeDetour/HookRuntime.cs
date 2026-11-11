@@ -1,170 +1,236 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 
 namespace Il2CppInterop.RuntimeDetour;
 
 /// <summary>
-///     Runtime state of the hook engine: the slot tables plus one chain per target address.
-///
-///     Each hook owns a "slot": stubs load their per-call state from these tables
-///     (ldc.i4 slot + get_Item), so swapping a handler or re-pointing the next hop never
-///     requires regenerating IL or re-patching memory.
-///
-///     Chain shape (Nodes in invocation order):
-///         game -> Nodes[0] (the stub ShadowHook actually patches) -> Nodes[1] -> ... -> trampoline
-///     New hooks are appended to the end of the chain, so earlier hooks run first.
+/// One stable native entry per target address. Subscriptions form a strongly typed managed chain;
+/// adding/removing a subscription neither emits another native thunk nor adds a global slot.
+/// Native entry delegates remain rooted for the process lifetime: a backend may have a thread
+/// between its native branch and the first managed instruction even after Remove returns.
+/// Retired sites retain no subscriber/closure, only their forwarding stub and signature metadata.
 /// </summary>
 internal static class HookState
 {
-    internal static readonly List<Delegate> s_handlers = new();
-    internal static readonly List<Delegate> s_origDelegates = new();
-    internal static readonly List<IntPtr> s_origPointers = new();
-
-    /// <summary>
-    ///     Per-slot原始数据指针表：entry 桩把">16 字节值类型实参"（ARM64 invisible reference，
-    ///     槽位里是调用者栈副本的指针）的原始指针存到这里；orig 桩调用时直接转发该指针，
-    ///     保证游戏代码通过结构体参数写回的值落在调用者的副本上（unbox 托管 box 会丢写回，D-014）。
-    /// </summary>
-    internal static readonly List<IntPtr[]> s_indirectArgs = new();
-
-    /// <summary>Pins stubs and delegates so the GC never collects them mid-invocation.</summary>
-    internal static readonly List<object> s_keepAlive = new();
-
-    /// <summary>Currently applied hooks (diagnostics / undo-all).</summary>
-    private static readonly List<Hook> s_active = new();
-    internal static List<Hook> Active => s_active;
-
+    internal static readonly object Gate = new();
+    private static HookChain[] s_slots = Array.Empty<HookChain>();
     private static readonly Dictionary<IntPtr, HookChain> s_chains = new();
-    private static readonly object s_gate = new();
+    internal static readonly List<Hook> Active = new();
 
-    internal static int AllocateSlot(Delegate handler)
+    internal static HookChain GetOrCreateChain(HookPlan plan)
     {
-        lock (s_gate)
+        // Caller holds Gate; publish only a fully constructed slot table.
+        if (s_chains.TryGetValue(plan.FunctionPtr, out var existing))
         {
-            var slot = s_handlers.Count;
-            s_handlers.Add(handler);
-            s_origDelegates.Add(null!);
-            s_origPointers.Add(IntPtr.Zero);
-            s_indirectArgs.Add(new IntPtr[64]);
-            return slot;
+            existing.Validate(plan);
+            return existing;
         }
-    }
-
-    internal static void SetOrigDelegate(int slot, Delegate orig)
-    {
-        if (slot < 0 || slot >= s_origDelegates.Count) return;
-        s_origDelegates[slot] = orig;
-    }
-
-    internal static void SetHandler(int slot, Delegate handler)
-    {
-        if (slot < 0 || slot >= s_handlers.Count) return;
-        s_handlers[slot] = handler;
-    }
-
-    /// <summary>Re-points a slot's next hop (chain re-linking only changes this, never re-patches memory).</summary>
-    internal static void SetOrig(int slot, IntPtr pointer)
-    {
-        if (slot < 0 || slot >= s_origPointers.Count) return;
-        s_origPointers[slot] = pointer;
-    }
-
-    internal static IntPtr GetOrig(int slot) =>
-        slot >= 0 && slot < s_origPointers.Count ? s_origPointers[slot] : IntPtr.Zero;
-
-    /// <summary>Entry 桩记录一个原始数据指针（>16 字节结构体实参）。</summary>
-    internal static void SetIndirectArg(int slot, int index, IntPtr value)
-    {
-        if (slot < 0 || slot >= s_indirectArgs.Count) return;
-        var table = s_indirectArgs[slot];
-        if (index < 0 || index >= table.Length) return;
-        table[index] = value;
-    }
-
-    /// <summary>Orig 桩取回该槽位某参数的原始数据指针（未记录时为 Zero）。</summary>
-    internal static IntPtr GetIndirectArg(int slot, int index)
-    {
-        if (slot < 0 || slot >= s_indirectArgs.Count) return IntPtr.Zero;
-        var table = s_indirectArgs[slot];
-        return index >= 0 && index < table.Length ? table[index] : IntPtr.Zero;
-    }
-
-    internal static HookChain GetOrCreateChain(IntPtr target)
-    {
-        lock (s_gate)
-        {
-            if (s_chains.TryGetValue(target, out var chain)) return chain;
-            chain = new HookChain(target);
-            s_chains[target] = chain;
-            return chain;
-        }
-    }
-
-    internal static HookChain? FindChain(IntPtr target)
-    {
-        lock (s_gate) return s_chains.TryGetValue(target, out var chain) ? chain : null;
-    }
-
-    internal static void RemoveChain(HookChain chain)
-    {
-        if (chain is null) return;
-        lock (s_gate) s_chains.Remove(chain.Target);
-    }
-
-    /// <summary>Fallback used by stubs: a handler exception is logged, never propagated into the game.</summary>
-    internal static void ReportException(string label, Exception exception) => HookLog.Fail(label, exception);
-
-    /// <summary>
-    /// Stub catch-all: IL2CPP 原生异常不一定是 <see cref="Exception"/>，只记录类型名。
-    /// 绝不能碰 Message/ToString——那会走 il2cpp_format_exception，异常本身畸形时直接 SIGSEGV。
-    /// </summary>
-    internal static void ReportThrowable(string label, object? throwable)
-    {
+        var chain = new HookChain(plan, s_slots.Length);
+        var slots = new HookChain[s_slots.Length + 1];
+        Array.Copy(s_slots, slots, s_slots.Length);
+        slots[chain.Slot] = chain;
+        Volatile.Write(ref s_slots, slots);
         try
         {
-            HookLog.Info?.Invoke($"[hook] {label}: 未捕获（{throwable?.GetType().Name ?? "null"}）");
+            chain.Original = HookStub.BuildOrig(plan, chain.Slot);
+            chain.Dispatch = chain.Original;
+            chain.Handler = HookStub.BuildDispatcher(chain);
+            (chain.EntryDelegate, chain.Entry) = HookStub.BuildEntry(plan, chain.Slot);
+            s_chains.Add(plan.FunctionPtr, chain);
+            return chain;
         }
         catch
         {
-            // 记录失败也绝不能把异常带回游戏。
+            // Nothing has been exposed to native code yet.
+            var previous = new HookChain[slots.Length - 1];
+            Array.Copy(slots, previous, previous.Length);
+            Volatile.Write(ref s_slots, previous);
+            throw;
         }
     }
-}
 
-/// <summary>A single node of a hook chain: one slot plus its native entry point.</summary>
-internal sealed class HookNode
-{
-    internal HookNode(int slot, IntPtr entry)
+    private static HookChain Site(int slot) => Volatile.Read(ref s_slots)[slot];
+    internal static Delegate GetHandler(int slot) => Site(slot).Handler;
+    internal static Delegate GetOrigDelegate(int slot) => Site(slot).Original;
+    internal static IntPtr GetOrig(int slot)
     {
-        Slot = slot;
-        Entry = entry;
+        var site = Site(slot);
+        // Apply/Remove may patch native code before returning the trampoline. The common path
+        // only reads an atomic pointer; a callback racing publication waits for that transaction.
+        if (Volatile.Read(ref site.Transition))
+            lock (Gate) return site.OriginalPointer;
+        return Volatile.Read(ref site.OriginalPointer);
     }
 
-    internal int Slot { get; }
-    internal IntPtr Entry { get; }
+    [ThreadStatic] private static InvocationFrame? s_frame;
+    [ThreadStatic] private static InvocationFrame? s_spare;
 
-    /// <summary>The hook this node belongs to; null once the hook is undone (the node then only forwards).</summary>
-    internal Hook? Owner { get; set; }
+    internal static void EnterInvocation(int slot, int parameterCount)
+    {
+        var frame = s_spare;
+        if (frame is null) frame = new InvocationFrame(parameterCount);
+        else
+        {
+            s_spare = frame.Previous;
+            if (frame.Arguments.Length < parameterCount) frame.Arguments = new IntPtr[parameterCount];
+        }
+        frame.Slot = slot;
+        frame.Previous = s_frame;
+        s_frame = frame;
+    }
+
+    internal static void ExitInvocation()
+    {
+        var frame = s_frame ?? throw new InvalidOperationException("No hook invocation to leave");
+        s_frame = frame.Previous;
+        Array.Clear(frame.Arguments, 0, frame.Arguments.Length);
+        frame.Previous = s_spare;
+        s_spare = frame;
+    }
+
+    internal static void SetIndirectArg(int slot, int index, IntPtr value)
+    {
+        var frame = FindFrame(slot) ?? throw new InvalidOperationException("No active native hook invocation");
+        frame.Arguments[index] = value;
+    }
+
+    internal static IntPtr GetIndirectArg(int slot, int index) => FindFrame(slot)?.Arguments[index] ?? IntPtr.Zero;
+
+    private static InvocationFrame? FindFrame(int slot)
+    {
+        for (var frame = s_frame; frame is not null; frame = frame.Previous)
+            if (frame.Slot == slot) return frame;
+        return null;
+    }
+
+    private sealed class InvocationFrame
+    {
+        internal InvocationFrame(int count) => Arguments = new IntPtr[count];
+        internal int Slot;
+        internal IntPtr[] Arguments;
+        internal InvocationFrame? Previous;
+    }
+
+    internal static void EnterNative(int slot)
+    {
+        var site = Site(slot);
+        Interlocked.Increment(ref site.InFlight);
+        if (Volatile.Read(ref site.Transition)) lock (Gate) { }
+    }
+
+    internal static void ExitNative(int slot)
+    {
+        var site = Site(slot);
+        if (Interlocked.Decrement(ref site.InFlight) == 0 && Volatile.Read(ref site.PendingRemoval) && site.Backend?.SupportsSafeRemoval == true)
+        {
+            lock (Gate)
+            {
+                try { site.TryRemove(); }
+                catch (Exception error) { HookLog.Fail("hook:deferred-remove", error); }
+            }
+        }
+    }
+
+    internal static void FlushRetired()
+    {
+        lock (Gate)
+            foreach (var site in s_chains.Values)
+                if (site.PendingRemoval) site.TryRemove();
+    }
+
+    internal static int SiteCount => Volatile.Read(ref s_slots).Length;
+    internal static void ReportException(string label, Exception exception) => HookLog.Fail(label, exception);
+    internal static void ReportThrowable(string label, object? throwable)
+    {
+        // Do not format an IL2CPP throwable: malformed native exception objects can fault while
+        // formatting Message/ToString. Logging must never propagate through the native boundary.
+        try { HookLog.Info?.Invoke($"[hook] {label}: 未捕获({throwable?.GetType().Name ?? "null"})"); }
+        catch { }
+    }
 }
 
-/// <summary>The chain of hooks attached to a single target address.</summary>
+internal sealed class HookNode
+{
+    internal HookNode(HookPlan plan, Delegate handler, HookChain site)
+    {
+        Handler = handler;
+        Next = site.Original;
+        Original = HookStub.BuildNext(plan, this, site.Plan.OrigType);
+        Call = HookStub.BuildManagedCall(plan, this, site.Plan.OrigType);
+    }
+    internal readonly Delegate Handler;
+    internal readonly Delegate Original;
+    internal readonly Delegate Call;
+    internal Delegate Next;
+    internal Delegate ReadNext() => Volatile.Read(ref Next);
+}
+
 internal sealed class HookChain
 {
-    internal HookChain(IntPtr target) => Target = target;
-
-    internal IntPtr Target { get; }
-
-    /// <summary>The real trampoline handed out by the backend (end of the chain).</summary>
-    internal IntPtr Trampoline { get; set; }
-
-    /// <summary>Nodes in invocation order; [0] is the stub ShadowHook actually patches.</summary>
-    internal List<HookNode> Nodes { get; } = new();
-
-    internal HookNode? FindNode(Hook hook)
+    internal HookChain(HookPlan plan, int slot)
     {
-        foreach (var node in Nodes)
-            if (ReferenceEquals(node.Owner, hook))
-                return node;
-        return null;
+        Plan = plan;
+        Slot = slot;
+        OriginalPointer = plan.FunctionPtr;
+    }
+    internal readonly HookPlan Plan;
+    internal readonly int Slot;
+    internal IntPtr Target => Plan.FunctionPtr;
+    internal Delegate Original = null!;
+    internal Delegate Handler = null!;
+    internal Delegate Dispatch = null!;
+    internal Delegate EntryDelegate = null!;
+    internal IntPtr Entry;
+    internal IntPtr OriginalPointer;
+    internal bool Transition;
+    internal bool Installed;
+    internal bool PendingRemoval;
+    internal int InFlight;
+    internal DetourBackend? Backend;
+    internal readonly List<HookNode> Nodes = new();
+    internal Delegate ReadDispatch() => Volatile.Read(ref Dispatch);
+
+    internal void Publish()
+    {
+        Delegate next = Original;
+        for (var i = Nodes.Count - 1; i >= 0; i--)
+        {
+            Volatile.Write(ref Nodes[i].Next, next);
+            next = Nodes[i].Call;
+        }
+        Volatile.Write(ref Dispatch, next);
+    }
+
+    internal void TryRemove()
+    {
+        // Caller holds Gate. Never free a trampoline while a managed handler may still call orig.
+        if (!Installed || !Backend!.SupportsSafeRemoval || Nodes.Count != 0 || Volatile.Read(ref InFlight) != 0) return;
+        Volatile.Write(ref Transition, true);
+        try
+        {
+            // Recheck after closing the publication gate: a native callback may have just entered.
+            if (Volatile.Read(ref InFlight) != 0) return;
+            var rc = Backend!.Remove(Target);
+            if (rc != 0) throw new InvalidOperationException($"Hook removal failed rc={rc} ({Plan.Label}); retained for retry");
+            Installed = false;
+            Volatile.Write(ref OriginalPointer, Target);
+            Volatile.Write(ref PendingRemoval, false);
+        }
+        finally { Volatile.Write(ref Transition, false); }
+    }
+
+    internal void Validate(HookPlan plan)
+    {
+        var left = Plan.OrigType.GetMethod("Invoke")!;
+        var right = plan.OrigType.GetMethod("Invoke")!;
+        var a = left.GetParameters();
+        var b = right.GetParameters();
+        var same = left.ReturnType == right.ReturnType && a.Length == b.Length;
+        for (var i = 0; same && i < a.Length; i++) same = a[i].ParameterType == b[i].ParameterType;
+        // IL2CPP generic sharing may map distinct MethodInfo* contexts to one address. A detour
+        // at that address cannot safely pretend those contexts are interchangeable.
+        if (!same || Plan.MethodInfoPtr != plan.MethodInfoPtr)
+            throw new NotSupportedException($"{plan.Label} shares native code with an incompatible hook target");
     }
 }

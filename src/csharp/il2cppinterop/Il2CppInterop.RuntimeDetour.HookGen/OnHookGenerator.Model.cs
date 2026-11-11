@@ -55,7 +55,12 @@ public static partial class OnHookGenerator
             var hookable = new List<MethodDefinition>();
             foreach (var method in type.Methods)
             {
-                if (IsHookable(method)) hookable.Add(method);
+                if (method.ReturnType is ByReferenceType && HasMethodInfoField(method))
+                    _diagnostics.Add($"Skipped {method.FullName}: by-reference returns are not supported by the hook engine.");
+                if (!IsHookable(method)) continue;
+                _candidateHooks++;
+                // Naming is computed from the full inventory below, so profiles preserve API names.
+                hookable.Add(method);
             }
 
             // Overloaded members (same name hooked more than once, ctors included) are named by
@@ -75,6 +80,7 @@ public static partial class OnHookGenerator
                     ? OverloadEventName(baseName, method)
                     : baseName;
                 eventName = UniqueName(eventName, used);
+                if (_methodFilter != null && !_methodFilter(method)) { _skippedByFilter++; continue; }
                 var methodNode = new MethodNode { Definition = method, EventName = eventName, Index = node.Methods.Count };
                 if (method.HasGenericParameters)
                 {
@@ -135,10 +141,8 @@ public static partial class OnHookGenerator
             if (method.IsSpecialName && !IsAccessor(method.Name)) return false;
             if (method.IsAbstract) return false;
             if (!IsValidIdentifier(method.Name)) return false;
-            // ref T returns are supported: delegates use the element type, the engine writes the
-            // handler's value back through the original data pointer.
-            if (method.ReturnType is ByReferenceType byRefReturn && !IsRepresentable(byRefReturn.ElementType)) return false;
-            if (method.ReturnType is not ByReferenceType && !IsRepresentable(method.ReturnType)) return false;
+            // Never expose a value-returning delegate for a native ref-return contract.
+            if (method.ReturnType is ByReferenceType || !IsRepresentable(method.ReturnType)) return false;
             foreach (var parameter in method.Parameters)
                 if (!IsRepresentable(parameter.ParameterType)) return false;
             return HasMethodInfoField(method);
@@ -174,6 +178,8 @@ public static partial class OnHookGenerator
             {
                 case null: return false;
                 case ByReferenceType byRef: return IsRepresentable(byRef.ElementType);
+                case RequiredModifierType modifier: return IsRepresentable(modifier.ElementType);
+                case OptionalModifierType modifier: return IsRepresentable(modifier.ElementType);
                 case PointerType: return false;
                 case FunctionPointerType: return false;
                 case ArrayType array: return array.Rank == 1 && IsRepresentable(array.ElementType);

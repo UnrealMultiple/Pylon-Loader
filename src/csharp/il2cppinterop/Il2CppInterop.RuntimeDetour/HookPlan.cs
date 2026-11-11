@@ -35,18 +35,6 @@ internal sealed class HookPlan
     /// <summary>True when the target is a constructor (the wrapped ConstructorTarget).</summary>
     public bool IsConstructor { get; private set; }
 
-    /// <summary>
-    ///     True when the target returns by reference (ref T). The engine bridges it as a data
-    ///     pointer: orig returns an element snapshot, the handler's return value is written back
-    ///     through the original pointer (managed code never forms a dangling byref).
-    /// </summary>
-    public bool IsByRefReturn { get; private set; }
-
-    /// <summary>Native slot shape of one element of a byref return (byte/mirror struct/IntPtr).</summary>
-    public Type ReturnElementNative { get; private set; } = null!;
-
-    /// <summary>Byte size of one element of a byref return (return-buffer sizing).</summary>
-    public int ReturnElementSize { get; private set; }
     public Type DeclaringType { get; private set; } = null!;
     public bool IsStatic { get; private set; }
     public Type ReturnType { get; private set; } = null!;
@@ -87,7 +75,6 @@ internal sealed class HookPlan
         if (method is null)
             throw new NotSupportedException(
                 "Only MethodInfo/ConstructorInfo targets are supported (resolve property accessors to a concrete method first)");
-        if (method.DeclaringType is null)
         if (handler is null) throw new ArgumentNullException(nameof(handler));
         if (method.DeclaringType is null)
             throw new NotSupportedException("The target method has no declaring type");
@@ -108,14 +95,15 @@ internal sealed class HookPlan
             ParamIsOut = parameters.Select(p => p.IsOut).ToArray(),
         };
 
-        // handler: (orig, self?, params...)
-        var handlerParameters = handler.Method.GetParameters();
-        if (handlerParameters.Length == 0 || !typeof(Delegate).IsAssignableFrom(handlerParameters[0].ParameterType))
-            throw new ArgumentException("The first handler parameter must be the orig delegate (e.g. Action<NPC>)", nameof(handler));
-
+        // Validate the delegate's public invocation contract, not the backing method: closed
+        // static and open instance delegates need not have the backing method's parameter list.
         plan.HandlerType = handler.GetType();
+        var handlerInvoke = GetDelegateInvoke(plan.HandlerType, nameof(handler));
+        var handlerParameters = handlerInvoke.GetParameters();
+        if (handlerParameters.Length == 0)
+            throw new ArgumentException("The first handler parameter must be the orig delegate", nameof(handler));
         plan.OrigType = handlerParameters[0].ParameterType;
-        plan.ValidateHandler(handlerParameters);
+        ValidateDelegateSignature(target, plan.OrigType, plan.HandlerType);
         plan.CheckSupportedTypes();
 
         plan.NativeParams = BuildNativeParams(plan);
@@ -143,36 +131,48 @@ internal sealed class HookPlan
         }
     }
 
-    /// <summary>The handler's parameter table must equal (orig, self?, params...) with matching types.</summary>
-    private void ValidateHandler(ParameterInfo[] handlerParameters)
+    /// <summary>Checks the complete delegate Invoke contracts without resolving native pointers.</summary>
+    internal static void ValidateDelegateSignature(MethodBase target, Type origType, Type handlerType)
     {
-        var invoke = OrigType.GetMethod("Invoke");
-        if (invoke is null) throw new ArgumentException("orig must be a delegate type", nameof(handlerParameters));
-
-        var expected = new List<Type>();
-        if (!IsStatic) expected.Add(DeclaringType);
-        expected.AddRange(ParamTypes);
-
-        var actual = invoke.GetParameters().Select(p => p.ParameterType).ToArray();
-        var expectedArray = expected.ToArray();
-
-        var same = actual.Length == expectedArray.Length &&
-                   invoke.ReturnType == ReturnType &&
-                   !actual.Where((t, i) => t != expectedArray[i]).Any();
-        if (!same)
+        if (target is null) throw new ArgumentNullException(nameof(target));
+        if (target is MethodInfo wrapped && ConstructorTarget.IsConstructorTarget(wrapped))
+            target = ConstructorTarget.Unwrap(wrapped);
+        var orig = GetDelegateInvoke(origType, nameof(origType));
+        var handler = GetDelegateInvoke(handlerType, nameof(handlerType));
+        var returnType = target is MethodInfo method ? method.ReturnType : typeof(void);
+        var parameters = target.GetParameters();
+        var selfCount = target.IsStatic ? 0 : 1;
+        var expectedCount = selfCount + parameters.Length;
+        var origParameters = orig.GetParameters();
+        var handlerParameters = handler.GetParameters();
+        if (orig.ReturnType != returnType || origParameters.Length != expectedCount)
+            throw new ArgumentException("The orig delegate signature does not match the target", nameof(origType));
+        if (handler.ReturnType != returnType || handlerParameters.Length != expectedCount + 1 ||
+            handlerParameters[0].ParameterType != origType)
+            throw new ArgumentException("The handler signature must be (orig, self?, target parameters) with the target return type", nameof(handlerType));
+        if (selfCount != 0 && (origParameters[0].ParameterType != target.DeclaringType ||
+                               handlerParameters[1].ParameterType != target.DeclaringType))
+            throw new ArgumentException("The self parameter must exactly match the declaring type", nameof(handlerType));
+        for (var i = 0; i < parameters.Length; i++)
         {
-            throw new ArgumentException(
-                $"The orig delegate signature does not match the target: expected {Describe(ReturnType, expectedArray)}, got {Describe(invoke.ReturnType, actual)}",
-                nameof(handlerParameters));
+            if (!SameParameter(parameters[i], origParameters[i + selfCount]))
+                throw new ArgumentException($"The orig parameter {i} does not match the target", nameof(origType));
+            if (!SameParameter(parameters[i], handlerParameters[i + selfCount + 1]))
+                throw new ArgumentException($"The handler parameter {i} does not match the target", nameof(handlerType));
         }
+    }
 
-        var expectedCount = 1 + expectedArray.Length;
-        if (handlerParameters.Length != expectedCount)
-        {
-            throw new ArgumentException(
-                $"The handler needs {expectedCount} parameters (orig + {(IsStatic ? "target parameters" : "self + target parameters")}), got {handlerParameters.Length}",
-                nameof(handlerParameters));
-        }
+    private static bool SameParameter(ParameterInfo expected, ParameterInfo actual) =>
+        expected.ParameterType == actual.ParameterType &&
+        (!expected.ParameterType.IsByRef || (expected.IsOut == actual.IsOut && expected.IsIn == actual.IsIn));
+
+    private static MethodInfo GetDelegateInvoke(Type type, string argument)
+    {
+        if (type is null) throw new ArgumentNullException(argument);
+        if (!typeof(MulticastDelegate).IsAssignableFrom(type) || type.ContainsGenericParameters ||
+            type == typeof(MulticastDelegate))
+            throw new ArgumentException("A closed concrete delegate type is required", argument);
+        return type.GetMethod("Invoke") ?? throw new ArgumentException("Delegate has no Invoke method", argument);
     }
 
     /// <summary>Capability check: anything expressible as a native slot passes; unsupported shapes throw loudly.</summary>
