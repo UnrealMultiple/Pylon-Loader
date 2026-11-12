@@ -333,13 +333,14 @@ internal sealed class TooltipPipeline : ILoaderModule
         try
         {
             var drawn = new DrawableTooltipLine[lines.Count];
+            var yOffset = 0;
 
             for (var i = 0; i < lines.Count; i++)
             {
-                var drawable = new DrawableTooltipLine(lines[i], i, fx, fy + (int)(i * LineHeight), Color.White);
+                var drawable = new DrawableTooltipLine(lines[i], i, fx, fy + (int)(i * LineHeight) + yOffset, Color.White);
                 drawn[i] = drawable;
 
-                LineHook(item!, drawable);
+                yOffset += LineHook(item!, drawable);
             }
 
             PostDrawTooltip(item!, drawn);
@@ -383,7 +384,7 @@ internal sealed class TooltipPipeline : ILoaderModule
     }
 
     /// <summary>行级钩子：改的 Text/Color/隐藏记下来，下一帧取行时套上。</summary>
-    private void LineHook(Item item, DrawableTooltipLine line)
+    private int LineHook(Item item, DrawableTooltipLine line)
     {
         var yOffset = 0;
         var origin = new TooltipLine(line.Mod, line.Name, line.Text)
@@ -430,6 +431,8 @@ internal sealed class TooltipPipeline : ILoaderModule
                 Color = line.OverrideColor != origin.OverrideColor ? line.OverrideColor : null,
             };
         }
+
+        return yOffset;
     }
 
     private void PostDrawTooltip(Item item, DrawableTooltipLine[] drawn)
@@ -461,17 +464,32 @@ internal sealed class TooltipPipeline : ILoaderModule
             }
         }
 
-        if (ItemOf(item) is not { } owner) return;
-
+        var owner = ItemOf(item);
+        var globalsForLines = GlobalItemRegistry.Of(item);
         for (var i = 0; i < drawn.Length; i++)
         {
-            try
+            if (owner is not null)
             {
-                owner.PostDrawTooltipLine(drawn[i]);
+                try
+                {
+                    owner.PostDrawTooltipLine(drawn[i]);
+                }
+                catch (Exception e)
+                {
+                    ContentErrors.Report("[tooltip] PostDrawTooltipLine 出错：" + Safe.Describe(e));
+                }
             }
-            catch (Exception e)
+
+            for (var g = 0; g < globalsForLines.Count; g++)
             {
-                ContentErrors.Report("[tooltip] PostDrawTooltipLine 出错：" + Safe.Describe(e));
+                try
+                {
+                    globalsForLines[g].PostDrawTooltipLine(item, drawn[i]);
+                }
+                catch (Exception e)
+                {
+                    ContentErrors.Report("[tooltip] Global PostDrawTooltipLine 出错：" + Safe.Describe(e));
+                }
             }
         }
     }

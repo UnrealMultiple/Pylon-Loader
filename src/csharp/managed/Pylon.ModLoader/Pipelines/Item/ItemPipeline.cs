@@ -226,24 +226,39 @@ internal sealed class ItemPipeline : ILoaderModule
     {
         orig(self, i);
 
-        try
+        // UpdateEquips 的参数是玩家索引，不是背包槽位；原版一次调用已经处理该玩家的装备/背包更新。
+        // 逐槽派发，避免只更新 inventory[playerIndex]，也避免把多人玩家索引误当成槽位。
+        var inventory = self.inventory;
+        if (inventory is null) return;
+
+        for (var slot = 0; slot < inventory.Length; slot++)
         {
-            if (i < 0 || i >= self.inventory.Length) return;
+            var item = inventory[slot];
+            if (!IsModItem(item)) continue;
 
-            var item = self.inventory[i];
-            if (!IsModItem(item)) return;
-
-            var mod = ModOf(item);
-            if (mod is not null && mod.Plan.Has(HookId.UpdateInventory)) mod.UpdateInventory(item, self);
-
-            foreach (var global in GlobalItemRegistry.For(item, HookId.UpdateInventory))
+            try
             {
-                if (global.Plan.Has(HookId.UpdateInventory)) global.UpdateInventory(item, self);
+                var mod = ModOf(item);
+                if (mod is not null && mod.Plan.Has(HookId.UpdateInventory))
+                    mod.UpdateInventory(item, self);
+
+                foreach (var global in GlobalItemRegistry.For(item, HookId.UpdateInventory))
+                {
+                    if (!global.Plan.Has(HookId.UpdateInventory)) continue;
+                    try
+                    {
+                        global.UpdateInventory(item, self);
+                    }
+                    catch (Exception e)
+                    {
+                        Log.Warn("[item] Global UpdateInventory 异常：" + e.Message);
+                    }
+                }
             }
-        }
-        catch (Exception e)
-        {
-            Log.Warn("[item] UpdateInventory 异常：" + e.Message);
+            catch (Exception e)
+            {
+                Log.Warn("[item] UpdateInventory 异常：" + e.Message);
+            }
         }
     }
 

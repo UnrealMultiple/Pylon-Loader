@@ -365,4 +365,8 @@ internal enum HookId
     OnHitNPCWithProj,
     ModifyHitPvp,
     OnHitPvp,
+
+    // ---- 捕鱼 ----
+    ModifyFishingAttempt,
+    CatchFish,
 }

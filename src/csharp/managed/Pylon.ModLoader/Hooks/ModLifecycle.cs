@@ -168,6 +168,8 @@ internal static class ModLifecycle
         {
             Safe.Report("Mod 世界存档", e);
         }
+
+        SaveWorldHeaders();
     }
 
     private static void PreSaveAndQuitPrefix(On.Terraria.WorldGen.orig_SaveAndQuit orig)
@@ -181,6 +183,41 @@ internal static class ModLifecycle
     {
         orig(threadContext);
         Each(HookId.OnWorldUnload, static mod => mod.OnWorldUnload());
+    }
+
+    private static void SaveWorldHeaders()
+    {
+        var mods = Of(HookId.SaveWorldHeader);
+        if (mods.IsEmpty || string.IsNullOrEmpty(Main.worldPathName)) return;
+
+        var file = Main.worldPathName + ".wld.header.json";
+        var all = TagJson.Read(file);
+        for (var i = 0; i < mods.Length; i++)
+        {
+            var mod = mods[i];
+            var tag = new TagCompound();
+            try
+            {
+                mod.SaveWorldHeader(tag);
+            }
+            catch (Exception e)
+            {
+                Safe.Report(mod.Name + ".SaveWorldHeader", e);
+            }
+
+            if (tag.Count > 0) all[mod.Name] = tag;
+            else all.Remove(mod.Name);
+        }
+
+        try
+        {
+            if (all.Count > 0) TagJson.Write(file, all);
+            else if (File.Exists(file)) File.Delete(file);
+        }
+        catch (Exception e)
+        {
+            Safe.Report("Mod 世界头存档", e);
+        }
     }
 
     // ===================== 每帧 =====================

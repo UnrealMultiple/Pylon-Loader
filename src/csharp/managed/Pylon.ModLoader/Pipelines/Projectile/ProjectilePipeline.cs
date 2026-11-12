@@ -124,23 +124,32 @@ internal sealed class ProjectilePipeline : ILoaderModule
             Fail("OnSpawn", self.type, e);
         }
 
-        try
+        if (mod is not null && mod.Plan.Has(HookId.PreAI))
         {
-            if (mod is not null && mod.Plan.Has(HookId.PreAI) && !mod.PreAI(self)) skip = true;
-            if (!skip && globals)
+            try
             {
-                foreach (var global in GlobalProjectileRegistry.For(self, HookId.PreAI))
-                {
-                    if (global.PreAI(self)) continue;
-                    skip = true;
-                    break;
-                }
+                if (!mod.PreAI(self)) skip = true;
+            }
+            catch (Exception e)
+            {
+                // 异常不能撤销作者已经作出的跳过决定；默认继续原版 AI。
+                Fail("PreAI", self.type, e);
             }
         }
-        catch (Exception e)
+
+        if (globals)
         {
-            Fail("PreAI", self.type, e);
-            skip = false;
+            foreach (var global in GlobalProjectileRegistry.For(self, HookId.PreAI))
+            {
+                try
+                {
+                    if (!global.PreAI(self)) skip = true;
+                }
+                catch (Exception e)
+                {
+                    Fail("PreAI", self.type, e);
+                }
+            }
         }
 
         if (!skip)

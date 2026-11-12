@@ -13,6 +13,7 @@ internal static class PlayerUpdateHooks
     {
         if (_installed) return;
         _installed = true;
+        PlayerFishingHooks.Install();
         On.Terraria.Player.RecalculateLuck += Luck;
         On.Terraria.Player.CapAttackSpeeds += Misc;
         On.Terraria.Player.HorizontalMovement += RunSpeeds;
