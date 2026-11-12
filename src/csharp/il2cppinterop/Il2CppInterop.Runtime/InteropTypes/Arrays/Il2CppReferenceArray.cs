@@ -29,6 +29,11 @@ public class Il2CppReferenceArray<T> : Il2CppArrayBase<T> where T : Il2CppObject
     {
     }
 
+    // An int length must not bind to the native-pointer overload through int -> nint.
+    public Il2CppReferenceArray(int size) : this((long)size)
+    {
+    }
+
     public Il2CppReferenceArray(long size) : base(AllocateArray(size))
     {
     }
@@ -42,7 +47,13 @@ public class Il2CppReferenceArray<T> : Il2CppArrayBase<T> where T : Il2CppObject
     public override T this[int index]
     {
         get => WrapElement(GetElementPointer(index))!;
-        set => StoreValue(GetElementPointer(index), value?.Pointer ?? IntPtr.Zero);
+        set
+        {
+            StoreValue(Pointer, GetElementPointer(index), value?.Pointer ?? IntPtr.Zero);
+            // The native pointers do not keep their managed wrappers (and GC handles) alive.
+            GC.KeepAlive(value);
+            GC.KeepAlive(this);
+        }
     }
 
     private IntPtr GetElementPointer(int index)
@@ -59,7 +70,7 @@ public class Il2CppReferenceArray<T> : Il2CppArrayBase<T> where T : Il2CppObject
         return new Il2CppReferenceArray<T>(arr);
     }
 
-    private static unsafe void StoreValue(IntPtr targetPointer, IntPtr valuePointer)
+    private static unsafe void StoreValue(IntPtr ownerPointer, IntPtr targetPointer, IntPtr valuePointer)
     {
         if (ourElementIsValueType)
         {
@@ -73,7 +84,7 @@ public class Il2CppReferenceArray<T> : Il2CppArrayBase<T> where T : Il2CppObject
         }
         else
         {
-            *(IntPtr*)targetPointer = valuePointer;
+            IL2CPP.il2cpp_gc_wbarrier_set_field(ownerPointer, targetPointer, valuePointer);
         }
     }
 

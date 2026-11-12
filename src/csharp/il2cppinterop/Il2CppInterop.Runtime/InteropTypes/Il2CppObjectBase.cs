@@ -15,6 +15,7 @@ public class Il2CppObjectBase
     internal IntPtr pooledPtr;
 
     private nint myGcHandle;
+    private IntPtr ownedValueBox;
 
     public Il2CppObjectBase(IntPtr pointer)
     {
@@ -54,6 +55,7 @@ public class Il2CppObjectBase
             return;
 
         myGcHandle = IL2CPP.il2cpp_gchandle_new(objHdl, false);
+        ownedValueBox = RawValueBox.Retain(objHdl);
     }
 
     public T Cast<T>() where T : Il2CppObjectBase
@@ -168,7 +170,8 @@ public class Il2CppObjectBase
     {
         IL2CPP.il2cpp_gchandle_free(myGcHandle);
 
-        if (pooledPtr == IntPtr.Zero) return;
-        Il2CppObjectPool.Remove(pooledPtr);
+        if (pooledPtr != IntPtr.Zero) Il2CppObjectPool.Remove(pooledPtr);
+        // No proxy may access the fixed payload after its last GC handle has been released.
+        RawValueBox.Release(ownedValueBox);
     }
 }

@@ -690,6 +690,12 @@ public static unsafe class IL2CPP
     [DllImport("GameAssembly", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
     public static extern long il2cpp_gc_get_heap_size();
 
+    [DllImport("GameAssembly", CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr il2cpp_gc_alloc_fixed(nuint size);
+
+    [DllImport("GameAssembly", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void il2cpp_gc_free_fixed(IntPtr address);
+
     [DllImport("GameAssembly", CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
     public static extern void il2cpp_gc_wbarrier_set_field(IntPtr obj, IntPtr targetAddress, IntPtr gcObj);
 

@@ -1,5 +1,13 @@
 # 内容管线：NPC（含城镇 NPC）
 
+## 当前续接：地图头像（2026-11-12）
+
+`NpcHeadHooks` 在 NPC 样例安装后加载 `HeadTexture` / `ShimmerHeadTexture` / `BossHeadTexture`。空路径按 NPC 主贴图的 `_Head.png` / `_Shimmer_Head.png` / `_Head_Boss.png` 查可选资源；显式路径加载失败单独上报，不中断其它头像或 NPC。
+
+城镇头像分配到 `TextureAssets.NpcHead` 尾部，接入真实 `NPC.TypeToDefaultHeadIndex(int)` 与 `TownNPCProfiles.GetHeadIndexSafe(NPC)` 查询；实体微光头像不存在时用普通头像。`NPCHeadSlot()` 覆写按位集调用，可返回 -1 隐藏。首领头像进入 `TextureAssets.NpcHeadBoss`，写入 `NPCID.Sets.BossHeadTextures`，并作为现有 `GetBossHeadTextureIndex` 回调链的默认值；作者 `BossHeadSlot` 仍可修改，作者异常逐个隔离。表维护事件恢复头像槽与映射，重复安装保持槽号。
+
+这补齐头像资源与查询链，尚未真机确认三种地图模式的最终绘制，也没有补齐房屋菜单的头像排序/头像反查表。`Mod.AddBossHeadTexture` 动态注册 API 仍未实现。下文有历史实施快照，涉及“头像注册未迁移”“自然生成/命中未接”的结论应以当前源码与审计 §0 为准。
+
 ## 1. 职责
 
 | 游戏时机 | 分派的作者钩子 |

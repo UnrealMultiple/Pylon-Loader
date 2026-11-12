@@ -94,7 +94,7 @@ internal static class MountTable
 
             GrowSets(total);
 
-            // 托管数组一次性赋给原生数组（内部整块拷贝）：在新生成的 il2cpp 数组上逐元素写会 SIGSEGV。
+            // 先完成副本再发布；引用数组转换逐项走运行时 GC 写屏障，不是整块拷贝。
             Mount.mounts = grown;
             MountID.Count = total;
 

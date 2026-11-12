@@ -62,6 +62,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         _binding.Prime();
         _defaults.Install();
         _town.Install();
+        NpcHeadHooks.Install();
         NpcSpawn.Install();
         NpcHitHooks.Install();
         NpcContactHooks.Install();
@@ -1085,19 +1086,22 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
     private int BossHeadSlot(On.Terraria.NPC.orig_GetBossHeadTextureIndex orig, NPC self)
     {
         var slot = orig(self);
+        var registered = NpcHeadHooks.BossSlot(self.type);
+        if (registered >= 0) slot = registered;
 
         var mod = _binding.InstanceOf(self);
         var globals = GlobalNpcRegistry.For(self, HookId.BossHeadSlot);
         if (mod is null && globals.Count == 0) return slot;
 
-        try
+        if (mod is not null && mod.HookEnabled(HookId.BossHeadSlot))
         {
-            if (mod is not null && mod.HookEnabled(HookId.BossHeadSlot)) mod.BossHeadSlot(self, ref slot);
-            foreach (var global in globals) global.BossHeadSlot(self, ref slot);
+            try { mod.BossHeadSlot(self, ref slot); }
+            catch (Exception e) { Fail(mod, HookId.BossHeadSlot, e); }
         }
-        catch (Exception e)
+        foreach (var global in globals)
         {
-            Fail(mod, HookId.BossHeadSlot, e);
+            try { global.BossHeadSlot(self, ref slot); }
+            catch (Exception e) { Safe.Report($"[npc] {global.Name}.BossHeadSlot", e); }
         }
 
         return slot;

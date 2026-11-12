@@ -338,7 +338,7 @@ internal static class PrefixTable
         }
     }
 
-    // 托管数组一次赋值（interop 自带隐式转换）：不能对 Il2CppStructArray 逐元素写，ARM64 上会 SIGSEGV。
+    // 在发布原生表之前完成副本；引用数组的隐式转换仍逐项走运行时索引器与 GC 写屏障。
     private static LocalizedText[] Grow(LocalizedText[]? old, int length)
     {
         var grown = new LocalizedText[length];

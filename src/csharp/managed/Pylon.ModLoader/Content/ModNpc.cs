@@ -60,13 +60,13 @@ public abstract class ModNpc : ModType
     /// <summary>图鉴里的静止图；空 = <c>&lt;Texture&gt;_BestiaryIcon</c>。图鉴管线未迁移。</summary>
     public virtual string BestiaryIcon => "";
 
-    /// <summary>地图与房屋菜单上的头；空 = <c>&lt;Texture&gt;_Head</c>。头像管线未迁移。</summary>
+    /// <summary>地图与房屋菜单上的头；空 = <c>&lt;Texture&gt;_Head</c>。安装期加载，缺省文件不存在时不注册。</summary>
     public virtual string HeadTexture => "";
 
-    /// <summary>微光后的头；空 = <c>&lt;Texture&gt;_Shimmer_Head</c>。头像管线未迁移。</summary>
+    /// <summary>微光后的头；空 = <c>&lt;Texture&gt;_Shimmer_Head</c>。安装期加载，缺省文件不存在时不注册。</summary>
     public virtual string ShimmerHeadTexture => "";
 
-    /// <summary>首领血条与地图图标；空 = <c>&lt;Texture&gt;_Head_Boss</c>。首领头像管线未迁移。</summary>
+    /// <summary>首领血条与地图图标；空 = <c>&lt;Texture&gt;_Head_Boss</c>。安装期加载，缺省文件不存在时不注册。</summary>
     public virtual string BossHeadTexture => "";
 
     /// <summary>靠近屏幕时放的音乐；-1 = 用游戏的。由 MusicPipeline 按优先级选择。</summary>
@@ -295,8 +295,8 @@ public abstract class ModNpc : ModType
     /// <summary>能不能聊天；<c>null</c> 用游戏的。默认就是 <c>npc.townNPC</c>。</summary>
     public virtual bool? CanChat(NPC npc) => npc.townNPC;
 
-    /// <summary>头的槽位；-1 = 没头。头像管线未迁移。</summary>
-    public virtual int NPCHeadSlot() => -1;
+    /// <summary>实体头像槽；默认用注册的普通/微光头像，覆写返回 -1 可隐藏。</summary>
+    public virtual int NPCHeadSlot() => NpcHeadHooks.TownSlot(Type, BoundEntity is not null && BoundEntity.IsShimmerVariant);
 
     /// <summary>把本 NPC 的商店加进列表（内容安装时一次）；店自己调 Register()。</summary>
     public virtual void AddShops(List<NpcShop> shops) { }

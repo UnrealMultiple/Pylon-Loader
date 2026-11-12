@@ -165,6 +165,7 @@ internal sealed class InstallPipeline
         {
             var grown = TableMaintenance.Maintain(m => Log.Info(m), _ => InstallSteps.WriteTextures(_host));
             if (grown > 0) Log.Info($"[typetables] 维护：补扩 {grown} 张表");
+            NpcHeadHooks.Maintain();
 
             if (++_maintainAge < MaintainEveryFrames) return;
             _maintainAge = 0;

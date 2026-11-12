@@ -14,6 +14,11 @@ public class Il2CppStringArray : Il2CppArrayBase<string>
     {
     }
 
+    // An int length must not bind to the native-pointer overload through int -> nint.
+    public Il2CppStringArray(int size) : this((long)size)
+    {
+    }
+
     public Il2CppStringArray(long size) : base(AllocateArray(size))
     {
     }
@@ -27,7 +32,12 @@ public class Il2CppStringArray : Il2CppArrayBase<string>
     public override unsafe string this[int index]
     {
         get => IL2CPP.Il2CppStringToManaged(*GetElementPointer(index))!;
-        set => *GetElementPointer(index) = IL2CPP.ManagedStringToIl2Cpp(value);
+        set
+        {
+            var targetPointer = (IntPtr)GetElementPointer(index);
+            IL2CPP.il2cpp_gc_wbarrier_set_field(Pointer, targetPointer, IL2CPP.ManagedStringToIl2Cpp(value));
+            GC.KeepAlive(this);
+        }
     }
 
     private unsafe IntPtr* GetElementPointer(int index)

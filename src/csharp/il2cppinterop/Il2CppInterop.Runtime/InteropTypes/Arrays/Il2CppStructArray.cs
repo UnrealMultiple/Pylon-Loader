@@ -14,6 +14,11 @@ public class Il2CppStructArray<T> : Il2CppArrayBase<T> where T : unmanaged
     {
     }
 
+    // An int length must not bind to the native-pointer overload through int -> nint.
+    public Il2CppStructArray(int size) : this((long)size)
+    {
+    }
+
     public Il2CppStructArray(long size) : base(AllocateArray(size))
     {
     }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using Il2CppInterop.Runtime;
 
 namespace Il2CppInterop.RuntimeDetour;
 
@@ -114,12 +115,33 @@ internal static class HookState
 
     internal static void EnterNative(int slot)
     {
-        var site = Site(slot);
-        Interlocked.Increment(ref site.InFlight);
-        if (Volatile.Read(ref site.Transition)) lock (Gate) { }
+        GuardedInvoke.EnterNativeCallback();
+        try
+        {
+            var site = Site(slot);
+            Interlocked.Increment(ref site.InFlight);
+            if (Volatile.Read(ref site.Transition)) lock (Gate) { }
+        }
+        catch
+        {
+            GuardedInvoke.ExitNativeCallback();
+            throw;
+        }
     }
 
     internal static void ExitNative(int slot)
+    {
+        try
+        {
+            ExitNativeSite(slot);
+        }
+        finally
+        {
+            GuardedInvoke.ExitNativeCallback();
+        }
+    }
+
+    private static void ExitNativeSite(int slot)
     {
         var site = Site(slot);
         if (Interlocked.Decrement(ref site.InFlight) == 0 && Volatile.Read(ref site.PendingRemoval) && site.Backend?.SupportsSafeRemoval == true)
@@ -145,7 +167,11 @@ internal static class HookState
     {
         // Do not format an IL2CPP throwable: malformed native exception objects can fault while
         // formatting Message/ToString. Logging must never propagate through the native boundary.
-        try { HookLog.Info?.Invoke($"[hook] {label}: 未捕获({throwable?.GetType().Name ?? "null"})"); }
+        try
+        {
+            if (throwable is Exception managed) HookLog.Fail(label, managed);
+            else HookLog.Info?.Invoke($"[hook] {label}: 未捕获({throwable?.GetType().Name ?? "null"})");
+        }
         catch { }
     }
 }

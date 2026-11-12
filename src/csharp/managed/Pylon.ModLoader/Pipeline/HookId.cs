@@ -369,4 +369,5 @@ internal enum HookId
     // ---- 捕鱼 ----
     ModifyFishingAttempt,
     CatchFish,
+    NPCHeadSlot,
 }

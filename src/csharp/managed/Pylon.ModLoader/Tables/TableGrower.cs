@@ -237,6 +237,7 @@ internal sealed class TableGrower
         return value;
     }
 
+    // This API takes the object pointer itself for reference fields; a pointer to a local stores the stack address.
     private static unsafe void WriteStatic(IntPtr field, IntPtr value) =>
-        IL2CPP.il2cpp_field_static_set_value(field, (void*)value);
+        IL2CPP.il2cpp_field_static_set_value(field, value.ToPointer());
 }

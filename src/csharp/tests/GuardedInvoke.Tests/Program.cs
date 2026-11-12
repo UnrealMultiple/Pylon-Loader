@@ -20,6 +20,7 @@ internal static unsafe class Program
         Check(Marshal.OffsetOf<PylonCallFrame>(nameof(PylonCallFrame.Exc)).ToInt32() == 248, "exception frame offset");
         PackTest();
         FallbackTests();
+        NativeCallbackTests();
         FrameShapeTests();
         Console.WriteLine($"ALL {checks} CHECKS PASSED");
     }
@@ -157,6 +158,44 @@ internal static unsafe class Program
         rejectedSwitch = false;
         try { GuardedInvoke.FramePilotEnabled = false; } catch (NotSupportedException) { rejectedSwitch = true; }
         Check(rejectedSwitch && GuardedInvoke.FramePilotEnabled, "production frame route cannot silently become a fake A/B baseline");
+    }
+
+    private static void NativeCallbackTests()
+    {
+        int probes = 0;
+        GuardedInvoke.IsGameThreadProvider = () => { probes++; return false; };
+        try
+        {
+            GuardedInvoke.EnterNativeCallback();
+            GuardedInvoke.EnterNativeCallback();
+            Check(probes == 1, "nested native callback probes thread once");
+            IL2CPP.Implementation = 0;
+            IL2CPP.ReturnType = 0x08;
+            IL2CPP.ValueSize = 4;
+            int calls = IL2CPP.RuntimeInvokeCalls;
+            IntPtr ret = IntPtr.Zero, exc = IntPtr.Zero;
+            GuardedInvoke.Invoke((IntPtr)0x5150, IntPtr.Zero, IntPtr.Zero, 0, ref ret, ref exc);
+            Check(IL2CPP.RuntimeInvokeCalls == calls + 1, "worker native callback routes through runtime_invoke");
+
+            bool rejected = false;
+            IntPtr* arg = stackalloc IntPtr[1];
+            try { GuardedInvoke.Invoke((IntPtr)0x5150, IntPtr.Zero, (IntPtr)arg, 1, ref ret, ref exc); }
+            catch (ArgumentException) { rejected = true; }
+            Check(rejected, "worker fallback still validates argument count");
+        }
+        finally
+        {
+            GuardedInvoke.ExitNativeCallback();
+            GuardedInvoke.ExitNativeCallback();
+            GuardedInvoke.IsGameThreadProvider = null;
+        }
+        Check(!GetWorkerCallbackState(), "native callback finally restores thread state");
+    }
+
+    private static bool GetWorkerCallbackState()
+    {
+        var property = typeof(GuardedInvoke).GetProperty("IsWorkerNativeCallback", PrivateStatic)!;
+        return (bool)property.GetValue(null)!;
     }
 
     private static void FallbackTests()

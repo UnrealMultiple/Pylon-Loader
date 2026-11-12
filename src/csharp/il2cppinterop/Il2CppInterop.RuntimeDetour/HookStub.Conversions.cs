@@ -190,8 +190,7 @@ internal static partial class HookStub
         il.Emit(OpCodes.Call, GetClassPointer);
         il.Emit(OpCodes.Ldloca, mirror);
         il.Emit(OpCodes.Conv_I);
-        il.Emit(OpCodes.Call, ValueBox);
-        EmitWrapReference(il, boxed);
+        EmitBoxAndWrap(il, boxed);
     }
 
     /// <summary>
@@ -217,8 +216,7 @@ internal static partial class HookStub
         il.Emit(OpCodes.Call, GetTypeFromHandle);
         il.Emit(OpCodes.Call, GetClassPointer);
         il.Emit(OpCodes.Ldloc, data);
-        il.Emit(OpCodes.Call, ValueBox);
-        EmitWrapReference(il, boxed);
+        EmitBoxAndWrap(il, boxed);
         il.Emit(OpCodes.Br, endLabel);
 
         // null: produce a default (all-zero) value of the same type
@@ -229,6 +227,23 @@ internal static partial class HookStub
         il.Emit(OpCodes.Initobj, info.Mirror);
         EmitBoxFromLocal(il, boxed, mirror);
         il.MarkLabel(endLabel);
+    }
+
+    // Stack: native class pointer, raw value data pointer. Nullable boxing in IL2CPP returns
+    // the underlying T object (or null), whose payload cannot be wrapped as Nullable<T>.
+    // Both local and indirect conversions must preserve the complete Nullable payload instead.
+    private static void EmitBoxAndWrap(ILGenerator il, Type boxed)
+    {
+        if (boxed.IsGenericType && boxed.GetGenericTypeDefinition().FullName == "Il2CppSystem.Nullable`1")
+        {
+            il.Emit(OpCodes.Ldc_I4, MirrorTypes.For(boxed).Size);
+            il.Emit(OpCodes.Call, typeof(Il2CppInterop.Runtime.RawValueBox).GetMethod("Wrap")!.MakeGenericMethod(boxed));
+        }
+        else
+        {
+            il.Emit(OpCodes.Call, ValueBox);
+            EmitWrapReference(il, boxed);
+        }
     }
 
     /// <summary>Top of the stack is a proxy object; unbox it to a data pointer (top of the stack).</summary>

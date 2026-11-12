@@ -112,6 +112,28 @@ public static unsafe partial class GuardedInvoke
     [ThreadStatic] private static IntPtr[]? t_buffers;
     [ThreadStatic] private static int[]? t_capacities;
     [ThreadStatic] private static int t_depth;
+    [ThreadStatic] private static int t_nativeCallbackDepth;
+    [ThreadStatic] private static bool t_nativeCallbackWorker;
+
+    /// <summary>Host supplied game-thread probe. Null or a failing probe is conservative.</summary>
+    public static Func<bool>? IsGameThreadProvider { get; set; }
+
+    /// <summary>Marks entry from a native hook callback on the current thread.</summary>
+    public static void EnterNativeCallback()
+    {
+        if (t_nativeCallbackDepth++ != 0) return;
+        try { t_nativeCallbackWorker = IsGameThreadProvider is { } probe && !probe(); }
+        catch { t_nativeCallbackWorker = false; }
+    }
+
+    /// <summary>Leaves a native hook callback, restoring the outer callback state.</summary>
+    public static void ExitNativeCallback()
+    {
+        if (t_nativeCallbackDepth <= 0) throw new InvalidOperationException("No native callback to leave");
+        if (--t_nativeCallbackDepth == 0) t_nativeCallbackWorker = false;
+    }
+
+    private static bool IsWorkerNativeCallback => t_nativeCallbackDepth != 0 && t_nativeCallbackWorker;
 
     public static void Invoke(IntPtr method, IntPtr self, IntPtr args, int argc, ref IntPtr ret, ref IntPtr exc)
     {
@@ -121,6 +143,15 @@ public static unsafe partial class GuardedInvoke
             throw new ArgumentException("Invalid direct-call arguments", nameof(argc));
         if (method == IntPtr.Zero)
             throw new InvalidOperationException("直调：MethodInfo 为空");
+
+        if (IsWorkerNativeCallback)
+        {
+            int expected = checked((int)IL2CPP.il2cpp_method_get_param_count(method));
+            if (argc != expected)
+                throw new ArgumentException("Direct-call argument count mismatch", nameof(argc));
+            FallbackRuntimeInvoke(method, self, args, ref ret, ref exc);
+            return;
+        }
 
         CachedMethod cached = GetMethod(method);
         if (argc != cached.ArgCount)
@@ -214,6 +245,7 @@ public static unsafe partial class GuardedInvoke
 #if PYLON_FRAME_DIAGNOSTICS
         if (!FramePilotEnabled) return false;
 #endif
+        if (IsWorkerNativeCallback) return false;
         if (method == IntPtr.Zero || shape is < 1 or > 4) return false;
         CachedMethod cached = GetMethod(method);
         if (cached.FrameShape != shape) return false;
@@ -240,6 +272,7 @@ public static unsafe partial class GuardedInvoke
 #if PYLON_FRAME_DIAGNOSTICS
         if (!FramePilotEnabled) return false;
 #endif
+        if (IsWorkerNativeCallback) return false;
         if (method == IntPtr.Zero || shape is < 1 or > 4) return false;
 #if PYLON_FRAME_DIAGNOSTICS
         if (!FramePlanCacheEnabled)

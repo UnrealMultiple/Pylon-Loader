@@ -685,8 +685,8 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    // 不能 new Il2CppStructArray 再逐元素写：interop 的 setref 在 ARM64 上会 SIGSEGV（真机踩过）。
-    // 托管数组 + 隐式转换（内部原生拷贝）才安全。
+    // 先完成托管副本再发布，避免游戏观察到只填了一部分的免疫表。
+    // int 长度曾误选 IntPtr 包装构造；运行时已补 int 重载，逐项写本身不需要绕过。
     private static bool[] Grow(Il2CppStructArray<bool>? old, int need)
     {
         var grown = new bool[need];

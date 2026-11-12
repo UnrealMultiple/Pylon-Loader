@@ -10,7 +10,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../il2cppinterop/Il2CppInterop.RuntimeDetour/*.cs" />
-    <Compile Include="Program.cs;BindingTests.cs;RuntimeShim.cs;BoxedTests.cs" />
+    <Compile Include="Program.cs;BindingTests.cs;RuntimeShim.cs;GuardedInvokeShim.cs;BoxedTests.cs" />
   </ItemGroup>
   <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
 </Project>

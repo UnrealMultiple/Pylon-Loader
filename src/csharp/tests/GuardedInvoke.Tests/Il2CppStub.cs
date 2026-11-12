@@ -14,6 +14,7 @@ public static unsafe class IL2CPP
     public static Action? Callback;
     public static bool IsValue = true;
     public static int ParamCountCalls;
+    public static int RuntimeInvokeCalls;
     public static uint il2cpp_method_get_param_count(IntPtr m) { ParamCountCalls++; return 0; }
     public static uint il2cpp_method_get_flags(IntPtr m, ref uint flags) { flags = Implementation; return 0; }
     public static bool il2cpp_method_is_instance(IntPtr m) => false;
@@ -34,6 +35,7 @@ public static unsafe class IL2CPP
     public static IntPtr il2cpp_object_unbox(IntPtr obj) { UnboxCalls++; return obj + 16; }
     public static IntPtr il2cpp_runtime_invoke(IntPtr m, IntPtr self, void** args, ref IntPtr exc)
     {
+        RuntimeInvokeCalls++;
         var callback = Callback;
         Callback = null;
         callback?.Invoke();

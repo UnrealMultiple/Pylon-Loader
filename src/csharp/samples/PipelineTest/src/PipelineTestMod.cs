@@ -58,6 +58,8 @@ public sealed class PipelineTestMod : Mod
         Tests.GoreTests.Register();
         Tests.PrefixTests.Register();
         Tests.NpcTests.Register();
+        Tests.NpcHeadTests.Register();
+        Tests.ArrayInteropTests.Register();
         Tests.NpcHitTests.Register();
         Tests.NpcContactTests.Register();
         Tests.BuffTests.Register();

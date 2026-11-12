@@ -54,6 +54,7 @@ internal static class InstallPlan
             new Step("弹幕模板", InstallStage.Samples, InstallSteps.ProjectileTemplates),
             new Step("NPC 静态默认值", InstallStage.Samples, InstallSteps.NpcStaticDefaults),
             new Step("NPC 样例", InstallStage.Samples, InstallSteps.RegisterNpcSamples),
+            new Step("NPC 头像", InstallStage.Samples, NpcHeadHooks.Build),
             new Step("城镇 NPC 商店", InstallStage.Samples, () => NpcPipeline.Instance.SetupShops(host.Log)),
             new Step("旗帜安装", InstallStage.Samples, () => BannerPipeline.Instance.Build()),
             new Step("表情气泡安装", InstallStage.Static, () => EmoteBubblePipeline.Instance.Build()),
