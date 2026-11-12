@@ -158,6 +158,13 @@ PipelineStats Pipe::Stats() {
     stats.cpuNs = pass.cpuNs;
     stats.gpuNs = pass.gpuNs;
     stats.gpuSamples = pass.gpuSamples;
+    stats.meshDraws = pass.meshDraws;
+    stats.fullscreenDraws = pass.fullscreenDraws;
+    stats.meshVertices = pass.meshVertices;
+    stats.uniformBytes = pass.uniformBytes;
+    stats.bufferDataBytes = pass.bufferDataBytes;
+    stats.screenCopies = pass.screenCopies;
+    stats.screenCopyPixels = pass.screenCopyPixels;
     stats.samples = pass.samples;
     stats.fbo = pass.fbo;
     for (int i = 0; i < 4; ++i) stats.viewport[i] = pass.viewport[i];

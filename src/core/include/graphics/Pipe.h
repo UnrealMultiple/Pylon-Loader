@@ -18,6 +18,9 @@ enum class Camera : int { World = 0, Ui = 1, Other = 2 };
 struct PipelineStats {
     int64_t frames = 0, draws = 0, boxPixels = 0, cpuNs = 0;
     int64_t gpuNs = 0, gpuSamples = 0;
+    int64_t meshDraws = 0, fullscreenDraws = 0, meshVertices = 0;
+    int64_t uniformBytes = 0, bufferDataBytes = 0;
+    int64_t screenCopies = 0, screenCopyPixels = 0;
     int64_t worldFrames = 0, screenFrames = 0, markersIssued = 0, markerHits = 0;
     int64_t cameras[3] = {0, 0, 0};
     int fbo = 0, samples = 0;

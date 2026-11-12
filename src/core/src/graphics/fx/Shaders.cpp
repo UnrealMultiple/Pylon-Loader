@@ -108,6 +108,13 @@ bool build(Entry& entry) {
 
     Program& program = entry.program;
     program.id = id;
+    // Keep the legacy-safe default for unknown shaders. XihePost and other
+    // screen effects contain explicit blScreen()/uScreen reads; geometry-only
+    // effects do not. This avoids treating the shared prelude declaration as a
+    // read dependency while retaining compatibility for external mods.
+    program.readsScreen = entry.source.find("blScreen(") != std::string::npos
+                       || entry.source.find("uScreen") != std::string::npos;
+    if (entry.mesh) program.readsScreen = false;
     auto loc = [&](const char* name) { return g.GetUniformLocation(id, name); };
     program.builtin = {loc("uBox"), loc("uScreen"), loc("uSource"), loc("uScreenTexel"), loc("uSourceTexel"),
                        loc("uView"), loc("uResolution"), loc("uAspect"), loc("uTime"), loc("uAge"),

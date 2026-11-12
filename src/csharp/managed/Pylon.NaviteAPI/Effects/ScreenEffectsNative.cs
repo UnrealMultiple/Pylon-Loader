@@ -56,6 +56,18 @@ internal static unsafe partial class ScreenEffectsNative
     [LibraryImport("pylon", EntryPoint = "PylonFx_Stats")]
     internal static partial void Stats(out PylonFxStatsNative stats);
 
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct UploadStatsNative
+    {
+        public long BufferSubDataBytes, BufferStorageBytes, BufferDataCalls, BufferSubDataCalls;
+    }
+
+    [LibraryImport("pylon", EntryPoint = "PylonFx_UploadStats")]
+    internal static partial void UploadStats(out UploadStatsNative stats);
+
+    [LibraryImport("pylon", EntryPoint = "PylonFx_SetMeshStreaming")]
+    internal static partial void SetMeshStreaming(int enabled);
+
     [LibraryImport("pylon", EntryPoint = "PylonFx_RequestTrace")]
     internal static partial void RequestTrace();
 }

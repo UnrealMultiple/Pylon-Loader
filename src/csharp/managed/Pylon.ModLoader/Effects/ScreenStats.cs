@@ -8,6 +8,9 @@ public sealed class ScreenStats
 {
     public long Frames, Draws, BoxPixels, CpuNs;
     public long GpuNs, GpuSamples;
+    public long MeshDraws, FullscreenDraws, MeshVertices;
+    public long UniformBytes, BufferDataBytes, ScreenCopies, ScreenCopyPixels;
+    public long BufferSubDataBytes, BufferStorageBytes, BufferDataCalls, BufferSubDataCalls;
     public long WorldFrames, ScreenFrames, MarkersIssued, MarkerHits;
     public long WorldPostRender, UiPostRender, OtherPostRender;
     public int DrawFbo, Samples;
@@ -22,6 +25,13 @@ public sealed class ScreenStats
         CpuNs = n.CpuNs,
         GpuNs = n.GpuNs,
         GpuSamples = n.GpuSamples,
+        MeshDraws = n.MeshDraws,
+        FullscreenDraws = n.FullscreenDraws,
+        MeshVertices = n.MeshVertices,
+        UniformBytes = n.UniformBytes,
+        BufferDataBytes = n.BufferDataBytes,
+        ScreenCopies = n.ScreenCopies,
+        ScreenCopyPixels = n.ScreenCopyPixels,
         WorldFrames = n.WorldFrames,
         ScreenFrames = n.ScreenFrames,
         MarkersIssued = n.MarkersIssued,

@@ -20,6 +20,9 @@ struct BuiltinUniforms {
 struct Program {
     GLuint id = 0;
     BuiltinUniforms builtin;
+    // Cached from the mod fragment source. A common prelude declares uScreen
+    // for every non-mesh shader, so uniform presence alone is not a dependency.
+    bool readsScreen = true;
     std::unordered_map<std::string, GLint> custom;
 };
 

@@ -6,6 +6,7 @@
 // 每个 pass 只画自己的包围盒（Box），手机端不会整屏跑十几次循环。
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using Il2CppMicrosoft.Xna.Framework;
 using Color = Il2CppMicrosoft.Xna.Framework.Graphics.Color;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
@@ -211,6 +212,9 @@ namespace XiheBoss
         private static readonly List<GlurFx> Glurs = new();
 
         private static int _submittedFrame = -1;
+        private static long _lastNativeFrames;
+        private static long _lastNativeGpuSamples;
+        private static long _lastProfileLogMs;
         private static bool _loggedError;
         private static bool _loggedOverflow;
         private static readonly HashSet<int> _missingVisual = new();
@@ -706,7 +710,28 @@ namespace XiheBoss
 
                 if (frame.Draws.Count > 0)
                 {
+                    var submitStart = Stopwatch.GetTimestamp();
+                    var allocStart = GC.GetAllocatedBytesForCurrentThread();
                     frame.Submit();
+                    var submitNs = (Stopwatch.GetTimestamp() - submitStart) * (1_000_000_000d / Stopwatch.Frequency);
+                    var allocBytes = GC.GetAllocatedBytesForCurrentThread() - allocStart;
+                    var nowMs = Environment.TickCount64;
+                    if (nowMs - _lastProfileLogMs >= 1000)
+                    {
+                        _lastProfileLogMs = nowMs;
+                        var native = ScreenGraphics.Stats();
+                        var frames = Math.Max(1L, native.Frames - _lastNativeFrames);
+                        var gpuSamples = native.GpuSamples - _lastNativeGpuSamples;
+                        XiheBossMod.Log?.Info($"[screen-profile] draws={frame.Draws.Count} meshBatches={XiheMesh.MeshBatchCount} meshVerts={XiheMesh.MeshVertexCount} " +
+                            $"submitNs={submitNs:F0} allocBytes={allocBytes} nativeFrames={frames} nativeDraws={native.Draws} " +
+                            $"meshDraws={native.MeshDraws} fullscreenDraws={native.FullscreenDraws} boxPixels={native.BoxPixels} " +
+                            $"screenCopies={native.ScreenCopies} copyPixels={native.ScreenCopyPixels} uniformBytes={native.UniformBytes} " +
+                            $"bufferDataBytes={native.BufferDataBytes} subDataBytes={native.BufferSubDataBytes} storageBytes={native.BufferStorageBytes} " +
+                            $"bufferDataCalls={native.BufferDataCalls} subDataCalls={native.BufferSubDataCalls} nativeMeshVertices={native.MeshVertices} " +
+                            $"framesTotal={native.Frames} cpuNs={native.CpuNs} gpuSamplesTotal={native.GpuSamples} gpuNs={native.GpuNs} gpuSamples={gpuSamples}");
+                        _lastNativeFrames = native.Frames;
+                        _lastNativeGpuSamples = native.GpuSamples;
+                    }
                 }
             }
             catch (Exception e)
@@ -735,26 +760,46 @@ namespace XiheBoss
 
         private static void AddSuns(ScreenFrame frame)
         {
-            // 手机端硬件 mesh 的全屏四边形在上下边缘会出现半屏矩形色差；改回 XihePost 的全屏
-            // Sun.fx pass（mode 6）。一个太阳一帧一次 pass，开销可接受。
-            if (PostShader == null) return;
-            for (var i = 0; i < Suns.Count; i++)
+            // All Sun.fx instances share the same source image. Keep each post draw
+            // within the shader's 16-sun capacity, with independent reusable batch arrays.
+            if (PostShader == null || Suns.Count == 0) return;
+            var batchIndex = 0;
+            var cursor = 0;
+            while (cursor < Suns.Count)
             {
-                var s = Suns[i];
-                if (s.Alpha <= 0.001f || s.Scale <= 0.0001f) continue;
-                var uv = ToUv(s.World);
+                if (batchIndex == SunABatches.Count)
+                {
+                    SunABatches.Add(new float[16 * 4]);
+                    SunBBatches.Add(new float[16 * 4]);
+                }
+                var sunA = SunABatches[batchIndex];
+                var sunB = SunBBatches[batchIndex];
+                var count = 0;
+                while (cursor < Suns.Count && count < 16)
+                {
+                    var s = Suns[cursor++];
+                    if (s.Alpha <= 0.001f || s.Scale <= 0.0001f) continue;
+                    var uv = ToUv(s.World);
+                    var k = count * 4;
+                    var cx = MathHelper.Clamp(uv.X, 0f, 1f);
+                    var cy = MathHelper.Clamp(uv.Y, 0f, 1f);
+                    sunA[k] = cx; sunA[k + 1] = cy; sunA[k + 2] = s.Scale; sunA[k + 3] = s.RayAlpha;
+                    sunB[k] = s.Alpha; sunB[k + 1] = sunB[k + 2] = sunB[k + 3] = 0f;
+                    count++;
+                }
+                if (count == 0) break;
                 var fx = new ScreenEffect(PostShader)
                 {
                     Layer = ScreenEffectLayer.World,
-                    Center = new UVector2(MathHelper.Clamp(uv.X, 0f, 1f), MathHelper.Clamp(uv.Y, 0f, 1f)),
-                    Intensity = s.Alpha,
+                    Center = new UVector2(0.5f, 0.5f),
+                    Intensity = 1f,
                 };
                 fx.Uniform("uMode", 6f);
-                fx.Uniform("uPos", MathHelper.Clamp(uv.X, 0f, 1f), MathHelper.Clamp(uv.Y, 0f, 1f));
-                fx.Uniform("uStrength", s.Scale);
-                fx.Uniform("uExtra", s.RayAlpha);
-                fx.Uniform("uIntensity", s.Alpha);
+                fx.Uniform("uSunCount", count);
+                fx.Uniform("uSunA", sunA);
+                fx.Uniform("uSunB", sunB);
                 frame.Add(fx);
+                batchIndex++;
             }
         }
 
@@ -796,6 +841,8 @@ namespace XiheBoss
         private static readonly float[] WarpCenters = new float[64 * 4];
         private static readonly float[] WarpParameters = new float[64 * 4];
         private static readonly float[] WarpMaskCells = new float[64 * 4];
+        private static readonly List<float[]> SunABatches = new();
+        private static readonly List<float[]> SunBBatches = new();
         private static int _lastLoggedWarpCount;
         private static int _lastWarpLogFrame = -600;
 

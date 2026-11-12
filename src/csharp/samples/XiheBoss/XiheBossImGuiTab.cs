@@ -10,11 +10,18 @@ namespace XiheBoss
     {
         public string Title => "羲和 Boss";
         private static string _status;
+        private static bool _meshStreaming;
 
         public void Draw()
         {
             TerrariaUI.SeparatorText("羲和");
             if (TerrariaUI.Button("召唤羲和")) Spawn();
+            if (TerrariaUI.Button(_meshStreaming ? "上传 A/B：聚合（点击切换）" : "上传 A/B：原路径（点击切换）"))
+            {
+                _meshStreaming = !_meshStreaming;
+                Pylon.ModLoader.Effects.ScreenGraphics.SetMeshStreaming(_meshStreaming);
+                XiheBossMod.Log?.Info($"[upload-ab] streaming={_meshStreaming}");
+            }
             TerrariaUI.SeparatorText("试玩物品");
             if (TerrariaUI.Button("给我一把天顶剑")) Give(Terraria.ID.ItemID.Zenith, "天顶剑");
             if (TerrariaUI.Button("给我一个扫把坐骑")) Give(Terraria.ID.ItemID.WitchBroom, "女巫扫帚");

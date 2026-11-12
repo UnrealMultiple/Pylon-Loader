@@ -3,6 +3,9 @@
 
 #include <algorithm>
 #include <chrono>
+#include <atomic>
+#include <cstring>
+#include <limits>
 #include <cmath>
 #include <mutex>
 #include <string>
@@ -24,6 +27,10 @@ struct Resources {
     bool tried = false, ok = false;
     GLuint quadVao = 0, quadVbo = 0;
     GLuint meshVao = 0, meshVbo = 0;
+    GLuint streamVaos[3] = {}, streamVbos[3] = {};
+    size_t streamCapacity[3] = {};
+    unsigned streamNext = 0;
+    std::vector<MeshVertex> staging;
     GLuint sampler = 0;
     Surface screen;
     Surface history;
@@ -34,7 +41,10 @@ struct Resources {
 
 Resources g_res;
 PassStats g_stats;
+UploadStats g_uploads;
 std::mutex g_statsMutex;
+// Opt in for device A/B; the established upload path remains the default.
+std::atomic<bool> g_streamMeshes{false};
 
 struct Box {
     GLint x = 0, y = 0, w = 0, h = 0;
@@ -99,14 +109,53 @@ public:
     }
 
     int Run() {
+        PrepareMeshes();
         const float now = seconds();
         int drawn = 0;
-        for (const fx::Draw& draw : frame_.draws) drawn += runDraw(draw, now) ? 1 : 0;
+        for (const fx::Draw& draw : frame_.draws) {
+            drawn += runDraw(draw, now) ? 1 : 0;
+            // Advance for every mesh, including failed shaders/targets, so later offsets remain valid.
+            if (draw.mesh) meshFirst_ += draw.verts.size();
+        }
         if (frame_.history) SaveHistory();
         return drawn;
     }
 
 private:
+    void PrepareMeshes() {
+        if (!g_streamMeshes.load(std::memory_order_relaxed)) return;
+        size_t total = 0;
+        for (const Draw& draw : frame_.draws) {
+            if (!draw.mesh) continue;
+            if (draw.verts.size() > static_cast<size_t>(std::numeric_limits<GLsizei>::max()) - total) return;
+            total += draw.verts.size();
+        }
+        if (total == 0 || total > static_cast<size_t>(std::numeric_limits<GLsizeiptr>::max()) / sizeof(MeshVertex)) return;
+        g_res.staging.resize(total);
+        size_t offset = 0;
+        for (const Draw& draw : frame_.draws) {
+            if (!draw.mesh || draw.verts.empty()) continue;
+            std::memcpy(g_res.staging.data() + offset, draw.verts.data(), draw.verts.size() * sizeof(MeshVertex));
+            offset += draw.verts.size();
+        }
+        const Gles& g = gles();
+        const unsigned slot = g_res.streamNext++ % 3;
+        streamVao_ = g_res.streamVaos[slot];
+        const size_t bytes = total * sizeof(MeshVertex);
+        size_t& capacity = g_res.streamCapacity[slot];
+        capacity = std::max(capacity, bytes);
+        g.BindVertexArray(streamVao_);
+        g.BindBuffer(GL_ARRAY_BUFFER, g_res.streamVbos[slot]);
+        // Orphan even when rotating: three slots alone do not guarantee GPU completion.
+        g.BufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(capacity), nullptr, GL_STREAM_DRAW);
+        g.BufferSubData(GL_ARRAY_BUFFER, 0, static_cast<GLsizeiptr>(bytes), g_res.staging.data());
+        bufferDataCalls_++;
+        bufferDataBytes_ += static_cast<int64_t>(capacity);
+        bufferStorageBytes_ += static_cast<int64_t>(capacity);
+        bufferSubDataCalls_++;
+        bufferSubDataBytes_ += static_cast<int64_t>(bytes);
+    }
+
     Surface* find(int id) {
         auto it = surfaces_.find(id);
         return it == surfaces_.end() ? nullptr : it->second;
@@ -135,9 +184,18 @@ private:
     void bind(int unit, const Bound& texture) {
         if (texture.texture == 0) return;
         const Gles& g = gles();
-        g.ActiveTexture(GL_TEXTURE0 + unit);
-        g.BindTexture(GL_TEXTURE_2D, texture.texture);
-        g.BindSampler(unit, texture.sampler);
+        if (activeTexture_ != unit) {
+            g.ActiveTexture(GL_TEXTURE0 + unit);
+            activeTexture_ = unit;
+        }
+        if (boundTextures_[unit] != texture.texture) {
+            g.BindTexture(GL_TEXTURE_2D, texture.texture);
+            boundTextures_[unit] = texture.texture;
+        }
+        if (boundSamplers_[unit] != texture.sampler) {
+            g.BindSampler(unit, texture.sampler);
+            boundSamplers_[unit] = texture.sampler;
+        }
     }
 
     /// 屏幕拷贝按盒子增量刷新：画面没变、盒子也在已拷范围内就不重做。
@@ -149,6 +207,8 @@ private:
         const GLint vx = target_.viewport[0], vy = target_.viewport[1];
         g.BlitFramebuffer(vx + box.x, vy + box.y, vx + box.x + box.w, vy + box.y + box.h, box.x, box.y,
                           box.x + box.w, box.y + box.h, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+        screenCopies_++;
+        screenCopyPixels_ += static_cast<int64_t>(box.w) * box.h;
         copied_ = box;
         dirty_ = false;
     }
@@ -178,7 +238,10 @@ private:
         if (b.center >= 0) g.Uniform2f(b.center, draw.center[0], draw.center[1]);
         if (b.radius >= 0) g.Uniform1f(b.radius, draw.radius);
         if (b.color >= 0) g.Uniform4f(b.color, draw.color[0], draw.color[1], draw.color[2], draw.color[3]);
-        for (const Uniform& uniform : draw.uniforms) setUniform(ShaderStore::Uniform(program, uniform.name), uniform);
+        for (const Uniform& uniform : draw.uniforms) {
+            uniformBytes_ += static_cast<int64_t>(uniform.values.size() * sizeof(float));
+            setUniform(ShaderStore::Uniform(program, uniform.name), uniform);
+        }
     }
 
     void bindModTextures(Program& program, const Draw& draw) {
@@ -204,10 +267,15 @@ private:
         const GLint dh = dest != nullptr ? dest->height() : target_.viewport[3];
         const Box box = pixelBox(draw.box, dw, dh);
         if (box.w <= 0 || box.h <= 0) return false;
+        fullscreenDraws_++;
 
         const Gles& g = gles();
         g.Disable(GL_BLEND);
-        if (readsScreen(draw) || program->builtin.screen >= 0) {
+        // The common shader prelude declares uScreen for every fragment shader,
+        // including geometry-only Xihe passes that never sample it. Only an
+        // explicit screen/history binding requires a copy; the old builtin check
+        // forced a full screen blit for every primitive draw.
+        if (readsScreen(draw) || program->readsScreen) {
             refreshCopy(pixelBox(draw.box, target_.viewport[2], target_.viewport[3]));
         }
 
@@ -280,11 +348,21 @@ private:
                 break;
         }
 
-        g.BindVertexArray(g_res.meshVao);
-        g.BindBuffer(GL_ARRAY_BUFFER, g_res.meshVbo);
-        g.BufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(draw.verts.size() * sizeof(MeshVertex)),
-                     draw.verts.data(), GL_STREAM_DRAW);
-        g.DrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(draw.verts.size()));
+        if (streamVao_ != 0) {
+            g.BindVertexArray(streamVao_);
+            g.DrawArrays(GL_TRIANGLES, static_cast<GLint>(meshFirst_), static_cast<GLsizei>(draw.verts.size()));
+        } else {
+            g.BindVertexArray(g_res.meshVao);
+            g.BindBuffer(GL_ARRAY_BUFFER, g_res.meshVbo);
+            const auto bytes = static_cast<int64_t>(draw.verts.size() * sizeof(MeshVertex));
+            g.BufferData(GL_ARRAY_BUFFER, static_cast<GLsizeiptr>(bytes), draw.verts.data(), GL_STREAM_DRAW);
+            bufferDataBytes_ += bytes;
+            bufferStorageBytes_ += bytes;
+            bufferDataCalls_++;
+            g.DrawArrays(GL_TRIANGLES, 0, static_cast<GLsizei>(draw.verts.size()));
+        }
+        meshDraws_++;
+        meshVertices_ += static_cast<int64_t>(draw.verts.size());
         if (dest == nullptr) dirty_ = true;
         pixels_ += static_cast<int64_t>(draw.verts.size());
         return true;
@@ -306,9 +384,34 @@ private:
     Box copied_;
     bool dirty_ = true;
     int64_t pixels_ = 0;
+    int64_t meshDraws_ = 0;
+    int64_t fullscreenDraws_ = 0;
+    int64_t meshVertices_ = 0;
+    int64_t uniformBytes_ = 0;
+    int64_t bufferDataBytes_ = 0;
+    int64_t screenCopies_ = 0;
+    int64_t screenCopyPixels_ = 0;
+    GLuint streamVao_ = 0;
+    size_t meshFirst_ = 0;
+    int64_t bufferSubDataBytes_ = 0, bufferStorageBytes_ = 0;
+    int64_t bufferDataCalls_ = 0, bufferSubDataCalls_ = 0;
+    int activeTexture_ = -1;
+    GLuint boundTextures_[16] = {};
+    GLuint boundSamplers_[16] = {};
 
 public:
+    int64_t bufferSubDataBytes() const { return bufferSubDataBytes_; }
+    int64_t bufferStorageBytes() const { return bufferStorageBytes_; }
+    int64_t bufferDataCalls() const { return bufferDataCalls_; }
+    int64_t bufferSubDataCalls() const { return bufferSubDataCalls_; }
     int64_t pixels() const { return pixels_; }
+    int64_t meshDraws() const { return meshDraws_; }
+    int64_t fullscreenDraws() const { return fullscreenDraws_; }
+    int64_t meshVertices() const { return meshVertices_; }
+    int64_t uniformBytes() const { return uniformBytes_; }
+    int64_t bufferDataBytes() const { return bufferDataBytes_; }
+    int64_t screenCopies() const { return screenCopies_; }
+    int64_t screenCopyPixels() const { return screenCopyPixels_; }
 };
 
 bool initResources() {
@@ -339,6 +442,18 @@ bool initResources() {
     g.EnableVertexAttribArray(1);
     g.EnableVertexAttribArray(2);
     g.EnableVertexAttribArray(3);
+
+    g.GenVertexArrays(3, g_res.streamVaos);
+    g.GenBuffers(3, g_res.streamVbos);
+    for (int i = 0; i < 3; ++i) {
+        g.BindVertexArray(g_res.streamVaos[i]);
+        g.BindBuffer(GL_ARRAY_BUFFER, g_res.streamVbos[i]);
+        g.VertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, stride, nullptr);
+        g.VertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(2 * sizeof(float)));
+        g.VertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(4 * sizeof(float)));
+        g.VertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, stride, reinterpret_cast<const void*>(8 * sizeof(float)));
+        for (GLuint attribute = 0; attribute < 4; ++attribute) g.EnableVertexAttribArray(attribute);
+    }
 
     g.GenSamplers(1, &g_res.sampler);
     g.SamplerParameteri(g_res.sampler, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -388,8 +503,33 @@ void Pass::Execute(const Frame& frame, const RenderTarget& target) {
     g_stats.draws += drawn;
     g_stats.boxPixels += runner.pixels();
     g_stats.cpuNs += cpuNs;
+    g_stats.meshDraws += runner.meshDraws();
+    g_stats.fullscreenDraws += runner.fullscreenDraws();
+    g_stats.meshVertices += runner.meshVertices();
+    g_stats.uniformBytes += runner.uniformBytes();
+    g_stats.bufferDataBytes += runner.bufferDataBytes();
+    g_stats.screenCopies += runner.screenCopies();
+    g_stats.screenCopyPixels += runner.screenCopyPixels();
+    g_uploads.bufferSubDataBytes += runner.bufferSubDataBytes();
+    g_uploads.bufferStorageBytes += runner.bufferStorageBytes();
+    g_uploads.bufferDataCalls += runner.bufferDataCalls();
+    g_uploads.bufferSubDataCalls += runner.bufferSubDataCalls();
     g_stats.fbo = target.fbo;
     for (int i = 0; i < 4; ++i) g_stats.viewport[i] = target.viewport[i];
+}
+
+void Pass::SetMeshStreaming(bool enabled) {
+    g_streamMeshes.store(enabled, std::memory_order_relaxed);
+}
+
+UploadStats Pass::Uploads() {
+    UploadStats copy;
+    std::lock_guard<std::mutex> lock(g_statsMutex);
+    copy.bufferSubDataBytes = g_uploads.bufferSubDataBytes;
+    copy.bufferStorageBytes = g_uploads.bufferStorageBytes;
+    copy.bufferDataCalls = g_uploads.bufferDataCalls;
+    copy.bufferSubDataCalls = g_uploads.bufferSubDataCalls;
+    return copy;
 }
 
 PassStats Pass::Stats() {

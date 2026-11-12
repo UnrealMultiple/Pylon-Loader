@@ -16,6 +16,9 @@ uniform float uWarpCount;
 uniform vec4 uWarpCenters[64]; // center.xy, radius, width
 uniform vec4 uWarpParameters[64]; // strength, mask enabled
 uniform vec4 uWarpCells[64];
+uniform float uSunCount;
+uniform vec4 uSunA[16]; // pos.xy, scale, ray alpha
+uniform vec4 uSunB[16]; // intensity in x
 
 const float TAU = 6.28318530718;
 
@@ -89,7 +92,19 @@ void main() {
         base += base * uStrength;
     } else if (uMode < 6.5) {
         // ---- Sun.fx ----
-        base += sunFx(uvTop, posTop, max(uStrength, 0.0001), uExtra) * uIntensity;
+        int sunCount = clamp(int(uSunCount + 0.5), 0, 16);
+        if (sunCount > 0) {
+            // Batched Sun.fx: one screen copy and one full-screen draw for all suns.
+            for (int i = 0; i < 16; ++i) {
+                if (i >= sunCount) break;
+                vec4 a = uSunA[i];
+                vec4 b = uSunB[i];
+                vec2 sunPos = a.xy;
+                base += sunFx(uvTop, sunPos, max(a.z, 0.0001), a.w) * b.x;
+            }
+        } else {
+            base += sunFx(uvTop, posTop, max(uStrength, 0.0001), uExtra) * uIntensity;
+        }
     } else if (uMode < 7.5) {
         // ---- Cycloid：源 PreDraw 的 screenTargetSwap（黄色全屏闪光）+ Hide 圆洞 ----
         vec2 q = (uvTop - posTop) * vec2(uAspect, 1.0);
@@ -103,8 +118,12 @@ void main() {
         // Pixels outside a ring do no mask lookup/trigonometry; all entries share
         // one final screen sample instead of one full-screen pass per prominence.
         vec2 sampleTop = uvTop;
-        for (int i = 63; i >= 0; --i) {
-            if (float(i) >= uWarpCount) continue;
+        // Iterate only the populated entries. The old reverse loop always ran 64
+        // iterations even when a frame contained only a few warp rings.
+        int activeWarps = clamp(int(uWarpCount + 0.5), 0, 64);
+        for (int j = 0; j < 64; ++j) {
+            if (j >= activeWarps) break;
+            int i = activeWarps - 1 - j;
             vec4 entry = uWarpCenters[i];
             vec2 centerTop = vec2(entry.x, 1.0 - entry.y);
             vec2 q = (sampleTop - centerTop) * vec2(uAspect, 1.0);

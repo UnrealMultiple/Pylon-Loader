@@ -102,6 +102,19 @@ public sealed class ScreenEffect
         return this;
     }
 
+    internal int UniformBytes
+    {
+        get
+        {
+            var bytes = 0;
+            foreach (var uniform in _uniforms) bytes += uniform.Values.Length * sizeof(float);
+            return bytes;
+        }
+    }
+
+    internal int UniformCount => _uniforms.Count;
+    internal int TextureCount => _textures.Count;
+
     internal void Submit(int handle)
     {
         if (handle <= 0) return;

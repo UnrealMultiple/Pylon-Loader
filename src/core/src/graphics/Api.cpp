@@ -3,14 +3,18 @@
 
 #include <cstring>
 #include <mutex>
+#include <cstddef>
+#include <type_traits>
 #include <utility>
 
 #include "graphics/Pipe.h"
 #include "graphics/Trace.h"
 #include "graphics/fx/Shaders.h"
+#include "graphics/fx/Pass.h"
 #include "graphics/fx/Textures.h"
 
 namespace pylon::graphics {
+static_assert(sizeof(PylonFxStats) == 200);
 namespace {
 
 std::mutex g_builderMutex;
@@ -136,22 +140,11 @@ PYLON_FX_EXPORT int32_t PylonFx_SubmitAddMesh(int32_t shader, int32_t layer, int
     draw.blend = blend == 1 ? fx::Blend::Alpha : (blend == 2 ? fx::Blend::Additive :
                  (blend == 3 ? fx::Blend::Premultiplied : fx::Blend::None));
     draw.verts.resize(static_cast<size_t>(count));
-    for (int32_t i = 0; i < count; ++i) {
-        const float* p = verts + static_cast<size_t>(i) * 12;
-        fx::MeshVertex& v = draw.verts[static_cast<size_t>(i)];
-        v.x = p[0];
-        v.y = p[1];
-        v.u = p[2];
-        v.v = p[3];
-        v.r = p[4];
-        v.g = p[5];
-        v.b = p[6];
-        v.a = p[7];
-        v.w = p[8];
-        v.t = p[9];
-        v.aux0 = p[10];
-        v.aux1 = p[11];
-    }
+    // The ABI layout is intentionally identical to MeshVertex: 12 contiguous
+    // float fields. Copy the whole block once instead of converting every vertex.
+    static_assert(sizeof(fx::MeshVertex) == sizeof(float) * 12);
+    static_assert(std::is_trivially_copyable_v<fx::MeshVertex>);
+    std::memcpy(draw.verts.data(), verts, static_cast<size_t>(count) * sizeof(fx::MeshVertex));
     g_builder.draws.push_back(std::move(draw));
     return static_cast<int32_t>(g_builder.draws.size());
 }
@@ -175,6 +168,13 @@ PYLON_FX_EXPORT void PylonFx_Stats(PylonFxStats* out) {
     out->cpuNs = s.cpuNs;
     out->gpuNs = s.gpuNs;
     out->gpuSamples = s.gpuSamples;
+    out->meshDraws = s.meshDraws;
+    out->fullscreenDraws = s.fullscreenDraws;
+    out->meshVertices = s.meshVertices;
+    out->uniformBytes = s.uniformBytes;
+    out->bufferDataBytes = s.bufferDataBytes;
+    out->screenCopies = s.screenCopies;
+    out->screenCopyPixels = s.screenCopyPixels;
     out->worldFrames = s.worldFrames;
     out->screenFrames = s.screenFrames;
     out->markersIssued = s.markersIssued;
@@ -189,6 +189,16 @@ PYLON_FX_EXPORT void PylonFx_Stats(PylonFxStats* out) {
     out->worldLayer = s.worldLayer ? 1 : 0;
     out->overlay = s.overlay ? 1 : 0;
     out->gpuTimer = s.gpuTimer ? 1 : 0;
+}
+
+PYLON_FX_EXPORT void PylonFx_UploadStats(PylonFxUploadStats* out) {
+    if (out == nullptr) return;
+    const auto s = fx::Pass::Uploads();
+    *out = {s.bufferSubDataBytes, s.bufferStorageBytes, s.bufferDataCalls, s.bufferSubDataCalls};
+}
+
+PYLON_FX_EXPORT void PylonFx_SetMeshStreaming(int32_t enabled) {
+    fx::Pass::SetMeshStreaming(enabled != 0);
 }
 
 PYLON_FX_EXPORT void PylonFx_RequestTrace() {

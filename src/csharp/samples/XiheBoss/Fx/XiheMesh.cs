@@ -23,6 +23,28 @@ namespace XiheBoss
         internal static ScreenShader GeoShader;
         internal static ScreenShader TrailShader;
 
+        internal static int MeshBatchCount
+        {
+            get
+            {
+                var count = 0;
+                foreach (var batch in GeoBatches) if (batch.Verts.Count >= 6) count++;
+                foreach (var batch in TrailBatches) if (batch.Verts.Count >= 36) count++;
+                return count;
+            }
+        }
+
+        internal static int MeshVertexCount
+        {
+            get
+            {
+                var count = 0;
+                foreach (var batch in GeoBatches) count += batch.Verts.Count / 12;
+                foreach (var batch in TrailBatches) count += batch.Verts.Count / 12;
+                return count;
+            }
+        }
+
         private sealed class GeoBatch
         {
             public Tex Tex;

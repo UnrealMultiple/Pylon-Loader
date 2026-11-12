@@ -5,6 +5,8 @@ internal unsafe struct PylonFxStatsNative
 {
     public long Frames, Draws, BoxPixels, CpuNs;
     public long GpuNs, GpuSamples;
+    public long MeshDraws, FullscreenDraws, MeshVertices;
+    public long UniformBytes, BufferDataBytes, ScreenCopies, ScreenCopyPixels;
     public long WorldFrames, ScreenFrames, MarkersIssued, MarkerHits;
     public long WorldPostRender, UiPostRender, OtherPostRender;
     public int DrawFbo;

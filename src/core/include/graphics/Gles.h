@@ -19,7 +19,7 @@ namespace pylon::graphics {
     X(GenSamplers) X(SamplerParameteri) X(DeleteSamplers) X(PixelStorei)       \
     X(GenFramebuffers) X(DeleteFramebuffers)                                   \
     X(FramebufferTexture2D) X(CheckFramebufferStatus) X(BlitFramebuffer)       \
-    X(GenVertexArrays) X(GenBuffers) X(BufferData)                             \
+    X(GenVertexArrays) X(GenBuffers) X(BufferData) X(BufferSubData)                             \
     X(VertexAttribPointer)                                                     \
     X(EnableVertexAttribArray)                                                 \
     X(CreateShader) X(ShaderSource) X(CompileShader) X(GetShaderiv)            \

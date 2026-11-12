@@ -130,10 +130,12 @@ public static class ScreenGraphics
         Install();
 
         ScreenEffectsNative.SubmitBegin(frame.History ? 1 : 0);
-        foreach (var target in frame.Targets)
-            ScreenEffectsNative.SubmitAddTarget(target.Id, target.Name, target.Scale, target.Persistent ? 1 : 0);
+        try
+        {
+            foreach (var target in frame.Targets)
+                ScreenEffectsNative.SubmitAddTarget(target.Id, target.Name, target.Scale, target.Persistent ? 1 : 0);
 
-        foreach (var draw in frame.Draws)
+            foreach (var draw in frame.Draws)
         {
             int handle;
             if (draw.Mesh)
@@ -180,9 +182,13 @@ public static class ScreenGraphics
                     ColorBuf);
                 if (handle <= 0) continue;
             }
-            draw.Submit(handle);
+                draw.Submit(handle);
+            }
         }
-        ScreenEffectsNative.SubmitEnd();
+        finally
+        {
+            ScreenEffectsNative.SubmitEnd();
+        }
     }
 
     /// <summary>
@@ -219,11 +225,20 @@ public static class ScreenGraphics
     public static ScreenStats Stats()
     {
         ScreenEffectsNative.Stats(out var native);
-        return ScreenStats.From(native);
+        var stats = ScreenStats.From(native);
+        ScreenEffectsNative.UploadStats(out var upload);
+        stats.BufferSubDataBytes = upload.BufferSubDataBytes;
+        stats.BufferStorageBytes = upload.BufferStorageBytes;
+        stats.BufferDataCalls = upload.BufferDataCalls;
+        stats.BufferSubDataCalls = upload.BufferSubDataCalls;
+        return stats;
     }
 
     /// <summary>请内核录下一整帧 GL 调用进日志（排帧点问题用）。</summary>
     public static void RequestTrace() => ScreenEffectsNative.RequestTrace();
+
+    /// <summary>运行时上传路径 A/B 开关；不改变 Mod 的顶点格式、绘制顺序或混合。</summary>
+    public static void SetMeshStreaming(bool enabled) => ScreenEffectsNative.SetMeshStreaming(enabled ? 1 : 0);
 
     // Unity 原始数据第一行是顶部；GL 的 v=0 在底部（和 vUV 一致），翻行。
     private static byte[] FlipRows(byte[] raw, int width, int height)

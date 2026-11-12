@@ -58,6 +58,7 @@ struct Draw {
     Layer layer = Layer::World;
     int dest = 0;                 // 0 = 屏幕，> 0 = 目标
     int source = kTexNone;
+    Blend blend = Blend::None;
     float box[4] = {0, 0, 1, 1};
     float center[2] = {0.5f, 0.5f};
     float radius = 0.f;
@@ -66,7 +67,6 @@ struct Draw {
     float age = 0.f;
     float color[4] = {1, 1, 1, 1};
     bool mesh = false;            // 三角形列表：不读屏幕、不拷贝
-    Blend blend = Blend::None;
     std::vector<MeshVertex> verts;
     std::vector<Uniform> uniforms;
     std::vector<TextureBinding> textures;

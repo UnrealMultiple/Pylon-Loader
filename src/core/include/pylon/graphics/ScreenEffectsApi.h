@@ -25,6 +25,13 @@ struct PylonFxStats {
     int64_t cpuNs;
     int64_t gpuNs;
     int64_t gpuSamples;
+    int64_t meshDraws;
+    int64_t fullscreenDraws;
+    int64_t meshVertices;
+    int64_t uniformBytes;
+    int64_t bufferDataBytes;
+    int64_t screenCopies;
+    int64_t screenCopyPixels;
     int64_t worldFrames;
     int64_t screenFrames;
     int64_t markersIssued;
@@ -122,6 +129,15 @@ PYLON_FX_EXPORT void PylonFx_SubmitEnd();
 
 /// 统计快照（任意线程）。
 PYLON_FX_EXPORT void PylonFx_Stats(pylon::graphics::PylonFxStats* out);
+
+/// Upload diagnostics are separate to keep the original PylonFxStats layout stable.
+struct PylonFxUploadStats {
+    int64_t bufferSubDataBytes, bufferStorageBytes, bufferDataCalls, bufferSubDataCalls;
+};
+PYLON_FX_EXPORT void PylonFx_UploadStats(PylonFxUploadStats* out);
+
+/// Runtime A/B switch, no GPU calls on the calling thread. 0 = legacy, 1 = aggregate.
+PYLON_FX_EXPORT void PylonFx_SetMeshStreaming(int32_t enabled);
 
 /// 请下一整帧 GL 调用 trace 进日志（排帧点问题用）。
 PYLON_FX_EXPORT void PylonFx_RequestTrace();
