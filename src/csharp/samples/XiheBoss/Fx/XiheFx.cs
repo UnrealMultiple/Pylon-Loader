@@ -160,6 +160,8 @@ namespace XiheBoss
         public float Radius;
         public float Width;
         public float Strength;
+        public Tex MaskTex;
+        public bool UseMask;
     }
 
     internal sealed class LinePrim
@@ -187,6 +189,17 @@ namespace XiheBoss
         private static readonly List<RingPrim> Rings = new();
         private static readonly List<SpritePrim> Sprites = new();
         private static readonly List<TrailQuadGroup> TrailQuads = new();
+        private static readonly Stack<TrailQuadGroup> TrailQuadPool = new();
+
+        private static void ClearTrailQuads()
+        {
+            foreach (var group in TrailQuads)
+            {
+                group.Quads.Clear();
+                TrailQuadPool.Push(group);
+            }
+            TrailQuads.Clear();
+        }
         private static readonly List<TriPrim> Tris = new();
         private static readonly List<Ring2Prim> Rings2 = new();
         private static readonly List<SunFx> Suns = new();
@@ -251,7 +264,7 @@ namespace XiheBoss
             Beams.Clear();
             Rings.Clear();
             Sprites.Clear();
-            TrailQuads.Clear();
+            ClearTrailQuads();
             Tris.Clear();
             Rings2.Clear();
             Suns.Clear();
@@ -388,13 +401,11 @@ namespace XiheBoss
             }
             if (group == null)
             {
-                group = new TrailQuadGroup
-                {
-                    Shape = shape,
-                    ColorTex = colorTex,
-                    Overlay = overlay,
-                    Additive = additive,
-                };
+                group = TrailQuadPool.Count > 0 ? TrailQuadPool.Pop() : new TrailQuadGroup();
+                group.Shape = shape;
+                group.ColorTex = colorTex;
+                group.Overlay = overlay;
+                group.Additive = additive;
                 TrailQuads.Add(group);
             }
 
@@ -482,6 +493,27 @@ namespace XiheBoss
                 Radius = MathHelper.Max(0f, radius),
                 Width = MathHelper.Max(0.001f, width),
                 Strength = strength,
+            });
+        }
+
+        /// <summary>
+        /// IWarpProj 的独立提交入口。MEAC 先把弹幕的 Extra1/Trail 图形画到
+        /// screenTargetSwap，再由 EoLWarp/KScreen0 扭曲屏幕；这里以 trail 包围范围
+        /// 建立同一帧独立 warp pass，避免把 warp 误并入可见 additive trail。
+        /// </summary>
+        internal static void WarpTrail(Vector2 center, float radiusPixels, float strength = 0.02f)
+        {
+            var h = Math.Max(1, Main.screenHeight);
+            var radius = MathHelper.Max(0.001f, radiusPixels / h);
+            if (Warps.Count >= 64) return;
+            Warps.Add(new WarpFx
+            {
+                World = center,
+                Radius = radius,
+                Width = MathHelper.Max(radius * 0.35f, 0.002f),
+                Strength = strength,
+                MaskTex = Tex.KnifeExtra1,
+                UseMask = true,
             });
         }
 
@@ -611,7 +643,7 @@ namespace XiheBoss
                 Beams.Clear();
                 Rings.Clear();
                 Sprites.Clear();
-                TrailQuads.Clear();
+                ClearTrailQuads();
                 Tris.Clear();
                 Rings2.Clear();
                 Suns.Clear();
@@ -646,8 +678,7 @@ namespace XiheBoss
 
                 var frame = new ScreenFrame();
 
-                // 黎明只靠 Main.dayTime + Main.time（原版天空/光照），不叠全屏天空蒙版。
-                // Pylon 没有“世界之下”的天空层，全屏叠色会变成一层蒙版，画面发灰发黄。
+                // 时间由 Boss AI 按生命值推进；EoLSky 渐变由 XiheSky 在背景层绘制。
                 AddRingPasses(frame);
                 AddTrail2Passes(frame);
                 AddLinePasses(frame);
@@ -656,6 +687,7 @@ namespace XiheBoss
                 AddWarpPasses(frame);
                 AddPrimPasses(frame);
                 AddCycloidOverlays(frame);
+                // 大光柱本体由 PushVisual 提交四层 MEAC SpriteRect；这里仅收集 MagicRing。
                 XiheBigLaserFx.Submit(frame);
                 AddSuns(frame);
                 XiheMesh.Submit(frame);
@@ -758,27 +790,55 @@ namespace XiheBoss
             }
         }
 
+        // All warp entries previously required their own full-resolution screen copy
+        // and ping-pong pass. Compose their UV transforms before one screen sample.
+        // Reverse iteration is essential: drawing A then B samples A at B(uv).
+        private static readonly float[] WarpCenters = new float[64 * 4];
+        private static readonly float[] WarpParameters = new float[64 * 4];
+        private static readonly float[] WarpMaskCells = new float[64 * 4];
+        private static int _lastLoggedWarpCount;
+        private static int _lastWarpLogFrame = -600;
+
         private static void AddWarpPasses(ScreenFrame frame)
         {
             if (PostShader == null || Warps.Count == 0) return;
-            foreach (var w in Warps)
+            var count = Math.Min(Warps.Count, 64);
+            var currentFrame = UnityEngine.Time.frameCount;
+            if (count > _lastLoggedWarpCount || currentFrame - _lastWarpLogFrame >= 600)
             {
-                var uv = ToUv(w.World);
-                var fx = new ScreenEffect(PostShader)
-                {
-                    Layer = ScreenEffectLayer.World,
-                    Box = new[] { 0f, 0f, 1f, 1f },
-                    Center = new UVector2(MathHelper.Clamp(uv.X, 0f, 1f), MathHelper.Clamp(uv.Y, 0f, 1f)),
-                    Radius = w.Radius,
-                    Intensity = 1f,
-                };
-                fx.Uniform("uMode", 8f);
-                fx.Uniform("uPos", MathHelper.Clamp(uv.X, 0f, 1f), MathHelper.Clamp(uv.Y, 0f, 1f));
-                fx.Uniform("uStrength", MathHelper.Clamp(w.Strength, -0.5f, 0.5f));
-                fx.Uniform("uExtra", MathHelper.Clamp(w.Width, 0f, 1f));
-                fx.Uniform("uRadius", MathHelper.Clamp(w.Radius, 0f, 2f));
-                frame.Add(fx);
+                XiheBossMod.Log?.Info($"[warp-batch] entries={count} passes=1 frame={currentFrame}");
+                _lastLoggedWarpCount = count;
+                _lastWarpLogFrame = currentFrame;
             }
+            for (var i = 0; i < count; i++)
+            {
+                var w = Warps[i];
+                var uv = ToUv(w.World);
+                var k = i * 4;
+                WarpCenters[k] = MathHelper.Clamp(uv.X, 0f, 1f);
+                WarpCenters[k + 1] = MathHelper.Clamp(uv.Y, 0f, 1f);
+                WarpCenters[k + 2] = MathHelper.Clamp(w.Radius, 0f, 2f);
+                WarpCenters[k + 3] = MathHelper.Clamp(w.Width, 0f, 1f);
+                WarpParameters[k] = MathHelper.Clamp(w.Strength, -0.5f, 0.5f);
+                WarpParameters[k + 1] = w.UseMask ? 1f : 0f;
+                var cell = XiheTextures.Cell(w.MaskTex);
+                WarpMaskCells[k] = cell.U0;
+                WarpMaskCells[k + 1] = cell.V0;
+                WarpMaskCells[k + 2] = cell.DU;
+                WarpMaskCells[k + 3] = cell.DV;
+            }
+            var fx = new ScreenEffect(PostShader)
+            {
+                Layer = ScreenEffectLayer.World,
+                Intensity = 1f,
+            };
+            fx.Uniform("uMode", 8f);
+            fx.Uniform("uWarpCount", (float)count);
+            fx.Uniform("uWarpCenters", WarpCenters);
+            fx.Uniform("uWarpParameters", WarpParameters);
+            fx.Uniform("uWarpCells", WarpMaskCells);
+            if (XiheTextures.Atlas != null) fx.Texture("uWarpMask", XiheTextures.Atlas);
+            frame.Add(fx);
         }
 
         // ================= 新图元：精灵 / Trail / 环 =================

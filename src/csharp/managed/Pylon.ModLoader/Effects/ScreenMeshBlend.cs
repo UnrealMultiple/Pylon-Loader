@@ -11,4 +11,7 @@ public enum ScreenMeshBlend
 
     /// <summary>Additive：src * src.a + dst。</summary>
     Additive = 2,
+
+    /// <summary>XNA AlphaBlend（预乘）：src + dst * (1 - src.a)。</summary>
+    Premultiplied = 3,
 }

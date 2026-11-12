@@ -34,7 +34,17 @@ internal static class Jni
 
     internal static void Release(IntPtr handle)
     {
-        if (handle != IntPtr.Zero) AndroidJNI.DeleteGlobalRef(handle);
+        if (handle == IntPtr.Zero) return;
+
+        // ART can reuse a deleted global-reference slot for a different Java class.
+        // Evict IDs before releasing that slot, so a later class cannot inherit its
+        // cached constructor/method/field IDs. Object refs have no matching keys.
+        foreach (var key in MethodIds.Keys)
+            if (key.Class == handle) MethodIds.TryRemove(key, out _);
+        foreach (var key in FieldIds.Keys)
+            if (key.Class == handle) FieldIds.TryRemove(key, out _);
+
+        AndroidJNI.DeleteGlobalRef(handle);
     }
 
     /// <summary>本地引用收口：先把异常记账，再换成本地引用释放后的全局引用。</summary>

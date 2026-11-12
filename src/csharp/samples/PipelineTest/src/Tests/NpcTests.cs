@@ -49,6 +49,35 @@ internal static class NpcTests
             return;
         }
 
+        PT.Case("NPC-D1", c =>
+        {
+            var source = player.GetProjectileSource_Misc(0);
+            var center = player.Center;
+            var index = NPC.NewNPC(source, (int)center.X, (int)center.Y - 200, type, 0, 0f, 0f, 0f, 0f, 0);
+            c.True(index >= 0 && index < Main.npc.Length, "死亡回调探针生成");
+            if (index < 0 || index >= Main.npc.Length) return;
+            var npc = Main.npc[index];
+            var before = Content.TestNpc.CheckDeadCount;
+            try
+            {
+                Content.TestNpc.VetoDeath = true;
+                npc.life = 30;
+                npc.checkDead();
+                c.Eq(npc.life, 30, "非致死检查保留生命值");
+                c.Eq(Content.TestNpc.CheckDeadCount, before, "非致死检查不分派 CheckDead");
+                npc.life = 0;
+                npc.checkDead();
+                c.Eq(Content.TestNpc.CheckDeadCount, before + 1, "致死检查分派一次");
+                c.Eq(npc.life, 1, "死亡否决允许锁血");
+                c.True(npc.active, "死亡否决保持 active");
+            }
+            finally
+            {
+                Content.TestNpc.VetoDeath = false;
+                npc.active = false;
+            }
+        });
+
         PT.Case("NPC-W1", c =>
         {
             var before = Content.TestNpc.OnSpawnCount;

@@ -135,6 +135,9 @@ public abstract class ModProjectile : ModType
     /// <summary>AI 之前；返回 false 跳过游戏 AI 与 <see cref="AI"/>。</summary>
     public virtual bool PreAI(Projectile proj) => true;
 
+    /// <summary>修改浮标鱼线的竿端偏移（像素）与染色前颜色；之后由手持鱼竿继续修改。</summary>
+    public virtual void ModifyFishingLine(Projectile proj, ref Vector2 lineOriginOffset, ref Color lineColor) { }
+
     /// <summary>自己的每帧 AI。</summary>
     public virtual void AI(Projectile proj) { }
 

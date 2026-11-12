@@ -17,9 +17,17 @@ namespace XiheBoss
         /// <summary>源文件的 public int endTime（MEAC 里没人写它，恒 0；保留以便逐行对应）。</summary>
         public int EndTime;
 
-        /// <summary>源文件的 oldPos：按 whoAmI 索引的静态表（见文件头近似点 1）。</summary>
-        private static Vector2[][] _trails;
-        private const int TrailSlots = 4096;
+        // PushVisual is static, so retain source oldPos buffers by projectile slot.
+        // Keep both source lengths: alternating 5/7 and other modes must not allocate
+        // a new array every time the same Terraria slot is reused.
+        private sealed class TrailBuffers
+        {
+            public Vector2[] Short;
+            public Vector2[] Long;
+            public Vector2[] Active;
+        }
+
+        private static readonly TrailBuffers[] Trails = new TrailBuffers[4096];
 
         public override string TexturePath => null;
 
@@ -56,9 +64,9 @@ namespace XiheBoss
                 XiheVisuals.Create(VfxKind.LightDust, proj.Center, Vector2.Zero).DrawColor = Color.Yellow;
             }
 
-            // 源：mode 5/7 的 oldPos 只有 15 个点，其余 30 个。手机端保留 16/10 段缓存，
-            // 同屏图元过多时 PushVisual 再按 LOD 只提交前 8 段。
-            SetTrail(proj, mode == 5f || mode == 7f ? 10 : 16);
+            // MEAC：mode 5/7 使用 15 个 oldPos，其余模式使用 30 个；完整保留拖尾，
+            // 不用迁移版的 16/10 段 LOD，避免光弹长度和密度与原版不同。
+            SetTrail(proj, mode == 5f || mode == 7f ? 15 : 30);
 
             if (mode == 8f)
             {
@@ -219,10 +227,11 @@ namespace XiheBoss
             var boom = XiheVisuals.Create(VfxKind.Explosion, proj.Center, proj.velocity);
             boom.DrawColor = new Color(1f, 1f, 0.6f);
 
-            var counts = 8;
-            if (proj.ai[1] == 4f) counts = 5;
-            if (proj.ai[1] == 5f) counts = 4;
-            if (proj.ai[1] == 7f) counts = 4;
+            // MEAC Kill：默认 20 颗，模式 4/5/7 分别为 7/5/5 颗。
+            var counts = 20;
+            if (proj.ai[1] == 4f) counts = 7;
+            if (proj.ai[1] == 5f) counts = 5;
+            if (proj.ai[1] == 7f) counts = 5;
 
             for (var i = 0; i < counts; i++)
             {
@@ -235,27 +244,30 @@ namespace XiheBoss
 
         public override bool ShouldUpdatePosition(Projectile proj) => false;
 
-        public override bool PreDraw(Projectile proj, Color lightColor)
+        public override bool PreDraw(Projectile proj, Color lightColor) => false;
+
+        public override void PostDraw(Projectile proj, Color lightColor)
         {
-            // 源 PreDraw：头部是 TextureAssets.Sun（原版太阳），Color(1,1,1,0.75)，scale = projectile.scale。
-            // 那三笔 Ball 十字在源里 alpha=0（AlphaBlend 下不可见），不要画。
+            // MEAC PostDraw：预乘 AlphaBlend 下 RGB 非零、alpha=0 的三笔 Ball 仍可见。
+            // 它们是光弹的旋转十字，不能按“全透明”删掉；太阳与十字共同使用 scale*0.7。
             try
             {
                 _sun ??= TextureAssets.Sun?.Value;
-                if (_sun != null && proj.scale > 0.01f)
+                var scale = proj.scale * 0.7f;
+                var position = proj.Center - Main.screenPosition;
+                // The three alpha-zero Ball sprites are collected by PushVisual into
+                // a single premultiplied mesh batch rather than three IL2CPP calls per bullet.
+                if (_sun != null && scale > 0.01f)
                 {
-                    var a = MathHelper.Clamp(1f - proj.alpha / 255f, 0f, 1f);
-                    var color = new Color(1f, 1f, 1f, 0.75f) * a;
-                    XiheDraw.Sprite(Main.spriteBatch, _sun, proj.Center - Main.screenPosition,
-                        new Rectangle(0, 0, _sun.Width, _sun.Height), color, proj.rotation,
-                        Utils.Size(_sun) / 2f, proj.scale);
+                    XiheDraw.Sprite(Main.spriteBatch, _sun, position,
+                        new Rectangle(0, 0, _sun.Width, _sun.Height), new Color(1f, 1f, 1f, 0.75f), proj.rotation,
+                        Utils.Size(_sun) / 2f, scale);
                 }
             }
             catch (Exception e)
             {
                 if (!_drawLogged) { _drawLogged = true; XiheBossMod.Log?.Warn("[eolproj] PreDraw 异常：" + e.Message); }
             }
-            return false;
         }
 
         private static Texture2D _sun;
@@ -265,26 +277,29 @@ namespace XiheBoss
 
         private static Vector2[] TrailOf(Projectile proj)
         {
-            if (_trails == null) return null;
             var i = proj.whoAmI;
-            if (i < 0 || i >= _trails.Length) return null;
-            return _trails[i];
+            return i >= 0 && i < Trails.Length ? Trails[i]?.Active : null;
         }
 
         private static void SetTrail(Projectile proj, int length)
         {
-            if (_trails == null) _trails = new Vector2[TrailSlots][];
             var i = proj.whoAmI;
-            if (i < 0 || i >= _trails.Length) return;
-            _trails[i] = new Vector2[length];
+            if (i < 0 || i >= Trails.Length) return;
+            var buffers = Trails[i] ??= new TrailBuffers();
+            var trail = length == 15
+                ? (buffers.Short ??= new Vector2[15])
+                : (buffers.Long ??= new Vector2[30]);
+            Array.Clear(trail, 0, trail.Length);
+            buffers.Active = trail;
         }
 
         private static void ClearTrail(Projectile proj)
         {
-            if (_trails == null) return;
             var i = proj.whoAmI;
-            if (i < 0 || i >= _trails.Length) return;
-            _trails[i] = null;
+            if (i < 0 || i >= Trails.Length || Trails[i] == null) return;
+            // Deactivate without discarding either reusable buffer. OnSpawn clears
+            // the selected one before it can be observed by AI or PushVisual.
+            Trails[i].Active = null;
         }
 
         private static bool IsInScreen(Vector2 world)
@@ -296,42 +311,13 @@ namespace XiheBoss
 
         // ================= 画面 =================
 
-        /// <summary>源 PostDraw：Trail.fx pass 0 的三角带（每段左右两个顶点）；头部 Sun 在 PreDraw 里画。</summary>
+        /// <summary>MEAC PostDraw 的完整15/30点Trail.fx三角带；直接写入同材质顶点批。</summary>
         public static void PushVisual(Projectile p)
         {
-            // 源头部由 PreDraw 的 Sun 负责；这里只画 Trail.fx 的三角带。
             var trail = TrailOf(p);
-            if (trail == null || trail.Length < 2) return;
-
-            var counts = 0;
-            for (var i = 0; i < trail.Length; i++)
-                if (trail[i] != Vector2.Zero) counts++;
-
-            // 源 PostDraw：j 每次 +1（每一对相邻 oldPos 一个 quad），不是隔点取段。
-            // 之前隔点取段让尾巴只有一半长度、UV factor 只到 0.5，和 MEAC 不一样。
-            var points = new System.Collections.Generic.List<TrailStripPoint>(trail.Length);
-            for (var j = 0; j < trail.Length - 1 && trail[j + 1] != Vector2.Zero; j++)
-            {
-                var normalDir = trail[j] - trail[j + 1];
-                normalDir = XiheHelper.Normalize2(new Vector2(-normalDir.Y, normalDir.X));
-                var factor = counts <= 1 ? 0f : j / (counts - 1f);
-                var mid = (trail[j] + trail[j + 1]) / 2f;
-                const float width = 15f;
-                points.Add(new TrailStripPoint
-                {
-                    Left = mid + normalDir * width,
-                    Right = mid - normalDir * width,
-                    UvX = (float)Math.Sqrt(factor),
-                    W = MathHelper.Lerp(1.2f, 0f, (float)Math.Pow(factor, 0.6f)),
-                });
-            }
-
-            if (points.Count < 2) return;
-
-            // 源：Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.PointWrap, ...)
-            // → Trail.fx pass 0，t = timeLeft * 0.04。之前这里误用了 Additive（画面偏亮）。
-            XiheFx.TrailStrip(points, Tex.TrailShape, Tex.EolProjColor, Tex.Transparent,
-                p.timeLeft * 0.04f, additive: false);
+            var center = p.Center;
+            if (trail != null) XiheMesh.AddEolTrail(center, trail, p.timeLeft * 0.04f);
+            XiheMesh.AddEolHead(center, p.rotation, p.scale * 0.7f);
         }
     }
 }

@@ -202,6 +202,12 @@ namespace XiheBoss
             // t = timeLeft * 0.04。走精确的 Trail.fx 逐像素通道（硬件几何）。
             XiheFx.TrailStrip(points, Tex.Tex4, Tex.ImgColor, Tex.Transparent,
                 p.timeLeft * 0.04f, additive: true);
+
+            // MEAC IWarpProj.DrawWarp：Extra1 的火焰带单独进入 warp 阶段。
+            var extent = 60f;
+            for (var i = 0; i < nodes.Count; i++)
+                extent = Math.Max(extent, Vector2.Distance(p.Center, nodes[i].Position) + nodes[i].Width * 3f);
+            XiheFx.WarpTrail(p.Center, extent, 0.02f);
         }
     }
 }

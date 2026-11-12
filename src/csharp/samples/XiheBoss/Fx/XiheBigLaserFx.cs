@@ -52,7 +52,7 @@ namespace XiheBoss
 
         internal static void Submit(ScreenFrame frame)
         {
-            if (Shader == null) return;
+            // 光柱本体由 EoLBigLaser.PushVisual 绘制；这里只收集原版 MagicRing 几何。
             var type = ModContent.ProjectileType<EoLBigLaser>();
             if (type <= 0) return;
 
@@ -89,47 +89,6 @@ namespace XiheBoss
                     AddRing(state.Rings, now, 400f, 0.2f, 260);
                 }
                 state.LastTimeLeft = now;
-
-                if (p.scale <= 0.001f) continue;
-
-                var uvx = (p.Center.X - sp.X) / sw;
-                var uvy = 1f - (p.Center.Y - sp.Y) / sh;
-                var uvImpact = 1f - ((p.Center.Y + 300f) - sp.Y) / sh;
-
-                var fx = new ScreenEffect(Shader)
-                {
-                    Layer = ScreenEffectLayer.World,
-                    // 光柱 shader 是“读屏幕 + 加柱体”；柱体外的贴图/泛光由 frag 里的 beamMask
-                    // 硬截断，不用 Box 裁剪，避免 Box 边缘出现矩形色差。
-                    Center = new UVector2(MathHelper.Clamp(uvx, 0f, 1f), MathHelper.Clamp(uvy, 0f, 1f)),
-                    Intensity = 1f,
-                };
-
-                var ai2 = p.ai;
-                var beam = ai2[1] == 0f
-                    ? MathHelper.Clamp(p.scale / 2f, 0f, 1f)
-                    : 0.55f + 0.45f * MathHelper.Clamp(p.scale / 3.16f, 0f, 1f);
-
-                fx.Uniform("uCharge", 0f);
-                fx.Uniform("uBeam", beam);
-                fx.Uniform("uFlash", 0f);
-                fx.Uniform("uSky", 0f);
-                fx.Uniform("uShake", 0f);
-                fx.Uniform("uImpact", MathHelper.Clamp(uvImpact, -0.5f, 1.5f));
-                fx.Uniform("uBeamWidth", MathHelper.Clamp(p.scale * 128f / sh, 0.002f, 0.5f));
-                fx.Uniform("uBeamX", MathHelper.Clamp(uvx, -0.5f, 1.5f));
-                fx.Uniform("uTexOn", 1f);
-                fx.Uniform("uRingViewZ", 1000f / sh);
-                fx.Uniform("uRingHalo", 3f / sh);
-                // 光柱 pass 不再跑环（环改用硬件几何，见 BuildRings）。
-                fx.Uniform("uRingCount", 0f);
-
-                if (XiheTextures.BigOuter != null) fx.Texture("uBeamTex", XiheTextures.BigOuter);
-                if (XiheTextures.BigCore != null) fx.Texture("uCoreTex", XiheTextures.BigCore);
-                if (XiheTextures.BigArc != null) fx.Texture("uArcTex", XiheTextures.BigArc);
-                if (XiheTextures.BigStar != null) fx.Texture("uStarTex", XiheTextures.BigStar);
-                if (XiheTextures.BigRing != null) fx.Texture("uRingStrip", XiheTextures.BigRing);
-                frame.Add(fx);
 
                 // 环：按 MEAC.Entities.MagicRing.Draw 的 3D 顶点投影逐点生成（counts=50、sX=3、
                 // 半径 110*scale*ai0、带宽 10*scale*ai0、PointWrap、Additive），交给硬件几何通道。

@@ -267,6 +267,10 @@ private:
                 g.Enable(GL_BLEND);
                 g.BlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
                 break;
+            case Blend::Premultiplied:
+                g.Enable(GL_BLEND);
+                g.BlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+                break;
             case Blend::Additive:
                 g.Enable(GL_BLEND);
                 g.BlendFunc(GL_SRC_ALPHA, GL_ONE);

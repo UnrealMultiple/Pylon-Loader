@@ -45,6 +45,11 @@ namespace XiheBoss
 
         public override void AI(Projectile proj)
         {
+            // MEAC 在 NewProjectileDirect 返回后同时设置 timeLeft 和 maxtime。
+            // 迁移版用 ai[2] 传 maxtime，OnSpawn 早于调用方的 SetLanceTime，
+            // 所以必须在计算 timer 前读取后写入的值；否则末尾模式 6 从约 275 开始计时，
+            // 永远错过 timer == 60 的 40px/sub-update 加速与 extraUpdates++。
+            if (proj.ai[2] > 1f) _maxTime = (int)proj.ai[2];
             var t = Timer(proj);
             var center = proj.Center;
 
@@ -132,7 +137,9 @@ namespace XiheBoss
                 if (t == 70)
                 {
                     proj.Kill();
-                    NewLaser(proj, proj.ai[0]);
+                    // MEAC 的旋转光矛在转为激光时归一化方向，不把跟随偏移长度传过去。
+                    Projectile.NewProjectile(null, proj.Center, Vector2.Normalize(proj.velocity),
+                        ModContent.ProjectileType<EoLLaser1>(), proj.damage, 0f, Main.myPlayer, proj.ai[0], 0f, 0f);
                 }
             }
             else if (mode == 4f && proj.timeLeft == 600)
@@ -217,8 +224,10 @@ namespace XiheBoss
             // 源 PreDraw 用的是 MEAC.Colorize（把贴图亮度映射到 HSV 色），不是普通 Color 乘法；
             // 这里让 Sprite 走 colorize 通道，颜色才和 MEAC 一样亮。
             var color = XiheHelper.HsvToRgb(ai[0] % 360f);
-            var alpha = p.localAI[0] * (1f - p.alpha / 255f);
-            if (alpha <= 0.01f) return;
+            // MEAC's warning triangle uses projectile.alpha / 200, the inverse of
+            // sprite opacity. Do not gate the whole draw with (1 - alpha / 255):
+            // that discards the warning precisely when its source vertices are brightest.
+            // localAI[0] fades only the spear sprite and its afterimages below.
 
             var rot = (float)Math.Atan2(p.velocity.Y, p.velocity.X);
             var tex = Tex.Proj919;

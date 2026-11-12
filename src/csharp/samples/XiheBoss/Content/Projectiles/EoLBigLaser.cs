@@ -278,33 +278,40 @@ namespace XiheBoss
 
         public override bool PreDraw(Projectile proj, Color lightColor) => false;
 
-        /// <summary>画面：优先由 XiheBigLaserFx（XiheMagic 的 XiheBeam.frag）画；着色器没起来时退回图元版本。</summary>
+        /// <summary>画面：MEAC 原版的四次 PointWrap + Colorize 绘制，并保留独立环几何。</summary>
         public static void PushVisual(Projectile p)
         {
-            if (XiheBigLaserFx.Shader != null) return;
             if (p.scale <= 0.001f) return;
 
             var ai = p.ai;
-            var color = XiheHelper.HsvToRgb(ai[0] % 360f, 1f, 0.5f);   // 源 PreDraw 的 color
+            var color = XiheHelper.HsvToRgb(ai[0] % 360f, 1f, 0.5f);
+            var center = p.Center - new Vector2(0f, 2000f);
+            var length = p.localAI[1];
+            if (length <= 1f) return;
 
-            var start = p.Center - new Vector2(0f, 2000f);              // 源：Center - (0, 2000)
-            var dir = Vector2.UnitY;                                    // 源：rotation = 1.57
-            const float length = 4000f;
+            // 源 PreDraw：tex3 一层、tex0 三层，各自使用原始矩形滚动相位。
+            var tex3W = XiheTextures.WidthOf(Tex.Tex3);
+            var tex3H = XiheTextures.HeightOf(Tex.Tex3);
+            var tex0W = XiheTextures.WidthOf(Tex.Tex0);
+            var tex0H = XiheTextures.HeightOf(Tex.Tex0);
+            XiheFx.SpriteRect(center, Tex.Tex3, new Rectangle(0, 0, tex3W * 5, tex3H), color,
+                p.rotation, new Vector2(length / 256f / 5f, p.scale),
+                new Vector2(tex3W, tex3H) / 2f, additive: true, colorize: true,
+                wrapU: true, srcRepeat: 5f, wrapShift: p.timeLeft * 4f / tex3W);
+            DrawCore(center, p, color, tex0W, tex0H, 4f);
+            DrawCore(center, p, color, tex0W, tex0H, 5f);
+            DrawCore(center, p, color, tex0W, tex0H, 8f);
 
-            var outerScroll = p.timeLeft * 4f / 256f;                   // 源 rect x = timeLeft * 4
-            var innerScroll = p.timeLeft * 8f / 256f;                   // 源 rect x = timeLeft * 8
+            // MagicRing 由 XiheBigLaserFx.BuildRings 按源 3D 投影提交。
+            // 禁止再提交旧 PushRings 的正圆：它会覆盖光柱并制造“光柱变圆”的重复亮盘。
+        }
 
-            XiheFx.Beam(start, dir, length, 190f * p.scale, Tex.Tex3, color, 1f,
-                outerScroll, 2000f, 0.35f);
-            XiheFx.Beam(start, dir, length, 90f * p.scale, Tex.Tex0, color, 1f,
-                innerScroll, 2000f, 0.45f);
-
-            // 柱心 + 落点
-            XiheFx.Orb(p.Center, 150f * p.scale, Tex.Laser0, color, 0.9f, 1.57f);
-            XiheFx.Orb(p.Center + new Vector2(0f, 2000f), 220f * p.scale, Tex.Ball2, color, 0.75f,
-                0f, 1.2f, 0.2f);
-
-            PushRings(p, p);
+        private static void DrawCore(Vector2 center, Projectile p, Color color, int width, int height, float phase)
+        {
+            XiheFx.SpriteRect(center, Tex.Tex0, new Rectangle(0, 0, width * 2, height), color,
+                p.rotation, new Vector2(p.localAI[1] / 256f / 2f, p.scale),
+                new Vector2(width, height) / 2f, additive: true, colorize: true,
+                wrapU: true, srcRepeat: 2f, wrapShift: p.timeLeft * phase / width);
         }
     }
 }

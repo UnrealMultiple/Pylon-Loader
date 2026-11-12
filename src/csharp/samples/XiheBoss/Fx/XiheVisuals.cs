@@ -63,10 +63,6 @@ namespace XiheBoss
     {
         private static readonly List<Vfx> List = new();
 
-        // 手机端性能：LightDust 是最多的粒子（每个 5 层精灵）。超过这个数量就不再生成新的
-        // 小尘，保证密集弹幕时不把屏幕图元顶到 1000+。主效果（Wave/Ring/EOLEff/太阳环）不受限。
-        private const int MaxLightParticles = 128;
-
         internal static IReadOnlyList<Vfx> All => List;
 
         internal static void Clear() => List.Clear();
@@ -75,12 +71,6 @@ namespace XiheBoss
             float scale = 1f, int ownerNpc = -1)
         {
             var v = new Vfx { Kind = kind, Center = center, Velocity = velocity, Rotation = rotation, OwnerNpc = ownerNpc };
-            var light = kind == VfxKind.LightDust || kind == VfxKind.LightDustCn;
-            if (light && List.Count >= MaxLightParticles)
-            {
-                v.TimeLeft = 1;   // 未入列表的临时对象，调用方改字段不会影响画面
-                return v;
-            }
             switch (kind)
             {
                 case VfxKind.EolEff:
@@ -170,8 +160,14 @@ namespace XiheBoss
                         if (v.OwnerNpc >= 0 && v.OwnerNpc < Main.npc.Length && Main.npc[v.OwnerNpc].active)
                         {
                             var npc = Main.npc[v.OwnerNpc];
-                            var k = 2000f / (2000f - 250f * (float)Math.Sin(v.VAngle + v.Ai1));
-                            v.Center = npc.Center + XiheHelper.Vxr(v.VAngle + v.Ai1) * v.Dis * k * 0.5f;
+                            // 源：UnitX 先绕Y(vAngle)，再绕Z(ai1)、绕Y(ai1)，最后投影。
+                            // 旧迁移用二维圆+250深度，改变了出场剪影轨道和半径。
+                            var orbit = XiheHelper.Vec3RotBy("Y", Vector3.UnitX, v.VAngle);
+                            orbit = XiheHelper.Vec3RotBy("Z", orbit, v.Ai1);
+                            orbit = XiheHelper.Vec3RotBy("Y", orbit, v.Ai1);
+                            var k = 2000f / (2000f - orbit.Z);
+                            v.Scale = k;
+                            v.Center = npc.Center + new Vector2(orbit.X, orbit.Y) * (v.Dis * k);
                         }
                     }
                     if (v.Ai0 == 1f)
@@ -320,13 +316,8 @@ namespace XiheBoss
 
                 case VfxKind.Wave:
                 {
-                    // 源：Perlin + GameShaders.Misc["ForceField"]，颜色 = drawColor(White)*alpha，
-                    // scale*ai1*(1,0.7)，Additive。ForceField 的轻微色移没有等价入口，这里用原 Perlin
-                    // 贴图 + 同一组位置/缩放/颜色（不再用环+球近似）。
-                    var a = MathHelper.Clamp(v.Alpha, 0f, 1f);
-                    var sc = 1200f / XiheTextures.WidthOf(Tex.Perlin) * v.Scale * v.Ai1;
-                    XiheFx.Sprite(v.Center, Tex.Perlin, Color.White * a, 0f,
-                        new Vector2(1f, 0.7f) * sc, Origin(Tex.Perlin), additive: true);
+                    // 由 DrawWaves 使用原版 ForceField 实际绘制。
+                    // 直接把 Perlin 贴图放大会形成亮圆/白盘，既不是波纹也缺少原版 shader。
                     break;
                 }
                 case VfxKind.RingWarp:
@@ -398,17 +389,15 @@ namespace XiheBoss
                 case VfxKind.LightDust:
                 {
                     var c = v.DrawColor;
-                    c.A = 255;
+                    c.A = 0;
                     var rot = (float)Math.Atan2(v.Velocity.Y, v.Velocity.X);
                     var sc = new Vector2(1.2f, 0.8f) * v.Ai0 * v.Scale;
-                    var origin = Origin(Tex.Ball);
-                    // 源是 5 层；手机端只画 3 层（0/2/4），拖尾长度与亮度几乎不变，精灵数少 40%。
-                    for (var i = 0; i < 3; i++)
+                    // MEAC LightDust.Draw: all five alpha-zero layers. Submit directly
+                    // to the shared Ball mesh rather than allocating sprite primitives.
+                    for (var i = 0; i < 5; i++)
                     {
-                        var layer = i * 2;
-                        var pos = v.Center - v.Velocity * layer / 3f;
-                        XiheFx.Sprite(pos, Tex.Ball, c * (v.Alpha * (1f - layer / 5f) * 1.2f), rot, sc,
-                            origin, additive: true);
+                        var pos = v.Center - v.Velocity * i / 3f;
+                        XiheMesh.AddBallGlow(pos, rot, sc, c * (v.Alpha * (1f - i / 5f) * 1.2f));
                     }
                     break;
                 }
@@ -498,7 +487,8 @@ namespace XiheBoss
                     var frame = v.TimeLeft / 2 % 11;
                     var color = XiheHelper.HsvToRgb(v.Golden ? 50f : (v.TimeLeft * 5f + v.Ai1 * 10f) % 360f, 0.6f)
                                 * ((v.Dis / 300f) * (v.Dis / 300f)) * v.Alpha;
-                    color.A = (byte)MathHelper.Clamp(255f * (v.Dis / 300f) * (v.Dis / 300f) * v.Alpha, 0f, 255f);
+                    // 源 EOLEff.Draw 明确 c.A=0：通过预乘 AlphaBlend 只增加RGB，不遮住背景。
+                    color.A = 0;
                     DrawBossEcho(sb, v.Center - screenPos, frame, color);
                 }
                 catch { }
@@ -513,11 +503,17 @@ namespace XiheBoss
             return vec;
         }
 
+        private static Texture2D _echoWing;
+        private static Texture2D _echoWingGlow;
+
         private static void DrawBossEcho(SpriteBatch sb, Vector2 pos, int frame, Color color)
         {
             var tex = XiheBossNpc.BodyTexture;
-            var wing1 = XiheBossNpc.WingTexture;
-            var wing2 = XiheBossNpc.WingGlowTexture;
+            // BaseDrawEol 明确使用原版 Extra157/159；本体 XiHe_Wing 不能串用到剪影。
+            _echoWing ??= Main.Assets.Request<Texture2D>("Images/Extra_157", ReLogic.Content.AssetRequestMode.ImmediateLoad)?.Value;
+            _echoWingGlow ??= Main.Assets.Request<Texture2D>("Images/Extra_159", ReLogic.Content.AssetRequestMode.ImmediateLoad)?.Value;
+            var wing1 = _echoWing;
+            var wing2 = _echoWingGlow;
             if (tex == null || wing1 == null || wing2 == null) return;
 
             const int wingFrames = 11;

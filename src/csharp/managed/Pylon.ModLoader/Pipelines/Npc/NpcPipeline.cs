@@ -389,6 +389,14 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private void CheckDead(On.Terraria.NPC.orig_checkDead orig, NPC self)
     {
+        // 原版每次受击都会调用 checkDead；Mod 的死亡否决回调只能在实际致死时运行。
+        // 否则锁血 Boss 的 CheckDead 会把普通命中也改成 1 血。
+        if (!self.active || self.life > 0 || (self.realLife >= 0 && self.realLife != self.whoAmI))
+        {
+            orig(self);
+            return;
+        }
+
         var mod = _binding.InstanceOf(self);
         var globals = GlobalNpcRegistry.For(self, HookId.CheckDead);
         if (mod is null && globals.Count == 0)
@@ -413,7 +421,6 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
 
         foreach (var global in globals)
         {
-            if (!alive) break;
             try
             {
                 if (!global.CheckDead(self)) alive = false;
@@ -548,8 +555,8 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         try
         {
             NPC.GetStatScalingFactors(numPlayers, out var balance, out _);
-            // 这版游戏的 NPC.difficulty 是 float（0 经典 / 1 专家 / 2 大师），不是枚举。
-            var bossAdjustment = self.difficulty >= MasterDifficulty ? 0.85f : 1f;
+            // 对齐 Bunny NpcEvents.blNpcScalingStage：此版本传给 Mod 的 bossAdjustment 固定为 1。
+            const float bossAdjustment = 1f;
 
             if (modScales)
             {

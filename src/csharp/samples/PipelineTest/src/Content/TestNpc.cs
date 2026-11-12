@@ -8,6 +8,8 @@ namespace PipelineTest.Content;
 public sealed class TestNpc : ModNpc
 {
     public static int OnSpawnCount;
+    public static int CheckDeadCount;
+    internal static bool VetoDeath;
 
     public override string DisplayName => "测试史莱姆";
 
@@ -30,6 +32,14 @@ public sealed class TestNpc : ModNpc
     }
 
     public override void OnSpawn(NPC npc, IEntitySource source) => OnSpawnCount++;
+
+    public override bool CheckDead(NPC npc)
+    {
+        CheckDeadCount++;
+        if (!VetoDeath) return true;
+        npc.life = 1;
+        return false;
+    }
 
     public override void OnKill(NPC npc) => PT.Info($"测试史莱姆死亡（掉落应已生成）");
 

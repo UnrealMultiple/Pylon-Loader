@@ -15,9 +15,14 @@ namespace XiheBoss
         private static readonly Dictionary<int, Vector2> Centers = new();
         private static readonly Dictionary<int, float> Radii = new();
         private static readonly Dictionary<int, List<Vector2>> TrailPos = new();
+        // Visual submission is synchronous; retain capacity per projectile instead of
+        // allocating up to 100 trail vertices again on every rendered frame.
+        private static readonly Dictionary<int, List<TrailStripPoint>> DrawPoints = new();
 
         public override string TexturePath => null;
 
+        // MEAC SolarProminence uses 100 - projectile.timeLeft, even though its default
+        // lifetime is 120 ticks. Keep the original timing so the corona matches MEAC.
         private static int Timer(Projectile p, int maxTime) => 100 - p.timeLeft;
 
         public override void SetDefaults(Projectile proj)
@@ -44,6 +49,7 @@ namespace XiheBoss
             Centers.Remove(proj.whoAmI);
             Radii.Remove(proj.whoAmI);
             TrailPos.Remove(proj.whoAmI);
+            DrawPoints.Remove(proj.whoAmI);
         }
 
         /// <summary>源 SunProj 生成后直接写 solarCenter / solarRadius，再 SetTrail()。</summary>
@@ -122,13 +128,15 @@ namespace XiheBoss
             if (!TrailPos.TryGetValue(p.whoAmI, out var pos) || pos.Count < 3) return;
             var timer = Timer(p, 120);
             var mode = timer < 60 ? 0 : 1;
-            var points = new List<TrailStripPoint>(pos.Count);
+            if (!DrawPoints.TryGetValue(p.whoAmI, out var points))
+                DrawPoints[p.whoAmI] = points = new List<TrailStripPoint>(100);
+            points.Clear();
+            var width = 120f * p.scale * (0.4f + p.velocity.Length() / 150f);
             for (var i = 1; i < pos.Count && pos[i] != Vector2.Zero; i++)
             {
                 var normalDir = pos[i - 1] - pos[i];
                 normalDir = XiheHelper.Normalize2(new Vector2(-normalDir.Y, normalDir.X));
                 var factor = 1f - (float)i / pos.Count;
-                var width = 120f * p.scale * (0.4f + p.velocity.Length() / 150f);
                 var w = mode == 0 ? 0.3f : 1.5f;
                 w = factor < 0.5f ? w * (factor * 2f) : w * ((1f - factor) * 2f);
                 w = w * 1.5f + 0.1f;
@@ -148,6 +156,15 @@ namespace XiheBoss
             var tex = mode == 0 ? Tex.Tex3 : Tex.Tex4;
             XiheFx.TrailStrip(points, tex, Tex.ImgColor, Tex.Transparent,
                 p.timeLeft * 0.03f, additive: true);
+
+            // MEAC IWarpProj.DrawWarp：Timer > 45 时固定以 Extra1 绘制 warp 带。
+            if (timer > 45)
+            {
+                var extent = 60f;
+                for (var i = 0; i < pos.Count; i++)
+                    extent = Math.Max(extent, Vector2.Distance(p.Center, pos[i]) + 120f * p.scale);
+                XiheFx.WarpTrail(p.Center, extent, 0.02f);
+            }
         }
     }
 }

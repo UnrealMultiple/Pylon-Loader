@@ -14,21 +14,28 @@ uniform sampler2D uAtlas;
 uniform vec4 uCellShape;
 uniform vec4 uCellImage;
 uniform vec4 uCellColor;
+uniform float uHead;
 
 vec4 sampleCell(vec4 cell, vec2 uv, float wrapU) {
-    vec2 q = uv;
-    if (wrapU > 0.5) q.x = fract(q.x);
-    q = clamp(q, vec2(0.0), vec2(1.0));
-    // 图集 v=0 在底部；MEAC 的 coord.y=0 是纹理顶边。
-    vec2 atlasUv = cell.xy + vec2(q.x, 1.0 - q.y) * cell.zw;
-    vec2 pad = min(vec2(0.0008), cell.zw * 0.25);
-    vec2 lo = cell.xy + pad;
-    vec2 hi = cell.xy + cell.zw - pad;
-    hi = max(hi, lo);
-    return texture(uAtlas, clamp(atlasUv, lo, hi));
+    ivec2 atlasSize = textureSize(uAtlas, 0);
+    ivec2 origin = ivec2(round(cell.xy * vec2(atlasSize)));
+    ivec2 size = max(ivec2(1), ivec2(round(cell.zw * vec2(atlasSize))));
+    vec2 q = wrapU > 0.5 ? fract(uv) : clamp(uv, vec2(0.0), vec2(1.0));
+    // PointWrap wraps BOTH axes (side=1 returns the top edge); PointClamp
+    // selects the last texel at 1. Avoid the old arbitrary atlas padding,
+    // which removed up to 3 texels from thin texture/color strips.
+    ivec2 local = clamp(ivec2(floor(q * vec2(size))), ivec2(0), size - 1);
+    local.y = size.y - 1 - local.y;
+    return texelFetch(uAtlas, origin + local, 0);
 }
 
 void main() {
+    if (uHead > 0.5) {
+        // XNA AlphaBlend uses ONE, ONE_MINUS_SRC_ALPHA. These sprites
+        // deliberately have alpha=0 and add their RGB without masking the scene.
+        fragColor = sampleCell(uCellShape, vUV, 0.0) * vColor;
+        return;
+    }
     vec3 coord = vec3(vUV, vAux.x);
     vec4 c = sampleCell(uCellShape, vec2(coord.x + vAux.y, coord.y), 1.0);
     c += sampleCell(uCellImage, vec2(1.0 - coord.x * 5.0, coord.y), 0.0);

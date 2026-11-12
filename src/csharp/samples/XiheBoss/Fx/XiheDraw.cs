@@ -15,6 +15,12 @@ namespace XiheBoss
             sb.Draw(tex, pos, new NullableRect(frame), color, rotation, origin, scale, effects, 0f);
         }
 
+        internal static void Sprite(SpriteBatch sb, Texture2D tex, Vector2 pos, Rectangle frame, Color color,
+            float rotation, Vector2 origin, Vector2 scale, SpriteEffects effects = SpriteEffects.None)
+        {
+            sb.Draw(tex, pos, new NullableRect(frame), color, rotation, origin, scale, effects, 0f);
+        }
+
         internal static void SpriteFull(SpriteBatch sb, Texture2D tex, Vector2 pos, Color color,
             float rotation, float scale, SpriteEffects effects = SpriteEffects.None)
         {

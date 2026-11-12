@@ -26,6 +26,8 @@ namespace XiheBoss
             XiheFx.Init(this, Logger);
             XiheBigLaserFx.Init(this, Logger);
             XiheSounds.Init(Logger);
+            XiheSky.Install();
+            Logger.Info($"[fx] shader status prims={(XiheFx.PrimsShader != null)} post={(XiheFx.PostShader != null)} ring={(XiheFx.RingShader != null)} line={(XiheFx.LineShader != null)} bigLaser={(XiheBigLaserFx.Shader != null)}");
             RegisterImGuiTab(new XiheBossImGuiTab());
 
             Logger.Info("[build] 2026-10-25 23:10；羲和 Boss 已加载（复刻 MEAC.Bosses.EoL.XiHe）");
@@ -125,12 +127,17 @@ namespace XiheBoss
 
         public override void PostUpdateEverything()
         {
+            XiheSky.Tick();
             XiheFx.Tick();
             if (_submitFromUpdate) XiheFx.Submit();
         }
 
+        public override void ModifySunLightColor(ref Il2CppMicrosoft.Xna.Framework.Graphics.Color tileColor,
+            ref Il2CppMicrosoft.Xna.Framework.Graphics.Color backgroundColor) => XiheSky.Light(ref tileColor, ref backgroundColor);
+
         public override void OnWorldUnload()
         {
+            XiheSky.Reset();
             XiheFx.Reset();
             XiheVisuals.Clear();
             XiheBossNpc.Current = null;

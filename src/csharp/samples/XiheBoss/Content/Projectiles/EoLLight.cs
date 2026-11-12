@@ -103,16 +103,11 @@ namespace XiheBoss
             if (len <= 4f || p.scale <= 0.01f) return;
 
             var color = XiheHelper.HsvToRgb(p.localAI[0], 1f, 0.8f);
-            // 需求：预警线（第一圈只造成 0.1 scale 的“洗地光棱”）再亮一点、宽一点。
-            // 几何/混合/Colorize 仍按 MEAC，颜色提亮 + 外面补一层低透明宽辉光。
-            color *= 1.8f;
+            // MEAC: 单层 Colorize + Additive，宽度只由 projectile.scale 决定。
             var origin = new Vector2(XiheTextures.WidthOf(Tex.ProjTex) / 2f, XiheTextures.HeightOf(Tex.ProjTex));
             var h = XiheTextures.HeightOf(Tex.ProjTex);
-            var width = p.scale * 1.7f;
-            XiheFx.Sprite(p.Center, Tex.ProjTex, color * 0.35f, p.rotation + 1.57f,
-                new Vector2(width * 2.2f, len / h), origin, additive: true, colorize: true);
             XiheFx.Sprite(p.Center, Tex.ProjTex, color, p.rotation + 1.57f,
-                new Vector2(width, len / h), origin, additive: true, colorize: true);
+                new Vector2(p.scale, len / h), origin, additive: true, colorize: true);
         }
     }
 }

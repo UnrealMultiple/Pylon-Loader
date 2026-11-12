@@ -11,7 +11,7 @@ namespace pylon::graphics::fx {
 /// 画在哪一层：World = 世界相机之后（界面盖在上面），Screen = 帧末（盖住一切）。
 enum class Layer : int { World = 0, Screen = 1 };
 
-enum class Blend : int { None = 0, Alpha = 1, Additive = 2 };
+enum class Blend : int { None = 0, Alpha = 1, Additive = 2, Premultiplied = 3 };
 
 /// 纹理 id：0 无、负数固定源、正数本帧目标、<= kFirstTexture 是 Mod 纹理。
 constexpr int kTexNone = 0;

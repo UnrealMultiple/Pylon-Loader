@@ -29,6 +29,11 @@ namespace XiheBoss
         internal static Texture2D BodyTexture;
         internal static Texture2D WingTexture;
         internal static Texture2D WingGlowTexture;
+        private static Texture2D _wingGradientTexture;
+        private static Texture2D _bodyVeilTexture;
+        private static Texture2D _bodyVeilGlowTexture;
+        private static Texture2D _leftArmTexture;
+        private static Texture2D _rightArmTexture;
 
         private static int _musicSlot = -1;
 
@@ -64,7 +69,18 @@ namespace XiheBoss
         public override string DisplayName => "羲和";
         public override int Music => _musicSlot;
         public override int SceneEffectPriority => 6;
+        public override ModBossBar BossBar => ModContent.GetInstance<XiheBossBar>();
         public override bool HideFromBestiary => true;
+
+        // Reuse Terraria's original Empress of Light boss head entry for both
+        // the boss bar head hook and the minimap boss marker.
+        public override void BossHeadSlot(NPC npc, ref int index)
+        {
+            var heads = NPCID.Sets.BossHeadTextures;
+            var type = NPCID.HallowBoss;
+            if (heads != null && type >= 0 && type < heads.Length && heads[type] >= 0)
+                index = heads[type];
+        }
 
         // 贴图：PostSetupContent 里指向原版光之女皇的贴图槽（原版素材，不复制美术）。
         public override string TexturePath => "assets/textures/Ball.png";
@@ -112,6 +128,7 @@ namespace XiheBoss
             BodyTexture = LoadGameTexture("Images/NPC_" + NPCID.HallowBoss, "boss 身体");
             WingTexture = LoadGameTexture("Images/Extra_157", "翅膀");
             WingGlowTexture = LoadGameTexture("Images/Extra_159", "翅膀背光");
+            // 新增绘制资源在第一次绘制时加载，避免安装阶段触发尚未就绪的游戏纹理上传。
         }
 
         /// <summary>
@@ -150,10 +167,11 @@ namespace XiheBoss
             _lastTickMs = Environment.TickCount64;
             // 手机音频输出有几十毫秒延迟；Boss 的节拍比“听到的”音乐略早，先把逻辑时钟压后 2 tick（≈33ms）。
             _tickCarry = -2.0;
+            XiheBossMod.Log?.Info($"[boss] spawn life={npc.life}/{npc.lifeMax} difficulty={npc.difficulty} expert={Main.expertMode} master={Main.masterMode}");
 
             // 召唤瞬间就是黎明，避免从夜晚慢慢 lerp 过去。
             Main.dayTime = true;
-            Main.time = 6000f;
+            Main.time = 2000f;
 
             XiheFx.CancelScreenPosition();
             XiheFx.RadialGlur(npc.Center, 30, false);
@@ -180,6 +198,7 @@ namespace XiheBoss
             {
                 npc.life = 1;
                 npc.dontTakeDamage = true;
+                XiheBossMod.Log?.Info($"[boss] lethal hit held at 1 life: phase={_phase}, timer={TimerM}, state={BossState}");
                 return false;
             }
             return true;
@@ -187,10 +206,34 @@ namespace XiheBoss
 
         public override void OnKill(NPC npc)
         {
+            // MEAC does not hard-stop its track from XiHe.OnKill. The NPC remains
+            // active through the 360-tick Leave animation; once it is gone, the
+            // normal music selector fades the MediaPlayer out.
             Current = null;
-            MusicLoader.StopMusic();
             XiheFx.CancelScreenPosition();
             XiheVisuals.Clear();
+        }
+
+        /// <summary>
+        /// MEAC XiHe.LimitDPS：按 14820 tick 的战斗时间限制单次伤害，避免高伤害武器
+        /// 提前把 Boss 压到 1 血，导致 Leave 阶段比原版提前进入。
+        /// </summary>
+        public override void ModifyIncomingHit(NPC npc, ref HitModifiers modifiers)
+        {
+            if (npc.life <= 1 || npc.lifeMax <= 0) return;
+
+            // Pylon 的 damage 是扣防御/乘暴击之前的基数，与 MEAC 旧 ModifyHit 的输入一致。
+            // 保留源代码两次整数截断及暴击补偿的整数除法；14820 是 DPS 参考时间，非 Leave 门槛。
+            var original = (int)modifiers.damage;
+            var critMultiplier = modifiers.crit ? 2 : 1;
+            const int totalTime = 14820;
+            var expectedLife = (int)(npc.lifeMax * (float)(totalTime - TimerM) / totalTime);
+            expectedLife = (int)MathHelper.Lerp(npc.life, expectedLife, 0.4f);
+            var expectedTotalDamage = npc.lifeMax - expectedLife;
+            var realTotalDamage = npc.lifeMax - npc.life;
+            var compensated = original * critMultiplier;
+            compensated = Math.Min(compensated, expectedTotalDamage - realTotalDamage);
+            modifiers.damage = (int)MathHelper.Lerp(original, compensated / critMultiplier, 0.8f);
         }
 
         public override void HitEffect(NPC npc, int hitDirection, double damage)
@@ -237,7 +280,8 @@ namespace XiheBoss
             _ai3 = reader.ReadSingle();
         }
 
-        public override void BossHeadSlot(NPC npc, ref int index) => index = -1;
+        // 原版首领头像槽同时供地图使用；NPC ID 636 不是头像槽号。
+        internal static int EmpressHeadSlot => NPCID.Sets.BossHeadTextures[NPCID.HallowBoss];
 
         /// <summary>源文件 CheckActive = false：离玩家再远也不消失。</summary>
         public override bool CheckActive(NPC npc) => false;
@@ -292,13 +336,19 @@ namespace XiheBoss
             {
                 npc.TargetClosest(true);
                 player = Main.player[npc.target];
-                if (player.dead) BossState = State.Leave;
+                if (player.dead && BossState != State.Leave)
+                {
+                    BossState = State.Leave;
+                    _t = 0;
+                    XiheBossMod.Log?.Info($"[boss] leave: no living target, life={npc.life}/{npc.lifeMax}, timer={TimerM}");
+                }
             }
 
             Main.dayTime = true;
-            // 整场保持黎明。MEAC 低血量会把 Main.time 推向黄昏，但 EoLSky 本身始终是黎明色；
-            // 这里固定到 2000（黎明），避免后半段世界光照变黑。
-            Main.time = MathHelper.Lerp((float)Main.time, 6000f, 0.02f);
+            // MEAC XiHe.AI：世界时间随剩余生命缓慢推进；战斗天空由 EoLSky 独立覆盖。
+            if (npc.life > 10)
+                Main.time = MathHelper.Lerp((float)Main.time,
+                    MathHelper.Lerp(2000f, 53700f, 1f - (float)npc.life / npc.lifeMax), 0.005f);
 
             _oldPosition = npc.Center;
 
@@ -1838,7 +1888,11 @@ namespace XiheBoss
                 if (BossState == State.Lance2) BossState = State.Lance1;
                 if (BossState == State.SunDance1)
                     BossState = XiheHelper.RandBool() ? State.Lance2 : State.VLaser;
-                if (NPC != null && NPC.life == 1) BossState = State.Leave;
+                if (npc != null && npc.life == 1)
+                {
+                    BossState = State.Leave;
+                    XiheBossMod.Log?.Info($"[boss] leave: defeated, phase={_phase}, timer={TimerM}");
+                }
             }
 
             if (_phase == 2)
@@ -1894,8 +1948,8 @@ namespace XiheBoss
             float ai0, float ai1)
         {
             if (type <= 0) return null;
-            // 需求：整体弹幕伤害 ×4。damage <= 1 的是纯视觉弹幕（洗地光棱等），保持原值。
-            if (damage > 1) damage *= 4;
+            // MEAC 直接使用传入伤害（通常为 npc.damage / 5、/6、/4、/3）。
+            // 迁移版曾额外乘 4，会使玩家受到的弹幕伤害偏离源值。
             var idx = Projectile.NewProjectile(null, pos, vel, type, damage, 0f, Main.myPlayer, ai0, ai1, 0f);
             if (idx < 0 || idx >= Main.projectile.Length) return null;
             return Main.projectile[idx];
@@ -1946,6 +2000,8 @@ namespace XiheBoss
         {
             try
             {
+                XiheVisuals.DrawEolSprites(spriteBatch, screenPos, _alpha);
+                DrawWaves(spriteBatch, screenPos);
                 DrawBody(npc, spriteBatch, screenPos);
             }
             catch (Exception e)
@@ -1956,10 +2012,103 @@ namespace XiheBoss
         }
 
         private bool _drawLogged;
+        private static int _waveDrawFrame = -1;
+
+        /// <summary>
+        /// MEAC Wave 的 ForceField 通道。波纹属于 NPC 绘制前的世界层，必须使用完整的
+        /// 1200px 噪声源矩形；提交后恢复 SpriteBatch、Textures[0]/[1]、uSourceRect 和 BoundEffect。
+        /// </summary>
+        private static void DrawWaves(SpriteBatch spriteBatch, Vector2 screenPos)
+        {
+            var hasWave = false;
+            foreach (var v in XiheVisuals.All)
+            {
+                if (v.Kind == VfxKind.Wave && v.TimeLeft > 0) { hasWave = true; break; }
+            }
+            if (!hasWave) return;
+            // PreDraw may be reached more than once in a frame by NPC/bloom hooks;
+            // MEAC draws the VFX once from its dedicated pipeline.
+            var frame = UnityEngine.Time.frameCount;
+            if (_waveDrawFrame == frame) return;
+            _waveDrawFrame = frame;
+
+            var graphicsDevice = Main.graphics.GraphicsDevice;
+            var oldTexture0 = graphicsDevice.Textures[0];
+            var oldTexture1 = graphicsDevice.Textures[1];
+            var oldPass = EffectPass.BoundEffect;
+            var sourceParameter = Main.pixelShader.Parameters["uSourceRect"];
+            var oldSourceRect = sourceParameter.Vector;
+            var begun = false;
+            try
+            {
+                var waveTexture = XiheTextures.WavePerlin1200;
+                if (waveTexture == null) return;
+
+                spriteBatch.End();
+                spriteBatch.Begin(SpriteSortMode.Immediate, BlendState.Additive, Main.DefaultSamplerState,
+                    DepthStencilState.None, RasterizerState.CullCounterClockwise, null,
+                    new Il2CppSystem.Nullable<Matrix>(Main.GameViewMatrix.TransformationMatrix));
+                begun = true;
+
+                // Every Wave uses the same ForceField parameters (ai0 = 1). Apply
+                // the effect once for this batch, then draw each live Wave. MEAC's
+                // canBatch=false controls VFX ordering, not repeated shader setup.
+                graphicsDevice.Textures[0] = waveTexture;
+                var shader = Terraria.Graphics.Shaders.GameShaders.Misc["ForceField"];
+                shader.UseColor(new Vector3(1f));
+                shader.Apply();
+                foreach (var v in XiheVisuals.All)
+                {
+                    if (v.Kind != VfxKind.Wave || v.TimeLeft <= 0) continue;
+                    var source = new Rectangle(0, 0, 1200, 1200);
+                    var data = new Terraria.DataStructures.DrawData(waveTexture, v.Center - screenPos,
+                        source, Color.White * v.Alpha, 0f, new Vector2(600f),
+                        v.Scale * v.Ai1 * new Vector2(1f, 0.7f), SpriteEffects.None, 0);
+                    data.Draw(spriteBatch);
+                }
+
+                // MEAC Wave.useBloom=true: its bloom pass draws the same ForceField
+                // again with bloomColor=(0.8,0.5,0.2)*alpha. Keep this as a second
+                // ordered batch so the normal and bloom contributions match MEAC.
+                shader.UseColor(new Vector3(1f));
+                shader.Apply();
+                foreach (var v in XiheVisuals.All)
+                {
+                    if (v.Kind != VfxKind.Wave || v.TimeLeft <= 0) continue;
+                    var source = new Rectangle(0, 0, 1200, 1200);
+                    var bloom = new Color(204, 128, 51) * v.Alpha;
+                    var data = new Terraria.DataStructures.DrawData(waveTexture, v.Center - screenPos,
+                        source, bloom, 0f, new Vector2(600f),
+                        v.Scale * v.Ai1 * new Vector2(1f, 0.7f), SpriteEffects.None, 0);
+                    data.Draw(spriteBatch);
+                }
+            }
+            finally
+            {
+                if (begun)
+                {
+                    spriteBatch.End();
+                    sourceParameter.SetValue(new Vector4(oldSourceRect.x, oldSourceRect.y, oldSourceRect.z, oldSourceRect.w));
+                    graphicsDevice.Textures[0] = oldTexture0;
+                    graphicsDevice.Textures[1] = oldTexture1;
+                    if (oldPass != null) oldPass.Apply();
+                    else Main.pixelShader.CurrentTechnique.Passes[0].Apply();
+                    spriteBatch.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, Main.DefaultSamplerState,
+                        DepthStencilState.None, RasterizerState.CullCounterClockwise, null,
+                        new Il2CppSystem.Nullable<Matrix>(Main.GameViewMatrix.TransformationMatrix));
+                }
+            }
+        }
+
         private void DrawBody(NPC npc, SpriteBatch sb, Vector2 screenPos)
         {
             var a = MathHelper.Clamp(_alpha, 0f, 1f);
             if (a <= 0.002f) return;
+            _wingGradientTexture ??= ModContent.Request(XiheBossMod.Instance, "assets/textures/XiHe_Wing.png")?.Value;
+            _bodyVeilTexture ??= LoadGameTexture("Images/Extra_187", "本体光幕");
+            _bodyVeilGlowTexture ??= LoadGameTexture("Images/Extra_188", "本体光幕辉光");
+            _leftArmTexture ??= LoadGameTexture("Images/Extra_158", "左臂");
+            _rightArmTexture ??= LoadGameTexture("Images/Extra_160", "右臂");
             var pos = npc.Center - screenPos;
 
             const int wingFrames = 11;
@@ -1967,11 +2116,8 @@ namespace XiheBoss
             var wingFrame = Utils.Frame(WingTexture, 1, wingFrames, 0, wingTime % wingFrames, 0, 0);
             var wingOrigin = new Vector2(WingTexture.Width, WingTexture.Height / wingFrames) / 2f;
 
-            // 源 DrawEoL 顺序：wing2（Extra_159，加色黄光）先画在翅膀后面，再用 wing1 盖住内侧。
-            // 手机端拿不到 HallowBoss pass 的调色结果，这里用 wing1 自身放大一层加色光晕来补：
-            // 翅膀外轮廓会多出一圈金色柔光，wing1 本体再压成暖金色。
+            // MEAC 原序：加色翅膀背光，然后 HallowBoss pass + XiHe_Wing 调色贴图。
             var wingGlow = WingGlowTexture ?? TextureAssets.Extra[159]?.Value;
-            var gold = new Color(255, 220, 120);
             sb.End();
             sb.Begin(SpriteSortMode.Immediate, BlendState.Additive, SamplerState.PointClamp,
                 DepthStencilState.None, RasterizerState.CullNone, null,
@@ -1979,15 +2125,63 @@ namespace XiheBoss
 
             if (wingGlow != null)
                 XiheDraw.Sprite(sb, wingGlow, pos, wingFrame, Color.Yellow * a, 0f, wingOrigin, 2f);
-            XiheDraw.Sprite(sb, WingTexture, pos, wingFrame, gold * (0.32f * a), 0f, wingOrigin, 2.18f);
+
 
             sb.End();
             sb.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp,
                 DepthStencilState.None, RasterizerState.CullNone, null,
                 new Il2CppSystem.Nullable<Matrix>(Main.GameViewMatrix.TransformationMatrix));
 
-            // wing1 本体：暖白金色，不再直接白/灰。
-            XiheDraw.Sprite(sb, WingTexture, pos, wingFrame, new Color(255, 242, 208) * a, 0f, wingOrigin, 2f);
+            sb.End();
+            sb.Begin(SpriteSortMode.Immediate, BlendState.AlphaBlend, SamplerState.PointClamp,
+                DepthStencilState.None, RasterizerState.CullNone, null,
+                new Il2CppSystem.Nullable<Matrix>(Main.GameViewMatrix.TransformationMatrix));
+            var wingData = new Terraria.DataStructures.DrawData(WingTexture, pos,
+                wingFrame, Color.White * a, 0f, wingOrigin, 2f, SpriteEffects.None, 0);
+            var graphicsDevice = Main.graphics.GraphicsDevice;
+            var oldTexture0 = graphicsDevice.Textures[0];
+            var oldTexture1 = graphicsDevice.Textures[1];
+            var oldPass = EffectPass.BoundEffect;
+            var sourceParameter = Main.pixelShader.Parameters["uSourceRect"];
+            var oldSourceRect = sourceParameter.Vector;
+            try
+            {
+                graphicsDevice.Textures[0] = WingTexture;
+                var wingShader = Terraria.Graphics.Shaders.GameShaders.Misc["HallowBoss"];
+                if (_wingGradientTexture != null) wingShader.UseImage1(_wingGradientTexture);
+                wingShader.Apply(new Il2CppSystem.Nullable<Terraria.DataStructures.DrawData>(wingData));
+                wingData.Draw(sb);
+            }
+            finally
+            {
+                sb.End();
+                // PixelShader is shared with the player-head renderer. Restoring only
+                // its pass leaves the wing frame in uSourceRect and indexes the wrong tile.
+                sourceParameter.SetValue(new Vector4(oldSourceRect.x, oldSourceRect.y, oldSourceRect.z, oldSourceRect.w));
+                graphicsDevice.Textures[0] = oldTexture0;
+                graphicsDevice.Textures[1] = oldTexture1;
+                if (oldPass != null) oldPass.Apply();
+                else Main.pixelShader.CurrentTechnique.Passes[0].Apply();
+            }
+            sb.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp,
+                DepthStencilState.None, RasterizerState.CullNone, null,
+                new Il2CppSystem.Nullable<Matrix>(Main.GameViewMatrix.TransformationMatrix));
+
+            // MEAC DrawEoL：Extra_187 八帧光幕和四向金色轮廓位于身体后方。
+            var pulse = (float)Math.Sin(Main.GlobalTimeWrappedHourly * ((float)Math.PI * 2f) * 0.5f) * 0.5f + 0.5f;
+            var veilColor = new Color(255, 231, 69, 0) * (0.3f * a);
+            var veilOffset = MathHelper.Lerp(2f, 8f, pulse);
+            if (_bodyVeilTexture != null)
+            {
+                var frame = Utils.Frame(_bodyVeilTexture, 1, 8, 0, (int)(Main.timeForVisualEffects / 4.0) % 8, 0, 0);
+                var origin = Utils.Size(frame) / 2f;
+                XiheDraw.Sprite(sb, _bodyVeilTexture, pos, frame, Color.White * a, 0f, origin, 1.1f);
+                for (var i = 0; i < 4; i++)
+                {
+                    var offset = XiheHelper.Vxr(i * 0.25f * 6.28f + 0.785f) * veilOffset;
+                    XiheDraw.Sprite(sb, _bodyVeilTexture, pos + offset, frame, veilColor, 0f, origin, 1.1f);
+                }
+            }
 
             // 身体（NPC_636 第 2 帧）
             if (BodyTexture != null)
@@ -2006,6 +2200,28 @@ namespace XiheBoss
                         Utils.Size(bframe) / 2f, 1.1f);
                 }
             }
+
+            // Extra_188 的四向辉光与独立手臂按 MEAC 顺序覆盖在身体前方。
+            if (_bodyVeilGlowTexture != null)
+            {
+                var origin = new Vector2(_bodyVeilGlowTexture.Width, _bodyVeilGlowTexture.Height) / 2f;
+                for (var i = 0; i < 4; i++)
+                {
+                    var offset = XiheHelper.Vxr(i * 0.25f * 6.28f + 0.785f) * veilOffset;
+                    XiheDraw.Sprite(sb, _bodyVeilGlowTexture, pos + offset,
+                        new Rectangle(0, 0, _bodyVeilGlowTexture.Width, _bodyVeilGlowTexture.Height), veilColor, 0f, origin, 1.1f);
+                }
+            }
+            DrawArm(sb, _leftArmTexture, pos, a);
+            DrawArm(sb, _rightArmTexture, pos, a);
+        }
+
+        private static void DrawArm(SpriteBatch sb, Texture2D texture, Vector2 pos, float alpha)
+        {
+            if (texture == null) return;
+            var frame = Utils.Frame(texture, 1, 7, 0, Act, 0, 0);
+            XiheDraw.Sprite(sb, texture, pos, frame, new Color(1f, 1f, 0.6f, 0.6f) * alpha,
+                0f, Utils.Size(frame) / 2f, 1f);
         }
 
         /// <summary>源 DrawArea：场地环，半径 realAreaRadius、宽 25、颜色 (255,255,150)*alpha、Additive。</summary>

@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using Color = Il2CppMicrosoft.Xna.Framework.Graphics.Color;
+using Texture2D = Il2CppMicrosoft.Xna.Framework.Graphics.Texture2D;
 using Pylon.ModLoader;
 using Pylon.ModLoader.Effects;
 using Pylon.ModLoader.Textures;
@@ -33,6 +34,7 @@ namespace XiheBoss
         Wave1,
         Wave2,
         Extra89,
+        Arc,
         WarpRing,
         WarpRing2,
         WarpBall,
@@ -67,6 +69,9 @@ namespace XiheBoss
 
         /// <summary>单独一张：Perlin 噪声（uNoise，屏幕效果里做抖动/扭曲）。</summary>
         internal static ScreenTexture Noise { get; private set; }
+
+        /// <summary>原版 ForceField 波纹使用的 1200px 独立噪声贴图。</summary>
+        internal static Texture2D WavePerlin1200 { get; private set; }
 
         // EoLBigLaser 专用 shader（复用 XiheMagic 的 XiheBeam.frag）要单独绑 5 张 sampler。
         internal static ScreenTexture BigOuter { get; private set; }
@@ -109,6 +114,8 @@ namespace XiheBoss
             (Tex.Wave1, "assets/textures/Wave1.png"),
             (Tex.Wave2, "assets/textures/Wave2.png"),
             (Tex.Extra89, "assets/textures/Extra89.png"),
+            // MEAC/Items/ModWeapons/Arc.png：大光柱蓄力弧光。
+            (Tex.Arc, "assets/textures/Arc.png"),
             (Tex.WarpRing, "assets/textures/WarpRing.png"),
             (Tex.WarpRing2, "assets/textures/WarpRing2.png"),
             (Tex.WarpBall, "assets/textures/WarpBall.png"),
@@ -160,15 +167,15 @@ namespace XiheBoss
             // 1x1 白（MEAC 的 MagicPixel / Projectile_0 等价物）。代码生成，不占素材文件。
             images[(int)Tex.MagicPixel] = new Image
             {
-                W = 2,
-                H = 2,
-                Rgba = new byte[] { 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255 },
+                W = 1,
+                H = 1,
+                Rgba = new byte[] { 255, 255, 255, 255 },
             };
             images[(int)Tex.Transparent] = new Image
             {
-                W = 2,
-                H = 2,
-                Rgba = new byte[16],
+                W = 1,
+                H = 1,
+                Rgba = new byte[4],
             };
 
             // 行式打包：宽度 1024，每张之间留 2px 透明边，避免过滤串色。
@@ -232,12 +239,14 @@ namespace XiheBoss
 
             try { Noise = Load(mod, "assets/textures/Perlin.png", repeat: true); }
             catch (Exception e) { log?.Warn("[tex] Perlin 读取失败：" + e.Message); }
+            try { WavePerlin1200 = PylonTexture.LoadTexture(mod, "assets/textures/WavePerlin1200.png"); }
+            catch (Exception e) { log?.Warn("[tex] WavePerlin1200 读取失败：" + e.Message); }
 
             try { BigOuter = Load(mod, "assets/textures/tex3.png", repeat: true); }
             catch (Exception e) { log?.Warn("[tex] 大光柱 tex3 读取失败：" + e.Message); }
             try { BigCore = Load(mod, "assets/textures/tex0.png", repeat: true); }
             catch (Exception e) { log?.Warn("[tex] 大光柱 tex0 读取失败：" + e.Message); }
-            try { BigArc = Load(mod, "assets/textures/Extra89.png", repeat: false); }
+            try { BigArc = Load(mod, "assets/textures/Arc.png", repeat: false); }
             catch (Exception e) { log?.Warn("[tex] 大光柱 Arc 读取失败：" + e.Message); }
             try { BigStar = Load(mod, "assets/textures/Extra89.png", repeat: false); }
             catch (Exception e) { log?.Warn("[tex] 大光柱 Star 读取失败：" + e.Message); }

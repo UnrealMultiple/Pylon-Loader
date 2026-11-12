@@ -31,6 +31,7 @@ namespace XiheBoss
             public bool WrapU;
             public ScreenMeshBlend Blend;
             public readonly List<float> Verts = new();
+            public float[] SubmitVertices = Array.Empty<float>();
         }
 
         private sealed class TrailBatch
@@ -38,12 +39,32 @@ namespace XiheBoss
             public Tex Shape;
             public Tex ColorTex;
             public Tex Overlay;
+            public bool Head;
             public ScreenMeshBlend Blend;
             public readonly List<float> Verts = new();
+            public float[] SubmitVertices = Array.Empty<float>();
         }
 
         private static readonly List<GeoBatch> GeoBatches = new();
         private static readonly List<TrailBatch> TrailBatches = new();
+
+        private static readonly float[][] EolU = new float[31][];
+        private static readonly float[][] EolW = new float[31][];
+
+        private static void EolProfile(int count, out float[] u, out float[] w)
+        {
+            u = EolU[count];
+            w = EolW[count];
+            if (u != null) return;
+            u = EolU[count] = new float[count - 1];
+            w = EolW[count] = new float[count - 1];
+            for (var i = 0; i < count - 1; i++)
+            {
+                var factor = i / (count - 1f);
+                u[i] = (float)Math.Sqrt(factor);
+                w[i] = MathHelper.Lerp(1.2f, 0f, (float)Math.Pow(factor, 0.6000000238418579));
+            }
+        }
 
         private static float _sw = 1f, _sh = 1f;
         private static Vector2 _sp;
@@ -64,8 +85,10 @@ namespace XiheBoss
 
         internal static void Reset()
         {
-            GeoBatches.Clear();
-            TrailBatches.Clear();
+            // Keep batch objects and their backing buffers across frames. Clearing the
+            // outer lists discarded every large vertex buffer during dense bullet waves.
+            foreach (var batch in GeoBatches) batch.Verts.Clear();
+            foreach (var batch in TrailBatches) batch.Verts.Clear();
         }
 
         /// <summary>每帧在收集图元之前调一次：把世界坐标换成屏幕分数。</summary>
@@ -96,18 +119,18 @@ namespace XiheBoss
             return nb;
         }
 
-        private static TrailBatch TrailFor(Tex shape, Tex colorTex, Tex overlay, ScreenMeshBlend blend)
+        private static TrailBatch TrailFor(Tex shape, Tex colorTex, Tex overlay, ScreenMeshBlend blend, bool head = false)
         {
             for (var i = 0; i < TrailBatches.Count; i++)
             {
                 var b = TrailBatches[i];
-                if (b.Shape == shape && b.ColorTex == colorTex && b.Overlay == overlay && b.Blend == blend)
+                if (b.Shape == shape && b.ColorTex == colorTex && b.Overlay == overlay && b.Blend == blend && b.Head == head)
                     return b;
             }
 
             var nb = new TrailBatch
             {
-                Shape = shape, ColorTex = colorTex, Overlay = overlay, Blend = blend,
+                Shape = shape, ColorTex = colorTex, Overlay = overlay, Blend = blend, Head = head,
             };
             TrailBatches.Add(nb);
             return nb;
@@ -222,17 +245,113 @@ namespace XiheBoss
                 var color = new Color(255, 255, 255,
                     (byte)MathHelper.Clamp(q.Alpha * 255f, 0f, 255f));
 
-                Vertex(verts, q.L0, q.U0, 1f, color, q.W0, q.T);
-                Vertex(verts, q.R0, q.U0, 0f, color, q.W0, q.T);
-                Vertex(verts, q.L1, q.U1, 1f, color, q.W1, q.T);
+                // EoLProj 源 TriangleStrip 的首点是单个 Center/side=.5。
+                // 重复中心所形成的退化首三角形不绘制；第二个三角形保留准确 side=.5。
+                var left0 = q.L0 == q.R0 ? 0.5f : 1f;
+                var right0 = q.L0 == q.R0 ? 0.5f : 0f;
+                var left1 = q.L1 == q.R1 ? 0.5f : 1f;
+                var right1 = q.L1 == q.R1 ? 0.5f : 0f;
+                Vertex(verts, q.L0, q.U0, left0, color, q.W0, q.T);
+                Vertex(verts, q.R0, q.U0, right0, color, q.W0, q.T);
+                Vertex(verts, q.L1, q.U1, left1, color, q.W1, q.T);
 
-                Vertex(verts, q.R0, q.U0, 0f, color, q.W0, q.T);
-                Vertex(verts, q.R1, q.U1, 0f, color, q.W1, q.T);
-                Vertex(verts, q.L1, q.U1, 1f, color, q.W1, q.T);
+                Vertex(verts, q.R0, q.U0, right0, color, q.W0, q.T);
+                Vertex(verts, q.R1, q.U1, right1, color, q.W1, q.T);
+                Vertex(verts, q.L1, q.U1, left1, color, q.W1, q.T);
             }
         }
 
+        /// <summary>MEAC EoLProj TriangleStrip, expanded directly without per-projectile lists/quads.</summary>
+        internal static void AddEolTrail(Vector2 center, Vector2[] trail, float time)
+        {
+            var count = 0;
+            while (count < trail.Length && trail[count] != Vector2.Zero) count++;
+            if (count < 2) return;
+            EolProfile(count, out var uValues, out var wValues);
+            var batch = TrailFor(Tex.TrailShape, Tex.EolProjColor, Tex.Transparent, ScreenMeshBlend.Premultiplied);
+            var verts = batch.Verts;
+            var previousLeft = center;
+            var previousRight = center;
+            var previousU = 0f;
+            var previousW = 2f;
+            for (var i = 0; i < count - 1; i++)
+            {
+                var delta = trail[i] - trail[i + 1];
+                var normal = XiheHelper.Normalize2(new Vector2(-delta.Y, delta.X));
+                var u = uValues[i];
+                var w = wValues[i];
+                var middle = (trail[i] + trail[i + 1]) * 0.5f;
+                var left = middle + normal * 15f;
+                var right = middle - normal * 15f;
+                if (i == 0)
+                {
+                    // Source starts with ONE center vertex, not a duplicated pair.
+                    Vertex(verts, center, 0f, 0.5f, Color.White, 2f, time);
+                    Vertex(verts, left, u, 1f, Color.White, w, time);
+                    Vertex(verts, right, u, 0f, Color.White, w, time);
+                }
+                else
+                {
+                    Vertex(verts, previousLeft, previousU, 1f, Color.White, previousW, time);
+                    Vertex(verts, previousRight, previousU, 0f, Color.White, previousW, time);
+                    Vertex(verts, left, u, 1f, Color.White, w, time);
+                    Vertex(verts, previousRight, previousU, 0f, Color.White, previousW, time);
+                    Vertex(verts, right, u, 0f, Color.White, w, time);
+                    Vertex(verts, left, u, 1f, Color.White, w, time);
+                }
+                previousLeft = left;
+                previousRight = right;
+                previousU = u;
+                previousW = w;
+            }
+        }
+
+        /// <summary>Three premultiplied alpha-zero Ball sprites, one material batch for all light bullets.</summary>
+        internal static void AddEolHead(Vector2 center, float rotation, float scale)
+        {
+            if (scale <= 0.01f) return;
+            var b = TrailFor(Tex.Ball, Tex.Transparent, Tex.Transparent, ScreenMeshBlend.Premultiplied, true);
+            AddHeadSprite(b.Verts, center, rotation, new Vector2(4f, 0.5f) * scale, new Color(1f, 1f, 0.5f, 0f));
+            AddHeadSprite(b.Verts, center, rotation + 1.57f, new Vector2(4f, 0.5f) * scale, new Color(1f, 1f, 0.5f, 0f));
+            AddHeadSprite(b.Verts, center, -rotation * 0.6f, new Vector2(5f, 0.3f) * scale, new Color(1f, 1f, 1f, 0f));
+        }
+
+        internal static void AddBallGlow(Vector2 center, float rotation, Vector2 scale, Color color)
+        {
+            var batch = TrailFor(Tex.Ball, Tex.Transparent, Tex.Transparent, ScreenMeshBlend.Premultiplied, true);
+            AddHeadSprite(batch.Verts, center, rotation, scale, color);
+        }
+
+        private static void AddHeadSprite(List<float> vertices, Vector2 center, float rotation, Vector2 scale, Color color)
+        {
+            var half = new Vector2(XiheTextures.WidthOf(Tex.Ball), XiheTextures.HeightOf(Tex.Ball)) * 0.5f;
+            var cs = (float)Math.Cos(rotation);
+            var sn = (float)Math.Sin(rotation);
+            var x = new Vector2(cs, sn) * (half.X * scale.X);
+            var y = new Vector2(-sn, cs) * (half.Y * scale.Y);
+            var a = center - x - y;
+            var b = center + x - y;
+            var c = center - x + y;
+            var d = center + x + y;
+            Vertex(vertices, a, 0f, 0f, color);
+            Vertex(vertices, b, 1f, 0f, color);
+            Vertex(vertices, c, 0f, 1f, color);
+            Vertex(vertices, b, 1f, 0f, color);
+            Vertex(vertices, d, 1f, 1f, color);
+            Vertex(vertices, c, 0f, 1f, color);
+        }
+
         // ================= 提交 =================
+
+        private static float[] CopyForSubmit(List<float> vertices, ref float[] buffer)
+        {
+            // ScreenGraphics uses array.Length as the vertex count; capacity padding
+            // would upload stale triangles. Retain an exact-size array when counts are
+            // stable, and resize only when this material's actual geometry changes.
+            if (buffer.Length != vertices.Count) buffer = new float[vertices.Count];
+            vertices.CopyTo(buffer);
+            return buffer;
+        }
 
         internal static void Submit(ScreenFrame frame)
         {
@@ -241,21 +360,25 @@ namespace XiheBoss
             // 拖尾先画（源里 trail 在精灵/环之前），再画三角形/精灵，最后太阳。
             if (TrailShader != null)
             {
+                // Dust can create the shared Ball batch before the first projectile.
+                // Draw order must depend on material role, not first-use frame history.
+                for (var headPass = 0; headPass < 2; headPass++)
                 foreach (var b in TrailBatches)
                 {
-                    if (b.Verts.Count < 6) continue;
+                    if (b.Head != (headPass == 1) || b.Verts.Count < 36) continue;
                     var fx = new ScreenEffect(TrailShader)
                     {
                         Layer = ScreenEffectLayer.World,
                         Mesh = true,
                         MeshBlend = b.Blend,
-                        MeshVertices = b.Verts.ToArray(),
+                        MeshVertices = CopyForSubmit(b.Verts, ref b.SubmitVertices),
                     };
                     var shape = XiheTextures.Cell(b.Shape);
                     var color = XiheTextures.Cell(b.ColorTex);
                     var overlay = XiheTextures.Cell(b.Overlay);
                     fx.Uniform("uCellShape", shape.U0, shape.V0, shape.DU, shape.DV);
-                    fx.Uniform("uCellImage", 0f, 0f, 1f, 1f);
+                    fx.Uniform("uCellImage", overlay.U0, overlay.V0, overlay.DU, overlay.DV);
+                    fx.Uniform("uHead", b.Head ? 1f : 0f);
                     fx.Uniform("uCellColor", color.U0, color.V0, color.DU, color.DV);
                     if (XiheTextures.Atlas != null) fx.Texture("uAtlas", XiheTextures.Atlas);
                     frame.Add(fx);
@@ -272,7 +395,7 @@ namespace XiheBoss
                         Layer = ScreenEffectLayer.World,
                         Mesh = true,
                         MeshBlend = b.Blend,
-                        MeshVertices = b.Verts.ToArray(),
+                        MeshVertices = CopyForSubmit(b.Verts, ref b.SubmitVertices),
                     };
                     var cell = XiheTextures.Cell(b.Tex);
                     fx.Uniform("uCell", cell.U0, cell.V0, cell.DU, cell.DV);

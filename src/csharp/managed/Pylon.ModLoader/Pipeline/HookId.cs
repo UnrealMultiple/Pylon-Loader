@@ -370,4 +370,6 @@ internal enum HookId
     ModifyFishingAttempt,
     CatchFish,
     NPCHeadSlot,
+    ModifyCaughtFish,
+    ModifyFishingLine,
 }

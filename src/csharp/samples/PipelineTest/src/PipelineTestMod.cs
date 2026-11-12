@@ -21,8 +21,11 @@ public sealed class PipelineTestMod : Mod
 
     public override void PostDrawTiles() => TestInterfaceProbe.OnPostDrawTiles();
 
-    public override void PostDrawInterface(Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch spriteBatch) =>
+    public override void PostDrawInterface(Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch spriteBatch)
+    {
         TestInterfaceProbe.OnPostDrawInterface(spriteBatch);
+        Tests.FishingTests.Draw();
+    }
 
     public override void ModifySunLightColor(ref Il2CppMicrosoft.Xna.Framework.Graphics.Color tileColor,
                                              ref Il2CppMicrosoft.Xna.Framework.Graphics.Color backgroundColor) =>
@@ -93,6 +96,7 @@ public sealed class PipelineTestMod : Mod
         Tests.ItemPvpTests.Register();
         Tests.AmmoTests.Register();
         Tests.HealTests.Register();
+        Tests.FishingTests.Register();
         Tests.CommandTests.Register();
         Tests.ConfigTests.Register();
         Tests.NetTests.Register();

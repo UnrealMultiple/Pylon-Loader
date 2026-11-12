@@ -20,11 +20,14 @@
 | `Player.Spawn` | `OnRespawn` |
 | `Player.Teleport` | `CanBeTeleportedTo` |
 | `Player.PickupItem` | `OnPickup` |
+| `Projectile.FishingCheck_ProbeForQuestFish` / `FishingCheck_RollItemDrop` | `ModifyFishingAttempt` 前置修改条件，保留掷骰结果；`CatchFish` 后置回写结果 |
+| `Projectile.AI_061_FishingBobber_GiveItemToPlayer` → `Player.QuickSpawnItem` 的两个 Item 重载 | `ModifyCaughtFish` 在原版交付前修改同一物品，仅消费一次 |
+| `Main.DrawProj_FishingLine` / `TryApplyingPlayerStringColor` | 弹幕 → 手持物品 `ModifyFishingLine`，回写竿端偏移及染色前颜色 |
 | `Player.NaturalLifeRegen` 之外的自然再生链 | 未接（见第 2 节） |
 
 **已接（移到玩家绘制管线）**：`DrawEffects` / `ModifyDrawInfo` / `TransformDrawData` / `DrawPlayer`（见 content-playerdrawlayer.md）与 `HideDrawLayers`（`VanillaDrawLayer` 逐层点名，54 层）
 
-**不接**（本版手机端没有可挂的入口，或入口签名与作者 API 对不上）：`PreUpdateBuffs/PostUpdateBuffs`、`PostUpdateMiscEffects`、`PostUpdateRunSpeeds`、`PreUpdateMovement`、`UpdateAutopause`、`FrameEffects`、`NaturalLifeRegen`、`PreModifyLuck/ModifyLuck`、`CatchFish` 系列、商店四个钩子、护士三个钩子、`HoverSlot/ShiftClickSlot`、`ProcessTriggers`、`CanCatchNPC/OnCatchNPC`、存档与同步那一族。
+**不接**（本版手机端没有可挂的入口，或入口签名与作者 API 对不上）：`PreUpdateBuffs/PostUpdateBuffs`、`PostUpdateMiscEffects`、`PostUpdateRunSpeeds`、`PreUpdateMovement`、`UpdateAutopause`、`FrameEffects`、`NaturalLifeRegen`、`PreModifyLuck/ModifyLuck`、尚未接入的捕鱼与奖励回调、商店四个钩子、护士三个钩子、`HoverSlot/ShiftClickSlot`、`ProcessTriggers`、`CanCatchNPC/OnCatchNPC`、存档与同步那一族。
 
 理由统一为一句话：**入口不存在就不假装接上**。旧实现把它们都声明成 `virtual` 却从不分派，作者写了也静默失效——那比不提供更糟。API 上仍然保留这些 `virtual`（删掉会破坏已有 Mod 编译），但文档与启动日志都明说"本版不分派"。
 
@@ -69,6 +72,14 @@ Pipelines/Player/
 `CumulativeHealth/Mana` 的时序是固定的：`ResetEffects` 里清零 → 作者在 `ModifyMaxStats` 里加 → `UpdateEquips` 之后由管线加到 `statLifeMax2/statManaMax2`。
 
 **为什么加在 `UpdateEquips` 之后？** 因为 `statLifeMax2` 是游戏在 `UpdateEquips` 里算出来的（生命水晶 + 饰品 + buff）。在更早的地方加会被覆盖，在更晚的地方加则这一帧的再生已经用旧值算过了。
+
+### 2.7 捕鱼与鱼线
+
+`PlayerFishingHooks` 在浮标领奖入口建立线程内作用域，按玩家原生指针匹配，两个 `QuickSpawnItem` 的 Item 重载在原版交付前修改同一份鱼。先消费标志再调用作者，避免重载转调或作者另行生成物品导致重复；嵌套领奖与原版异常都在 `finally` 恢复外层状态。普通生成物品不触发钓获回调。
+
+`FishingLineHooks` 复用已绑定的弹幕和手持物品实例，按覆写位集门控，依次执行弹幕、物品作者。偏移从零累加到原版 `mountedCenter`，两个竿端 `ref float` 始终传给原版并保留输出。颜色以原版鱼竿默认色初始化，传入 `TryApplyingPlayerStringColor` 后继续原版染色。线程内颜色在嵌套和异常时恢复；无覆写的嵌套鱼线单独使用原版颜色。正常分派不创建闭包、列表或状态对象；每个作者异常独立报告。
+
+其余捕鱼与奖励回调仍需逐条核对；这条短链完成不代表捕鱼系统整体完成。
 
 ## 3. 取舍理由
 

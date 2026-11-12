@@ -7,7 +7,7 @@
 | 类型 | 说明 |
 |---|---|
 | NPC | `XiheBossNpc`：本体、阶段切换、行动模式 |
-| 弹幕 | `EoLLance`、`EoLProj`、`EoLLaser1`、`EoLBigLaser`、`CrystalArrow`、`Cycloid`、`EoLLight`、`EoLFire`、`SunProj` |
+| 弹幕 | `EoLLance`、`EoLProj`、`EoLLaser1`、`EoLBigLaser`、`CrystalArrow`、`Cycloid`、`EoLLight`、`EoLFire`、`SunProj`、`SolarProminence` |
 | 视觉 | `Fx/XiheFx.cs`（屏幕图元与后处理）+ `Fx/XiheMesh.cs`（硬件几何批：精灵 / 三角形 / 拖尾） |
 | 着色器 | `assets/effects/`：`XiheGeo` `XiheTrailFx` `XihePost` `XiheBigLaser` `XihePrims` `XiheRing` `XiheLine` |
 | 声音 | 原版 `SoundID` + `assets/sounds/Laser.wav`；BGM 为 `assets/music/TakeFlight.mp3` |

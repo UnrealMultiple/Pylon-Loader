@@ -7,6 +7,8 @@ namespace Pylon.ModLoader;
 internal static class PlayerFishingHooks
 {
     private static bool _installed;
+    [ThreadStatic] private static nint _catchPlayer;
+    [ThreadStatic] private static bool _catchPending;
     private static PlayerPipeline Players => PlayerPipeline.Instance;
 
     internal static void Install()
@@ -15,6 +17,10 @@ internal static class PlayerFishingHooks
         _installed = true;
         On.Terraria.Projectile.FishingCheck_ProbeForQuestFish += Probe;
         On.Terraria.Projectile.FishingCheck_RollItemDrop += Roll;
+        On.Terraria.Projectile.AI_061_FishingBobber_GiveItemToPlayer += Give;
+        On.Terraria.Player.QuickSpawnItem_IEntitySource_Item += QuickSpawn;
+        On.Terraria.Player.QuickSpawnItem_IEntitySource_Item_GetItemSettings += QuickSpawnWithSettings;
+        FishingLineHooks.Install();
     }
 
     private static Player? Owner(Projectile projectile, HookId hook)
@@ -59,6 +65,49 @@ internal static class PlayerFishingHooks
             try { mod.CatchFish(player, ref attempt); }
             catch (Exception e) { Fail(mod, HookId.CatchFish, e); }
         }
+    }
+
+    private static void Give(On.Terraria.Projectile.orig_AI_061_FishingBobber_GiveItemToPlayer orig,
+                             Projectile self, Player player, int itemType)
+    {
+        var outerPlayer = _catchPlayer;
+        var outerPending = _catchPending;
+        // 每层领奖独立消费一次，嵌套且无订阅的领奖也不能借用外层状态。
+        _catchPlayer = player.Pointer;
+        _catchPending = Players.ModsActive(HookId.ModifyCaughtFish);
+        try { orig(self, player, itemType); }
+        finally
+        {
+            _catchPlayer = outerPlayer;
+            _catchPending = outerPending;
+        }
+    }
+
+    private static void Caught(Player player, Item fish)
+    {
+        if (!_catchPending || _catchPlayer != player.Pointer) return;
+        // 两个重载可能相互转调；先消费，作者内部另行生成物品也不会递归触发。
+        _catchPending = false;
+        foreach (var mod in Players.ModsOf(player))
+        {
+            if (!mod.HookEnabled(HookId.ModifyCaughtFish)) continue;
+            try { mod.ModifyCaughtFish(player, fish); }
+            catch (Exception e) { Fail(mod, HookId.ModifyCaughtFish, e); }
+        }
+    }
+
+    private static void QuickSpawn(On.Terraria.Player.orig_QuickSpawnItem_IEntitySource_Item orig,
+                                   Player self, IEntitySource source, Item item)
+    {
+        Caught(self, item);
+        orig(self, source, item);
+    }
+
+    private static void QuickSpawnWithSettings(On.Terraria.Player.orig_QuickSpawnItem_IEntitySource_Item_GetItemSettings orig,
+                                               Player self, IEntitySource source, Item item, GetItemSettings settings)
+    {
+        Caught(self, item);
+        orig(self, source, item, settings);
     }
 
     private static void Fail(ModPlayer mod, HookId hook, Exception e) =>

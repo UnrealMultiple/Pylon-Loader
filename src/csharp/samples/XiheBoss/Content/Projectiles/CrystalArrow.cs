@@ -10,10 +10,8 @@ namespace XiheBoss
     public sealed class CrystalArrow : ModProjectile
     {
         /// <summary>源 SetStaticDefaults: Sets.TrailCacheLength[type] = 30。手机版代理数组没有 Length，固定用 30。</summary>
-        private const int TrailCache = 8;
+        private const int TrailCache = 30;
 
-        /// <summary>实际提交给屏幕效果的拖尾段数（源画 30 段，这里按移植约定只画 8 段）。</summary>
-        private const int TrailDraw = 8;
 
         // 手机版 Projectile.oldPos/oldRot 是 IL2CPP 定长结构体，整体回写会丢；用按 whoAmI
         // 索引的静态表保存，和 EoLProj 的做法一致。PushVisual 是 static，正好读这张表。
@@ -200,9 +198,8 @@ namespace XiheBoss
             var texOrigin = new Vector2(texW, texH) / 2f;
             var ballOrigin = new Vector2(XiheTextures.WidthOf(Tex.Ball), XiheTextures.HeightOf(Tex.Ball)) / 2f;
             var length = (float)TrailCache;
-            // 同屏精灵过多时（例如开场 CrystalArrow 雨），只画最近 8 段拖尾；
-            // 正常战斗仍按 MEAC 的 30 段。
-            var drawCount = XiheFx.SpriteCount > 200 ? 8 : TrailCache;
+            // MEAC 使用完整的 30 段 oldPos 拖尾；保持段数一致以还原光弹长度。
+            var drawCount = TrailCache;
 
             // 源：for (i < oldPos.Length) Draw(Ball, oldPos[i], color*0.7*((length-i)/length),
             //     oldRot[i], Utils.Size(tex)/2, projectile.scale * (0.2, 2.5))，Colorize+Additive。

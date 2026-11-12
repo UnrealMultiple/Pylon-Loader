@@ -133,7 +133,8 @@ PYLON_FX_EXPORT int32_t PylonFx_SubmitAddMesh(int32_t shader, int32_t layer, int
     draw.shader = shader;
     draw.layer = layer >= 1 ? fx::Layer::Screen : fx::Layer::World;
     draw.dest = dest;
-    draw.blend = blend == 1 ? fx::Blend::Alpha : (blend == 2 ? fx::Blend::Additive : fx::Blend::None);
+    draw.blend = blend == 1 ? fx::Blend::Alpha : (blend == 2 ? fx::Blend::Additive :
+                 (blend == 3 ? fx::Blend::Premultiplied : fx::Blend::None));
     draw.verts.resize(static_cast<size_t>(count));
     for (int32_t i = 0; i < count; ++i) {
         const float* p = verts + static_cast<size_t>(i) * 12;

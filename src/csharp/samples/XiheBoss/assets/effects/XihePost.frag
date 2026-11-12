@@ -11,6 +11,11 @@ uniform vec2 uPos;        // 效果中心（uv，v=0 顶部）
 uniform float uStrength;
 uniform float uExtra;
 uniform sampler2D uNoise;
+uniform sampler2D uWarpMask;
+uniform float uWarpCount;
+uniform vec4 uWarpCenters[64]; // center.xy, radius, width
+uniform vec4 uWarpParameters[64]; // strength, mask enabled
+uniform vec4 uWarpCells[64];
 
 const float TAU = 6.28318530718;
 
@@ -40,7 +45,8 @@ void main() {
     vec2 uv = vUV;
     vec2 uvTop = vec2(uv.x, 1.0 - uv.y);
     vec2 posTop = vec2(uPos.x, 1.0 - uPos.y);
-    vec3 base = blScreen(uv).rgb;
+    vec3 base = vec3(0.0);
+    if (uMode < 7.5) base = blScreen(uv).rgb;
 
     if (uMode < 1.5) {
         // ---- EoLWarp (Gray.fx + EoLWarp.fx) ----
@@ -93,16 +99,37 @@ void main() {
     }
 
     if (uMode > 7.5) {
-        // ---- KScreen0：isWarp 特效的屏幕扭曲（不是可见的环） ----
-        vec2 q = (uvTop - posTop) * vec2(uAspect, 1.0);
-        float d = length(q);
-        float band = smoothstep(max(uRadius - uExtra, 0.0), uRadius, d)
-                   * (1.0 - smoothstep(uRadius, uRadius + uExtra, d));
-        float ang = uStrength * band;
-        float ca = cos(ang), sa = sin(ang);
-        vec2 w = vec2(q.x * ca - q.y * sa, q.x * sa + q.y * ca);
-        vec2 wuv = posTop + w / vec2(uAspect, 1.0);
-        base = blScreen(vec2(wuv.x, 1.0 - wuv.y)).rgb;
+        // Compose the exact per-entry coordinate maps in reverse draw order.
+        // Pixels outside a ring do no mask lookup/trigonometry; all entries share
+        // one final screen sample instead of one full-screen pass per prominence.
+        vec2 sampleTop = uvTop;
+        for (int i = 63; i >= 0; --i) {
+            if (float(i) >= uWarpCount) continue;
+            vec4 entry = uWarpCenters[i];
+            vec2 centerTop = vec2(entry.x, 1.0 - entry.y);
+            vec2 q = (sampleTop - centerTop) * vec2(uAspect, 1.0);
+            float outer = entry.z + entry.w;
+            float inner = max(entry.z - entry.w, 0.0);
+            float d2 = dot(q, q);
+            if (d2 <= inner * inner || d2 >= outer * outer) continue;
+            float d = sqrt(d2);
+            float band = smoothstep(inner, entry.z, d)
+                       * (1.0 - smoothstep(entry.z, outer, d));
+            if (uWarpParameters[i].y > 0.5) {
+                vec2 mq = clamp((sampleTop - centerTop) / max(entry.z, 0.0001) * 0.5 + 0.5,
+                                vec2(0.0), vec2(1.0));
+                vec4 cell = uWarpCells[i];
+                vec2 atlasUv = cell.xy + vec2(mq.x, 1.0 - mq.y) * cell.zw;
+                band *= texture(uWarpMask, atlasUv).a;
+            }
+            float ang = uWarpParameters[i].x * band;
+            if (abs(ang) < 0.000001) continue;
+            float ca = cos(ang), sa = sin(ang);
+            vec2 w = vec2(q.x * ca - q.y * sa, q.x * sa + q.y * ca);
+            // Each old intermediate sampled the clamp-to-edge screen texture.
+            sampleTop = clamp(centerTop + w / vec2(uAspect, 1.0), vec2(0.0), vec2(1.0));
+        }
+        base = blScreen(vec2(sampleTop.x, 1.0 - sampleTop.y)).rgb;
     }
 
     fragColor = vec4(clamp(base, 0.0, 1.0), 1.0);
