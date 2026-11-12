@@ -14,6 +14,8 @@ internal static class BuffIconCapture
         if (_installed) return;
         _installed = true;
         On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_Texture2D_Vector2_Nullable_Rectangle_Color_float_Vector2_float_SpriteEffects_float += Draw;
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_Texture2D_Vector2Ref_RectangleRef_ColorRef_float_Vector2_Vector2_SpriteEffects += DrawScaled;
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_Texture2D_Vector2_Nullable_Rectangle_Color_float_Vector2_Vector2_SpriteEffects_float += DrawScaledNullable;
         On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.DrawString_SpriteFont_string_Vector2_Color_float_Vector2_float_SpriteEffects_float += DrawString;
     }
 
@@ -68,6 +70,49 @@ internal static class BuffIconCapture
         var parameters = scope.Parameters;
         var selected = parameters.Texture;
         if (selected is null) selected = texture;
+        if (scope.SourceChanged) source = new Il2CppSystem.Nullable<Rectangle>(parameters.SourceRectangle);
+        if (scope.ColorChanged) color = parameters.DrawColor;
+        orig(self, selected, position + scope.PositionDelta, source, color, rotation, origin, scale, effects, depth);
+    }
+
+    private static void DrawScaled(
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_Texture2D_Vector2Ref_RectangleRef_ColorRef_float_Vector2_Vector2_SpriteEffects orig,
+        SpriteBatch self, Texture2D texture, ref Vector2 position, ref Rectangle source, ref Color color,
+        float rotation, Vector2 origin, Vector2 scale, SpriteEffects effects)
+    {
+        var scope = _current;
+        if (scope is null || texture is null || texture.Pointer != scope.OriginalTexture.Pointer)
+        {
+            orig(self, texture, ref position, ref source, ref color, rotation, origin, scale, effects);
+            return;
+        }
+
+        scope.IconSeen = true;
+        if (!scope.DrawIcon) return;
+        var parameters = scope.Parameters;
+        var selected = parameters.Texture ?? texture;
+        if (scope.SourceChanged) source = parameters.SourceRectangle;
+        if (scope.ColorChanged) color = parameters.DrawColor;
+        position += scope.PositionDelta;
+        orig(self, selected, ref position, ref source, ref color, rotation, origin, scale, effects);
+    }
+
+    private static void DrawScaledNullable(
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_Texture2D_Vector2_Nullable_Rectangle_Color_float_Vector2_Vector2_SpriteEffects_float orig,
+        SpriteBatch self, Texture2D texture, Vector2 position, Il2CppSystem.Nullable<Rectangle> source, Color color,
+        float rotation, Vector2 origin, Vector2 scale, SpriteEffects effects, float depth)
+    {
+        var scope = _current;
+        if (scope is null || texture is null || texture.Pointer != scope.OriginalTexture.Pointer)
+        {
+            orig(self, texture, position, source, color, rotation, origin, scale, effects, depth);
+            return;
+        }
+
+        scope.IconSeen = true;
+        if (!scope.DrawIcon) return;
+        var parameters = scope.Parameters;
+        var selected = parameters.Texture ?? texture;
         if (scope.SourceChanged) source = new Il2CppSystem.Nullable<Rectangle>(parameters.SourceRectangle);
         if (scope.ColorChanged) color = parameters.DrawColor;
         orig(self, selected, position + scope.PositionDelta, source, color, rotation, origin, scale, effects, depth);

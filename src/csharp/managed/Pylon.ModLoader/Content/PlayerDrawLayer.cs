@@ -132,14 +132,19 @@ public abstract class PlayerDrawLayer : ModType
         if (!Visible) return;
 
         Transform?.PreDrawRecursive(ref drawInfo);
+        try
+        {
+            foreach (var child in _childrenBefore) child.DrawWithTransformationAndChildren(ref drawInfo);
 
-        foreach (var child in _childrenBefore) child.DrawWithTransformationAndChildren(ref drawInfo);
+            Draw(ref drawInfo);
 
-        Draw(ref drawInfo);
-
-        foreach (var child in _childrenAfter) child.DrawWithTransformationAndChildren(ref drawInfo);
-
-        Transform?.PostDrawRecursive(ref drawInfo);
+            foreach (var child in _childrenAfter) child.DrawWithTransformationAndChildren(ref drawInfo);
+        }
+        finally
+        {
+            // 恢复变换必须与前置操作成对，否则一个作者异常会污染后续玩家绘制。
+            Transform?.PostDrawRecursive(ref drawInfo);
+        }
     }
 
     public override string ToString() => Name;
