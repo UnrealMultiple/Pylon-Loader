@@ -282,6 +282,10 @@ namespace XiheBoss
                         break;
                     }
                     var p = Main.projectile[v.OwnerProjectile];
+                    // Authoritative center: SunProj.Center in world pixels.  Both
+                    // MagicRingSun geometry and SunProj.PushVisual consume this
+                    // same world value; camera projection happens exactly once in
+                    // the mesh path or the post path, never in this VFX update.
                     v.Center = p.Center;
                     v.Scale = p.scale;
                     v.TimeLeft = p.timeLeft;

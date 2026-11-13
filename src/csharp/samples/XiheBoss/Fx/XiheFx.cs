@@ -463,6 +463,36 @@ namespace XiheBoss
             Suns.Add(new SunFx { World = world, Scale = 0.067f * scale, RayAlpha = rayAlpha, Alpha = alpha });
         }
 
+        internal static void AddBackgroundSun(ScreenFrame frame)
+        {
+            var intensity = XiheSky.Intensity;
+            var sun = XiheSky.SunIntensity;
+            // Match EoLSky.Draw's depth/timer gate.  Do not submit a zero-alpha
+            // Sun.fx pass: its reciprocal-distance formula still produces a
+            // corner glow when a stale/fallback position is supplied.
+            if (PostShader == null || !XiheSky.SunVisible) return;
+            var uv = XiheSky.SunUv();
+            var fx = new ScreenEffect(PostShader)
+            {
+                Layer = ScreenEffectLayer.World,
+                Center = new UVector2(MathHelper.Clamp(uv.X, 0f, 1f), MathHelper.Clamp(uv.Y, 0f, 1f)),
+                Intensity = 1f,
+            };
+            fx.Uniform("uMode", 6f);
+            fx.Uniform("uSunCount", 1f);
+            var a = new float[16 * 4];
+            var b = new float[16 * 4];
+            a[0] = uv.X;
+            a[1] = uv.Y;
+            a[2] = 0.05f * (float)Math.Sqrt(MathHelper.Clamp(intensity * sun, 0f, 1f));
+            a[3] = intensity * sun;
+            b[0] = intensity * sun * 0.8f;
+            fx.Uniform("uSunA", a);
+            fx.Uniform("uSunB", b);
+            frame.Add(fx);
+        }
+
+
         internal static void Line(Vector2[] points, float halfWidth, Color color, bool additive)
         {
             if (points == null || points.Length < 2 || halfWidth <= 0.01f || color.A == 0) return;
@@ -682,6 +712,8 @@ namespace XiheBoss
 
                 var frame = new ScreenFrame();
 
+                // MEAC EoLSky.DrawSun: background sun with animated radial light/shadow.
+                AddBackgroundSun(frame);
                 // 时间由 Boss AI 按生命值推进；EoLSky 渐变由 XiheSky 在背景层绘制。
                 AddRingPasses(frame);
                 AddTrail2Passes(frame);
@@ -781,9 +813,10 @@ namespace XiheBoss
                     if (s.Alpha <= 0.001f || s.Scale <= 0.0001f) continue;
                     var uv = ToUv(s.World);
                     var k = count * 4;
-                    var cx = MathHelper.Clamp(uv.X, 0f, 1f);
-                    var cy = MathHelper.Clamp(uv.Y, 0f, 1f);
-                    sunA[k] = cx; sunA[k + 1] = cy; sunA[k + 2] = s.Scale; sunA[k + 3] = s.RayAlpha;
+                    // Keep the world-projected center even when it is off-screen;
+                    // clamping would pin the reciprocal-distance glow to an edge.
+                    sunA[k] = uv.X; sunA[k + 1] = uv.Y;
+                    sunA[k + 2] = s.Scale; sunA[k + 3] = s.RayAlpha;
                     sunB[k] = s.Alpha; sunB[k + 1] = sunB[k + 2] = sunB[k + 3] = 0f;
                     count++;
                 }

@@ -99,7 +99,9 @@ void main() {
                 if (i >= sunCount) break;
                 vec4 a = uSunA[i];
                 vec4 b = uSunB[i];
-                vec2 sunPos = a.xy;
+                // uSunA is XiheFx.ToUv/native vUV space (v=0 at the bottom),
+                // while Sun.fx consumes the top-origin coordinate used by uvTop.
+                vec2 sunPos = vec2(a.x, 1.0 - a.y);
                 base += sunFx(uvTop, sunPos, max(a.z, 0.0001), a.w) * b.x;
             }
         } else {
