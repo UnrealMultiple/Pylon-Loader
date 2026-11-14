@@ -67,6 +67,15 @@
     <ProjectReference Include="..\Pylon.NaviteAPI\Pylon.NaviteAPI.csproj" />
   </ItemGroup>
 
+  <!-- Managed disassembly only. Native CodeSite validation and writes remain authoritative. -->
+  <PropertyGroup>
+    <DefineConstants>$(DefineConstants);PYLON_ASM_ARM64</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="AsmArm64" Version="[2.4.0]" />
+    <EmbeddedResource Include="../../tools/limit-profile/terraria-1.4.5.8.6-arm64-v8a.json" LogicalName="Pylon.LimitProfile.json" />
+  </ItemGroup>
+
   <ItemGroup>
     <EmbeddedResource Include="Textures\loaderIcon.png" />
     <EmbeddedResource Include="Textures\pylon.png" />

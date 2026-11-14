@@ -39,28 +39,28 @@ internal static unsafe class SystemStages
     private static readonly Stage[] Stages =
     [
         new(typeof(Main), "PlayersBegin", "DoUpdateInWorld", 0, 0x1b8,
-            [0xd00100bd, 0xd001011a, 0xf00100f9, 0xd000ffdc], [HookId.PreUpdatePlayers]),
+            [0xf0011c1d, 0xb0011c9a, 0xb0011c79, 0x90011b3c], [HookId.PreUpdatePlayers]),
         new(typeof(Main), "PlayersEnd", "DoUpdateInWorld", 0, 0x57c,
-            [0xd0010028, 0xf940b108, 0x2a1f03f5, 0xf9400108], [HookId.PostUpdatePlayers]),
+            [0xd0011b88, 0xf9451908, 0x2a1f03f5, 0xf9400108], [HookId.PostUpdatePlayers]),
         new(typeof(Main), "NPCsBegin", "DoUpdateInWorld", 0, 0x884,
-            [0xaa1f03e0, 0x3900811f, 0x94063b0a, 0xaa1f03e0], [HookId.PreUpdateNPCs]),
+            [0xaa1f03e0, 0x3900811f, 0x94063b79, 0xaa1f03e0], [HookId.PreUpdateNPCs]),
         // 游戏没有独立的 Gores 开始点：PreUpdateGores 与 PostUpdateNPCs 共用 NPCsEnd。
         new(typeof(Main), "NPCsEnd", "DoUpdateInWorld", 0, 0xf40,
-            [0xd0010028, 0xf940b108, 0x120002c9, 0xd00100f5], [HookId.PostUpdateNPCs, HookId.PreUpdateGores]),
+            [0xb0011b88, 0xf9451908, 0x120002c9, 0x90011c75], [HookId.PostUpdateNPCs, HookId.PreUpdateGores]),
         new(typeof(Main), "GoresEnd", "DoUpdateInWorld", 0, 0x114c,
             [0x2a1f03f5, 0xf94003a0, 0xb940e008, 0x35000068], [HookId.PostUpdateGores]),
         // 弹幕的 Post 与物品的 Pre 共用 ItemsBegin（PostUpdateProjectiles 已归一到桥，见 ModEnvironmentHooks）。
         new(typeof(Main), "ItemsBegin", "DoUpdateInWorld", 0, 0x1740,
-            [0xd000feb7, 0xf000fed8, 0xd000ff99, 0x9001017c], [HookId.PostUpdateProjectiles, HookId.PreUpdateItems]),
+            [0xb00119f7, 0xf0011a18, 0xb0011af9, 0xb0011cfc], [HookId.PostUpdateProjectiles, HookId.PreUpdateItems]),
         new(typeof(Main), "ItemsEnd", "DoUpdateInWorld", 0, 0x1a14,
-            [0x9000ffc8, 0xf9437908, 0xb0010037, 0xd00100b6], [HookId.PostUpdateItems]),
+            [0xd0011b08, 0xf9447d08, 0xb0011b97, 0xf0011c16], [HookId.PostUpdateItems]),
         new(typeof(Main), "Transform", "DoDraw", 1, 0x2468,
-            [0x97fc20b9, 0x37000220, 0xf9400360, 0xb940e008], [HookId.ModifyTransformMatrix]),
+            [0x97fc20b1, 0x37000220, 0xf9400360, 0xb940e008], [HookId.ModifyTransformMatrix]),
         new(typeof(Main), "ClockAdvance", "UpdateTime", 0, 0xb8c,
-            [0x1e602960, 0xfd024500, 0x97efb85d, 0xf94002e0], [HookId.ModifyTimeRate]),
+            [0x1e602960, 0xfd024500, 0x97efb520, 0xf94002e0], [HookId.ModifyTimeRate]),
         // 奖励池是方法局部变量（0xef0 时点落在 x21），入口钩够不到——走中体桥。
         new(typeof(Player), "DyeReward", "GetDyeTraderReward", 1, 0xef0,
-            [0xb9401aa1, 0xd000e2b6, 0xb000e238, 0xf94202d6], [HookId.GetDyeTraderReward]),
+            [0xb9401aa1, 0x9000fe16, 0xd000fd78, 0xf947d2d6], [HookId.GetDyeTraderReward]),
     ];
 
     // 时钟缓存：UpdateTimeRate 后缀算好，ClockAdvance 桥注入 d0（d0 与 dayRate 的换算是

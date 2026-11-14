@@ -1,7 +1,9 @@
 // 层：内核层 / mod —— SystemStages 中体桥（P1-11 剩余）
 // 游戏把每帧更新的子阶段内联在 DoUpdateInWorld / DoDraw / UpdateTime 的方法体中部，
-// 入口钩拆不出 Begin/End；跳板由 ShadowHook 出（HookApply 本就支持任意地址），
-// 这里只补托管做不了的桥体（全寄存器保存 → 分派 → 恢复 → 尾跳，裸汇编）。
+// 当前仅为十个静态 profile 专用桥；函数入口 hook 能力不构成通用中体安全保证。
+// 桥尾通过 x16 间接跳转，会覆盖原 x16；这些桥不提供全寄存器保持承诺。
+// 通用中体 intercept 尚未完成，活跃 x16 的站点不能使用此桥。
+// 无通用卸载/在途回调等待协议；桥和跳板需保持至进程结束。
 #pragma once
 
 #include <cstdint>

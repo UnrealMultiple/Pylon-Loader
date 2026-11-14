@@ -46,6 +46,7 @@ namespace RegressionTest
             // 进世界自动执行：世界更新第 AutoRunFrame 帧布景+发物品（回归免点按；On.* 钩不依赖系统桥）。
             On.Terraria.Main.DoUpdateInWorld += AutoRunTick;
             Logger.Info("[rt] RegressionTest 已加载（进世界 3 秒后自动布景+发物品；开关面在 RegressionTest 页）");
+            Arm64PatchTests.Run(Logger);
         }
 
         public override void OnWorldUnload()

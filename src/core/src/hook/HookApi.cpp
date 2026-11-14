@@ -88,9 +88,11 @@ PYLON_MOD_EXPORT int PylonMod_HookAvailable() { return EnsureHook() ? 1 : 0; }
 /// 成功时通过 trampoline 返回原函数入口。跳板必须非空，否则上层不能启用钩子（会跳 0 崩溃）。
 /// @return 0 成功；-1 参数非法；-2 ShadowHook 不可用；-3 拿不到跳板（已撤销）；
 ///         -4 该地址已挂别的替换函数；-5 后端挂钩失败（详见日志）
-PYLON_MOD_EXPORT int PylonMod_HookApply(void* target, void* detour, void** trampoline) {
+static int ApplyHook(void* target, void* detour, void** trampoline, void** publishedOrigin) {
     if (target == nullptr || detour == nullptr || trampoline == nullptr) return -1;
-    *trampoline = nullptr;
+    // A published origin can already be used by a running bridge. Never clear it
+    // before inspecting ownership under the hook registry lock.
+    if (trampoline != publishedOrigin) *trampoline = nullptr;
     if (!EnsureHook()) return -2;
 
     std::lock_guard<std::mutex> lock(g_mutex);
@@ -101,14 +103,20 @@ PYLON_MOD_EXPORT int PylonMod_HookApply(void* target, void* detour, void** tramp
                  existing->second.detour);
             return -4;
         }
+        if (publishedOrigin != nullptr && *publishedOrigin != nullptr &&
+            *publishedOrigin != existing->second.origin) return -4;
         existing->second.holders++;
         *trampoline = existing->second.origin;
+        if (publishedOrigin != nullptr) *publishedOrigin = existing->second.origin;
         LOGI("hook", "复用已有钩子 %p（持有者 %d）", target, existing->second.holders);
         return 0;
     }
 
+    if (publishedOrigin != nullptr && *publishedOrigin != nullptr) return -4;
     void* origin = nullptr;
-    void* stub = g_shHook(target, detour, &origin);
+    void** originOut = publishedOrigin != nullptr ? publishedOrigin : &origin;
+    void* stub = g_shHook(target, detour, originOut);
+    if (publishedOrigin != nullptr) origin = *publishedOrigin;
     if (stub == nullptr) {
         const int err = g_shErrno();
         LOGE("hook", "shadowhook 挂钩失败 errno=%d：%s 目标=%p", err, g_shErrMsg(err), target);
@@ -122,8 +130,18 @@ PYLON_MOD_EXPORT int PylonMod_HookApply(void* target, void* detour, void** tramp
 
     g_hooks[target] = HookEntry{detour, origin, stub, 1};
     *trampoline = origin;
+    if (publishedOrigin != nullptr) *publishedOrigin = origin;
     LOGI("hook", "已挂钩 %p → %p（跳板 %p）", target, detour, origin);
     return 0;
+}
+
+PYLON_MOD_EXPORT int PylonMod_HookApply(void* target, void* detour, void** trampoline) {
+    return ApplyHook(target, detour, trampoline, nullptr);
+}
+
+PYLON_MOD_EXPORT int PylonMod_HookApplyPublished(void* target, void* detour,
+                                                  void** originSlot, void** trampoline) {
+    return ApplyHook(target, detour, trampoline, originSlot);
 }
 
 PYLON_MOD_EXPORT int PylonMod_HookRemove(void* target) {

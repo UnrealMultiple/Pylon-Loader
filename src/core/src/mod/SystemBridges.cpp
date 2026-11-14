@@ -7,6 +7,7 @@
 #include <mutex>
 
 #include "pylon/mod/ModApi.h"
+#include "pylon/Log.h"
 
 #if defined(__aarch64__)
 
@@ -157,6 +158,9 @@ namespace {
     "ldr x30, [sp, #240]\n"                                                         \
     "add sp, sp, #768\n"
 
+// Profile-only continuation: x16 is a scratch at the tail below. Saving x16 in
+// the frame does NOT preserve it across continuation. No generic register-safe
+// intercept or unload lifetime guarantee is provided by these bridge bodies.
 #define PYLON_SYSTEM_BRIDGE(name, stage, target)                                    \
     __attribute__((naked)) void name() {                                            \
         __asm__ volatile(PYLON_SYSTEM_SAVE_FRAME                                    \
@@ -198,9 +202,23 @@ int32_t SystemBridgeInstall(int32_t stage, void* body, int32_t byte_offset,
         (byte_offset & 3) != 0 || expected == nullptr || trampoline == nullptr)
         return -1;
 
-    // 16 字节指纹不符即版本漂移，绝不挂桥。
-    if (std::memcmp(static_cast<const uint8_t*>(body) + byte_offset, expected, 4 * sizeof(uint32_t)) != 0)
+    // Validate the complete 16-byte executable interval before reading it. Do not
+    // dereference an untrusted body/offset merely to produce a diagnostic.
+    const auto address = reinterpret_cast<uint64_t>(body) + static_cast<uint32_t>(byte_offset);
+    if (address < reinterpret_cast<uint64_t>(body)) return -1;
+    PylonCodeSite site{};
+    PylonPatchDiagnostic diagnostic{};
+    if (PylonMod_CodeSiteCreate(address, 4 * sizeof(uint32_t), &site, &diagnostic) != PylonPatch_Ok)
         return -2;
+    if (PylonMod_Arm64Validate(&site, 0, expected, 4, &diagnostic) != PylonPatch_Ok) {
+        uint32_t actual[4]{};
+        for (uint32_t i = 0; i < 4; ++i)
+            PylonMod_Arm64Read(&site, i * sizeof(uint32_t), &actual[i], nullptr);
+        LOGW("system", "桥位 %d 指纹不符 body=%p+0x%x expected=%08x/%08x/%08x/%08x actual=%08x/%08x/%08x/%08x",
+             stage, body, byte_offset, expected[0], expected[1], expected[2], expected[3],
+             actual[0], actual[1], actual[2], actual[3]);
+        return -2;
+    }
 
     // 尾跳槽直通 ShadowHook：跳板在补丁生效之前写入（桥永远跳得到原指令）。
     void** slot = stage == 0   ? &g_pylonSystemOriginal0
@@ -213,10 +231,18 @@ int32_t SystemBridgeInstall(int32_t stage, void* body, int32_t byte_offset,
                   : stage == 7 ? &g_pylonSystemOriginal7
                   : stage == 8 ? &g_pylonSystemOriginal8
                                : &g_pylonSystemOriginal9;
-    if (PylonMod_HookApply(static_cast<uint8_t*>(body) + byte_offset, kBridges[stage], slot) != 0)
+    if (PylonMod_HookApplyPublished(static_cast<uint8_t*>(body) + byte_offset,
+                                     kBridges[stage], slot, trampoline) != 0)
         return -3;
 
-    *trampoline = *slot;
+    if (*slot == nullptr || *trampoline == nullptr) {
+        // Never leave a live bridge pointing at address zero. Roll back the
+        // backend registration as well as the published origin slot.
+        PylonMod_HookRemove(static_cast<uint8_t*>(body) + byte_offset);
+        *slot = nullptr;
+        *trampoline = nullptr;
+        return -3;
+    }
     return 0;
 }
 

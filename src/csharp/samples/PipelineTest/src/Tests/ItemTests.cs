@@ -1,5 +1,6 @@
 using Pylon.ModLoader;
 using Terraria;
+using Terraria.GameContent;
 using Terraria.ID;
 
 namespace PipelineTest.Tests;
@@ -60,6 +61,39 @@ internal static class ItemTests
             item.SetDefaults(ItemID.DirtBlock, null);
             c.Eq(item.type, ItemID.DirtBlock, "type");
             c.NotNull(item.ToolTip, "原版 ToolTip");
+        });
+
+        PT.Case("ITEM-SORT-SAMPLE", c =>
+        {
+            // ItemSorting comparers resolve OriginalRarity through this dictionary.
+            var samples = ContentSamples.ItemsByType;
+            c.NotNull(samples, "ContentSamples.ItemsByType");
+            c.True(samples is not null && samples.ContainsKey(type),
+                $"custom item sample exists for type {type}");
+            if (samples is not null && samples.TryGetValue(type, out var sample))
+            {
+                c.NotNull(sample, "custom item sample value");
+                c.Eq(sample.type, type, "custom item sample type");
+                c.Eq(sample.damage, 15, "sample SetDefaults damage");
+                c.Eq(sample.useTime, 20, "sample SetDefaults useTime");
+            }
+        });
+
+        PT.Case("ITEM-SORT-SAMPLE-REENTRY", c =>
+        {
+            // The sorting hook may run from both SetupWhiteLists and the install
+            // plan. Rebuilding a probe must remain stable and keep the dictionary
+            // entry usable by OriginalRarity-based comparers.
+            var samples = ContentSamples.ItemsByType;
+            var probe = new Item();
+            probe.SetDefaults(type, null);
+            c.NotNull(samples, "ContentSamples.ItemsByType after repeated classification");
+            if (samples is not null && samples.TryGetValue(type, out var sample))
+            {
+                c.NotNull(sample, "sample survives repeated classification");
+                c.Eq(sample.type, probe.type, "sample type stable");
+                c.Eq(sample.damage, probe.damage, "sample defaults stable");
+            }
         });
     }
 }

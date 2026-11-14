@@ -136,10 +136,19 @@ internal class GameRuntimeLoader(private val context: Context) {
             // 内核没起来不算宿主失败：游戏照常跑，只是没有 Mod 能力（M2 的语义是"停用"）。
             Log.w("libpylon.so 未就绪，本次运行没有 Mod 能力")
         } else {
-            // 测试 Mod（tools/testmod）只在 debug 变体里，加载失败属正常。
-            runCatching { classLoader.loadLibrary("pylontestmod") }
-                .onSuccess { Log.stage("host", "测试 Mod libpylontestmod.so 已加载（debug 变体）") }
-                .onFailure { Log.w("测试 Mod 未随包提供（release 变体属正常）：${it.message}") }
+            // 测试 Mod 只在带有该文件的变体中加载：缺文件是预期情况，文件存在但加载失败必须保留警告。
+            val testMod = File(importedLibDir, "libpylontestmod.so")
+            val apkTestMod = File(context.applicationInfo.nativeLibraryDir, "libpylontestmod.so")
+            if (testMod.isFile || apkTestMod.isFile) {
+                runCatching {
+                    if (testMod.isFile) System.load(testMod.absolutePath)
+                    else classLoader.loadLibrary("pylontestmod")
+                }
+                    .onSuccess { Log.stage("host", "测试 Mod libpylontestmod.so 已加载（${if (testMod.isFile) "导入目录" else "APK nativeLibraryDir"}）") }
+                    .onFailure { Log.w("测试 Mod 已提供但加载失败：${it.message}", it) }
+            } else {
+                Log.i("测试 Mod 未随包提供（当前变体跳过）")
+            }
         }
 
         Log.stage("host", "运行时装载完成，classLoader=${classLoader.javaClass.name}")

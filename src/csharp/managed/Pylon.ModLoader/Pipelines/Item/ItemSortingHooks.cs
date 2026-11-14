@@ -4,6 +4,7 @@ using Il2CppInterop.Runtime;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Pylon.ModLoader.Tables;
 using Terraria;
+using Terraria.ID;
 
 namespace Pylon.ModLoader;
 
@@ -62,8 +63,15 @@ internal static class ItemSortingHooks
         return _layersByName;
     }
 
+    private static bool _classifying;
+
     private static void Classify(IModLog log)
     {
+        // SetDefaults and sorting callbacks can re-enter installation. Keep the
+        // temporary whitelist swap and sample population atomic from the hook's
+        // point of view; a nested pass would otherwise observe partial state.
+        if (_classifying) return;
+        _classifying = true;
         try
         {
             var from = VanillaCounts.Item;
@@ -83,11 +91,20 @@ internal static class ItemSortingHooks
             // 样例：每类一个 Item，SetDefaults 走 mod 分支拿真实属性供原版分层逻辑判断。
             var count = to - from;
             var samples = new Il2CppReferenceArray<Item>(count);
+            var contentSamples = ContentSamples.ItemsByType;
             for (var i = 0; i < count; i++)
             {
-                var sample = new Item();
-                sample.SetDefaults(from + i, null);
+                var type = from + i;
+                var sample = contentSamples is not null && contentSamples.TryGetValue(type, out var existing) && existing is not null
+                    ? existing
+                    : new Item();
+                sample.SetDefaults(type, null);
                 samples[i] = sample;
+
+                // SortingMethod comparers call Item.OriginalRarity and other properties that
+                // resolve through ContentSamples.ItemsByType. The temporary array alone is
+                // insufficient: it leaves custom types absent from that dictionary.
+                if (contentSamples is not null) contentSamples[type] = sample;
             }
 
             // 剩余下标表：每层从里面挑走自己的，最后一层把剩余全部挑走。
@@ -129,6 +146,9 @@ internal static class ItemSortingHooks
                     for (var k = 0; k < picked.Count; k++)
                     {
                         var type = from + picked[k];
+                        // Classify is intentionally callable from both the hook and
+                        // the install plan. Avoid duplicate entries when both paths run.
+                        if (whitelist.Contains(type)) continue;
                         whitelist.Add(type);
                         if (layerOf is not null && (uint)type < (uint)layerOf.Length) layerOf[type] = layerNo;
                         placed++;
@@ -149,6 +169,10 @@ internal static class ItemSortingHooks
         catch (Exception e)
         {
             Safe.Report("ItemSorting 分类", e);
+        }
+        finally
+        {
+            _classifying = false;
         }
     }
 }

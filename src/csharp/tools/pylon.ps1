@@ -88,16 +88,11 @@ function Get-LogText($path) {
 }
 
 function Build-Managed {
-    # 四个托管 dll 用同一个"年天.分钟"版本号：Entrypoint 启动时校验 Managed 与 ModLoader
-    # 版本一致，只覆盖了一半的部署会直接拒绝加载 Mod（版本写在日志横幅里，一眼可核对）。
-    $now = [DateTime]::UtcNow
-    $version = '0.1.{0}.{1}' -f [int]($now.Date - [datetime]'2000-01-01').TotalDays, ($now.Hour * 60 + $now.Minute)
-    $stamp = @('-p:Version=' + $version)
     foreach ($p in @('src\csharp\managed\Pylon.Mod.Abstractions', 'src\csharp\managed\Pylon.NaviteAPI',
                      'src\csharp\managed\Pylon.ModLoader', 'src\csharp\managed\Pylon.Managed')) {
-        if (Test-Path (Join-Path $root $p)) { Invoke-Dotnet $p $stamp }
+        if (Test-Path (Join-Path $root $p)) { Invoke-Dotnet $p @() }
     }
-    Invoke-Dotnet 'src\csharp\managed\Pylon.Managed' $stamp
+    Invoke-Dotnet 'src\csharp\managed\Pylon.Managed' @()
 }
 
 function Command-Push {
