@@ -22,18 +22,14 @@ public abstract class Mod : IPylonMod
 
     public string Directory { get; private set; } = string.Empty;
 
-    /// <summary>可写数据目录 Mods/_data/&lt;id&gt;：升级 Mod 不会清掉。</summary>
     public string DataDirectory { get; private set; } = string.Empty;
 
     public ModLogger Logger { get; private set; } = null!;
 
-    /// <summary>已注册的内容，按发号顺序。</summary>
     public IReadOnlyList<ModType> Types { get; internal set; } = [];
 
-    /// <summary>覆写了哪些生命周期钩子；注册时算一次，分派靠它。</summary>
     internal HookMask Plan { get; set; }
 
-    /// <summary>加载顺序里的位置，与内容发号绑定。</summary>
     internal int Index { get; set; }
 
     protected void RegisterImGuiTab(IModImGuiTab tab) => UI.ModUI.RegisterImGuiTab(tab);
@@ -42,7 +38,6 @@ public abstract class Mod : IPylonMod
 
     public Texture2D LoadTexture(string relativePath) => PylonTexture.LoadTexture(this, relativePath);
 
-    /// <summary>本 Mod 已注册、可赋给 T 的内容。</summary>
     public List<T> GetContent<T>() where T : ModType => ModContent.GetContent<T>().FindAll(instance => instance.Mod == this);
 
     public virtual object? Call(params object[] args) => null;
@@ -63,9 +58,6 @@ public abstract class Mod : IPylonMod
 
     public virtual int AddBossHeadTexture(string texture, int npcType = -1) => -1;
 
-    // ===================== 加载期 =====================
-
-    /// <summary>内容已占号、游戏还没就绪；作者的注册代码放这里。</summary>
     public virtual void Load() { }
 
     public virtual void OnModLoad() { }
@@ -74,22 +66,12 @@ public abstract class Mod : IPylonMod
 
     public virtual void OnLocalizationsLoaded() { }
 
-    // ===================== 安装期（游戏线程，表已定型） =====================
-
     public virtual void ResizeArrays() { }
 
-    // ===================== 系统时机（界面层 / 绘制） =====================
-
-    /// <summary>
-    /// 改界面层序列：在这份列表里增删、换序，把某层的 <see cref="GameInterfaceLayer.Active"/> 置 false 即隐藏。
-    /// 每帧调用一次；序列没变时管线不会重建游戏侧列表。
-    /// </summary>
     public virtual void ModifyInterfaceLayers(List<GameInterfaceLayer> layers) { }
 
-    /// <summary>整块界面画完、鼠标提示之前。</summary>
     public virtual void PostDrawInterface(SpriteBatch spriteBatch) { }
 
-    /// <summary>世界里的方块与投影都画完、界面之前。</summary>
     public virtual void PostDrawTiles() { }
 
     public virtual void SetupContent() { }
@@ -103,8 +85,6 @@ public abstract class Mod : IPylonMod
     public virtual void PostSetupRecipes() { }
 
     public virtual void PostSetupContent() { }
-
-    // ===================== 世界 =====================
 
     public virtual void OnWorldLoad() { }
 
@@ -135,8 +115,6 @@ public abstract class Mod : IPylonMod
 
     public virtual void OnWorldUnload() { }
 
-    // ===================== 每帧 =====================
-
     public virtual void PreUpdateWorld() { }
     public virtual void PostUpdateWorld() { }
     public virtual void PreUpdateTime() { }
@@ -160,6 +138,10 @@ public abstract class Mod : IPylonMod
     public virtual void PreUpdateInvasions() { }
     public virtual void PostUpdateInvasions() { }
 
+    public virtual bool? ConsumeBait(ref int baitTypeUsed) => null;
+
+    public virtual void GetDyeTraderReward(ref List<int> pool) { }
+
     public virtual void ModifyTimeRate(ref double timeRate, ref double tileUpdateRate, ref double eventUpdateRate) { }
 
     public virtual void ModifySunLightColor(ref Color tileColor, ref Color backgroundColor) { }
@@ -173,8 +155,6 @@ public abstract class Mod : IPylonMod
     public virtual void ResetNearbyTileEffects() { }
 
     public virtual void TileCountsAvailable(Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<int> tileCounts) { }
-
-    // ===================== IPylonMod =====================
 
     void IPylonMod.Load(IModContext context)
     {

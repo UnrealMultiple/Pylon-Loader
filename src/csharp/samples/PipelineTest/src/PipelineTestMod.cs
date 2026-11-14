@@ -41,7 +41,7 @@ public sealed class PipelineTestMod : Mod
 
         LoadGroupSwitch();
 
-        // 组注册：一条管线一组（见 docs/testing/03-harness.md 第 1 节）
+        // 组注册：一条管线一组
         Tests.HostTests.Register();
         Tests.RarityTests.Register();
         Tests.DamageClassTests.Register();

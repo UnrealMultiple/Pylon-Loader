@@ -37,6 +37,8 @@ internal sealed class ItemPipeline : ILoaderModule
         ItemAmmoHooks.Install();
         ItemHealHooks.Install();
         ItemPvpHooks.Install();
+        ItemSortingHooks.Install();
+        ItemSavePipeline.Instance.Install();
 
         On.Terraria.Player.ItemCheck_CheckCanUse_Inner += CanUse;
         On.Terraria.Player.ItemCheck_StartActualUse += Use;
@@ -58,8 +60,6 @@ internal sealed class ItemPipeline : ILoaderModule
     private ModItem? ModOf(Item item) => _binding.InstanceOf(item);
 
     internal ModItem? InstanceOf(Item item) => _binding.InstanceOf(item);
-
-    // ===================== 使用链 =====================
 
     private bool CanUse(On.Terraria.Player.orig_ItemCheck_CheckCanUse_Inner orig,
                         Player self, Item sItem, bool ignoreCursed)
@@ -118,7 +118,6 @@ internal sealed class ItemPipeline : ILoaderModule
         }
         catch
         {
-            // 补时是锦上添花：重载缺失时忽略。
         }
     }
 
@@ -159,8 +158,6 @@ internal sealed class ItemPipeline : ILoaderModule
             Log.Warn("[item] UseStyle 异常：" + e.Message);
         }
     }
-
-    // ===================== 装备链 =====================
 
     private void EquipFunctional(On.Terraria.Player.orig_ApplyEquipFunctional orig,
                                  Player self, int itemSlot, Item currentItem)
@@ -226,8 +223,6 @@ internal sealed class ItemPipeline : ILoaderModule
     {
         orig(self, i);
 
-        // UpdateEquips 的参数是玩家索引，不是背包槽位；原版一次调用已经处理该玩家的装备/背包更新。
-        // 逐槽派发，避免只更新 inventory[playerIndex]，也避免把多人玩家索引误当成槽位。
         var inventory = self.inventory;
         if (inventory is null) return;
 
@@ -262,9 +257,6 @@ internal sealed class ItemPipeline : ILoaderModule
         }
     }
 
-    // ===================== 射击链 =====================
-
-    /// <summary>射击门：CanShoot 否决就跳过原版；否则记下上下文供 NewProjectile 消费。</summary>
     private void ShootGate(On.Terraria.Player.orig_ItemCheck_Shoot orig,
                            Player self, int i, Item sItem, int weaponDamage, bool withAudioVisualFeedback)
     {
@@ -312,7 +304,6 @@ internal sealed class ItemPipeline : ILoaderModule
         }
     }
 
-    /// <summary>发射拦截：先改参数再问 Shoot；Shoot 否决时返回无槽位哨兵。</summary>
     private int NewProjectile(On.Terraria.Projectile.orig_NewProjectile_IEntitySource_float_float_float_float_int_int_float_int_float_float_float_NewProjectileModifier orig,
                               IEntitySource spawnSource, float x, float y, float speedX, float speedY,
                               int type, int damage, float knockBack, int owner,
@@ -324,7 +315,6 @@ internal sealed class ItemPipeline : ILoaderModule
             if (item is null || !IsModItem(item))
                 return orig(spawnSource, x, y, speedX, speedY, type, damage, knockBack, owner, ai0, ai1, ai2, modifier);
 
-            // 先清上下文：作者在 Shoot 里自己发弹时不能再吃同一份上下文（否则无限递归）。
             var player = _shootingPlayer ?? Main.player[Main.myPlayer];
             _shootingItem = null;
             _shootingPlayer = null;

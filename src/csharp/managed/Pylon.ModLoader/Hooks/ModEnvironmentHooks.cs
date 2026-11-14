@@ -56,7 +56,6 @@ internal static class ModEnvironmentHooks
                 Safe.Report(mod.Name + ".ModifyLightingBrightness", e);
             }
         }
-        // 非有限或负倍率不能写入全局光照，否则会污染后续所有像素计算。
         if (float.IsFinite(scale) && scale >= 0f && scale != 1f)
             Lighting.GlobalBrightness *= scale;
     }
@@ -66,7 +65,6 @@ internal static class ModEnvironmentHooks
         Terraria.Localization.LanguageManager self, Terraria.Localization.GameCulture culture)
     {
         orig(self, culture);
-        // 启动期语言初始化可能早于内容安装，此时作者还不能安全读取内容表。
         if (LoaderHost.Current.Phase != LoaderPhase.Ready) return;
         LocalizationsLoaded();
     }

@@ -22,7 +22,6 @@ internal sealed class LoaderHost
 
     public InstallPipeline Install { get; }
 
-    /// <summary>接上日志出口（幂等）。</summary>
     public void Configure(IModLog log)
     {
         Log = log ?? NullLog.Instance;
@@ -30,10 +29,11 @@ internal sealed class LoaderHost
         ContentErrors.Report = Log.Warn;
     }
 
-    /// <summary>注册一个 Mod：发现类型 → 发号 → 装配模块 → 重建订阅表。</summary>
     public void Register(Mod mod)
     {
         Phase = LoaderPhase.Registering;
+
+        UnloadedItems.Reserve();
 
         mod.Index = Mods.Add(mod);
         mod.Plan = HookScan.Of(mod.GetType(), typeof(Mod));
@@ -44,7 +44,6 @@ internal sealed class LoaderHost
         Hooks.Rebuild(Mods.Mods);
     }
 
-    /// <summary>内容就绪：武装安装管线（幂等）。</summary>
     public void ContentReady()
     {
         if (Phase is LoaderPhase.Installing or LoaderPhase.Ready) return;

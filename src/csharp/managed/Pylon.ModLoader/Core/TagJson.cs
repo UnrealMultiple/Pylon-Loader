@@ -28,7 +28,6 @@ internal static class TagJson
         var directory = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(directory)) Directory.CreateDirectory(directory);
 
-        // 先写临时文件再原子替换：写到一半被杀也不会留下半个存档。
         var temp = path + ".tmp";
         using (var stream = File.Create(temp))
         using (var writer = new Utf8JsonWriter(stream, WriterOptions))
@@ -102,6 +101,11 @@ internal static class TagJson
             case IEnumerable<object?> list:
                 writer.WriteStartArray();
                 foreach (var item in list) WriteValue(writer, item);
+                writer.WriteEndArray();
+                break;
+            case System.Collections.IEnumerable seq:
+                writer.WriteStartArray();
+                foreach (var item in seq) WriteValue(writer, item);
                 writer.WriteEndArray();
                 break;
             default:

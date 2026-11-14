@@ -13,9 +13,22 @@ internal sealed class ItemDefaults(ItemBinding binding)
     private void SetDefaults(On.Terraria.Item.orig_SetDefaults orig, Item self, int type,
                              Terraria.GameContent.Items.ItemVariant variant)
     {
-        if (type < 0 || ModContent.Find(ContentKind.Item, type) is null)
+        if (type < 0)
         {
             orig(self, type, variant);
+            return;
+        }
+
+        if (UnloadedItems.IsUnloadedType(type))
+        {
+            UnloadedItems.Apply(self, type);
+            return;
+        }
+
+        if (ModContent.Find(ContentKind.Item, type) is null)
+        {
+            orig(self, type, variant);
+            DispatchGlobals(self);
             return;
         }
 
@@ -36,9 +49,8 @@ internal sealed class ItemDefaults(ItemBinding binding)
                 mod.PostSetDefaults(item);
             }
 
-            // 不调 RebuildTooltip（item.ToolTip 是游戏管的结构体，重建走它的校验路径）。
-            // 介绍已在安装期写进 Lang._itemTooltipCache，悬停时游戏自然取到。
             ApplyEquipSlots(item);
+            DispatchGlobals(item);
         }
         catch (Exception e)
         {
@@ -46,7 +58,25 @@ internal sealed class ItemDefaults(ItemBinding binding)
         }
     }
 
-    /// <summary>作者在 Load 里 AddEquipTexture 过的物品：SetDefaults 后自动把槽位写进 Item 的对应字段。</summary>
+    private static void DispatchGlobals(Item item)
+    {
+        if (item.type <= 0) return;
+        if (!GlobalItemRegistry.AnyWith(HookId.SetDefaults)) return;
+
+        GlobalItemRegistry.Attach(item, lateInstantiation: false);
+        foreach (var global in GlobalItemRegistry.For(item, HookId.SetDefaults))
+        {
+            try
+            {
+                global.SetDefaults(item);
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"{global.GetType().Name}.SetDefaults 异常：{Safe.Describe(e)}");
+            }
+        }
+    }
+
     private static void ApplyEquipSlots(Item item)
     {
         var slots = EquipTable.SlotsOfItem(item.type);
@@ -54,7 +84,6 @@ internal sealed class ItemDefaults(ItemBinding binding)
 
         foreach (var (part, slot) in slots)
         {
-            // 槽位字段是 int（原版头盔槽已经排到 293），不要按 sbyte 截断、也不要卡 127。
             if (slot < 0) continue;
 
             switch (part)
@@ -66,7 +95,6 @@ internal sealed class ItemDefaults(ItemBinding binding)
                 case EquipType.HandOff when slot <= sbyte.MaxValue: item.handOffSlot = (sbyte)slot; break;
                 case EquipType.Back when slot <= sbyte.MaxValue: item.backSlot = (sbyte)slot; break;
                 case EquipType.Front when slot <= sbyte.MaxValue: item.frontSlot = (sbyte)slot; break;
-                // 鞋/腰/翅膀/盾与下面四个在原版里还是 sbyte（超过 127 的槽写不进去，跳过）。
                 case EquipType.Shoes when slot <= sbyte.MaxValue: item.shoeSlot = (sbyte)slot; break;
                 case EquipType.Waist when slot <= sbyte.MaxValue: item.waistSlot = (sbyte)slot; break;
                 case EquipType.Wing when slot <= sbyte.MaxValue: item.wingSlot = (sbyte)slot; break;

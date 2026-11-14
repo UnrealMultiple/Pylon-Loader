@@ -22,7 +22,7 @@ internal static class PlayerTests
     {
         PT.Case("PL-R1", c =>
         {
-            // ModPlayer 不是 ModType（交接文档 §5 警告过 GetInstance 不可用）。
+            // ModPlayer 不是 ModType（GetInstance 不可用）。
             // 探针注册与否的外部证据：任一钩子被调（W1 的计数）+ 框架日志里的模板数。
             c.True(true, "探针类已随 mod 加载（HookScan 按方法名对齐，见 W1 计数）");
         });

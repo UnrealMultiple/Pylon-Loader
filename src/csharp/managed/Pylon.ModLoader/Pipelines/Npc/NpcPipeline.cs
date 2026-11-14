@@ -25,6 +25,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
     private readonly NpcBinding _binding = new();
     private readonly NpcDefaults _defaults;
     private readonly NpcTown _town;
+    private readonly NpcSavePipeline _save = new();
     private readonly NpcDrawFrame[] _draws = new NpcDrawFrame[FrameDepth];
     private readonly HashSet<int> _reported = [];
     private readonly HashSet<int> _cloning = [];
@@ -62,6 +63,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         _binding.Prime();
         _defaults.Install();
         _town.Install();
+        _save.Install();
         NpcHeadHooks.Install();
         NpcSpawn.Install();
         NpcHitHooks.Install();
@@ -77,6 +79,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.NPC.NPCLoot += Loot;
         On.Terraria.NPC.HitEffect += HitEffect;
         On.Terraria.NPC.ScaleStats_ByPlayerCount += Scaling;
+        On.Terraria.NPC.UpdateNPC_BuffApplyDOTs += LifeRegen;
         On.Terraria.NPC.GetChat += GetChat;
         On.Terraria.NPC.get_CanTalk += ForceCanTalk;
         On.Terraria.NPC.GetNPCColorTintedByBuffs += TintedByBuffs;
@@ -92,17 +95,14 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         return true;
     }
 
-    /// <summary>新 Mod 注册后模板变多：位集要重新挂到模板上。</summary>
     public void Refresh() => _binding.Prime();
 
 #region 外部入口（作者 API 需要）
 
-    /// <summary>实体 → ModNpc 实例（表情等跨管线钩子要用）。</summary>
     internal ModNpc? InstanceOf(NPC? npc) => _binding.InstanceOf(npc);
 
     internal bool StartClone(int type) => _cloning.Add(type);
 
-    /// <summary>CloneDefaults 收尾：绑定换回原实例，Global 实体表按原类型重建。</summary>
     internal void EndClone(NPC npc, ModNpc instance, int clonedType)
     {
         _binding.RebindTo(npc, instance);
@@ -116,10 +116,6 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         _town.SetupShops(log);
     }
 
-    /// <summary>
-    /// <c>Lang.GetNPCName</c> 把 <c>netID - 1 &gt; 695</c> 编进了机器码，
-    /// mod 类型（&gt; 696）直接走"没有名字"分支——Lang._npcNameCache 写得再对，读出来仍是空。
-    /// </summary>
     private static void PatchNameLimit(IModLog log)
     {
         try
@@ -262,7 +258,6 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         try
         {
             var npcs = Main.npc;
-            // 最后一格是游戏的空槽。
             if (npcs is null || index < 0 || index >= npcs.Length - 1) return index;
 
             var npc = npcs[index];
@@ -335,7 +330,6 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
                 }
             }
 
-            // DrawBehind 的时机在 CacheNPCDraws，那时早已离开 ResetEffects：这里先记下来。
             if (mod is not null && mod.HookEnabled(HookId.DrawBehind)) _behind.Add(self.whoAmI);
         }
         catch (Exception e)
@@ -389,8 +383,6 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private void CheckDead(On.Terraria.NPC.orig_checkDead orig, NPC self)
     {
-        // 原版每次受击都会调用 checkDead；Mod 的死亡否决回调只能在实际致死时运行。
-        // 否则锁血 Boss 的 CheckDead 会把普通命中也改成 1 血。
         if (!self.active || self.life > 0 || (self.realLife >= 0 && self.realLife != self.whoAmI))
         {
             orig(self);
@@ -447,7 +439,6 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
             return;
         }
 
-        // 联机客户端：掉落只由服务端算，OnKill 也不跑，否则表现与主机分叉。
         if (Main.netMode == 1)
         {
             orig(self);
@@ -543,6 +534,29 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
+    private void LifeRegen(On.Terraria.NPC.orig_UpdateNPC_BuffApplyDOTs orig, NPC self)
+    {
+        var mod = _binding.InstanceOf(self);
+        if (mod is null || !mod.HookEnabled(HookId.UpdateLifeRegen))
+        {
+            orig(self);
+            return;
+        }
+
+        try
+        {
+            var regen = self.lifeRegen;
+            mod.UpdateLifeRegen(self, ref regen);
+            self.lifeRegen = regen;
+        }
+        catch (Exception e)
+        {
+            Fail(self, HookId.UpdateLifeRegen, e);
+        }
+
+        orig(self);
+    }
+
     private void Scaling(On.Terraria.NPC.orig_ScaleStats_ByPlayerCount orig, NPC self, int numPlayers)
     {
         orig(self, numPlayers);
@@ -555,7 +569,6 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         try
         {
             NPC.GetStatScalingFactors(numPlayers, out var balance, out _);
-            // 对齐 Bunny NpcEvents.blNpcScalingStage：此版本传给 Mod 的 bossAdjustment 固定为 1。
             const float bossAdjustment = 1f;
 
             if (modScales)
@@ -628,16 +641,6 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         if (alive) orig(self);
     }
 
-    /// <summary>
-    /// 进世界后补 NPC 类型表。<c>NPCID.Sets</c> 的字典会在世界加载时重建，安装期写的会丢；
-    /// 只补"类/int 值"的表（刷怪规则、免疫），结构体值字典（图鉴偏移）不能从托管写。
-    /// <para>
-    /// <b>不补 <c>NPCPortraits</c></b>：原先拿"向导"的 provider 顶给 mod 类型，对话就显示向导的头像。
-    /// 这张表不能拿别的 NPC 顶替：原版 <c>Player.SetTalkNPC</c> 先把 <c>Main.npcChatPortrait</c> 清空，
-    /// 再用 <c>TryGetValue</c> 查表——查不到就保持空，对话照原版画 NPC 本体（与梅林等没有特写头像的
-    /// 原版城镇 NPC 一致）。
-    /// </para>
-    /// </summary>
     internal static void EnsureNpcTypeTables()
     {
         var mods = ModContent.GetContent<ModNpc>();
@@ -672,10 +675,6 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         catch (Exception e) { Log.Warn("[npc] 免疫表补充失败：" + e.GetType().Name); }
     }
 
-    /// <summary>
-    /// <c>get_CanTalk</c> 钩子：原版对 <c>type &gt; n-1</c> 返回 false，mod 城镇 NPC 因此点不开对话。
-    /// 作者的 <c>CanChat</c> 没否决就强制 true。
-    /// </summary>
     private bool ForceCanTalk(On.Terraria.NPC.orig_get_CanTalk orig, NPC self)
     {
         var vanilla = orig(self);
@@ -808,10 +807,8 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         return animation;
     }
 
-    /// <summary>把原版槽位的贴图与帧数临时指向自己，并把 type 换过去；返回是否真的换了。</summary>
     private bool SwapAnimation(NPC npc)
     {
-        // 上一次没跑到还原（原版 FindFrame 抛错）：先补一次，别让槽位被永久占着。
         RestoreAnimation(_swapped);
 
         var mod = _binding.InstanceOf(npc);
@@ -827,7 +824,6 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         if (own < 0 || own >= assets.Length || animation >= assets.Length) return false;
         if (own >= frames.Length || animation >= frames.Length) return false;
 
-        // 先存后改：万一某个写入抛错，还原还能把两个槽位写回去。
         _swapTexture = assets[animation];
         _swapFrames = frames[animation];
         _swapOwn = own;
@@ -949,7 +945,6 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         DrawPost(npc, batch, screenPos, in frame);
     }
 
-    /// <summary>返回 false = 这条管线不参与，调用方直接走原版。</summary>
     private bool DrawPrefix(NPC npc, SpriteBatch batch, Vector2 screenPos, out bool go, out NpcDrawFrame frame)
     {
         go = true;
@@ -1182,7 +1177,6 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
     private void Fail(object? owner, HookId hook, Exception exception) =>
         FailCore(owner?.GetType().Name.GetHashCode() ?? 0, hook, exception);
 
-    /// <summary>同一 (类型, 钩子) 只记一条：AI/绘制这类每帧路径出错会刷屏。</summary>
     private void FailCore(int key, HookId hook, Exception exception)
     {
         if (!_reported.Add(HashCode.Combine(key, hook))) return;

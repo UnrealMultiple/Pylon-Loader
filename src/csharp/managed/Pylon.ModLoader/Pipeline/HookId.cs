@@ -3,7 +3,6 @@ namespace Pylon.ModLoader;
 /// <summary>钩子编号：分派只认编号，不认字符串。新增一律追加在末尾。</summary>
 internal enum HookId
 {
-    // ---- Mod 生命周期 ----
     Load,
     OnModLoad,
     OnModUnload,
@@ -16,7 +15,6 @@ internal enum HookId
     PostAddRecipes,
     PostSetupRecipes,
 
-    // ---- 世界 ----
     OnWorldLoad,
     LoadWorldData,
     PostWorldLoad,
@@ -31,7 +29,6 @@ internal enum HookId
     PreSaveAndQuit,
     OnWorldUnload,
 
-    // ---- 每帧 ----
     PreUpdateWorld,
     PostUpdateWorld,
     PreUpdateTime,
@@ -62,14 +59,12 @@ internal enum HookId
     ResetNearbyTileEffects,
     TileCountsAvailable,
 
-    // ---- 网络 ----
     NetSend,
     NetReceive,
     HijackGetData,
     HijackSendData,
     HandlePacket,
 
-    // ---- 内容：物品 ----
     SetDefaults,
     CanUseItem,
     UseItem,
@@ -102,7 +97,6 @@ internal enum HookId
     RecipeAvailable,
     ApplyAccessoryEffects,
 
-    // ---- 内容：弹幕 ----
     PreAI,
     AI,
     PostAI,
@@ -115,8 +109,6 @@ internal enum HookId
     PostDraw,
     PreDrawExtras,
     DrawEffects,
-
-    /// <summary>方块画完之后作者自己画的点（<c>ModTile.SpecialDraw</c>）。</summary>
     SpecialDraw,
     CanDamage,
     ModifyDamageHitbox,
@@ -135,7 +127,6 @@ internal enum HookId
     OnRemove,
     PreKill,
 
-    // ---- 内容：NPC ----
     FindFrame,
     CheckActive,
     CheckDead,
@@ -154,17 +145,14 @@ internal enum HookId
     BossHeadRotation,
     BossHeadSpriteEffects,
 
-    // ---- 内容：buff ----
     UpdatePlayer,
     UpdateNPC,
     ModifyBuffText,
 
-    // ---- 内容：方块与实体 ----
     Update,
     DrawBehind,
     RightClick,
 
-    // ---- 内容：ModPlayer ----
     PreUpdate,
     PostUpdate,
     PreUpdateBuffs,
@@ -189,7 +177,6 @@ internal enum HookId
     PostSavePlayer,
     PreSaveCustomData,
 
-    // ---- 内容：方块 / 墙壁 / 城镇 NPC ----
     AddShops,
     AdjTiles,
     AnimateIndividualTile,
@@ -222,18 +209,15 @@ internal enum HookId
     Slope,
     TileFrame,
 
-    // ---- 内容：通用 ----
     AppliesToEntity,
     InstancePerEntity,
 
-    // ---- 内容：前缀 ----
     CanRoll,
     RollChance,
     SetStats,
     ModifyValue,
     Apply,
 
-    // ---- 内容：玩家 ----
     PreItemCheck,
     PostItemCheck,
     ApplyPotionDelay,
@@ -244,7 +228,6 @@ internal enum HookId
     CanBeTeleportedTo,
     OnPickup,
 
-    // ---- 内容：坐骑 ----
     SetMount,
     Dismount,
     UpdateEffects,
@@ -255,58 +238,47 @@ internal enum HookId
     AimAbility,
     Draw,
 
-    // ---- 内容：方块 ----
     KillMultiTile,
 
-    // ---- 内容：墙壁 ----
     KillWall,
     WallFrame,
 
-    // ---- 内容：方块实体 ----
     PreGlobalUpdate,
     AfterPlacement,
     PostGlobalUpdate,
     OnNetPlace,
 
-    // ---- 内容：资源覆盖层 ----
     PreDrawResource,
     PostDrawResource,
     PreDrawResourceDisplay,
     PostDrawResourceDisplay,
     DisplayHoverText,
 
-    // ---- 内容：玩家绘制信息 ----
     ModifyDrawInfo,
     TransformDrawData,
     HideDrawLayers,
     ModifyDrawLayerOrdering,
     DrawPlayer,
 
-    // ---- 内容：玩家客户端状态 ----
     SyncPlayer,
     CopyClientState,
     SendClientChanges,
     PlayerConnect,
     PlayerDisconnect,
 
-    // ---- 内容：玩家镜头 ----
     ModifyZoom,
 
-    // ---- 内容：掉落 ----
     ModifyNPCLoot,
 
-    // ---- 内容：表情气泡全局 ----
     GetFrame,
     UpdateFrameInEmoteMenu,
     GetFrameInEmoteMenu,
 
-    // ---- 内容：系统（界面层 / 绘制时机） ----
     ModifyInterfaceLayers,
     PostDrawInterface,
     PostDrawTiles,
     OnEnterWorld,
 
-    // ---- 弹药选择与消耗 ----
     NeedsAmmo,
     CanChooseAmmo,
     CanBeChosenAsAmmo,
@@ -316,7 +288,6 @@ internal enum HookId
     OnConsumedAsAmmo,
     PickAmmo,
 
-    // ---- 玩家受伤与来源事件 ----
     ImmuneTo,
     FreeDodge,
     ConsumableDodge,
@@ -331,13 +302,11 @@ internal enum HookId
     OnHitByProjectile,
     CanHitPvpWithProj,
 
-    // ---- 玩家更新的精确时机 ----
     PostUpdateMiscEffects,
     PostUpdateRunSpeeds,
     PreUpdateMovement,
     UpdateAutopause,
 
-    // ---- 命中来源与 NPC 受击 ----
     CanHitPlayer,
     CanHitPvp,
     ModifyHitPlayer,
@@ -355,21 +324,22 @@ internal enum HookId
     ModifyHitByItem,
     OnHitByItem,
 
-    // ---- 治疗量与快速选药 ----
     GetHealLife,
     GetHealMana,
 
-    // ---- 弹幕、接触攻击与 PvP ----
     CanHitNPCWithProj,
     ModifyHitNPCWithProj,
     OnHitNPCWithProj,
     ModifyHitPvp,
     OnHitPvp,
 
-    // ---- 捕鱼 ----
     ModifyFishingAttempt,
     CatchFish,
     NPCHeadSlot,
     ModifyCaughtFish,
     ModifyFishingLine,
+
+    PostSetupTileMerge,
+    ConsumeBait,
+    GetDyeTraderReward,
 }

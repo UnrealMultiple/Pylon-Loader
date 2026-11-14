@@ -267,6 +267,8 @@ public abstract class ModNpc : ModType
     /// <summary>死亡时，在 PreKill 与游戏掉落之后。</summary>
     public virtual void OnKill(NPC npc) { }
 
+    /// <summary>回血拦截：原版算完本帧回血后调用，改 regen 即改回血量（负值 = 掉血）。</summary>
+    public virtual void UpdateLifeRegen(NPC npc, ref int regen) { }
 
     /// <summary>每次自然生成：返回权重（原版重 1，0 = 不生成）。</summary>
     public virtual float SpawnChance(Player player, int spawnTileX, int spawnTileY, int tileType, int wallType) => 0f;

@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    真机回归测试 Mod：一个 Mod 覆盖 handover §8 的 P1/P2 行。
+    开关面在 ImGui 页（RegTestTab），场景构造（布方块/墙/门/NPC）在 RegTestScene。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>RegressionTest</AssemblyName>
+    <RootNamespace>RegressionTest</RootNamespace>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <NoWarn>CS0436</NoWarn>
+    <PylonModProject>true</PylonModProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\managed\Pylon.ModLoader\Pylon.ModLoader.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="assets\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

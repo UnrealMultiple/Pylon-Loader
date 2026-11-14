@@ -25,6 +25,9 @@ internal sealed class ContentRegistry
     public int NextType(ContentKind kind) =>
         _next.TryGetValue(kind, out var next) ? next : ContentKindTable.BaseCount(kind);
 
+    /// <summary>占号不发内容：给框架保留池用（"？"未加载物品）。</summary>
+    public void Reserve(ContentKind kind, int count) => _next[kind] = NextType(kind) + count;
+
     /// <summary>该种类已注册的数量（每帧门控用，不分配）。</summary>
     public int RegisteredCount(ContentKind kind) => NextType(kind) - ContentKindTable.BaseCount(kind);
 

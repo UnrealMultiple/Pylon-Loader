@@ -19,14 +19,12 @@ internal sealed class NetPipeline : ILoaderModule
 
     internal const byte ItemKind = 5;
 
-    // 联机元信息（内容指纹）：两端比对发号是否一致，不做任何游戏逻辑。
-    private const byte MetaKind = 6;
+    internal const byte MetaKind = 6;
     private const byte MetaFingerprint = 0;
 
     private const byte KindPacket = 1, KindWorld = 2, KindNpc = 3, KindProjectile = 4;
     private const byte FirstChannelKind = 7;
 
-    /// <summary>子通道的接收端：别的管线借 Mod 通道发自己的包，种类字节由这里分配。</summary>
     internal delegate void NetHandler(Il2CppSystem.IO.BinaryReader reader, int from);
 
     private readonly Dictionary<string, Mod> _byName = new(StringComparer.Ordinal);
@@ -35,6 +33,7 @@ internal sealed class NetPipeline : ILoaderModule
     private BinaryWriter? _writer;
     private int _nextChannelKind = FirstChannelKind;
     private ItemSync _items = null!;
+    private NetHandshake _handshake = null!;
 
     public string Name => "net";
 
@@ -54,18 +53,17 @@ internal sealed class NetPipeline : ILoaderModule
         _items.Install();
         ItemPvpHooks.InstallNetwork(this);
 
+        _handshake = new NetHandshake(this);
+        _handshake.Install();
+
         ContentFingerprint.Refresh();
         Log.Info("[net] 已挂（消息 0x" + Id.ToString("X") + "；" + _byName.Count + " 个 mod 可寻址；物品附属数据走 " +
-                 ItemKind + "；" + ContentFingerprint.Summary() + "）");
+                 ItemKind + "；握手前缀 " + NetHandshake.HelloPrefix + "；" + ContentFingerprint.Summary() + "）");
         return true;
     }
 
     #region 发送
 
-    /// <summary>
-    /// 登记一个子通道，返回它的种类字节。分配顺序 = 模块安装顺序，跨设备一致；
-    /// 用 <see cref="SendChannel"/> 发、收到时回调 <paramref name="handler"/>。
-    /// </summary>
     internal byte OpenChannel(NetHandler handler)
     {
         var kind = (byte)_nextChannelKind++;
@@ -73,7 +71,6 @@ internal sealed class NetPipeline : ILoaderModule
         return kind;
     }
 
-    /// <summary>用 Mod 通道发一包：先写种类字节，再由调用方写载荷。</summary>
     internal void SendChannel(byte kind, Action<BinaryWriter> write, int toClient, int ignoreClient)
     {
         if (Main.netMode == 0) return;
@@ -84,7 +81,6 @@ internal sealed class NetPipeline : ILoaderModule
         End(toClient, ignoreClient);
     }
 
-    /// <summary>直接发一串已序列化的值（拥有固定种类字节的通道用，避免每包一个闭包）。</summary>
     internal void SendValues(byte kind, List<object> values, int toClient, int ignoreClient)
     {
         if (Main.netMode == 0) return;
@@ -106,8 +102,7 @@ internal sealed class NetPipeline : ILoaderModule
         End(toClient, ignoreClient);
     }
 
-    /// <summary>内容指纹随世界数据发给新客户端：两端 mod 集合或顺序不同就当场能看见。</summary>
-    private void SendFingerprint(int toClient)
+    internal void SendFingerprint(int toClient)
     {
         ContentFingerprint.Refresh();
         SendChannel(MetaKind, writer =>
@@ -156,7 +151,6 @@ internal sealed class NetPipeline : ILoaderModule
         writer.Write(npc.type);
         NetCodec.WriteValues(writer, own.Values);
 
-        // 只写有数据的全局对象，编号就是它在注册表里的位置。
         var field = (int)writer.BaseStream.Position;
         writer.Write((byte)0);
         var count = 0;
@@ -190,7 +184,6 @@ internal sealed class NetPipeline : ILoaderModule
         var projectile = Main.projectile[index];
         if (projectile is null || !projectile.active) return;
 
-        // 客户端只发自己拥有的弹幕；服务器要转发客户端打来的弹幕，按 owner 过滤会把它们全漏掉。
         if (Main.netMode == 1 && projectile.owner != Main.myPlayer) return;
 
         var own = new NetWriter();
@@ -241,7 +234,6 @@ internal sealed class NetPipeline : ILoaderModule
         return _writer;
     }
 
-    /// <summary>全局对象个数是回填的：先占一字节，写完再回到那个位置填真实个数。</summary>
     private void EndWithCount(BinaryWriter writer, int field, int count, bool any, int toClient, int ignoreClient)
     {
         if (!any)
@@ -315,8 +307,6 @@ internal sealed class NetPipeline : ILoaderModule
                 case MetaKind: ReceiveMeta(reader, from); break;
                 default: ReceiveChannel(kind, reader, from); break;
             }
-
-            // 是我们的包：半读的流不能再交回原版。
         }
         catch (Exception e)
         {
@@ -324,17 +314,28 @@ internal sealed class NetPipeline : ILoaderModule
         }
     }
 
-    /// <summary>
-    /// 联机元信息：服务器把指纹随世界数据发给新客户端，客户端回一条自己的。
-    /// 两端不一致只记一条错，不断连接——玩家至少能从日志里看到是哪一侧的 mod 装错了。
-    /// </summary>
     private void ReceiveMeta(Il2CppSystem.IO.BinaryReader reader, int from)
     {
         var action = reader.ReadByte();
-        if (action != MetaFingerprint) return;
+        switch (action)
+        {
+            case MetaFingerprint:
+            {
+                var remote = reader.ReadUInt64();
+                ContentFingerprint.Refresh();
+                JudgeFingerprint(remote, from);
+                break;
+            }
+            case NetHandshake.MetaWelcome:
+            {
+                if (Main.netMode == 1) _handshake.ReceiveWelcome(reader.ReadByte());
+                break;
+            }
+        }
+    }
 
-        var remote = reader.ReadUInt64();
-
+    private void JudgeFingerprint(ulong remote, int from)
+    {
         if (ContentFingerprint.Value == remote)
         {
             Log.Info($"[net] {ContentFingerprint.Summary()}，与对端一致");
@@ -343,17 +344,10 @@ internal sealed class NetPipeline : ILoaderModule
 
         Safe.Once("net.fingerprint", "[net] " + ContentFingerprint.Describe(remote), true);
 
-        // 客户端把指纹回给服务器，让服务器那一侧也留下证据（只回一次，不回环）。
-        if (Main.netMode != 1) return;
-
-        SendChannel(MetaKind, writer =>
-        {
-            writer.Write(MetaFingerprint);
-            writer.Write(ContentFingerprint.Value);
-        }, -1, -1);
+        if (Main.netMode == 1) _handshake.JudgeServer(remote);
+        else _handshake.JudgeClient(from, remote);
     }
 
-    /// <summary>子通道的包：没登记的种类直接丢弃（同一条消息号下别家发的包不该被误读）。</summary>
     private void ReceiveChannel(byte kind, Il2CppSystem.IO.BinaryReader reader, int from)
     {
         if (!_channels.TryGetValue(kind, out var handler)) return;
@@ -486,7 +480,6 @@ internal sealed class NetPipeline : ILoaderModule
         }
     }
 
-    /// <summary>弹幕槽位会被复用：四元组是唯一能区分新旧弹幕的组合。</summary>
     private static Projectile? FindProjectile(int owner, int spawner, int keyIndex, int generation, int type)
     {
         var all = Main.projectile;
@@ -514,6 +507,12 @@ internal sealed class NetPipeline : ILoaderModule
     {
         var hijacked = false;
 
+        if (msgType == 6 && Main.netMode == 1 && !hijacked)
+            Safe.Run("net.hello", () => _handshake.OnRequestWorld(orig));
+
+        if (msgType == 7 && Main.netMode == 2 && remoteClient >= 0)
+            Safe.Run("net.fingerprint", () => SendFingerprint(remoteClient));
+
         if (Main.netMode != 0)
         {
             var who = Main.netMode == 2 && remoteClient >= 0 ? remoteClient : 256;
@@ -537,7 +536,6 @@ internal sealed class NetPipeline : ILoaderModule
             }
         }
 
-        // 物品的附属数据必须在原版包之前发：接收侧是"等原版把物品摆好"再贴，晚到就贴不上了。
         if (!hijacked && Main.netMode != 0)
             Safe.Run("net.item", () => _items.BeforeSend(msgType, remoteClient, ignoreClient, number, (int)number2));
 
@@ -547,15 +545,12 @@ internal sealed class NetPipeline : ILoaderModule
                  number7);
         }
 
-        // 原版之后补发 Mod 数据：被拦下的消息同样要补，否则两端会永久不同步。
         if (Main.netMode == 0) return;
 
         switch (msgType)
         {
             case 7:
                 if (Main.netMode == 1) return;
-
-                SendFingerprint(remoteClient);
 
                 foreach (var mod in ModLoader.Mods)
                 {

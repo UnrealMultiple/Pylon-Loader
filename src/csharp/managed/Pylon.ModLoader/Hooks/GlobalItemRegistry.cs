@@ -14,6 +14,8 @@ internal static class GlobalItemRegistry
 
     internal static void Register(GlobalItem global) => Registry.Register(global);
 
+    internal static void Attach(Item? entity, bool lateInstantiation) => Registry.Attach(entity, lateInstantiation);
+
     internal static IReadOnlyList<GlobalItem> All => Registry.All;
 
     internal static List<GlobalItem> Of(Item? entity) => Registry.Of(entity);

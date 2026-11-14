@@ -1,7 +1,3 @@
-// 层：内核层 / imgui —— 跨线程传递的一帧
-//
-// ImGui 的绘制缓冲属于上下文，只在游戏线程上活着。两个线程之间只递这个不可变副本，
-// 上屏线程因此不必和建帧抢锁，也不会读到半个帧。
 #pragma once
 
 #include <cstdint>
@@ -20,13 +16,21 @@ public:
         std::vector<ImDrawCmd> commands;
     };
 
-    /// 游戏线程（上下文是当前的）。空帧也会返回对象：上屏侧要靠它区分"没有帧"和"空帧"。
+    /// 纹理的捕获态：像素与元数据在游戏线程捕获时拷齐，渲染线程只消费副本，
+    /// 全程不碰 ImTextureData 活对象（活对象归 ImGui 上下文所在线程独占）。
+    struct TextureSnap {
+        ImTextureData* pointer = nullptr;
+        unsigned int uniqueId = 0;
+        int width = 0, height = 0, bytesPerPixel = 4;
+        ImTextureStatus status = ImTextureStatus_OK;
+        std::vector<unsigned char> pixels;
+    };
+
     static std::shared_ptr<const Snapshot> Capture(const ImDrawData& draw);
 
     const std::vector<List>& Lists() const { return lists_; }
 
-    /// 后端要同步的纹理对象（字体图集重建会换新对象，所以每帧拷一份指针）。
-    const std::vector<ImTextureData*>& Textures() const { return textures_; }
+    const std::vector<TextureSnap>& Textures() const { return textures_; }
 
     ImVec2 DisplayPos() const { return displayPos_; }
     ImVec2 DisplaySize() const { return displaySize_; }
@@ -37,7 +41,7 @@ public:
 
 private:
     std::vector<List> lists_;
-    std::vector<ImTextureData*> textures_;
+    std::vector<TextureSnap> textures_;
     ImVec2 displayPos_{0.f, 0.f};
     ImVec2 displaySize_{0.f, 0.f};
     ImVec2 framebufferScale_{1.f, 1.f};
@@ -48,4 +52,4 @@ private:
 
 int64_t NowNs();
 
-}  // namespace pylon::imgui
+}

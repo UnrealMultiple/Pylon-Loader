@@ -43,6 +43,18 @@ public abstract class ModTile : ModType
     /// <summary>也算作这些制作站（TileID.WorkBenches 之类）。</summary>
     public virtual int[] AdjTiles => [];
 
+    /// <summary>本方块是"关着的门"：开门态的 mod 方块类型（对方块应配 <see cref="DoorClosedType"/> 指回本方块）。声明后玩家与居民可自动开关此门（见 ModDoors）。-1 = 不是门。</summary>
+    public virtual int DoorOpenType => -1;
+
+    /// <summary>本方块是"开着的门"：关门态的 mod 方块类型（-1 = 不是门）。与 <see cref="DoorOpenType"/> 声明一边即可，两边都声明需一致。</summary>
+    public virtual int DoorClosedType => -1;
+
+    /// <summary>存世界时写自定义数据（.wld.tiles.json 侧车，按 FullKey 存取）；与 <see cref="LoadData"/> 配对，复用 <see cref="HookId.SaveData"/>。</summary>
+    public virtual void SaveData(int x, int y, TagCompound tag) { }
+
+    /// <summary>读世界后恢复；mod 缺席的行进等待名单，重装后下次读档回来。</summary>
+    public virtual void LoadData(int x, int y, TagCompound tag) { }
+
     /// <summary>贴图里一帧动画的高度（0 = 不按竖直帧表动画）。</summary>
     public virtual int AnimationFrameHeight => 0;
 

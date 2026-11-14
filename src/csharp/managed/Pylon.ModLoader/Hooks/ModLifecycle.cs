@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Il2CppMicrosoft.Xna.Framework;
 using Terraria;
 using Terraria.IO;
@@ -13,7 +14,7 @@ internal static class ModLifecycle
     private static bool _installed;
     private static bool _unloaded;
 
-    private static ReadOnlySpan<Mod> Of(HookId hook) => LoaderHost.Current.Hooks.Channel(hook);
+    private static ModChannel Of(HookId hook) => LoaderHost.Current.Hooks.Channel(hook);
 
     internal static void Install()
     {
@@ -49,8 +50,10 @@ internal static class ModLifecycle
     private static void Each(HookId hook, Action<Mod> call)
     {
         var mods = Of(hook);
+        var timed = HookProfile.Enabled;
         for (var i = 0; i < mods.Length; i++)
         {
+            var start = timed ? Stopwatch.GetTimestamp() : 0;
             try
             {
                 call(mods[i]);
@@ -59,16 +62,18 @@ internal static class ModLifecycle
             {
                 Safe.Report(mods[i].Name + "." + hook, e);
             }
+            if (timed) HookProfile.Record((int)hook, mods[i].Index, HookProfile.TicksToNs(Stopwatch.GetTimestamp() - start));
         }
     }
 
-    /// <summary>只要有 Mod 拒绝就返回 false（LoadWorld 用来决定是否放行）。</summary>
     private static bool All(HookId hook, ModPredicate predicate)
     {
         var mods = Of(hook);
         var allowed = true;
+        var timed = HookProfile.Enabled;
         for (var i = 0; i < mods.Length; i++)
         {
+            var start = timed ? Stopwatch.GetTimestamp() : 0;
             try
             {
                 if (!predicate(mods[i])) allowed = false;
@@ -77,13 +82,12 @@ internal static class ModLifecycle
             {
                 Safe.Report(mods[i].Name + "." + hook, e);
             }
+            if (timed) HookProfile.Record((int)hook, mods[i].Index, HookProfile.TicksToNs(Stopwatch.GetTimestamp() - start));
         }
         return allowed;
     }
 
     private delegate bool ModPredicate(Mod mod);
-
-    // ===================== 世界 =====================
 
     private static void ClearWorldPostfix(On.Terraria.WorldGen.orig_clearWorld orig)
     {
@@ -115,10 +119,8 @@ internal static class ModLifecycle
         if (file is null || !File.Exists(file)) return;
 
         var all = TagJson.Read(file);
-        var mods = Of(HookId.LoadWorldData);
-        for (var i = 0; i < mods.Length; i++)
+        foreach (var mod in Of(HookId.LoadWorldData))
         {
-            var mod = mods[i];
             if (!all.TryGetValue(mod.Name, out var value)) continue;
             try
             {
@@ -141,10 +143,8 @@ internal static class ModLifecycle
         if (file is null) return;
 
         var all = TagJson.Read(file);
-        var mods = Of(HookId.SaveWorldData);
-        for (var i = 0; i < mods.Length; i++)
+        foreach (var mod in Of(HookId.SaveWorldData))
         {
-            var mod = mods[i];
             var tag = new TagCompound();
             try
             {
@@ -188,13 +188,11 @@ internal static class ModLifecycle
     private static void SaveWorldHeaders()
     {
         var mods = Of(HookId.SaveWorldHeader);
-        if (mods.IsEmpty || string.IsNullOrEmpty(Main.worldPathName)) return;
+        if (mods.IsEmpty || WorldSidecarPath(".wld.header.json") is not { } file) return;
 
-        var file = Main.worldPathName + ".wld.header.json";
         var all = TagJson.Read(file);
-        for (var i = 0; i < mods.Length; i++)
+        foreach (var mod in mods)
         {
-            var mod = mods[i];
             var tag = new TagCompound();
             try
             {
@@ -219,8 +217,6 @@ internal static class ModLifecycle
             Safe.Report("Mod 世界头存档", e);
         }
     }
-
-    // ===================== 每帧 =====================
 
     private static void UpdateWorld(On.Terraria.WorldGen.orig_UpdateWorld orig)
     {
@@ -283,16 +279,15 @@ internal static class ModLifecycle
         if (Main.gameMenu || self != Main.PlayerSceneMetrics) return;
 
         var counts = self._tileCounts;
-        var mods = Of(HookId.TileCountsAvailable);
-        for (var i = 0; i < mods.Length; i++)
+        foreach (var mod in Of(HookId.TileCountsAvailable))
         {
             try
             {
-                mods[i].TileCountsAvailable(counts);
+                mod.TileCountsAvailable(counts);
             }
             catch (Exception e)
             {
-                Safe.Report(mods[i].Name + ".TileCountsAvailable", e);
+                Safe.Report(mod.Name + ".TileCountsAvailable", e);
             }
         }
     }
@@ -303,9 +298,13 @@ internal static class ModLifecycle
         orig(self);
     }
 
-    private static string? WorldDataFile()
+    private static string? WorldDataFile() => WorldSidecarPath(".wld.bl.json");
+
+    private static string? WorldSidecarPath(string suffix)
     {
         var path = Main.worldPathName;
-        return string.IsNullOrEmpty(path) ? null : path + ".wld.bl.json";
+        if (string.IsNullOrEmpty(path)) return null;
+        if (path.EndsWith(".wld", StringComparison.OrdinalIgnoreCase)) path = path[..^4];
+        return path + suffix;
     }
 }

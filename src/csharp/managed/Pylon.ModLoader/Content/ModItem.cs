@@ -436,6 +436,12 @@ public abstract class ModItem : ModType
     /// <summary>鱼线从哪儿出来、什么颜色（两个可写引用，像素）。</summary>
     public virtual void ModifyFishingLine(Item item, Projectile bobber, ref Vector2 lineOriginOffset, ref Color lineColor) { }
 
+    /// <summary>物品随玩家存档保存的自定义数据（写进侧车行；mod 卸载期间由？池原样保管）。</summary>
+    public virtual void SaveData(Item item, TagCompound tag) { }
+
+    /// <summary>读档后按保存的数据恢复（与 SaveData 配对）。</summary>
+    public virtual void LoadData(Item item, TagCompound tag) { }
+
     /// <summary>照抄一个原版物品的字段（游戏这个版本没有 Item.CloneDefaults）。</summary>
     public void CloneDefaults(int type)
     {
@@ -562,5 +568,5 @@ public abstract class ModItem : ModType
     }
 }
 
-// 未移植 SaveData/LoadData/NetSend/NetReceive 与 AddRecipeGroups/AddRecipes/CreateRecipe/CreateRecipeGroup：存档、网络、配方注册都在各自管线里。
+// 未移植 NetSend/NetReceive 与 AddRecipeGroups/AddRecipes/CreateRecipe/CreateRecipeGroup：网络、配方注册在各自管线里；物品存档（SaveData/LoadData）由 ItemSavePipeline 分派。
 // 未移植弹药整块与命中整块：要的 StatModifier / HitModifiers / HitInfo 在本版游戏元数据里没有。

@@ -8,17 +8,13 @@ namespace Pylon.ModLoader.Tables;
 /// <summary>把一张 il2cpp 数组扩到目标长度。引用元素逐格走 GC 写屏障，不能整块 memcpy。</summary>
 internal static unsafe class ArrayGrow
 {
-    // Il2CppArray：对象头 2 指针 + bounds + max_length，元素区在 0x20
     private const int ArrData = 0x20;
 
-    /// <summary>数组长度（0 = 还没建）。</summary>
     public static int Length(IntPtr array) =>
         array == IntPtr.Zero ? 0 : (int)IL2CPP.il2cpp_array_length(array);
 
-    /// <summary>元素区起点。</summary>
     public static byte* Data(IntPtr array) => array == IntPtr.Zero ? null : (byte*)array + ArrData;
 
-    /// <summary>数组的元素类。</summary>
     public static IntPtr ElementClassOf(IntPtr array)
     {
         if (array == IntPtr.Zero) return IntPtr.Zero;
@@ -26,8 +22,6 @@ internal static unsafe class ArrayGrow
         return klass == IntPtr.Zero ? IntPtr.Zero : IL2CPP.il2cpp_class_get_element_class(klass);
     }
 
-    /// <summary>扩到 total 长并返回新数组；失败或已经够长返回 0。</summary>
-    /// <param name="fillWithMode">尾部填原数组的众数（方块/墙壁用；填 0 会变成实心泥土）。</param>
     public static IntPtr Grow(IntPtr oldArray, int total, bool fillWithMode = false)
     {
         if (oldArray == IntPtr.Zero || total <= 0) return IntPtr.Zero;
@@ -55,7 +49,38 @@ internal static unsafe class ArrayGrow
             : CopyRefs(oldArray, grown, oldLength, total, fillWithMode);
     }
 
-    /// <summary>引用元素表，如 <c>Asset&lt;Texture2D&gt;[]</c>。</summary>
+    public static IntPtr GrowZeroed(IntPtr oldArray, int total)
+    {
+        if (oldArray == IntPtr.Zero || total <= 0) return IntPtr.Zero;
+
+        var oldLength = Length(oldArray);
+        if (oldLength >= total) return IntPtr.Zero;
+
+        var elementClass = ElementClassOf(oldArray);
+        if (elementClass == IntPtr.Zero) return IntPtr.Zero;
+
+        var isValueType = IL2CPP.il2cpp_class_is_valuetype(elementClass);
+        var grown = IL2CPP.il2cpp_array_new(elementClass, (ulong)total);
+        if (grown == IntPtr.Zero) return IntPtr.Zero;
+
+        if (isValueType)
+        {
+            var align = 0u;
+            var elementSize = IL2CPP.il2cpp_class_value_size(elementClass, ref align);
+            if (elementSize > 0 && oldLength > 0)
+                Buffer.MemoryCopy(Data(oldArray), Data(grown), (long)total * elementSize, (long)oldLength * elementSize);
+        }
+        else
+        {
+            var src = Data(oldArray);
+            var dst = Data(grown);
+            for (var i = 0; i < oldLength; i++)
+                IL2CPP.il2cpp_gc_wbarrier_set_field(grown, (IntPtr)(dst + i * IntPtr.Size), *(IntPtr*)(src + i * IntPtr.Size));
+        }
+
+        return grown;
+    }
+
     public static bool Grow<T>(ref Il2CppReferenceArray<T>? table, int total) where T : Il2CppObjectBase
     {
         var old = table?.Pointer ?? IntPtr.Zero;
@@ -65,7 +90,6 @@ internal static unsafe class ArrayGrow
         return true;
     }
 
-    /// <summary>值类型元素表，如 <c>bool[]</c> / <c>int[]</c>。</summary>
     public static bool Grow<T>(ref Il2CppStructArray<T>? table, int total) where T : unmanaged
     {
         var old = table?.Pointer ?? IntPtr.Zero;
@@ -112,7 +136,6 @@ internal static unsafe class ArrayGrow
         return *(IntPtr*)(data + (long)pick * IntPtr.Size);
     }
 
-    /// <summary>出现次数最多的元素下标。</summary>
     private static int ModeIndex(byte* data, int length, int elementSize)
     {
         if (length <= 0 || elementSize <= 0 || elementSize > 8) return 0;

@@ -7,7 +7,7 @@ using Xna = Il2CppMicrosoft.Xna.Framework;
 
 namespace PerfTest;
 
-// Independently implemented protocol adapter: typed proxy loops, not Bunny source.
+// Independently implemented protocol adapter: typed proxy loops.
 internal sealed class BunnySuite
 {
     private const int Count = 20_000;

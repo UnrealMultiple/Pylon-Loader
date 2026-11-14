@@ -1,5 +1,7 @@
+using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Tables;
 using Pylon.ModLoader.Textures;
+using ReLogic.Content;
 using Terraria;
 using Terraria.ID;
 
@@ -10,7 +12,6 @@ internal static class InstallSteps
 {
     private static IModLog Log => LoaderHost.Current.Log;
 
-    /// <summary>按 TexturePath 上传每个内容的贴图；失败只跳过该内容。</summary>
     public static void LoadTextures(LoaderHost host)
     {
         if (LoaderHost.Current.Mods.Count > 0) PylonTexture.Logger = LoaderHost.Current.Mods.Mods[0].Logger;
@@ -19,7 +20,7 @@ internal static class InstallSteps
         foreach (var type in ModContent.GetContent<ModType>())
         {
             if (string.IsNullOrEmpty(type.TexturePath)) continue;
-            if (type is ModMount) continue;   // 坐骑是多层贴图，由 MountLoader 装
+            if (type is ModMount) continue;
 
             try
             {
@@ -38,11 +39,13 @@ internal static class InstallSteps
         host.Log.Info($"贴图：上传 {loaded}");
     }
 
-    /// <summary>贴图槽 + 名字 / 介绍 / buff 文本。名字与贴图无关，没有贴图也要写。</summary>
     public static void WriteTextures(LoaderHost host)
     {
         _ = host;
         var written = 0;
+
+        UnloadedItems.WriteTextures();
+
         foreach (var type in ModContent.GetContent<ModType>())
         {
             switch (type)
@@ -50,6 +53,7 @@ internal static class InstallSteps
                 case ModItem item:
                     ApplyItemName(item);
                     ApplyItemTooltip(item);
+                    ApplyItemFlame(item);
                     break;
                 case ModBuff buff:
                     ApplyBuffText(buff);
@@ -72,7 +76,6 @@ internal static class InstallSteps
         Log.Info($"贴图：写入表槽 {written}");
     }
 
-    /// <summary>ContentSamples 物品样例 + 持久 ID：缺了 tooltip / 排序 / 研究会 KeyNotFound。</summary>
     public static void RegisterItemSamples()
     {
         var items = ContentSamples.ItemsByType;
@@ -97,10 +100,12 @@ internal static class InstallSteps
                 Log.Warn($"{type.Name} 的 ContentSamples 样例注册失败：{Safe.Describe(e)}");
             }
         }
+
+        count += UnloadedItems.RegisterSamples(items,
+            ContentSamples.ItemPersistentIdsByNetIds, ContentSamples.ItemNetIdsByPersistentIds);
         Log.Info($"ContentSamples 物品样例：{count}");
     }
 
-    /// <summary>NPC 静态默认值与掉落表；必须在样例之前（作者在这里写 Main.npcFrameCount[Type]）。</summary>
     public static void NpcStaticDefaults()
     {
         var count = 0;
@@ -121,7 +126,6 @@ internal static class InstallSteps
         Log.Info($"NPC 静态默认值：{count}");
     }
 
-    /// <summary>buff 静态默认值 + 显示名/说明的本地化钩子。</summary>
     public static void BuffStaticDefaults()
     {
         var count = 0;
@@ -147,10 +151,8 @@ internal static class InstallSteps
         Log.Info($"buff 静态默认值：{count}");
     }
 
-    /// <summary>mod 弹幕模板：交给弹幕管线造（它持有 Suppress 开关与 Finish 收尾）。</summary>
     public static void ProjectileTemplates() => ProjectilePipeline.Instance.SetupTemplates(Log);
 
-    /// <summary>NPC 六张样例表都要有条目，缺一张图鉴填充就 KeyNotFound（主菜单黑屏）。</summary>
     public static void RegisterNpcSamples()
     {
         var npcs = ContentSamples.NpcsByNetId;
@@ -189,10 +191,6 @@ internal static class InstallSteps
         }
     }
 
-    /// <summary>
-    ///     世界加载后重写一次名字/介绍文本：游戏进世界时会重建 Lang 缓存，安装期写进去的条目会被清掉，
-    ///     表现就是「物品能拿到、但没有名字也没有介绍」。幂等，可重复调用。
-    /// </summary>
     public static void ReapplyTexts()
     {
         var count = 0;
@@ -210,8 +208,6 @@ internal static class InstallSteps
                     count++;
                     break;
                 case ModNpc npc:
-                    // 世界加载会重建 Lang._npcNameCache：不重写的话，城镇/敌对 mod NPC 的
-                    // 悬停名字和对话框标题都会变成空（“怪物没有名字”）。
                     ApplyNpcName(npc);
                     count++;
                     break;
@@ -220,8 +216,6 @@ internal static class InstallSteps
 
         Log.Info($"本地化重写：{count} 个内容（世界加载后）");
     }
-
-    // ===================== 本地化写入 =====================
 
     private static void ApplyItemName(ModItem item)
     {
@@ -248,20 +242,56 @@ internal static class InstallSteps
         var key = "Pylon.ItemTooltip." + (item.Mod is null ? "Mod" : item.Mod.Name) + "." + item.Name;
         LocalizationKeys.Register(key, new Terraria.Localization.LocalizedText(key, string.Join("\n", item.TooltipLines)));
 
-        // 手机版 tooltip 必须走 FromLanguageKey（键先进语言表，ItemTooltip 只存 id+键，
-        // 文本由游戏取值时经 TooltipProcessor 处理）。FromHardcodedText 造出来的对象游戏不认，
-        // MouseTextInner 会直接跳过（D-015：mod 物品 tooltip 整块不显示）。
         try
         {
             cache[item.Type] = Terraria.UI.ItemTooltip.FromLanguageKey((short)item.Type, key);
         }
         catch
         {
-            // FromLanguageKey 不可用时退回硬编码行（旧行为）
             var lines = new string[item.TooltipLines.Count];
             for (var i = 0; i < lines.Length; i++) lines[i] = item.TooltipLines[i];
             cache[item.Type] = Terraria.UI.ItemTooltip.FromHardcodedText(lines);
         }
+    }
+
+    private static Asset<Texture2D>? _blankFlame;
+
+    private static void ApplyItemFlame(ModItem item)
+    {
+        try
+        {
+            var stem = System.IO.Path.ChangeExtension(item.TexturePath, null);
+            var flamePath = stem + "_Flame.png";
+            var asset = item.Mod is not null && ModContent.HasAsset(item.Mod, flamePath)
+                ? item.Mod.LoadAsset(flamePath)
+                : BlankFlame();
+            if (asset is null) return;
+
+            TextureSlots.TryWrite(TextureTable.ItemFlame, item.Type, asset);
+        }
+        catch (Exception e)
+        {
+            Log.Warn($"{item.Name} 的火焰贴图写槽失败：{Safe.Describe(e)}");
+        }
+    }
+
+    private static Asset<Texture2D>? BlankFlame()
+    {
+        if (_blankFlame is not null) return _blankFlame;
+
+        try
+        {
+            var texture = PylonTexture.Decode(RawPng.Encode(4, 4, new uint[16]), "pylon/blank-flame");
+            var asset = new Asset<Texture2D>("pylon:blank-flame");
+            asset.SubmitLoadedContent(texture, null);
+            _blankFlame = asset;
+        }
+        catch (Exception e)
+        {
+            Log.Warn("空白火焰生成失败：" + Safe.Describe(e));
+        }
+
+        return _blankFlame;
     }
 
     private static void ApplyBuffText(ModBuff buff)
@@ -292,8 +322,6 @@ internal static class InstallSteps
     {
         if (npc.Type < 0) return;
 
-        // 世界加载会把 Lang._npcNameCache 重建回原版长度；不先扩回来的话，下面的写槽会被
-        // "type >= cache.Length" 挡掉，表现就是 NPC 没有名字（城镇 NPC 与敌对 NPC 都一样）。
         var need = Math.Max(npc.Type + 1, ModContent.NextType(ContentKind.Npc));
         var cache = Lang._npcNameCache;
         if (cache is not null && cache.Length < need && ArrayGrow.Grow(ref cache, need))
@@ -306,10 +334,6 @@ internal static class InstallSteps
         cache[npc.Type] = localized;
         LocalizationKeys.Register(key, localized);
 
-        // mod NPC 也要进 NPCID.Search。
-        // ShopHelper.ProcessMood → AddHappinessReportText 用 NPCID.Search.GetName(npc.netID)
-        // （IdDictionary 内部是 Dictionary 索引器，不是 TryGetValue）：没有这个条目时，
-        // 点击 mod 城镇 NPC → Player.SetTalkNPC → GetShoppingSettings 直接 KeyNotFoundException(698)。
         try
         {
             var search = NPCID.Search;
@@ -321,13 +345,11 @@ internal static class InstallSteps
         }
     }
 
-    /// <summary>内容种类 → 贴图槽表；没有表（Global / System）返回 null。</summary>
     private static TextureTable? TableFor(ModType type) => type switch
     {
         ModGore => TextureTable.Gore,
         ModCloud => TextureTable.Cloud,
         ModHair => TextureTable.PlayerHair,
-        // 水样式三张表（liquid / _Block / _Slope）由 WaterPipeline.SetupTextures 一起写，不走通用槽。
         ModItem => TextureTable.Item,
         ModTile => TextureTable.Tile,
         ModWall => TextureTable.Wall,

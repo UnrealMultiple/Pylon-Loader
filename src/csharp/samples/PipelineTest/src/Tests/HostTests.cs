@@ -6,7 +6,6 @@ namespace PipelineTest.Tests;
 
 /// <summary>
 /// B0：测试 Mod 与框架自身的自检。这组全绿才说明后面的失败是管线的问题，不是脚手架的问题。
-/// 对应 docs/testing/02-case-matrix.md 的 B0 节（HOST-01..08）。
 /// </summary>
 internal static class HostTests
 {

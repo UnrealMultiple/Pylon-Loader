@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Pylon.ModLoader.Tables;
 using Pylon.ModLoader.Textures;
 
@@ -13,16 +14,13 @@ internal static class InstallPlan
     {
         var steps = new List<IInstallStep>(24)
         {
-            // 布表：先扩内容表，后面所有写槽都以新长度为前提。
             new GrowTablesStep(host),
 
-            // 名字接管：游戏悬停取名字走 Lang.GetItemNameValue，原版对 mod 类型返回空串 →
-            // 空名字让 MouseText 直接跳过整个 tooltip（D-015 根因）。必须先于一切内容安装。
             new Step("名字接管", InstallStage.Static, () => ItemNamePatch.Install(host.Log)),
 
-            // 静态：依赖表长或必须先于写槽的初始化。
             new Step("buff 静态默认值", InstallStage.Static, InstallSteps.BuffStaticDefaults),
             new Step("buffImmune 扩长", InstallStage.Static, GrowBuffImmune),
+            new Step("实例表扩容", InstallStage.Static, InstanceTables.Install),
             new Step("坐骑安装", InstallStage.Static, () => MountTable.Build(host.Log)),
             new Step("前缀安装", InstallStage.Static, () => PrefixTable.Build(host.Log)),
             new Step("稀有度安装", InstallStage.Static, () => RarityTable.StaticDefaults(host.Log)),
@@ -32,24 +30,19 @@ internal static class InstallPlan
             new Step("成就安装", InstallStage.Static, () => AchievementPipeline.Instance.Build()),
             new Step("尘土安装", InstallStage.Static, () => DustPipeline.Instance.Build()),
             new Step("伤害类别安装", InstallStage.Static, () => DamageClassPipeline.Instance.Build()),
-            // 云 / 发型 / 水样式要先扩表再写贴图（ResizeArrays → SetupTextures）。
-            // 它们原先排在写贴图之后，表还没扩写槽就全部失败，主菜单第一帧遍历这些表就空指针。
             new Step("云安装", InstallStage.Static, () => CloudPipeline.Instance.Build()),
             new Step("发型安装", InstallStage.Static, () => HairPipeline.Instance.Build()),
             new Step("水样式安装", InstallStage.Static, () => WaterPipeline.Instance.Build()),
 
-            // 表面：上传贴图 → 写表槽与名字 / 介绍。
             new Step("贴图上传", InstallStage.Surface, () => InstallSteps.LoadTextures(host)),
             new Step("写贴图与文本", InstallStage.Surface, () => InstallSteps.WriteTextures(host)),
-            // 水/瀑布贴图必须等上传完再写（Static 阶段 Texture 还是 null），和作者的 SetupContent 时机一致。
             new Step("水贴图安装", InstallStage.Surface, () => WaterPipeline.Instance.SetupTextures()),
 
-            // 样例：ContentSamples 与静态默认值。
             new Step("物品样例", InstallStage.Samples, InstallSteps.RegisterItemSamples),
+            new Step("聊天标签上限", InstallStage.Samples, () => ChatTagPatches.Build(host.Log)),
+            new Step("物品排序白名单", InstallStage.Samples, ItemSortingHooks.Classify),
             new Step("墙壁安装", InstallStage.Samples, () => WallPipeline.Instance.Build()),
             new Step("方块安装", InstallStage.Samples, () => TilePipeline.Instance.Build()),
-            // 树安装要排在方块安装之后：此时树贴图表才建出来，
-            // 原版长度读得到，扩表与写槽一次到位；排早了捕获不到表长，表永远扩不上。
             new Step("树安装", InstallStage.Samples, () => TreePipeline.Instance.Build()),
             new Step("弹幕模板", InstallStage.Samples, InstallSteps.ProjectileTemplates),
             new Step("NPC 静态默认值", InstallStage.Samples, InstallSteps.NpcStaticDefaults),
@@ -69,8 +62,8 @@ internal static class InstallPlan
             new Step("资源覆盖层安装", InstallStage.Static, () => ResourceOverlayPipeline.Instance.Build()),
             new Step("玩家绘制层安装", InstallStage.Static, () => PlayerDrawLayerPipeline.Instance.Build()),
             new Step("背景安装", InstallStage.Static, () => BackgroundPipeline.Instance.Build()),
+            new Step("系统阶段", InstallStage.Static, () => SystemStages.Build(host.Log)),
 
-            // Mod 侧回调：数组已定长，作者在这里做跨内容引用。
             new HookStep("ResizeArrays", InstallStage.Mods, HookId.ResizeArrays, static mod => mod.ResizeArrays()),
             new HookStep("Mod.SetupContent", InstallStage.Mods, HookId.SetupContent, static mod => mod.SetupContent()),
             new HookStep("Mod.AddRecipeGroups", InstallStage.Mods, HookId.AddRecipeGroups, static mod => mod.AddRecipeGroups()),
@@ -82,7 +75,6 @@ internal static class InstallPlan
             new Step("提示重建开关", InstallStage.Mods, () => TooltipPipeline.Instance.Build()),
             new Step("GlobalNPC 静态与配方", InstallStage.Mods, GlobalNpcTasks),
 
-            // 配方：配方 → 作者收尾 → 派生表重建。
             new HookStep("Mod.AddRecipes", InstallStage.Recipes, HookId.AddRecipes, static mod => mod.AddRecipes()),
             new HookStep("Mod.PostAddRecipes", InstallStage.Recipes, HookId.PostAddRecipes, static mod => mod.PostAddRecipes()),
             new Step("配方收尾", InstallStage.Recipes, () => RecipeTable.Finish(LoaderHost.Current.Log)),
@@ -94,7 +86,6 @@ internal static class InstallPlan
 
     private static void GrowBuffImmune() => BuffPipeline.Instance.GrowImmuneArrays();
 
-    /// <summary>每个内容自己的 PostSetupContent（作者写跨内容引用就在这里）。</summary>
     private static void PostSetupContent()
     {
         foreach (var content in ModContent.GetContent<ModType>())
@@ -141,7 +132,13 @@ internal static class InstallPlan
         public bool Run()
         {
             var mods = LoaderHost.Current.Hooks.Channel(hook);
-            for (var i = 0; i < mods.Length; i++) RunOne(mods[i]);
+            var timed = HookProfile.Enabled;
+            for (var i = 0; i < mods.Length; i++)
+            {
+                var start = timed ? Stopwatch.GetTimestamp() : 0;
+                RunOne(mods[i]);
+                if (timed) HookProfile.Record((int)hook, mods[i].Index, HookProfile.TicksToNs(Stopwatch.GetTimestamp() - start));
+            }
             return true;
         }
 

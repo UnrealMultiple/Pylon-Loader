@@ -38,28 +38,40 @@ internal sealed class TilePipeline : ILoaderModule
         On.Terraria.Player.AdjTiles += Stations;
         On.Terraria.Player.TileInteractionsUse += Interact;
         On.Terraria.Player.TileInteractionsMouseOver += MouseOver;
+        On.Terraria.WorldGen.UpdateWorld_OvergroundTile += RandomUpdateOver;
+        On.Terraria.WorldGen.UpdateWorld_UndergroundTile += RandomUpdateUnder;
+        TileMergeFix.Install();
         TileInteractionHooks.Install();
 
-        Log.Info("[tile] 已挂（挖 / 尘土 / 掉落 / 边框 / 通电 / 制作站 / 右键 / 光标）；逐格绘制与光照本版无入口");
+        Log.Info("[tile] 已挂（挖 / 尘土 / 掉落 / 边框 / 通电 / 制作站 / 右键 / 光标 / 随机更新）；逐格绘制与光照本版无入口");
         return true;
     }
 
     private int _maintained;
-    private int _maintainedData;
 
-    /// <summary>安装期建表（编译期上限、位集、掉落）。</summary>
     internal void Build()
     {
-        // 游戏的 PlaceTile/PlaceObject/KillTile 等把 type > 753 编进了机器码；不改立即数，
-        // mod 方块（>= 754）放不下去（WorldGen.PlaceObject 直接返回 false）。
         LimitPatch.Apply(VanillaCounts.Tile + ModContent.Count(ContentKind.Tile), Log);
         TileTable.Build(Log);
+        TileMergeFix.FixToTotal();
+        PostSetupTileMerge();
+        ModDoors.Build(Log);
+        TileSavePipeline.Build(Log);
+        TileLists.Build(Log);
+        ModTileMap.Build(Log);
+        TileDrawHooks.Build(Log);
     }
 
-    /// <summary>
-    /// 低频维护：游戏重建表或实例新建后把 mod 类型那几格补齐。
-    /// 都是幂等写入，按类型数变化做门控，不在每帧重复扫。
-    /// </summary>
+    private static void PostSetupTileMerge()
+    {
+        var globals = GlobalTileRegistry.For(HookId.PostSetupTileMerge);
+        for (var i = 0; i < globals.Count; i++)
+        {
+            var global = globals[i];
+            Safe.Run(global.Name + ".PostSetupTileMerge", global.PostSetupTileMerge);
+        }
+    }
+
     internal void Maintain()
     {
         var total = TileTable.Count;
@@ -71,7 +83,6 @@ internal sealed class TilePipeline : ILoaderModule
             {
                 _maintained = total;
 
-                // 没填 -1 的 mod 类型会去读原版的遮罩贴图（越界或错图）。
                 var glow = Main.tileGlowMask;
                 if (glow is not null && glow.Length >= total)
                 {
@@ -91,13 +102,22 @@ internal sealed class TilePipeline : ILoaderModule
                 }
             }
 
-            // 空槽必须是 1×1 而不是 null：原版放方块时直接解引用 GetTileData 的返回值。
             var data = TileObjectData._data;
-            if (data is null || data.Count >= total) return;
-            if (_maintainedData == total) return;
+            if (data is not null && data.Count < total)
+            {
+                while (data.Count < total) data.Add(TileObjectData.Style1x1);
 
-            _maintainedData = total;
-            while (data.Count < total) data.Add(TileObjectData.Style1x1);
+                var shapes = TileTable.Shapes;
+                var restored = 0;
+                for (var type = VanillaCounts.Tile; type < total && type < shapes.Length; type++)
+                {
+                    if (shapes[type] is not { } shape) continue;
+                    data[type] = shape;
+                    restored++;
+                }
+
+                if (restored > 0) Log.Info($"[tile] _data 重建后回放 {restored} 个 mod 形状");
+            }
         }
         catch (Exception e)
         {
@@ -113,7 +133,6 @@ internal sealed class TilePipeline : ILoaderModule
         var tile = TileTable.At(i, j);
         if (tile is null || !tile.HookEnabled(HookId.CanKillTile)) return orig(i, j, context);
 
-        // blockDamaged 是本入口拿不到的（游戏在别处维护），作者写它不会回传。
         var damaged = false;
 
         try
@@ -145,10 +164,8 @@ internal sealed class TilePipeline : ILoaderModule
         }
     }
 
-    /// <summary>正在替多格家具清残留格：防止 WorldGen.KillTile 重入时再清一遍。</summary>
     private static bool _removingMulti;
 
-    /// <summary><c>CanKillTile(int, int, out bool)</c> 是镐子/公开调用走的那条重载；前两条接不到它。</summary>
     private bool CanKillOut(On.Terraria.WorldGen.orig_CanKillTile_int_int_boolRef orig, int i, int j, out bool blockDamaged)
     {
         var tile = TileTable.At(i, j);
@@ -203,8 +220,6 @@ internal sealed class TilePipeline : ILoaderModule
 
         orig(i, j, fail, effectOnly, noItem);
 
-        // 这版游戏挖多格家具只删目标格；挖掉任意一格就替作者清掉其余格，再发一次 KillMultiTile。
-        // 残留格用 noItem=true 清掉，避免本体物品掉多份。
         if (tile is null || !multi || fail || effectOnly || _removingMulti || !tile.HookEnabled(HookId.KillMultiTile)) return;
 
         var tiles = Main.tile;
@@ -252,7 +267,6 @@ internal sealed class TilePipeline : ILoaderModule
     private void PlaySounds(On.Terraria.WorldGen.orig_KillTile_PlaySounds orig, int i, int j, bool fail,
                             Tile tileCache)
     {
-        // 按调用方传入的 Tile 取类型，不假定它一定对应当前坐标。
         var type = tileCache.type;
         var tile = TileTable.Of(type);
         if (tile is not null && tile.HookEnabled(HookId.KillSound))
@@ -277,7 +291,6 @@ internal sealed class TilePipeline : ILoaderModule
             }
             catch (Exception e)
             {
-                // 一个作者异常不阻断后续作者的否决；日志按实际 Global 类型独立限频。
                 if (_reported.Add(HashCode.Combine(global.GetType(), HookId.KillSound)))
                     ContentErrors.Report($"[tile] {global.GetType().Name}.KillSound 异常:{Safe.Describe(e)}");
             }
@@ -295,7 +308,6 @@ internal sealed class TilePipeline : ILoaderModule
                 Fail(tile, HookId.KillSound, e);
             }
 
-            // -1 保留现有作者契约：使用游戏声音；零也是有效声音号，不作空值处理。
             if (sound >= 0)
             {
                 Terraria.Audio.SoundEngine.PlaySound(sound, i * 16, j * 16, 1, 1f, 0f);
@@ -329,7 +341,6 @@ internal sealed class TilePipeline : ILoaderModule
     private void DropItems(On.Terraria.WorldGen.orig_KillTile_DropItems orig, int x, int y, Tile tileCache,
                            bool includeLargeObjectDrops)
     {
-        // 多格家具的残留格是替作者清的：即便 noItem 没挡住这个入口，也不能再掉一份。
         if (_removingMulti)
         {
             orig(x, y, tileCache, includeLargeObjectDrops);
@@ -349,7 +360,6 @@ internal sealed class TilePipeline : ILoaderModule
         {
             if (!tile.CanDrop(x, y))
             {
-                // 不让掉：只走原版那半（大物体的连带掉落），本体物品不发。
                 orig(x, y, tileCache, includeLargeObjectDrops);
                 return;
             }
@@ -376,14 +386,12 @@ internal sealed class TilePipeline : ILoaderModule
         orig(x, y, tileCache, includeLargeObjectDrops);
     }
 
-    /// <summary>登记表里的默认掉落：游戏自己不知道该掉什么，所以在这里补一次。</summary>
     private void DropDefault(Tile tileCache, int i, int j)
     {
         var item = TileTable.DropOf(tileCache.type, StyleOf(tileCache));
         if (item > 0) Item.NewItem(i * 16, j * 16, 16, 16, item);
     }
 
-    /// <summary>这块是第几个样式：多格家具按帧坐标折，普通方块就是 0。</summary>
     private static int StyleOf(Tile tile)
     {
         var data = Terraria.ObjectData.TileObjectData.GetTileData(tile.type, 0);
@@ -439,7 +447,6 @@ internal sealed class TilePipeline : ILoaderModule
         orig(i, j);
     }
 
-    /// <summary>原版算完之后，把作者声明的"也算作某制作站"贴到玩家身上。</summary>
     private void Stations(On.Terraria.Player.orig_AdjTiles orig, Player self)
     {
         orig(self);
@@ -467,7 +474,6 @@ internal sealed class TilePipeline : ILoaderModule
         }
     }
 
-    /// <summary>这块在不在这位玩家身边（原版用 5×5 的邻域判定制作站）。</summary>
     private static bool NearBy(Player self, TileData tiles, int type)
     {
         var cx = (int)(self.Center.X / 16f);
@@ -488,17 +494,11 @@ internal sealed class TilePipeline : ILoaderModule
         return false;
     }
 
-    /// <summary>上一次算"新按下"的帧号与是否按下过（按玩家，最多 256 人）。</summary>
     private static readonly ulong[] LastPress = new ulong[256];
     private static readonly bool[] HadPress = new bool[256];
     private static readonly int[] LastTargetX = new int[256];
     private static readonly int[] LastTargetY = new int[256];
 
-    /// <summary>
-    /// 这一次交互是不是"新按下":手机端按住会每帧走一次 TileInteractionsUse,
-    /// 不加这道闸,晶塔会每帧重开一次地图 —— 表现就是"点了传送之后地图关不掉"。
-    /// 去重键是"玩家 + 目标格":同一帧换一个目标格是新的交互,不能连 orig 一起跳过。
-    /// </summary>
     private static bool Fresh(Player player, int tileX, int tileY)
     {
         if (!player.tileInteractAttempted) return false;
@@ -519,17 +519,12 @@ internal sealed class TilePipeline : ILoaderModule
         return !(sameTarget && sameBurst);
     }
 
-    /// <summary>
-    /// 手指/光标停在哪一格：作者的 MouseOver，以及"这一格能交互"的光标图标。
-    /// 后者不只是画个图标——手机端的交互目标就是靠它认的，没有它，点 mod 方块根本走不进
-    /// </summary>
     private void MouseOver(On.Terraria.Player.orig_TileInteractionsMouseOver orig, Player self, int myX, int myY)
     {
         orig(self, myX, myY);
 
         try
         {
-            // 只有游戏自己认定的目标格才派作者钩子：屏幕上扫过的每一格都派会白跑一堆回调。
             if (myX != Player.tileTargetX || myY != Player.tileTargetY) return;
             if ((uint)myX >= (uint)Main.maxTilesX || (uint)myY >= (uint)Main.maxTilesY) return;
 
@@ -561,7 +556,6 @@ internal sealed class TilePipeline : ILoaderModule
                 }
             }
 
-            // 可右键的 mod 方块要自己撑起光标图标；否则游戏当它是普通方块，手机点上去等于没用。
             if (tile is not null && tile.HookEnabled(HookId.RightClick) && !self.cursorItemIconEnabled)
             {
                 var style = (type >= 0 && type < TileObjectData._data.Count) ? (int)Main.tile[myX, myY].frameY / 36 : 0;
@@ -581,14 +575,11 @@ internal sealed class TilePipeline : ILoaderModule
         var tile = TileTable.At(myX, myY);
         var fresh = Fresh(self, myX, myY);
 
-        // mod 方块：不是新按下就整条交互跳过（orig 也不用跑，否则原版会再处理一遍这块）。
         if (tile is not null && !fresh) return;
 
         var type = Main.tile[myX, myY].type;
         var right = tile is not null && tile.HookEnabled(HookId.RightClick);
 
-        // 原版会按"是不是箱子/梳妆台/篝火"给这次交互分派不同分支；mod 方块就算复用了这些集合的
-        // 形状，也不是原版那种容器，先临时摘掉，跑完再放回去。
         var chest = right && IsIn(Terraria.ID.TileID.Sets.BasicChest, type) && Terraria.ID.TileID.Sets.BasicChest[type];
         var dresser = right && IsIn(Terraria.ID.TileID.Sets.BasicDresser, type) && Terraria.ID.TileID.Sets.BasicDresser[type];
         var fire = right && IsIn(Terraria.ID.TileID.Sets.Campfires, type) && Terraria.ID.TileID.Sets.Campfires[type];
@@ -614,8 +605,6 @@ internal sealed class TilePipeline : ILoaderModule
             }
         }
 
-        // 原版跑完再派作者的处理：作者要的是"游戏已经把这一格该做的事做完了"这个时机，
-        // 而它返回 true 表示这次按下已经被吃掉，要告诉游戏一声，否则同一次按下会被再消费一次。
         if (tile is not null && right)
         {
             try
@@ -644,6 +633,57 @@ internal sealed class TilePipeline : ILoaderModule
 
     #endregion
 
+    private void RandomUpdateOver(On.Terraria.WorldGen.orig_UpdateWorld_OvergroundTile orig,
+                                  int i, int j, bool checkNPCSpawns, int wallDist)
+    {
+        orig(i, j, checkNPCSpawns, wallDist);
+        RandomUpdate(i, j, underground: false);
+    }
+
+    private void RandomUpdateUnder(On.Terraria.WorldGen.orig_UpdateWorld_UndergroundTile orig,
+                                   int i, int j, bool checkNPCSpawns, int wallDist)
+    {
+        orig(i, j, checkNPCSpawns, wallDist);
+        RandomUpdate(i, j, underground: true);
+    }
+
+    private void RandomUpdate(int i, int j, bool underground)
+    {
+        var tiles = Main.tile;
+        if (tiles is null || i < 0 || j < 0 || i >= Main.maxTilesX || j >= Main.maxTilesY) return;
+
+        var type = tiles[i, j].type;
+
+        var tile = TileTable.At(i, j);
+        if (tile is not null && tile.HookEnabled(HookId.RandomUpdate))
+        {
+            try { tile.RandomUpdate(i, j); }
+            catch (Exception e) { Fail(tile, HookId.RandomUpdate, e); }
+        }
+
+        var wall = WallTable.At(i, j);
+        if (wall is not null && wall.HookEnabled(HookId.RandomUpdate))
+        {
+            try { wall.RandomUpdate(i, j); }
+            catch (Exception e)
+            {
+                if (_reported.Add(HashCode.Combine(wall.Type, HookId.RandomUpdate, 1)))
+                    ContentErrors.Report($"[wall] {wall.GetType().Name}.RandomUpdate 异常：{Safe.Describe(e)}");
+            }
+        }
+
+        var globals = GlobalTileRegistry.For(HookId.RandomUpdate);
+        for (var g = 0; g < globals.Count; g++)
+        {
+            try { globals[g].RandomUpdate(i, j, type, underground); }
+            catch (Exception e)
+            {
+                if (_reported.Add(HashCode.Combine(globals[g].GetType(), HookId.RandomUpdate, 2)))
+                    ContentErrors.Report($"[tile] {globals[g].GetType().Name}.RandomUpdate 异常：{Safe.Describe(e)}");
+            }
+        }
+    }
+
     private static bool IsIn(bool[]? set, int type) => set is not null && (uint)type < (uint)set.Length;
 
     private static void Set(bool[]? set, int type, bool value)
@@ -652,7 +692,6 @@ internal sealed class TilePipeline : ILoaderModule
         set![type] = value;
     }
 
-    /// <summary>同一 (类型, 钩子) 只记一条：这些入口都在高频路径上。</summary>
     private void Fail(ModTile? tile, HookId hook, Exception exception)
     {
         var type = tile?.Type ?? -1;

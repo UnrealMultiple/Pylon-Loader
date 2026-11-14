@@ -39,7 +39,6 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.Rain.NewRain += NewRain;
         On.Terraria.Rain.NewRainForced += NewRainForced;
         On.Terraria.Main.DrawRain += DrawRain;
-        // 原版每帧读这个返回值写 Main.waterStyle：直接赋值会被它盖掉（真机水永远是 0），必须改返回值。
         On.Terraria.Main.CalculateWaterStyle += ChooseWaterStyle;
         On.Terraria.Graphics.Light.LightingEngine.UpdateLightDecay += UpdateLightDecay;
         On.Terraria.Graphics.Light.LegacyLighting.UpdateLightDecay += UpdateLegacyLightDecay;
@@ -48,10 +47,6 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         return true;
     }
 
-    /// <summary>
-    /// 原版算完这一帧的水样式后，场景效果的赢家声明了 mod 水就换成它的编号。
-    /// 钩 <c>Main.CalculateWaterStyle</c>：直接写 <c>Main.waterStyle</c> 会被原版每帧覆盖。
-    /// </summary>
     private static int ChooseWaterStyle(On.Terraria.Main.orig_CalculateWaterStyle orig, bool ignoreFountains)
     {
         var vanilla = orig(ignoreFountains);
@@ -75,11 +70,6 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    // ===================== 雨 =====================
-
-    // MakeRain 发雨滴时把 waterStyle 暂时换成 0：原版按 705+style 生成雨滴，mod 水样式
-    // 的编号会让 705+style 落到 mod gore 段里（那是水滴不是雨滴）。
-    // 记下"正在给 mod 水样式下雨"，NewRain 之后把雨滴 type 换成作者的 GetRainVariant()。
     [ThreadStatic]
     private static ModWaterStyle? _raining;
 
@@ -107,13 +97,10 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    /// <summary>雨滴列号存入 byte 字段，无法表示的值或作者异常回落到第 0 列。</summary>
     private static byte RainVariant(ModWaterStyle water)
     {
         try
         {
-            // 自定义雨贴图可以使用原版三列之外的列号。
-            // 作者 API 用 int,游戏字段用 byte:只拒绝目标字段无法表示的值。
             var variant = water.GetRainVariant();
             return variant is >= byte.MinValue and <= byte.MaxValue ? (byte)variant : (byte)0;
         }
@@ -124,10 +111,6 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    /// <summary>
-    /// 雨的贴图：作者的 png 加载成 Asset 换进 <c>TextureAssets.Rain</c>，原版画完再换回去。
-    /// 雨滴列（type）由 <see cref="NewRain"/> 在生成时改。
-    /// </summary>
     private static void DrawRain(On.Terraria.Main.orig_DrawRain orig, Main self)
     {
         var water = Current();
@@ -164,9 +147,6 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    // ===================== 光穿透 =====================
-
-    /// <summary>当前水样式是 mod 的就把水体对光的衰减换成作者的倍率（两套光照引擎都要写）。</summary>
     private static Il2CppMicrosoft.Xna.Framework.Vector3? Decay()
     {
         var water = Current();
@@ -201,21 +181,15 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         if (Decay() is { } decay) self._workingLightMap.LightDecayThroughWater = decay;
     }
 
-    // ===================== 溅水尘与水滴 =====================
-
-    // 标记"正在发水滴"：EmitLiquidDrops 期间 NewGore 里 705+waterStyle 那一粒才是水滴。
-    // 水花尘走 Dust.dustWater，不需要这个标记。
     [ThreadStatic]
     private static bool _dripping;
 
-    /// <summary>当前水样式是 mod 的就返回它；原版水（或菜单）返回 null。</summary>
     private static ModWaterStyle? Current()
     {
         if (Main.gameMenu || WaterTable.Count == 0) return null;
         return WaterTable.Of(Main.waterStyle);
     }
 
-    /// <summary>落水溅起的水花尘：作者给什么尘就出什么尘。</summary>
     private static int DustWater(On.Terraria.Dust.orig_dustWater orig)
     {
         var water = Current();
@@ -232,7 +206,6 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    /// <summary>方块滴下的水珠：作者给了自定义 gore 编号就换成它（超表长时走原版编号并改实例）。</summary>
     private static int NewGore(On.Terraria.Gore.orig_NewGore orig, Il2CppMicrosoft.Xna.Framework.Vector2 position,
                               Il2CppMicrosoft.Xna.Framework.Vector2 velocity, int type, float scale)
     {
@@ -254,8 +227,6 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
 
         if (drip < Terraria.ID.GoreID.Count) return orig(position, velocity, drip, scale);
 
-        // 超过原版表长（指到另一个 mod 的水滴 gore）：先按原版编号生成，再把实例的 type 改过去。
-        // Gore.Update 按 type 找行为，改的是实例字段，之后每帧都按新编号走。
         var index = orig(position, velocity, Terraria.ID.GoreID.WaterDrip, scale);
         if ((uint)index < (uint)Main.gore.Length)
         {
@@ -265,7 +236,6 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         return index;
     }
 
-    /// <summary>只在原版发水滴的调用里放行标记；其它途径的 NewGore（爆炸、掉落物碎裂）不动。</summary>
     private static void EmitLiquidDrops(On.Terraria.GameContent.Drawing.TileDrawing.orig_EmitLiquidDrops orig,
                                        Terraria.GameContent.Drawing.TileDrawing self, int j, int i, byte liquid,
                                        ushort typeCache)
@@ -282,19 +252,16 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    /// <summary>给 mod 水样式下雨时，新雨滴的贴图列换成作者的变体。</summary>
     private static int NewRain(On.Terraria.Rain.orig_NewRain orig, Il2CppMicrosoft.Xna.Framework.Vector2 position,
                               Il2CppMicrosoft.Xna.Framework.Vector2 velocity)
     {
         var index = orig(position, velocity);
 
-        // 未覆写时保留原版已经抽出的列号，避免额外消耗随机数。
         if (_raining is { } water && Hooks.Overrides(water.GetType(), typeof(ModWaterStyle), nameof(ModWaterStyle.GetRainVariant)))
             SetRainType(index, water);
         return index;
     }
 
-    /// <summary>强制降雨不经过 MakeRain，上下文直接取当前水样式。</summary>
     private static int NewRainForced(On.Terraria.Rain.orig_NewRainForced orig,
                                      Il2CppMicrosoft.Xna.Framework.Vector2 position,
                                      Il2CppMicrosoft.Xna.Framework.Vector2 velocity)
@@ -318,33 +285,27 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         WaterTable.Assign();
         WaterfallTable.Assign();
 
-        // 瀑布表在第一轮注册时可能还没建（Base 读到 0，没发号）；这一轮补发之后再补扩一次。
-        // 同一份表只建一个扩表器：TableGrower 的构造函数会替换掉同种类的旧实例，重复 new 会把补扩名单清掉。
         var falls = WaterfallTable.Total;
         if (falls > WaterfallTable.Base)
         {
-            // 目标长度变了（动态注册又加了瀑布样式）就抬高同一个扩表器：容量由 TableGrowth.Ensure 管。
             TableMaintenance.Ensure(WaterTables.Waterfall, falls).GrowAll(Log.Info);
         }
 
-        // 动态注册又加了样式时重写一遍槽；贴图已上传，幂等。
         SetupTextures();
     }
 
-    /// <summary>安装期一次：扩表 + 静态默认值 + 写瀑布贴图。要在写主贴图（Surface 阶段）之前跑。</summary>
     internal void Build()
     {
         var total = WaterTable.Total;
         if (total > 0) TableMaintenance.Ensure(WaterTables.Style, total).GrowAll(Log.Info);
 
-        // 除 TextureAssets.Liquid / LiquidSlope（上面
-        // TableGrower 按 WaterStyle 类清单扫）外，还有第三张表 LiquidRenderer._liquidTextures
-        // —— 游戏画水面时读它，漏扩就是进世界读水面贴图越界/空指针。
         GrowLiquidRenderer(total);
 
         var falls = WaterfallTable.Total;
         if (falls > WaterfallTable.Base)
             TableMaintenance.Ensure(WaterTables.Waterfall, falls).GrowAll(Log.Info);
+
+        DrawWatersLimits.Build(Log, WaterTable.Base, WaterTable.Total);
 
         foreach (var style in ModContent.GetContent<ModWaterStyle>())
         {
@@ -362,7 +323,6 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         if (WaterfallTable.Count > 0) Log.Info($"[water] 安装：{WaterfallTable.Count} 个瀑布样式");
     }
 
-    /// <summary>LiquidRenderer._liquidTextures 与 TextureAssets 两张表同长扩。</summary>
     private static void GrowLiquidRenderer(int total)
     {
         try
@@ -378,15 +338,6 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    // ===================== 贴图槽 =====================
-
-    /// <summary>
-    /// 三张水贴图表 + 瀑布表都在这里写：主贴图进 <c>LiquidRenderer._liquidTextures</c>，
-    /// <c>_Block</c> 进 <c>TextureAssets.Liquid</c>，<c>_Slope</c> 进 <c>TextureAssets.LiquidSlope</c>，
-    /// 瀑布进 <c>WaterfallManager.waterfallTexture</c>。
-    /// 必须在贴图上传（Surface 阶段）之后调：Static 阶段 Texture 还是 null，写了也只会掉回原版。
-    /// 缺贴图按作者约定回落到前一张/原版 0 号，不让游戏读到空槽。
-    /// </summary>
     internal void SetupTextures()
     {
         var written = 0;
@@ -406,7 +357,6 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
                 var block = LoadOptional(water, water.BlockTexture) ?? main;
                 var slope = LoadOptional(water, water.SlopeTexture) ?? block;
 
-                // 回落到原版 0 号：空槽位在绘制/光照里就是空指针。
                 if (liquid is not null && water.Type < liquid.Length && liquid.Length > 0)
                     liquid[water.Type] = main ?? liquid[0];
                 if (blocks is not null && water.Type < blocks.Length && block is not null)
@@ -441,7 +391,6 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         if (falls > 0) Log.Info($"[water] 瀑布贴图：写 {falls}");
     }
 
-    /// <summary>可选的附加贴图：文件不存在返回 null，交给调用方回落。</summary>
     private static Asset<Texture2D>? LoadOptional(ModWaterStyle water, string? path)
     {
         if (string.IsNullOrEmpty(path)) return null;
@@ -460,7 +409,6 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
     {
         if (asset is null) return false;
 
-        // interop 代理把私有静态字段生成为公开属性：直接读写，不用走原生按名查找。
         var array = WaterfallManager.waterfallTexture;
         if (array is null || type < 0 || type >= array.Length) return false;
 
@@ -468,11 +416,6 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         return true;
     }
 
-    /// <summary>
-    /// 单个瀑布的绘制：mod 瀑布样式在这里要两样东西——颜色乘子（<c>ColorMultiplier</c>）与加光点（<c>AddLight</c>）。
-    /// 这个重载带 <c>ref Color</c> 与格坐标，是唯一能"在画之前改颜色、并知道画在哪"的入口。
-    /// 原版瀑布直接放行，一点额外开销都不加。
-    /// </summary>
     private static void TintWaterfall(
         On.Terraria.WaterfallManager.orig_DrawWaterfall_int_int_int_float_Vector2_RectangleRef_ColorRef_SpriteEffects orig, WaterfallManager self, int waterfallType, int x,
         int y, float opacity,
@@ -522,10 +465,6 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         return value <= 0f ? (byte)0 : value >= 255f ? (byte)255 : (byte)value;
     }
 
-    /// <summary>
-    /// 群落染发色：原版让"水的样式"决定发色（丛林水把头发染绿），所以 mod 水样式也照这条走——
-    /// 当前 <c>Main.waterStyle</c> 是 mod 水样式就返回它的 <see cref="ModWaterStyle.BiomeHairColor"/>。
-    /// </summary>
     private static Il2CppMicrosoft.Xna.Framework.Graphics.Color HairColor(
         On.Terraria.Player.orig_GetHairColor orig, Player self, bool useLighting)
     {
@@ -533,8 +472,6 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
 
         if (WaterTable.Of(Main.waterStyle) is not { } water) return color;
 
-        // 只在"真的站在用这条水的群落里"时才染：tML 的默认值是丛林绿，不设这道闸的话
-        // 任何 mod 水样式都会把玩家头发默认染绿。
         if (!InBiomeOf(self, water)) return color;
 
         try
@@ -548,7 +485,6 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    /// <summary>这个玩家现在站的群落里，有没有哪一个把这条水样式当自己的。</summary>
     private static bool InBiomeOf(Player player, ModWaterStyle water)
     {
         foreach (var biome in ModContent.GetContent<ModBiome>())
@@ -573,11 +509,6 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         return false;
     }
 
-    /// <summary>
-    /// 原版只画它认识的那 28 种瀑布；mod 水样式抢到 <c>Main.waterStyle</c> 之后由这里补画：
-    /// 按当前水样式声明的瀑布编号画一次。透明度用本管线自己的淡入淡出（原版的 <c>Main.liquidAlpha</c>
-    /// 只到原版水样式数，没有 mod 水样式的槽位）：切进这个瀑布时淡入、切走时淡出。
-    /// </summary>
     private static void DrawWaterfalls(On.Terraria.WaterfallManager.orig_Draw orig, WaterfallManager self,
                                       SpriteBatch spriteBatch)
     {
@@ -586,7 +517,7 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         if (WaterfallTable.Count == 0 || Main.gameMenu || Main.dedServ) return;
 
         var water = WaterTable.Of(Main.waterStyle);
-        if (water is null) return;   // 原版水：原版绘制已经画了对的瀑布
+        if (water is null) return;
 
         int style;
         try
@@ -600,7 +531,7 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         }
 
         var fall = WaterfallTable.Of(style);
-        if (fall is null) return;   // 0（森林）或其它原版编号：原版那次 Draw 已经画了
+        if (fall is null) return;
 
         var alpha = StepAlpha(style);
         if (alpha <= 0f) return;
@@ -615,11 +546,9 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    /// <summary>mod 瀑布的淡入：当前编号的不透明度，切到别的编号就从头淡。</summary>
     private static int _fallStyle = -1;
     private static float _fallAlpha;
 
-    /// <summary>每帧一步（约半秒淡到位）。只有当前样式的瀑布会被画，所以只做淡入，切走后直接归零。</summary>
     private const float FallFadeStep = 0.02f;
 
     private static float StepAlpha(int style)
@@ -634,12 +563,6 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         return _fallAlpha;
     }
 
-    // ===================== 每帧 =====================
-
-    /// <summary>
-    /// 场景效果的赢家声明了水样式就写上；没声明、或这一帧的档位压不过原版（<paramref name="allowed"/> = false）
-    /// 就一个字都不动——保持游戏自己算的值。
-    /// </summary>
     internal void Apply(ModSceneEffect? effect, bool allowed)
     {
         if (effect is null || !allowed) return;
@@ -666,22 +589,20 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         Main.waterStyle = style.Type;
     }
 }
+
 /// <summary>水样式与瀑布样式相关的原生表。</summary>
 internal static class WaterTables
 {
-    /// <summary>水样式：TextureAssets.Liquid 与 LiquidSlope 同长。</summary>
     private static readonly Type[] Types = [typeof(Terraria.GameContent.TextureAssets)];
 
     private static readonly Type[] FallTypes = [typeof(Terraria.WaterfallManager)];
 
     internal static readonly TableSet Style = new("水样式", () => Vanilla, Types);
 
-    /// <summary>瀑布样式：贴图表在 WaterfallManager 的静态字段里。</summary>
     internal static readonly TableSet Waterfall = new("瀑布贴图", () => WaterfallVanilla, FallTypes);
 
     private static int _vanilla;
 
-    /// <summary>原版水样式表长：没有编译期 Count，只能在扩表之前按表长捕获一次。</summary>
     internal static int Vanilla
     {
         get
@@ -695,7 +616,6 @@ internal static class WaterTables
 
     private static int _waterfallVanilla;
 
-    /// <summary>原版瀑布表长（读到 0 说明表还没建，不缓存）。</summary>
     internal static int WaterfallVanilla
     {
         get

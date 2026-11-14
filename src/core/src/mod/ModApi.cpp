@@ -1,4 +1,3 @@
-// 层：内核层 / mod —— 导出 ABI 的实现（声明与纪律见 include/pylon/mod/ModApi.h）
 #include "pylon/mod/ModApi.h"
 
 #include <cstdio>
@@ -10,13 +9,13 @@
 #include "il2cpp/Domain.h"
 #include "il2cpp/Invoke.h"
 #include "mod/LimitPatch.h"
+#include "mod/SystemBridges.h"
 #include "pylon/Log.h"
 
-using namespace pylon;  // NOLINT(google-build-using-namespace) 导出层，写法短一点更好读
+using namespace pylon;
 
 namespace {
 
-/// 线程内错误缓冲：`PylonMod_LastError()` 的指针须稳定到下次调用为止，不能用会被释放的 c_str()。
 thread_local char g_last_error[512] = {0};
 thread_local std::string g_exception_text;
 
@@ -26,17 +25,14 @@ void SetError(const std::string& text) {
 
 void ClearError() { g_last_error[0] = '\0'; }
 
-/// 托管字符串长度上限：与 il2cpp/Call.cpp 保持一致，避免拿着可疑指针连续读。
 constexpr int32_t kMaxManagedStringLength = 4096;
 
-/// UTF-16 码元 → UTF-8 字节数。
 int Utf8Length(char16_t code) {
     if (code < 0x80) return 1;
     if (code < 0x800) return 2;
     return 3;
 }
 
-/// UTF-16 码元 → UTF-8 字节（不处理代理对：BMP 之外会各自编码成 3 字节）。
 int EncodeUtf8(char16_t code, char out[4]) {
     if (code < 0x80) {
         out[0] = static_cast<char>(code);
@@ -53,7 +49,6 @@ int EncodeUtf8(char16_t code, char out[4]) {
     return 3;
 }
 
-// 每次入口都 attach：按线程生效，新线程上跳过就会 SIGSEGV。
 std::optional<il2cpp::Session> Enter() {
     auto attached = il2cpp::Domain::Attach();
     if (!attached) {
@@ -63,7 +58,6 @@ std::optional<il2cpp::Session> Enter() {
     return attached.value;
 }
 
-/// 解析 `命名空间.类型`，失败时把原因写进 LastError。
 il2cpp::Il2CppClass* RequireType(const il2cpp::Session& session, const char* qualified_name) {
     if (qualified_name == nullptr || *qualified_name == '\0') {
         SetError("类型名为空");
@@ -80,7 +74,6 @@ il2cpp::Il2CppClass* RequireType(const il2cpp::Session& session, const char* qua
     return found.value;
 }
 
-// 宽度确认不是可选项：il2cpp_field_get_value 按字段真实类型写入，缓冲小了就是静默栈破坏。
 bool PrepareField(const il2cpp::Session& session, const char* type, const char* field, il2cpp::Field* out) {
     il2cpp::Il2CppClass* klass = RequireType(session, type);
     if (klass == nullptr) return false;
@@ -131,7 +124,6 @@ bool SetFieldRaw(void* instance, const char* type, const char* field, const void
     return true;
 }
 
-/// 方法调用的共同路径：解析 → InvokeRaw → 记录异常状态。
 il2cpp::CallResult CallMethod(void* instance, const char* type, const char* method, int32_t argc,
                               void** argv, bool* is_static_out) {
     ClearError();
@@ -154,7 +146,6 @@ il2cpp::CallResult CallMethod(void* instance, const char* type, const char* meth
         return result;
     }
 
-    // 参数个数由调用方给死（Mod ABI 不做 0..8 探测：调用是有副作用的，不能试）。
     auto resolved = il2cpp::Method::Resolve(*session, type, method, argc);
     if (!resolved) {
         SetError(resolved.reason);
@@ -172,11 +163,7 @@ il2cpp::CallResult CallMethod(void* instance, const char* type, const char* meth
     return result;
 }
 
-}  // namespace
-
-// ---------------------------------------------------------------------------
-// 版本 / 日志 / 错误
-// ---------------------------------------------------------------------------
+}
 
 PYLON_MOD_EXPORT int32_t PylonMod_ApiVersion() {
     return (mod::kApiVersionMajor << 16) | mod::kApiVersionMinor;
@@ -188,20 +175,12 @@ PYLON_MOD_EXPORT void PylonMod_Log(const char* utf8) {
 
 PYLON_MOD_EXPORT const char* PylonMod_LastError() { return g_last_error; }
 
-// ---------------------------------------------------------------------------
-// 按名解析
-// ---------------------------------------------------------------------------
-
 PYLON_MOD_EXPORT void* PylonMod_FindType(const char* qualified_name) {
     ClearError();
     const auto session = Enter();
     if (!session) return nullptr;
     return RequireType(*session, qualified_name);
 }
-
-// ---------------------------------------------------------------------------
-// 按名解析：方法的原生代码指针
-// ---------------------------------------------------------------------------
 
 PYLON_MOD_EXPORT void* PylonMod_MethodPointer(const char* qualified_name, const char* method,
                                               int32_t argc) {
@@ -215,7 +194,6 @@ PYLON_MOD_EXPORT void* PylonMod_MethodPointer(const char* qualified_name, const 
         return nullptr;
     }
 
-    // 与 PylonMod_Invoke* 同一纪律：按名解析前必须先 attach（当前线程）。
     const auto session = Enter();
     if (!session) return nullptr;
 
@@ -230,7 +208,6 @@ PYLON_MOD_EXPORT void* PylonMod_MethodPointer(const char* qualified_name, const 
         return nullptr;
     }
 
-    // IL2CPP 的 MethodInfo 头部第一个指针宽字段就是 methodPointer（代码地址，ShadowHook 要 patch 它）。
     void* method_pointer = nullptr;
     std::memcpy(&method_pointer, info, sizeof(method_pointer));
     if (method_pointer == nullptr) {
@@ -239,10 +216,6 @@ PYLON_MOD_EXPORT void* PylonMod_MethodPointer(const char* qualified_name, const 
     }
     return method_pointer;
 }
-
-// ---------------------------------------------------------------------------
-// 编译期类型上限：改 ARM64 的 cmp 立即数（见 mod/LimitPatch.cpp）
-// ---------------------------------------------------------------------------
 
 PYLON_MOD_EXPORT int32_t PylonMod_PatchCompareLimit(const char* qualifiedName, const char* method,
                                                     int32_t argc, uint32_t oldLimit,
@@ -281,10 +254,6 @@ PYLON_MOD_EXPORT int32_t PylonMod_PatchCompareLimit(const char* qualifiedName, c
     return patched;
 }
 
-// ---------------------------------------------------------------------------
-// 字段：实例
-// ---------------------------------------------------------------------------
-
 PYLON_MOD_EXPORT int32_t PylonMod_GetInt32Field(void* instance, const char* type,
                                                 const char* field, int32_t* out) {
     if (out == nullptr) {
@@ -319,7 +288,6 @@ PYLON_MOD_EXPORT int32_t PylonMod_GetBooleanField(void* instance, const char* ty
         SetError("out 为空");
         return 0;
     }
-    // C# 的 bool 在托管内存里是 1 字节，跨 ABI 用 int32 表达更好用。
     uint8_t raw = 0;
     if (!GetFieldRaw(instance, type, field, &raw, sizeof(raw))) return 0;
     *out = raw != 0 ? 1 : 0;
@@ -344,10 +312,6 @@ PYLON_MOD_EXPORT int32_t PylonMod_SetObjectField(void* instance, const char* typ
     return SetFieldRaw(instance, type, field, &value) ? 1 : 0;
 }
 
-// ---------------------------------------------------------------------------
-// 线程纪律（Mod 必须知道的一件事）
-// ---------------------------------------------------------------------------
-
 PYLON_MOD_EXPORT int32_t PylonMod_IsGameThread() {
     return il2cpp::Domain::OnGameThread() ? 1 : 0;
 }
@@ -359,10 +323,6 @@ PYLON_MOD_EXPORT int64_t PylonMod_GameThreadId() {
 PYLON_MOD_EXPORT int64_t PylonMod_CurrentThreadId() {
     return static_cast<int64_t>(gettid());
 }
-
-// ---------------------------------------------------------------------------
-// 字段：静态
-// ---------------------------------------------------------------------------
 
 PYLON_MOD_EXPORT int32_t PylonMod_GetStaticInt32(const char* type, const char* field,
                                                  int32_t* out) {
@@ -404,10 +364,6 @@ PYLON_MOD_EXPORT void* PylonMod_GetStaticObject(const char* type, const char* fi
     if (!GetFieldRaw(nullptr, type, field, &value, sizeof(void*))) return nullptr;
     return value;
 }
-
-// ---------------------------------------------------------------------------
-// 方法调用
-// ---------------------------------------------------------------------------
 
 PYLON_MOD_EXPORT void* PylonMod_InvokeStatic(const char* type, const char* method,
                                              int32_t argc, void** argv) {
@@ -519,10 +475,6 @@ PYLON_MOD_EXPORT int32_t PylonMod_HadException() { return g_exception_text.empty
 
 PYLON_MOD_EXPORT const char* PylonMod_ExceptionText() { return g_exception_text.c_str(); }
 
-// ---------------------------------------------------------------------------
-// 托管字符串
-// ---------------------------------------------------------------------------
-
 PYLON_MOD_EXPORT void* PylonMod_NewString(const char* utf8) {
     ClearError();
     if (utf8 == nullptr) {
@@ -536,7 +488,6 @@ PYLON_MOD_EXPORT void* PylonMod_NewString(const char* utf8) {
     }
     const auto session = Enter();
     if (!session) return nullptr;
-    // 造托管字符串就是碰托管堆，纪律与"调方法/读写实例字段"相同。
     if (Status ready = il2cpp::Domain::RequireGameThread("创建托管字符串"); !ready) {
         SetError(ready.reason);
         return nullptr;
@@ -559,7 +510,6 @@ PYLON_MOD_EXPORT int32_t PylonMod_ReadString(void* managed_string, char* out, in
     }
 
     const il2cpp::Symbols& symbols = il2cpp::Domain::symbols();
-    // 先确认拿到的**确实是** System.String：否则按字符串布局读任意对象的字段就是越界读。
     if (symbols.object_get_class != nullptr && symbols.class_get_name != nullptr) {
         il2cpp::Il2CppClass* klass =
                 symbols.object_get_class(static_cast<il2cpp::Il2CppObject*>(managed_string));
@@ -583,7 +533,6 @@ PYLON_MOD_EXPORT int32_t PylonMod_ReadString(void* managed_string, char* out, in
         return -1;
     }
 
-    // 先算出 UTF-8 总长；缓冲不够时**不写半截**，只回所需长度，调用方按它重开缓冲重试。
     int32_t needed = 0;
     for (int32_t i = 0; i < str->length; ++i) needed += Utf8Length(str->chars[i]);
 
@@ -601,3 +550,51 @@ PYLON_MOD_EXPORT int32_t PylonMod_ReadString(void* managed_string, char* out, in
     return written;
 }
 
+extern "C" int32_t pylon_call_with_x27(void* arg0, void* arg1, void* fn, void* statics);
+
+PYLON_MOD_EXPORT int32_t PylonMod_PatchInstruction(void* body, int32_t byte_offset,
+                                                   uint32_t expected, uint32_t replacement) {
+    ClearError();
+    if (body == nullptr || byte_offset < 0 || (byte_offset & 3) != 0) {
+        SetError("方法体或字节偏移非法（偏移须 4 字节对齐）");
+        return -1;
+    }
+    auto* at = reinterpret_cast<uint32_t*>(reinterpret_cast<uintptr_t>(body) + byte_offset);
+    if (*at != expected) {
+        char expect[16] = {0};
+        std::snprintf(expect, sizeof(expect), "0x%08X", expected);
+        SetError(std::string("指令指纹不符（期望 ") + expect + "，实际不同——游戏版本变了？）");
+        return -2;
+    }
+    if (!mod::WriteInstruction(at, replacement)) {
+        SetError("指令改写失败（mprotect / clear_cache）");
+        return -3;
+    }
+    return 0;
+}
+
+PYLON_MOD_EXPORT int32_t PylonMod_CallWithStatics(void* fn, void* statics, void* arg0, void* arg1) {
+    ClearError();
+    if (fn == nullptr || statics == nullptr) {
+        SetError("函数指针或静态块为空");
+        return 0;
+    }
+    return pylon_call_with_x27(arg0, arg1, fn, statics);
+}
+
+PYLON_MOD_EXPORT int32_t PylonMod_SystemBridgeInstall(int32_t stage, void* body,
+                                                      int32_t byteOffset,
+                                                      const uint32_t* expected,
+                                                      void** trampoline) {
+    ClearError();
+    const int32_t rc = pylon::mod::SystemBridgeInstall(stage, body, byteOffset, expected, trampoline);
+    if (rc == -1) SetError("桥参数非法（stage/方法体/偏移/指纹指针）");
+    else if (rc == -2) SetError("桥位指纹不符（16 字节）——游戏版本变了？");
+    else if (rc == -3) SetError("挂钩失败（ShadowHook，见内核日志）");
+    return rc;
+}
+
+PYLON_MOD_EXPORT void PylonMod_SystemBridgeSubscribe(int32_t stage,
+                                                     void (*callback)(int32_t, void*)) {
+    pylon::mod::SystemBridgeSubscribe(stage, callback);
+}

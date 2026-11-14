@@ -10,6 +10,12 @@ internal static partial class PatchNative
     internal static partial int CompareLimit(string type, string method, int argc, uint oldLimit, uint newLimit,
         int belowToo, int shifted);
 
+    [LibraryImport("pylon", EntryPoint = "PylonMod_PatchInstruction")]
+    internal static partial int PatchInstruction(IntPtr body, int byteOffset, uint expected, uint replacement);
+
+    [LibraryImport("pylon", EntryPoint = "PylonMod_CallWithStatics")]
+    internal static partial int CallWithStatics(IntPtr fn, IntPtr statics, IntPtr arg0, IntPtr arg1);
+
     [LibraryImport("pylon", EntryPoint = "PylonMod_LastError")]
     internal static partial IntPtr LastError();
 }

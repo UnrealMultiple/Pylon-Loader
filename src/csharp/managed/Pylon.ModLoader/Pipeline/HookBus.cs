@@ -13,10 +13,8 @@ internal sealed class HookBus
 
     private Mod[][] _channels = CreateEmpty();
 
-    /// <summary>这个钩子的订阅者（按加载顺序）；没有订阅者时返回空 span。</summary>
-    public ReadOnlySpan<Mod> Channel(HookId id) => _channels[(int)id];
+    public ModChannel Channel(HookId id) => new(_channels[(int)id], (int)id);
 
-    /// <summary>按每个 Mod 的覆写位集重建全部通道。</summary>
     public void Rebuild(IReadOnlyList<Mod> mods)
     {
         var counts = new int[HookCount];
@@ -47,6 +45,7 @@ internal sealed class HookBus
         }
 
         _channels = channels;
+        HookProfile.EnsureCapacity(mods.Count);
     }
 
     private static Mod[][] CreateEmpty()

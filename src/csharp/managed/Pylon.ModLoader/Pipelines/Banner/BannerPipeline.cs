@@ -47,18 +47,12 @@ internal sealed class BannerPipeline : ILoaderModule
         return true;
     }
 
-    /// <summary>安装期建表：NPC 的 Banner / BannerItem 在 SetStaticDefaults 里才写完，所以放在 Samples 阶段。</summary>
     internal void Build()
     {
         BannerTable.Build();
         if (BannerTable.Count > 0) Log.Info($"[banner] 安装：{BannerTable.Count} 面旗子");
     }
 
-    // ===================== 映射 =====================
-
-    // 所有 mod 编号（>= 原版 NPC 数）都由侧表回答。即使作者声明坏了、表里没登记，
-    // 也绝不把 mod 编号交给原版——原版的 killCount / claimableBanners 只有原版长度，
-    // 用 698 去索引就是越界读写（真机表现为之后点屏幕没反应/输入异常）。
     private static bool IsModId(int id) => id >= VanillaCounts.Npc;
 
     private static int NpcToBanner(On.Terraria.GameContent.BannerSystem.orig_NPCtoBanner orig, int i)
@@ -77,8 +71,6 @@ internal sealed class BannerPipeline : ILoaderModule
 
     private static int BannerToNpc(On.Terraria.GameContent.BannerSystem.orig_BannerToNPC orig, int i) =>
         IsModId(i) ? i : orig(i);
-
-    // ===================== 计数 =====================
 
     private static int GetKillCount(On.Terraria.GameContent.BannerSystem.orig_GetKillCount orig, int banner) =>
         IsModId(banner) ? BannerTable.Kills(banner) : orig(banner);
@@ -106,7 +98,6 @@ internal sealed class BannerPipeline : ILoaderModule
             return;
         }
 
-        // 未登记的 mod NPC（作者声明错/表没建成）：直接丢弃，原版表没有它的位置。
         if (IsModId(npcType)) return;
 
         orig(npcType, plr);
@@ -143,15 +134,6 @@ internal sealed class BannerPipeline : ILoaderModule
         BannerTable.ClearState();
     }
 
-    // ===================== 玩家侧读表 =====================
-
-    // SceneMetrics.NPCBannerBuff 是玩家侧按 NPC/旗子编号读的实例表，本版不扩。
-    // 这三个是它的公开读取入口：mod 编号一律直接答"没有 buff"，既不越界、也不用真机去赌。
-
-    /// <summary>
-    /// 领取界面读的那张"每面可领几个"表：原版数组照给，再把 mod 旗子的格子补到够长（原版长度之外全是 0）。
-    /// UI 按数组长度扫，多出来的格就是 mod 旗子；不扩游戏那张静态表，只换这一次返回的副本。
-    /// </summary>
     private static Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<ushort> ClaimableCounts(
         On.Terraria.GameContent.BannerSystem.orig_GetClaimableBannerCounts orig)
     {
@@ -166,9 +148,6 @@ internal sealed class BannerPipeline : ILoaderModule
         var length = Math.Max(vanilla.Length, max + 1);
         if (length == vanilla.Length) return vanilla;
 
-        // 不能 new Il2CppStructArray<ushort>(length)：ARM64 上 Il2CppClassPointerStore<ushort>
-        // 不是合法的元素类（真机实测 SIGSEGV，x0=类型号）。用原版数组的元素类走 il2cpp_array_new，
-        // 再把 mod 旗子的格子写进新数组（ArrayGrow 已经按值类型整块拷贝）。
         var grown = ArrayGrow.Grow(vanilla.Pointer, length);
         if (grown == IntPtr.Zero) return vanilla;
 
@@ -183,10 +162,6 @@ internal sealed class BannerPipeline : ILoaderModule
         return merged;
     }
 
-    /// <summary>
-    /// 领 mod 旗子：原版那条路只认它自己的表，所以 mod 编号在这里结算。
-    /// 单机/服务器当场扣数发物品；客户端只发请求——扣数与发物品都由服务器做，否则两边各发一份。
-    /// </summary>
     private static void RequestClaim(On.Terraria.GameContent.BannerSystem.orig_RequestBannerClaim orig, int banner,
                                      int amount)
     {
@@ -196,7 +171,6 @@ internal sealed class BannerPipeline : ILoaderModule
             return;
         }
 
-        // mod 编号但表里没有（声明错/建表失败）：丢弃，绝不落到原版的 claimableBanners[banner]。
         if (!BannerTable.IsMod(banner)) return;
 
         if (Main.netMode == 1)
@@ -215,18 +189,12 @@ internal sealed class BannerPipeline : ILoaderModule
         BannerTable.SetFresh(banner, false);
     }
 
-    // ===================== 插在地上的旗子：减伤 buff =====================
-
-    /// <summary>附近有哪些 mod 旗子（每 <see cref="BuffInterval"/> 帧重算一次）。</summary>
     private static int[] _nearby = [];
 
-    /// <summary>多少帧扫一次附近：旗子不会瞬移，半秒一次足够。</summary>
     private const int BuffInterval = 20;
 
-    /// <summary>多远算"在旗下"（格）。原版把旗子算进场景扫描窗口，这里取与扫描窗口同量级的 40 格。</summary>
     private const int BuffRange = 40;
 
-    /// <summary>定期扫玩家附近的旗子方块，记下这一批旗子号。</summary>
     private static void BuffScan(On.Terraria.Main.orig_Update orig, Main self,
                                  Il2CppMicrosoft.Xna.Framework.GameTime gameTime)
     {
@@ -254,7 +222,6 @@ internal sealed class BannerPipeline : ILoaderModule
                 var tile = Main.tile[x, y];
                 if (!tile.active()) continue;
 
-                // 旗子是 StyleHorizontal：样式在左上角那格，一格的宽度是 18 像素。
                 var style = tile.frameX / 18;
                 var banner = BannerTable.BannerOfTileAt(tile.type, style);
                 if (banner > 0 && !found.Contains(banner)) found.Add(banner);
@@ -264,10 +231,6 @@ internal sealed class BannerPipeline : ILoaderModule
         _nearby = [.. found];
     }
 
-    /// <summary>
-    /// 原版每次场景扫描都会把 <c>NPCBannerBuff</c> 清空再按方块点亮；mod 旗子方块没有原版那套 NearbyEffects，
-    /// 所以在扫描之后补点亮。顺便把这张表补到能容纳 mod 旗子号（实例字段，直接换整块数组）。
-    /// </summary>
     private static void BuffApply(On.Terraria.SceneMetrics.orig_Scan orig, SceneMetrics self, SceneMetricsScanSettings settings)
     {
         orig(self, settings);
@@ -295,18 +258,9 @@ internal sealed class BannerPipeline : ILoaderModule
             any = true;
         }
 
-        // 原版用 hasBanner 判断"附近有旗子"（减伤链的前置）；mod 旗子方块没有 NearbyEffects，这里补上。
         if (any) self.hasBanner = true;
     }
 
-    /// <summary>
-    /// servamp：两张表（<c>NPCBannerBuff</c> 与 <c>ItemID.Sets.BannerStrength</c>）都已补到容纳 mod 编号，
-    /// 所以 mod 旗子直接问原版即可——减伤数值也走原版那套，我们不复刻。越界前先兜一下，免得表没补上时崩。
-    /// 注意：不要再钩 <c>Player.GetBannerBuffEffect</c>（两个重载都不行）。
-    /// 它的 <c>out ItemID.BannerEffect</c> 是含引用字段的非 blittable struct（24 字节），
-    /// 插件的 out 封送会把 out 指针传成 null，原版往里写 → 攻击 NPC 时 SIGSEGV fault 0x10。
-    /// 表扩长后原版逻辑对 mod 旗子本来就成立，这两个钩子属多余。
-    /// </summary>
     private static bool HasNpcBannerBuff(On.Terraria.Player.orig_HasNPCBannerBuff orig, Player self, int bannerType)
     {
         var table = Main.SceneMetrics?.NPCBannerBuff;
@@ -315,11 +269,6 @@ internal sealed class BannerPipeline : ILoaderModule
         return orig(self, bannerType);
     }
 
-    /// <summary>
-    /// 旗帜 buff 的提示框：原版循环到 <c>BannerSystem.MaxBannerTypes</c>（只到原版 NPC 数）就停，
-    /// mod 旗子的名字永远进不了"提高对以下怪的伤害和防御："后面。临时把上界抬到最大 mod 旗子号，
-    /// 画完再还原（只改这一次工具提示，不动游戏的存档/数组语义）。
-    /// </summary>
     private static void BuffTooltip(On.Terraria.Main.orig_MouseText_DrawBuffTooltip orig, Main self,
                                     string cursorText, string buffString, ref int x, ref int y)
     {
@@ -348,14 +297,11 @@ internal sealed class BannerPipeline : ILoaderModule
         }
     }
 
-    /// <summary>这面 mod 旗子此刻有没有被点亮（表还没补就当作没有）。</summary>
     private static bool HasBuff(int banner)
     {
         var table = Main.SceneMetrics?.NPCBannerBuff;
         return table is not null && banner < table.Length && table[banner];
     }
-
-    // ===================== 存档 =====================
 
     private static void LoadWorld(On.Terraria.IO.WorldFile.orig_LoadWorld orig, bool canCheckFileState)
     {
@@ -425,6 +371,8 @@ internal sealed class BannerPipeline : ILoaderModule
     private static string? DataFile()
     {
         var path = Main.worldPathName;
-        return string.IsNullOrEmpty(path) ? null : path + ".wld.banners.json";
+        if (string.IsNullOrEmpty(path)) return null;
+        if (path.EndsWith(".wld", StringComparison.OrdinalIgnoreCase)) path = path[..^4];
+        return path + ".wld.banners.json";
     }
 }

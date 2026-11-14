@@ -20,7 +20,105 @@ internal static class PlayerFishingHooks
         On.Terraria.Projectile.AI_061_FishingBobber_GiveItemToPlayer += Give;
         On.Terraria.Player.QuickSpawnItem_IEntitySource_Item += QuickSpawn;
         On.Terraria.Player.QuickSpawnItem_IEntitySource_Item_GetItemSettings += QuickSpawnWithSettings;
+        On.Terraria.Player.ItemCheck_CheckFishingBobber_ConsumeBait += ConsumeBait;
         FishingLineHooks.Install();
+    }
+
+    private static bool ConsumeBait(On.Terraria.Player.orig_ItemCheck_CheckFishingBobber_ConsumeBait orig,
+                                    Player self, Projectile bobber, out int baitTypeUsed)
+    {
+        var mods = LoaderHost.Current.Hooks.Channel(HookId.ConsumeBait);
+        if (mods.IsEmpty)
+            return orig(self, bobber, out baitTypeUsed);
+
+        var inv = self.inventory;
+        Span<int> before = stackalloc int[inv.Length * 2];
+        Snapshot(inv, before);
+
+        var caught = orig(self, bobber, out baitTypeUsed);
+        var vanillaBait = baitTypeUsed;
+
+        bool? decision = null;
+        foreach (var mod in mods)
+        {
+            try
+            {
+                var d = mod.ConsumeBait(ref baitTypeUsed);
+                if (d is not null && decision != false) decision = d;
+            }
+            catch (Exception e)
+            {
+                Safe.Report(mod.Name + ".ConsumeBait", e);
+            }
+        }
+
+        if (decision.HasValue)
+        {
+            var changed = FindConsumedSlot(inv, before);
+            if (decision.Value)
+            {
+                if (baitTypeUsed != vanillaBait && changed >= 0) RestoreSlot(inv, changed, before);
+                if (baitTypeUsed != vanillaBait || changed < 0) ConsumeOne(inv, baitTypeUsed);
+            }
+            else if (changed >= 0)
+            {
+                RestoreSlot(inv, changed, before);
+            }
+        }
+
+        return caught;
+    }
+
+    private static void Snapshot(Item[] inv, Span<int> before)
+    {
+        for (var i = 0; i * 2 + 1 < before.Length && i < inv.Length; i++)
+        {
+            var item = inv[i];
+            before[i * 2] = item?.type ?? 0;
+            before[i * 2 + 1] = item?.stack ?? 0;
+        }
+    }
+
+    private static int FindConsumedSlot(Item[] inv, Span<int> before)
+    {
+        for (var i = 0; i < inv.Length && i * 2 + 1 < before.Length; i++)
+        {
+            var snapType = before[i * 2];
+            if (snapType <= 0) continue;
+            var item = inv[i];
+            if (item is null || item.type == 0 || (item.type == snapType && item.stack < before[i * 2 + 1]))
+                return i;
+        }
+
+        return -1;
+    }
+
+    private static void RestoreSlot(Item[] inv, int slot, Span<int> before)
+    {
+        var item = inv[slot];
+        if (item is null || item.type == 0)
+        {
+            var restored = new Item { type = before[slot * 2], stack = before[slot * 2 + 1] };
+            inv[slot] = restored;
+        }
+        else
+        {
+            item.stack++;
+        }
+    }
+
+    private static void ConsumeOne(Item[] inv, int type)
+    {
+        if (type <= 0) return;
+
+        for (var i = 0; i < inv.Length; i++)
+        {
+            var item = inv[i];
+            if (item is null || item.type != type || item.stack <= 0) continue;
+            item.stack--;
+            if (item.stack <= 0) inv[i] = new Item();
+            return;
+        }
     }
 
     private static Player? Owner(Projectile projectile, HookId hook)
@@ -46,7 +144,6 @@ internal static class PlayerFishingHooks
                 try { mod.ModifyFishingAttempt(player, ref attempt); }
                 catch (Exception e) { Fail(mod, HookId.ModifyFishingAttempt, e); }
             }
-            // 条件修改发生在掷骰之前；结果只能由后续掷骰与 CatchFish 决定。
             attempt.rolledItemDrop = item;
             attempt.rolledEnemySpawn = npc;
         }
@@ -72,7 +169,6 @@ internal static class PlayerFishingHooks
     {
         var outerPlayer = _catchPlayer;
         var outerPending = _catchPending;
-        // 每层领奖独立消费一次，嵌套且无订阅的领奖也不能借用外层状态。
         _catchPlayer = player.Pointer;
         _catchPending = Players.ModsActive(HookId.ModifyCaughtFish);
         try { orig(self, player, itemType); }
@@ -86,7 +182,6 @@ internal static class PlayerFishingHooks
     private static void Caught(Player player, Item fish)
     {
         if (!_catchPending || _catchPlayer != player.Pointer) return;
-        // 两个重载可能相互转调；先消费，作者内部另行生成物品也不会递归触发。
         _catchPending = false;
         foreach (var mod in Players.ModsOf(player))
         {

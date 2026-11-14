@@ -21,7 +21,7 @@ internal static class XiheSky
     internal static void Install()
     {
         if (_installed) return;
-        // Bunny-Loader 的背景管线在 BackMountainsStep1 后绘制远景；在总入口
+        // 背景远景要挂在 BackMountainsStep1 之后：在总入口
         // DrawSurfaceBG 挂载会落到最终背景层，覆盖玩家/弹幕。
         On.Terraria.Main.DrawSurfaceBG_BackMountainsStep1 += Draw;
         _installed = true;

@@ -24,7 +24,7 @@ internal static class ModWorldGenHooks
         On.Terraria.GameContent.Generation.PassLegacy.ApplyPass += ApplyPass;
     }
 
-    private static ReadOnlySpan<Mod> Of(HookId hook) => LoaderHost.Current.Hooks.Channel(hook);
+    private static ModChannel Of(HookId hook) => LoaderHost.Current.Hooks.Channel(hook);
 
     private static bool Generate(On.Terraria.WorldBuilding.WorldGenerator.orig_GenerateWorld orig, WorldGenerator self)
     {
@@ -65,7 +65,6 @@ internal static class ModWorldGenHooks
         finally
         {
             _current = outer;
-            // 原生列表只持游戏指针;保留工厂返回的托管包装,让回调在整次生成中可达。
             GC.KeepAlive(tasks);
         }
     }
@@ -78,7 +77,6 @@ internal static class ModWorldGenHooks
         return table is not null && type < table.Length && table[type];
     }
 
-    /// <summary>清理阶段会把未知箱体改成原版类型;仅恢复仍有效的箱体格,不复活已删除方块。</summary>
     private static void KeepModChests(List<GenPass> tasks)
     {
         var index = tasks.FindIndex(static pass => pass.Name == "Tile Cleanup");
@@ -120,7 +118,7 @@ internal static class ModWorldGenHooks
         tasks[index] = replacement;
     }
 
-    private static void Post(ReadOnlySpan<Mod> mods)
+    private static void Post(ModChannel mods)
     {
         foreach (var mod in mods)
         {
@@ -129,7 +127,7 @@ internal static class ModWorldGenHooks
         }
     }
 
-    private static void Edit(List<GenPass> tasks, ReadOnlySpan<Mod> mods, bool hardmode)
+    private static void Edit(List<GenPass> tasks, ModChannel mods, bool hardmode)
     {
         foreach (var mod in mods)
         {
@@ -139,7 +137,6 @@ internal static class ModWorldGenHooks
                 if (hardmode) mod.ModifyHardmodeTasks(tasks);
                 else mod.ModifyWorldGenTasks(tasks);
                 WeightOf(tasks);
-                // 作者可把预先保存的步骤插回列表;换回其原始包装保持托管回调存活。
                 for (var i = 0; i < tasks.Count; i++) tasks[i] = WorldGenPass.Retain(tasks[i]);
             }
             catch (Exception e)
@@ -181,7 +178,6 @@ internal static class ModWorldGenHooks
                                    PassLegacy self, GenerationProgress progress, GameConfiguration configuration)
     {
         if (WorldGenPass.TryApply(self, progress, configuration)) return;
-        // 仅保存到原生容器不能保活托管闭包;不把空原生委托交回游戏以免解引用崩溃。
         if (self._method is null)
         {
             ContentErrors.Report($"[worldgen] {self.Name} 的托管回调已释放,请同时保存 WorldGenPass.Create 返回的步骤对象");
