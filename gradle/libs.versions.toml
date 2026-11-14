@@ -7,7 +7,7 @@
 [versions]
 agp = "8.8.0"
 kotlin = "2.0.21"
-androidxCore = "1.13.1"
+androidxCore = "1.19.1"
 compileSdk = "36"
 minSdk = "28"
 targetSdk = "36"
