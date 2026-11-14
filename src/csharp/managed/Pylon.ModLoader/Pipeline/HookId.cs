@@ -342,4 +342,7 @@ internal enum HookId
     PostSetupTileMerge,
     ConsumeBait,
     GetDyeTraderReward,
+
+    ShouldUpdatePosition,
+    NumGrappleHooks,
 }

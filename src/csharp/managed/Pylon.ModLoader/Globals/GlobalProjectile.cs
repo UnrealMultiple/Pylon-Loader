@@ -65,6 +65,9 @@ public abstract class GlobalProjectile : ModType
     /// <summary>画之前；lightColor 是可写引用，false 不画游戏的那张精灵（游戏画的附加部分留下）。</summary>
     public virtual bool PreDraw(Projectile proj, ref Color lightColor) => true;
 
+    /// <summary>画游戏那部分"附加物"（鱼线、钩爪链条、链锤铁链、悠悠球绳）之前；false 连附加物一起不画。</summary>
+    public virtual bool PreDrawExtras(Projectile proj) => true;
+
     /// <summary>画之后，PreDraw 否决了也跑；lightColor 是直接的颜色，不是引用。</summary>
     public virtual void PostDraw(Projectile proj, Color lightColor) { }
 
@@ -114,6 +117,3 @@ public abstract class GlobalProjectile : ModType
     /// <summary>收到全局附加数据。</summary>
     public virtual void NetReceive(Projectile proj, NetReader reader) { }
 }
-
-// 未移植：ModifyHitNPC/OnHitNPC、ModifyHitPlayer/OnHitPlayer（要 HitModifiers/HitInfo/HurtModifiers/HurtInfo，
-// 本版 Projectile.Damage_PVE 与 NPC.StrikeNPC 仍是 int/float 参数）；register（走自动发现 + ModContent）。

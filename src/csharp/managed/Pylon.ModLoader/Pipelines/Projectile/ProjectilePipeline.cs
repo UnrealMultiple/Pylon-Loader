@@ -58,6 +58,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
         On.Terraria.Projectile.AI += Ai;
         On.Terraria.Projectile.ApplyStatsFromSource += StatsFromSource;
         On.Terraria.Projectile.HandleMovement += Movement;
+        On.Terraria.Projectile.UpdatePosition += UpdatePosition;
         On.Terraria.Projectile.GetCollisionParams += CollisionParams;
         On.Terraria.Projectile.Kill += Kill;
         On.Terraria.Projectile.Damage += Damage;
@@ -75,25 +76,14 @@ internal sealed class ProjectilePipeline : ILoaderModule
         On.Terraria.Player.GetGrapplingForces += GrapplingForces;
         On.Terraria.Main.DrawProjDirect += DrawDirect;
 
+        ProjectileDrawSplit.Install();
+
         Log.Info("[projectile] 已挂（生成 / AI / 移动 / 命中 / 死亡 / 绘制 / 钩爪）");
         return true;
     }
 
     /// <summary>安装期：给每个自定义弹幕造模板并跑静态默认值三连。</summary>
     internal void SetupTemplates(IModLog log) => _defaults.CreateTemplates(log);
-
-    /// <summary>覆写了接不了的钩子时给一条一次性警告，别让作者以为是自己的问题。</summary>
-    internal void WarnUnwired(Mod mod)
-    {
-        foreach (var projectile in ModContent.GetContent<ModProjectile>())
-        {
-            if (projectile.Mod != mod) continue;
-            if (!Hooks.Overrides(projectile.GetType(), typeof(ModProjectile), "NumGrappleHooks")) continue;
-
-            Safe.Once("projectile.NumGrappleHooks." + projectile.GetType().FullName,
-                $"[projectile] {projectile.Name} 覆写了 NumGrappleHooks，但钩爪上限写死在游戏逻辑里，按原版上限处理", true);
-        }
-    }
 
 #region AI
 
@@ -152,6 +142,30 @@ internal sealed class ProjectilePipeline : ILoaderModule
             }
         }
 
+        List<Projectile>? hidden = null;
+        var hookLimit = -1;
+        if (!skip && mod is not null && self.aiStyle == ModProjectile.HookAIStyle &&
+            mod.Plan.Has(HookId.NumGrappleHooks) && self.ai[0] == 0f && self.owner == Main.myPlayer)
+        {
+            try
+            {
+                var vanilla = VanillaHookLimit(self.type);
+                var numHooks = vanilla;
+                mod.NumGrappleHooks(self, Main.player[self.owner], ref numHooks);
+                if (numHooks != vanilla)
+                {
+                    hookLimit = numHooks;
+                    hidden = LatchedHooks(self.owner, self.whoAmI);
+                    foreach (var hook in hidden) hook.aiStyle = 0;
+                }
+            }
+            catch (Exception e)
+            {
+                Fail("NumGrappleHooks", self.type, e);
+                hidden = null;
+            }
+        }
+
         if (!skip)
         {
             try
@@ -177,6 +191,22 @@ internal sealed class ProjectilePipeline : ILoaderModule
             finally
             {
                 if (swapped) self.type = savedType;
+                if (hidden is not null)
+                {
+                    foreach (var hook in hidden) hook.aiStyle = ModProjectile.HookAIStyle;
+                }
+            }
+
+            if (hidden is not null && self.active && self.ai[0] == 2f)
+            {
+                try
+                {
+                    TrimHooks(self.owner, hookLimit);
+                }
+                catch (Exception e)
+                {
+                    Fail("NumGrappleHooks", self.type, e);
+                }
             }
         }
 
@@ -337,6 +367,37 @@ internal sealed class ProjectilePipeline : ILoaderModule
         {
             if (pushed) PopMove(self);
         }
+    }
+
+    private void UpdatePosition(On.Terraria.Projectile.orig_UpdatePosition orig, Projectile self, Vector2 wetVelocity)
+    {
+        var mod = _binding.InstanceOf(self);
+        var globals = GlobalProjectileRegistry.AnyFor(self, HookId.ShouldUpdatePosition);
+        if ((mod is null || !mod.Plan.Has(HookId.ShouldUpdatePosition)) && !globals)
+        {
+            orig(self, wetVelocity);
+            return;
+        }
+
+        var allowed = true;
+        try
+        {
+            foreach (var global in GlobalProjectileRegistry.For(self, HookId.ShouldUpdatePosition))
+            {
+                if (global.ShouldUpdatePosition(self)) continue;
+                allowed = false;
+                break;
+            }
+
+            if (allowed && mod is not null && mod.Plan.Has(HookId.ShouldUpdatePosition))
+                allowed = mod.ShouldUpdatePosition(self);
+        }
+        catch (Exception e)
+        {
+            Fail("ShouldUpdatePosition", self.type, e);
+        }
+
+        if (allowed) orig(self, wetVelocity);
     }
 
     /// <summary>把 TileCollideStyle 的改写写进帧，并让游戏这一帧按改后的值算碰撞。</summary>
@@ -848,14 +909,36 @@ internal sealed class ProjectilePipeline : ILoaderModule
         var mod = _binding.InstanceOf(proj);
         var pre = GlobalProjectileRegistry.For(proj, HookId.PreDraw);
         var post = GlobalProjectileRegistry.For(proj, HookId.PostDraw);
-        if (mod is null && pre.Count == 0 && post.Count == 0)
+        var extrasGlobals = GlobalProjectileRegistry.For(proj, HookId.PreDrawExtras);
+        var drawHooks = (mod?.Plan.Has(HookId.PreDraw) ?? false) || (mod?.Plan.Has(HookId.PostDraw) ?? false) ||
+                        pre.Count > 0 || post.Count > 0;
+        var extrasHooks = (mod?.Plan.Has(HookId.PreDrawExtras) ?? false) || extrasGlobals.Count > 0;
+        if (mod is null && !drawHooks && !extrasHooks)
         {
             orig(self, proj, overridePlayer);
             return;
         }
 
         var light = LightAt(proj);
+        var extras = true;
         var sprite = true;
+
+        if (extrasHooks)
+        {
+            try
+            {
+                foreach (var global in extrasGlobals)
+                    if (!global.PreDrawExtras(proj)) extras = false;
+
+                if (extras && mod is not null && mod.Plan.Has(HookId.PreDrawExtras))
+                    extras = mod.PreDrawExtras(proj);
+            }
+            catch (Exception e)
+            {
+                Fail("PreDrawExtras", proj.type, e);
+                extras = true;
+            }
+        }
 
         try
         {
@@ -865,12 +948,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
                 sprite = false;
             }
 
-            if (mod is not null)
-            {
-                // 手机版把附加物画在 DrawProjDirect 内部：PreDrawExtras 只保留副作用，返回值不生效。
-                if (mod.Plan.Has(HookId.PreDrawExtras)) mod.PreDrawExtras(proj);
-                if (mod.Plan.Has(HookId.PreDraw) && !mod.PreDraw(proj, light)) sprite = false;
-            }
+            if (mod is not null && mod.Plan.Has(HookId.PreDraw) && !mod.PreDraw(proj, light)) sprite = false;
         }
         catch (Exception e)
         {
@@ -878,22 +956,26 @@ internal sealed class ProjectilePipeline : ILoaderModule
             sprite = true;
         }
 
+        var split = sprite != extras && HasExtras(proj) && ProjectileDrawSplit.Begin(OwnTexture(proj), extras, sprite);
         try
         {
-            if (!sprite) return;
-
-            PushDraw(proj, light);
-            try
+            if (sprite || split)
             {
-                orig(self, proj, overridePlayer);
-            }
-            finally
-            {
-                if (_drawDepth > 0) _drawDepth--;
+                PushDraw(proj, light);
+                try
+                {
+                    orig(self, proj, overridePlayer);
+                }
+                finally
+                {
+                    if (_drawDepth > 0) _drawDepth--;
+                }
             }
         }
         finally
         {
+            if (split) ProjectileDrawSplit.End();
+
             try
             {
                 if (mod is not null && mod.Plan.Has(HookId.PostDraw)) mod.PostDraw(proj, light);
@@ -903,6 +985,22 @@ internal sealed class ProjectilePipeline : ILoaderModule
             {
                 Fail("PostDraw", proj.type, e);
             }
+        }
+    }
+
+    private static bool HasExtras(Projectile proj) => proj.bobber || proj.aiStyle is 7 or 13 or 15 or 99;
+
+    private static IntPtr OwnTexture(Projectile proj)
+    {
+        try
+        {
+            var table = Terraria.GameContent.TextureAssets.Projectile;
+            if (proj.type < 0 || proj.type >= table.Length) return IntPtr.Zero;
+            return table[proj.type]?.Value?.Pointer ?? IntPtr.Zero;
+        }
+        catch
+        {
+            return IntPtr.Zero;
         }
     }
 
@@ -1036,6 +1134,53 @@ internal sealed class ProjectilePipeline : ILoaderModule
         var ai = proj.ai;
         ai[0] = 1f;
         proj.ai = ai;
+    }
+
+    private static int VanillaHookLimit(int type) => type switch
+    {
+        165 => 8,
+        256 or 372 => 2,
+        652 or 73 or 74 => 1,
+        >= 646 and <= 649 => 4,
+        _ => 3,
+    };
+
+    private List<Projectile> LatchedHooks(int owner, int except)
+    {
+        var found = new List<Projectile>();
+        var all = Main.projectile;
+        for (var i = 0; i < all.Length; i++)
+        {
+            if (i == except) continue;
+            var hook = all[i];
+            if (hook is null || !hook.active || hook.owner != owner) continue;
+            if (hook.aiStyle != ModProjectile.HookAIStyle || hook.ai[0] != 2f) continue;
+            found.Add(hook);
+        }
+
+        return found;
+    }
+
+    private static void TrimHooks(int owner, int limit)
+    {
+        var all = Main.projectile;
+        var hooks = 0;
+        var oldest = -1;
+        var oldestTime = int.MaxValue;
+        for (var i = 0; i < all.Length; i++)
+        {
+            var hook = all[i];
+            if (hook is null || !hook.active || hook.owner != owner) continue;
+            if (hook.aiStyle != ModProjectile.HookAIStyle || hook.ai[0] != 2f) continue;
+            hooks++;
+            if (hook.timeLeft < oldestTime)
+            {
+                oldest = i;
+                oldestTime = hook.timeLeft;
+            }
+        }
+
+        if (hooks > limit && oldest >= 0) all[oldest]?.Kill();
     }
 
     private static void ApplyGrappleRetreat(Projectile proj, ModProjectile mod)

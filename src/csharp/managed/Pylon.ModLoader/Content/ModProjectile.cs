@@ -1,6 +1,8 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Textures;
 using Terraria;
+using Terraria.DataStructures;
 
 namespace Pylon.ModLoader;
 
@@ -257,7 +259,53 @@ public abstract class ModProjectile : ModType
 
     /// <summary>游戏给风筝类手持弹幕的默认值。</summary>
     public virtual void DefaultToKite(Projectile proj) => proj.DefaultToKite();
-}
 
-// 未移植 ModifyHitNPC/OnHitNPC、ModifyHitPlayer/OnHitPlayer：要 HitModifiers 和 HitInfo / HurtModifiers 和 HurtInfo，
-// 本版 Projectile.Damage_PVE 与 NPC.StrikeNPC 还是 int/float 参数。
+    public int DrawOffsetX { get; set; }
+
+    public int DrawOriginOffsetY { get; set; }
+
+    public float DrawOriginOffsetX { get; set; }
+
+    public DrawData? GetDefaultDrawData(Projectile proj, Player player, Color lightColor)
+    {
+        var texture = OwnTexture(proj);
+        if (texture is null) return null;
+
+        PylonTexture.Size(texture, out var textureWidth, out var textureHeight);
+
+        var originX = (textureWidth - proj.width) * 0.5f + proj.width * 0.5f + DrawOriginOffsetX;
+        var originOffsetY = -DrawOriginOffsetY;
+
+        var effects = proj.spriteDirection == -1 ? SpriteEffects.FlipHorizontally : SpriteEffects.None;
+        Rectangle sourceRectangle;
+        var frameTable = Main.projFrames;
+        var frames = frameTable is not null && proj.type >= 0 && proj.type < frameTable.Length ? frameTable[proj.type] : 1;
+        if (frames > 1)
+        {
+            var frameHeight = textureHeight / frames;
+            sourceRectangle = new Rectangle(0, frameHeight * proj.frame, textureWidth, frameHeight - 1);
+        }
+        else
+        {
+            sourceRectangle = new Rectangle(0, 0, textureWidth, textureHeight);
+            if (proj.ownerHitCheck && player.gravDir == -1f)
+            {
+                if (player.direction == 1) effects = SpriteEffects.FlipHorizontally;
+                else if (player.direction == -1) effects = SpriteEffects.None;
+            }
+        }
+
+        return new DrawData(texture,
+            new Vector2(proj.position.X - Main.screenPosition.X + originX + DrawOffsetX,
+                        proj.position.Y - Main.screenPosition.Y + proj.height / 2f + proj.gfxOffY),
+            sourceRectangle, proj.GetAlpha(lightColor), proj.rotation,
+            new Vector2(originX, proj.height / 2f + originOffsetY), proj.scale, effects, 0);
+    }
+
+    private static Texture2D? OwnTexture(Projectile proj)
+    {
+        var table = Terraria.GameContent.TextureAssets.Projectile;
+        if (proj.type < 0 || proj.type >= table.Length) return null;
+        return table[proj.type]?.Value;
+    }
+}

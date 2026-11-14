@@ -34,9 +34,9 @@ public abstract class Mod : IPylonMod
 
     protected void RegisterImGuiTab(IModImGuiTab tab) => UI.ModUI.RegisterImGuiTab(tab);
 
-    public Asset<Texture2D> LoadAsset(string relativePath) => PylonTexture.LoadAsset(this, relativePath);
+    public Asset<Texture2D> LoadAsset(string relativePath) => ModContent.Request(this, relativePath);
 
-    public Texture2D LoadTexture(string relativePath) => PylonTexture.LoadTexture(this, relativePath);
+    public Texture2D LoadTexture(string relativePath) => ModContent.Texture(this, relativePath);
 
     public List<T> GetContent<T>() where T : ModType => ModContent.GetContent<T>().FindAll(instance => instance.Mod == this);
 
@@ -180,8 +180,6 @@ public abstract class Mod : IPylonMod
         Logger.Info("内容就绪：进入晚阶段");
 
         UI.ModUI.EnsureInitialized(Logger);
-
-        ProjectilePipeline.Instance.WarnUnwired(this);
 
         LoaderHost.Current.ContentReady();
         Logger.Info($"内容已登记：{GameContent.Pending} 个自定义内容等待注入");

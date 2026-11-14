@@ -17,6 +17,7 @@ internal sealed class TableGrower
     private readonly List<IntPtr> _watched = [];   // 扫到的全部静态数组字段
     private readonly List<IntPtr> _targets = [];   // 已确认是本类表的字段
     private readonly List<IntPtr> _pending = [];   // 扫到时还是 null 的字段
+    private readonly HashSet<string> _failed = [];
     private int _capacity;
     private int _vanilla;
     private int _grown;
@@ -88,7 +89,11 @@ internal sealed class TableGrower
             _pending.RemoveAt(i);
             if (ArrayGrow.Length(array) != Vanilla) continue;
             _targets.Add(field);
-            if (!GrowField(field, array)) continue;
+            if (!GrowField(field, array))
+            {
+                ReportGrowFailure(field, log);
+                continue;
+            }
             _grown++;
             grown++;
         }
@@ -168,6 +173,7 @@ internal sealed class TableGrower
             _targets.Add(field);
             log?.Invoke($"[grow] {_set.Name} {type.Name}.{NameOf(field)} len={Vanilla}→{_capacity}");
             if (GrowField(field, array)) _grown++;
+            else ReportGrowFailure(field, log);
         }
     }
 
@@ -179,7 +185,11 @@ internal sealed class TableGrower
         {
             var array = ReadStatic(field);
             if (array == IntPtr.Zero || ArrayGrow.Length(array) >= _capacity) continue;
-            if (!GrowField(field, array)) continue;
+            if (!GrowField(field, array))
+            {
+                ReportGrowFailure(field, log);
+                continue;
+            }
             _grown++;
             grown++;
         }
@@ -194,6 +204,12 @@ internal sealed class TableGrower
         if (grown == IntPtr.Zero) return false;
         WriteStatic(field, grown);
         return true;
+    }
+
+    private void ReportGrowFailure(IntPtr field, Action<string>? log)
+    {
+        if (!_failed.Add($"{Name}.{NameOf(field)}")) return;
+        log?.Invoke($"[tables] {Name} {NameOf(field)} 扩容失败，表保持原版长度（越界风险，详见内核日志）");
     }
 
     private static bool IsStaticArray(IntPtr field)

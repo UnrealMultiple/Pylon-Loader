@@ -10,6 +10,7 @@ internal static unsafe class BoxedTests
     internal static void Run()
     {
         DetourBackend.Current=new Backend();
+        HookLog.Error=(label,error)=>Console.Error.WriteLine($"HOOK ERROR {label}: {error}");
         try
         {
             OutNative native=(p,mi)=>Marshal.WriteInt64(p,40);
@@ -52,11 +53,81 @@ internal static unsafe class BoxedTests
                 long value=0;var entry=(delegate* unmanaged[Cdecl]<IntPtr,IntPtr,IntPtr,long>)hook.EntryForTest();
                 Check(entry((IntPtr)(&value),(IntPtr)(&value),IntPtr.Zero)==2 && value==2,"boxed aliased ref replacement in handler");
             }
+            ValueTypeInstanceSelfRoundTrip();
             NullableRectangleRoundTrip();
             Console.WriteLine("PASS BoxedTests (test shim; not native ABI certification)");
         }
         finally{HookPlan.PointersOverride=null;IL2CPP.Release();}
     }
+    private static void ValueTypeInstanceSelfRoundTrip()
+    {
+        const long initial=10;
+        var payload=IL2CPP.Allocate(sizeof(long));
+        Marshal.WriteInt64(payload,initial);
+        var boxed=IL2CPP.il2cpp_value_box(IL2CPP.SelfBoxClassForTest,payload);
+        var self=new SelfBox(boxed);
+        Check(self.Pointer==boxed && IL2CPP.il2cpp_object_unbox(boxed)!=boxed,"shim provides distinct boxed header and payload");
+
+        var sourceBox=IL2CPP.il2cpp_value_box(IL2CPP.SelfBoxClassForTest,payload);
+        var sourceData=IL2CPP.il2cpp_object_unbox(sourceBox);
+        Check(sourceData!=sourceBox && sourceData!=payload,"boxed source object header differs from its data pointer and caller payload");
+        Check(Marshal.ReadInt64(sourceData)==initial && Marshal.ReadInt64(payload)==initial,"source box and native ABI payload start with equal values");
+
+        var calls=0;
+        SelfNative native=(p,mi)=>
+        {
+            Check(p==payload,"orig value-type self forwards the original native payload data pointer");
+            Check(p!=sourceBox && Marshal.ReadInt64(p)==17,"orig receives payload data, not boxed object header");
+            Marshal.WriteInt64(p,29);
+            calls++;
+        };
+        SetPointers(native);
+        using var hook=new Hook(typeof(SelfBox).GetMethod(nameof(SelfBox.Bump))!,new SelfHook((orig,value)=>
+        {
+            var proxyData=IL2CPP.il2cpp_object_unbox(value.Pointer);
+            Check(value.Value==initial,"handler receives boxed self value from native payload");
+            Check(value.Pointer!=payload && proxyData!=payload && proxyData!=sourceBox,"entry wraps native payload in a distinct boxed proxy");
+            value.Value+=7;
+            orig(value);
+            Check(value.Value==29,"orig self mutation refreshes boxed proxy payload");
+            value.Value+=3;
+        }));
+        var entry=(delegate* unmanaged[Cdecl]<IntPtr,IntPtr,void>)hook.EntryForTest();
+        entry(payload,IntPtr.Zero);
+        Check(calls==1 && Marshal.ReadInt64(payload)==32,$"final native self payload receives post-orig handler mutation (calls={calls}, value={Marshal.ReadInt64(payload)})");
+        Check(Marshal.ReadInt64(sourceData)==initial,"entry writes back to native payload without mutating the unrelated source box");
+
+        var nestedDepth=0;
+        var nestedNativePayloads=new HashSet<IntPtr>{payload};
+        SelfNative nestedNative=(p,mi)=>
+        {
+            Check(nestedNativePayloads.Contains(p),"nested orig self is the corresponding invocation data pointer");
+            Marshal.WriteInt64(p,Marshal.ReadInt64(p)+1);
+        };
+        SetPointers(nestedNative);
+        Hook? active=null;
+        using var nestedHook=new Hook(typeof(SelfBox).GetMethod(nameof(SelfBox.Bump))!,new SelfHook((orig,value)=>
+        {
+            if(nestedDepth++==0)
+            {
+                var innerPayload=IL2CPP.Allocate(sizeof(long));
+                Marshal.WriteInt64(innerPayload,100);
+                var innerBox=IL2CPP.il2cpp_value_box(IL2CPP.SelfBoxClassForTest,innerPayload);
+                var innerData=IL2CPP.il2cpp_object_unbox(innerBox);
+                Check(innerData!=innerBox && innerData!=innerPayload,"nested boxed object has a distinct payload pointer");
+                nestedNativePayloads.Add(innerPayload);
+                ((delegate* unmanaged[Cdecl]<IntPtr,IntPtr,void>)active!.EntryForTest())(innerPayload,IntPtr.Zero);
+                Check(Marshal.ReadInt64(innerPayload)==101 && Marshal.ReadInt64(innerData)==100,"nested data-pointer self writes back only to its native payload");
+            }
+            orig(value);
+            nestedDepth--;
+        }));
+        active=nestedHook;
+        entry=(delegate* unmanaged[Cdecl]<IntPtr,IntPtr,void>)nestedHook.EntryForTest();
+        entry(payload,IntPtr.Zero);
+        Check(Marshal.ReadInt64(payload)==33,"outer data-pointer self survives nested invocation");
+    }
+
     private static void NullableRectangleRoundTrip()
     {
         var calls=0;
@@ -121,11 +192,20 @@ internal static unsafe class BoxedTests
     [StructLayout(LayoutKind.Explicit,Size=8)]
     public struct SmallNullable { [FieldOffset(0)] public byte HasValue;[FieldOffset(4)] public int Value; }
     public struct Rectangle { public int X,Y,Width,Height;public Rectangle(int x,int y,int width,int height){X=x;Y=y;Width=width;Height=height;} }
+    public sealed class SelfBox:Il2CppSystem.ValueType
+    {
+        public SelfBox(IntPtr p):base(p){}
+        public long Value{get=>Marshal.ReadInt64(IL2CPP.il2cpp_object_unbox(Pointer));set=>Marshal.WriteInt64(IL2CPP.il2cpp_object_unbox(Pointer),value);}
+        public void Bump()=>throw new NotImplementedException();
+    }
     private delegate void NullableRefOrig(ref NullableRectangleBox value);
     private delegate void NullableRefHook(NullableRefOrig orig,ref NullableRectangleBox value);
     private delegate void NullableIntOrig(Il2CppSystem.Nullable<int> value);
     private delegate void NullableIntHook(NullableIntOrig orig,Il2CppSystem.Nullable<int> value);
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]private delegate void SmallNullableNative(SmallNullable value,IntPtr mi);
+    private delegate void SelfOrig(SelfBox self);
+    private delegate void SelfHook(SelfOrig orig,SelfBox self);
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]private delegate void SelfNative(IntPtr self,IntPtr mi);
     private delegate void NullableRectangleOrig(NullableRectangleBox value);
     private delegate void NullableRectangleHook(NullableRectangleOrig orig,NullableRectangleBox value);
     private static void SetPointers(Delegate native){Roots.Add(native);var p=Marshal.GetFunctionPointerForDelegate(native);HookPlan.PointersOverride=_=>(IntPtr.Zero,p);}

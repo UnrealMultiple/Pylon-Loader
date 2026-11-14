@@ -14,11 +14,33 @@ internal static partial class HookStub
         var il = method.GetILGenerator();
         var refs = new LocalBuilder[plan.ParamTypes.Length];
         var result = plan.NativeReturn == typeof(void) ? null : il.DeclareLocal(plan.NativeReturn);
+        var boxedSelf = !plan.IsStatic && HookPlan.IsBoxedValueType(plan.DeclaringType)
+            ? il.DeclareLocal(plan.DeclaringType) : null;
+        var nativeSelf = boxedSelf is not null ? il.DeclareLocal(typeof(IntPtr)) : null;
         var arg = 0;
         if (!plan.IsStatic)
         {
-            il.Emit(OpCodes.Ldarg, arg++);
-            il.Emit(OpCodes.Call, ToPtr);
+            if (boxedSelf is not null)
+            {
+                var mirror = MirrorTypes.For(plan.DeclaringType).Mirror;
+                il.Emit(OpCodes.Ldarg, arg++);
+                il.Emit(OpCodes.Stloc, boxedSelf!);
+                il.Emit(OpCodes.Ldc_I4, slot);
+                il.Emit(OpCodes.Ldc_I4, plan.ParamTypes.Length);
+                il.Emit(OpCodes.Call, GetIndirectMethod);
+                il.Emit(OpCodes.Stloc, nativeSelf!);
+                il.Emit(OpCodes.Ldloc, nativeSelf!);
+                il.Emit(OpCodes.Ldloc, boxedSelf!);
+                EmitUnboxToPointer(il, plan.DeclaringType);
+                il.Emit(OpCodes.Ldobj, mirror);
+                il.Emit(OpCodes.Stobj, mirror);
+                il.Emit(OpCodes.Ldloc, nativeSelf!);
+            }
+            else
+            {
+                il.Emit(OpCodes.Ldarg, arg++);
+                il.Emit(OpCodes.Call, ToPtr);
+            }
         }
         for (var i = 0; i < plan.ParamTypes.Length; i++, arg++)
         {
@@ -98,6 +120,15 @@ internal static partial class HookStub
         il.Emit(OpCodes.Call, OrigPointerGetter);
         il.EmitCalli(OpCodes.Calli, CallingConvention.Cdecl, plan.NativeReturn, plan.NativeParams.Concat(new[] { typeof(IntPtr) }).ToArray());
         if (result is not null) il.Emit(OpCodes.Stloc, result);
+        if (boxedSelf is not null)
+        {
+            var mirror = MirrorTypes.For(plan.DeclaringType).Mirror;
+            il.Emit(OpCodes.Ldloc, boxedSelf!);
+            EmitUnboxToPointer(il, plan.DeclaringType);
+            il.Emit(OpCodes.Ldloc, nativeSelf!);
+            il.Emit(OpCodes.Ldobj, mirror);
+            il.Emit(OpCodes.Stobj, mirror);
+        }
         arg = plan.IsStatic ? 0 : 1;
         for (var i = 0; i < plan.ParamTypes.Length; i++, arg++)
         {

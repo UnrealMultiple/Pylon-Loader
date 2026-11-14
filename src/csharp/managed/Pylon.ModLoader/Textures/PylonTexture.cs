@@ -7,7 +7,12 @@ using Pylon.NaviteAPI.Host;
 
 namespace Pylon.ModLoader.Textures;
 
-/// <summary>PNG/JPG → 游戏贴图。只能游戏线程调：别的线程上建 Unity 对象是 abort 进程。</summary>
+/// <summary>
+/// PNG/JPG → 游戏贴图。只能游戏线程调：别的线程上建 Unity 对象是 abort 进程。
+/// 真机上不要读游戏包装的 Texture2D.Width/Height（读会 NRE、setter 静默无效，source=null 时
+/// SpriteBatch 算不出源矩形就什么都画不出来）；尺寸一律走 <see cref="Size"/>（读 Unity 侧），
+/// 源矩形自己 new Rectangle(0, 0, w, h)。同一份贴图不要重复 LoadAsset——走 ModContent.Request 的单实例缓存。
+/// </summary>
 public static class PylonTexture
 {
     internal static ModLogger? Logger { get; set; }
@@ -60,8 +65,6 @@ public static class PylonTexture
         unity.filterMode = FilterMode.Point;       // 像素画：最近邻，否则糊
         unity.wrapMode = TextureWrapMode.Clamp;
         var texture = new GameTexture2D(unity);
-
-        // 注意：不要写 texture.Width/Height——真机上这两个属性读/写都会 NRE（游戏包装的尺寸由底层
 
         Logger?.Info($"贴图上传：{assetName} {unity.width}x{unity.height}");
         return texture;

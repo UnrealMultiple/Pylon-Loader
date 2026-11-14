@@ -31,13 +31,16 @@ namespace Il2CppInterop.Runtime
         {
             var p=IL2CPP.Allocate(size);
             Buffer.MemoryCopy((void*)data,(void*)p,size,size);
-            return (T)Activator.CreateInstance(typeof(T),p)!;
+            var wrapped=(T)Activator.CreateInstance(typeof(T),p)!;
+            IL2CPP.RegisterProxyBox(wrapped.Pointer,p);
+            return wrapped;
         }
     }
     public static class Il2CppClassPointerStore
     {
         public static IntPtr GetNativeClassPointer(Type type)
         {
+            if(type==typeof(BoxedTests.SelfBox))return IL2CPP.SelfBoxClassForTest;
             if(type.IsGenericType && type.GetGenericTypeDefinition()==typeof(Il2CppSystem.Nullable<>))
             {
                 var klass=new IntPtr(Marshal.SizeOf(type.GetGenericArguments()[0])+4);
@@ -51,13 +54,26 @@ namespace Il2CppInterop.Runtime
     {
         private static readonly List<IntPtr> Blocks=new();
         internal static readonly HashSet<IntPtr> NullableClasses=new();
+        internal static IntPtr SelfBoxClassForTest=>SelfBoxClass;
+        internal static void RegisterProxyBox(IntPtr proxy,IntPtr payload){lock(BoxPayloads)BoxPayloads[proxy]=payload;}
         public static IntPtr Il2CppObjectBaseToPtr(InteropTypes.Il2CppObjectBase? value)=>value?.Pointer??IntPtr.Zero;
         public static IntPtr ManagedStringToIl2Cpp(string? value)=>IntPtr.Zero;
         public static string? Il2CppStringToManaged(IntPtr value)=>null;
-        public static IntPtr il2cpp_object_unbox(IntPtr value)=>value;
-        public static int il2cpp_class_value_size(IntPtr klass,ref uint alignment){alignment=8;return (int)klass;}
+        private static readonly Dictionary<IntPtr,IntPtr> BoxPayloads=new();
+        internal static readonly IntPtr SelfBoxClass=new(0x5E1F);
+        public static IntPtr il2cpp_object_unbox(IntPtr value)=>BoxPayloads.TryGetValue(value,out var payload)?payload:value;
+        public static int il2cpp_class_value_size(IntPtr klass,ref uint alignment){alignment=8;return klass==SelfBoxClass?8:(int)klass;}
         public static unsafe IntPtr il2cpp_value_box(IntPtr klass,IntPtr data)
         {
+            if(klass==SelfBoxClass)
+            {
+                var boxed=Allocate(16);
+                Marshal.WriteInt64(boxed,unchecked((long)0x504F49534F4EUL));
+                var payload=boxed+8;
+                Buffer.MemoryCopy((void*)data,(void*)payload,8,8);
+                lock(BoxPayloads)BoxPayloads[boxed]=payload;
+                return boxed;
+            }
             // IL2CPP boxes Nullable<T> as T (or null), never as a Nullable<T> object.
             if(NullableClasses.Contains(klass))
             {

@@ -12,10 +12,13 @@ internal static partial class HookStub
         var nativeParams = plan.NativeParams.Concat(new[] { typeof(IntPtr) }).ToArray();
         var method = new DynamicMethod(EntryPrefix + plan.Label, plan.NativeReturn, nativeParams, typeof(HookStub).Module, true);
         var il = method.GetILGenerator();
+        var valueSelf = !plan.IsStatic && HookPlan.IsBoxedValueType(plan.DeclaringType)
+            ? il.DeclareLocal(plan.DeclaringType) : null;
         var byrefs = new LocalBuilder[plan.ParamTypes.Length];
         var boxedRefs = new LocalBuilder[plan.ParamTypes.Length];
         var result = plan.NativeReturn == typeof(void) ? null : il.DeclareLocal(plan.NativeReturn);
-        var needsFrame = plan.ParamTypes.Where((t, i) => !t.IsByRef && HookPlan.IsBoxedValueType(t) && plan.NativeParams[plan.IsStatic ? i : i + 1] == typeof(IntPtr)).Any();
+        var needsSelfFrame = valueSelf is not null;
+        var needsFrame = needsSelfFrame || plan.ParamTypes.Where((t, i) => !t.IsByRef && HookPlan.IsBoxedValueType(t) && plan.NativeParams[plan.IsStatic ? i : i + 1] == typeof(IntPtr)).Any();
 
         // Outer catch contains conversion, handler and write-back exceptions. Inner finally always
         // restores the invocation frame, including recursive and concurrent native callbacks.
@@ -45,9 +48,16 @@ internal static partial class HookStub
         if (needsFrame)
         {
             il.Emit(OpCodes.Ldc_I4, slot);
-            il.Emit(OpCodes.Ldc_I4, plan.ParamTypes.Length);
+            il.Emit(OpCodes.Ldc_I4, plan.ParamTypes.Length + (needsSelfFrame ? 1 : 0));
             il.Emit(OpCodes.Call, EnterMethod);
             il.BeginExceptionBlock();
+            if (needsSelfFrame)
+            {
+                il.Emit(OpCodes.Ldarg_0);
+                il.Emit(OpCodes.Ldc_I4, slot);
+                il.Emit(OpCodes.Ldc_I4, plan.ParamTypes.Length);
+                il.Emit(OpCodes.Call, RecordIndirectMethod);
+            }
             for (var i = 0; i < plan.ParamTypes.Length; i++)
             {
                 var managed = plan.ParamTypes[i];
@@ -69,7 +79,13 @@ internal static partial class HookStub
         if (!plan.IsStatic)
         {
             il.Emit(OpCodes.Ldarg, arg++);
-            EmitNativeToManaged(il, plan.DeclaringType, typeof(IntPtr));
+            if (valueSelf is not null) EmitBoxFromPointer(il, plan.DeclaringType);
+            else EmitNativeToManaged(il, plan.DeclaringType, typeof(IntPtr));
+            if (valueSelf is not null)
+            {
+                il.Emit(OpCodes.Dup);
+                il.Emit(OpCodes.Stloc, valueSelf);
+            }
         }
         for (var i = 0; i < plan.ParamTypes.Length; i++, arg++)
         {
@@ -114,6 +130,18 @@ internal static partial class HookStub
         {
             EmitManagedToNative(il, plan.ReturnType, plan.NativeReturn);
             il.Emit(OpCodes.Stloc, result);
+        }
+        if (valueSelf is not null)
+        {
+            var mirror = MirrorTypes.For(plan.DeclaringType).Mirror;
+            il.Emit(OpCodes.Ldarg_0);
+            il.Emit(OpCodes.Ldc_I4, slot);
+            il.Emit(OpCodes.Ldc_I4, plan.ParamTypes.Length);
+            il.Emit(OpCodes.Call, GetIndirectMethod);
+            il.Emit(OpCodes.Ldloc, valueSelf);
+            EmitUnboxToPointer(il, plan.DeclaringType);
+            il.Emit(OpCodes.Ldobj, mirror);
+            il.Emit(OpCodes.Stobj, mirror);
         }
         arg = plan.IsStatic ? 0 : 1;
         for (var i = 0; i < plan.ParamTypes.Length; i++, arg++)
