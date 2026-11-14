@@ -5,7 +5,7 @@
 #   - compileSdk 36：设备是 API 37，本机 platforms 最高 android-36
 #   - minSdk 28 / arm64-v8a only：docs/00 的硬要求
 [versions]
-agp = "8.8.0"
+agp = "8.13.2"
 kotlin = "2.0.21"
 androidxCore = "1.13.1"
 compileSdk = "36"
