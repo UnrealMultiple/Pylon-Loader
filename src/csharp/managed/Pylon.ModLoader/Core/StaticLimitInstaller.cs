@@ -7,7 +7,8 @@ namespace Pylon.ModLoader;
 internal static class StaticLimitInstaller
 {
     // Executed by the content-install stage before the world is available. The
-    // caller owns this quiescence contract; native does not suspend game threads.
+    // caller owns the writer-exclusion contract; native does not suspend game threads
+    // and does not change page permissions while writing.
     internal static int Apply(int total, IModLog log)
     {
         if (total <= 754) return 0;

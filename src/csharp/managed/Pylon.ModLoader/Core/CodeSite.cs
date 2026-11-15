@@ -24,7 +24,10 @@ public enum Arm64InstructionKind : uint
     Unknown, B, Bl, BCond, CompareBranch, TestBranch, Adr, Adrp, Literal, Nop, Ret
 }
 
-/// <summary>Static profile metadata for one bounded patch site.</summary>
+/// <summary>
+/// Static profile metadata for one bounded patch site. ExpectedWords/ExpectedFingerprint
+/// must cover the complete method (MethodSize bytes); ByteOffset selects the site inside it.
+/// </summary>
 public readonly record struct CodeSiteProfile(
     string BuildId,
     string Profile,
@@ -89,7 +92,7 @@ public readonly struct CodeSite
         }
         var byteCount = (ulong)profile.ExpectedWords.Count * 4;
         if (profile.MethodSize == 0 || profile.MethodAddress > ulong.MaxValue - profile.MethodSize ||
-            profile.ByteOffset > profile.MethodSize || byteCount > profile.MethodSize - profile.ByteOffset)
+            profile.ByteOffset >= profile.MethodSize || byteCount != profile.MethodSize)
         {
             diagnostic = diagnostic with { Status = PatchStatus.OutOfBounds };
             return false;
@@ -100,7 +103,7 @@ public readonly struct CodeSite
                 if (profile.ExpectedFingerprint[i * 4 + b] != (byte)(profile.ExpectedWords[i] >> (b * 8)))
                 {
                     diagnostic = diagnostic with { Status = PatchStatus.FingerprintMismatch,
-                        Address = profile.SiteAddress + (uint)(i * 4), Expected = profile.ExpectedWords[i] };
+                        Address = profile.MethodAddress + (uint)(i * 4), Expected = profile.ExpectedWords[i] };
                     return false;
                 }
         diagnostic = new(PatchStatus.Ok, 0, profile.SiteAddress, 0, 0);

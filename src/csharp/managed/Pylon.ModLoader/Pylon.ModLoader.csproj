@@ -72,8 +72,12 @@
     <DefineConstants>$(DefineConstants);PYLON_ASM_ARM64</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="AsmArm64" Version="[2.4.0]" />
+    <PackageReference Include="AsmArm64" Version="[2.4.0]" GeneratePathProperty="true" />
     <EmbeddedResource Include="../../tools/limit-profile/terraria-1.4.5.8.6-arm64-v8a.json" LogicalName="Pylon.LimitProfile.json" />
+    <!-- Class libraries do not copy NuGet assets by default. The Android host loads
+         AsmArm64 from files/pylon-managed, so make it an explicit output artifact. -->
+    <None Include="$(PkgAsmArm64)/lib/net8.0/AsmArm64.dll" Link="AsmArm64.dll"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

@@ -125,6 +125,9 @@ internal static partial class Arm64Native
     [LibraryImport("pylon", EntryPoint = "PylonMod_TryReadWords")]
     internal static unsafe partial int TryReadWords(in NativeCodeSite site, uint byteOffset, uint* words, uint count, out NativePatchDiagnostic diagnostic);
 
+    [LibraryImport("pylon", EntryPoint = "PylonMod_TryReadMemory")]
+    internal static unsafe partial int TryReadMemory(ulong address, byte* destination, uint byteLength, out NativePatchDiagnostic diagnostic);
+
     [LibraryImport("pylon", EntryPoint = "PylonMod_TryWriteInstruction32")]
     internal static partial int TryWriteInstruction32(in NativeCodeSite site, uint byteOffset, uint expected, uint replacement, out NativePatchDiagnostic diagnostic);
 

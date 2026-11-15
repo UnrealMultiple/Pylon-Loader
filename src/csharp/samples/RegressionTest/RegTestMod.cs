@@ -56,6 +56,7 @@ namespace RegressionTest
         }
 
         private static bool _autoDone;
+        private static int _statTick;
 
         private static void AutoRunTick(On.Terraria.Main.orig_DoUpdateInWorld orig, Main self)
         {
@@ -71,6 +72,12 @@ namespace RegressionTest
                 return;
             }
             RegTestScene.WatchDoor();
+
+            // 每 300 帧一行计数快照（P1-11 桥分派证据：各计数随帧推进增长）
+            if (++_statTick % 300 == 0)
+                Log?.Info($"[rt] 帧计数@{_statTick}：PrePlayers={CntPrePlayers} PostNPCs={CntPostNpcs} " +
+                          $"PostGores={CntPostGores} PreItems={CntPreItems} PostItems={CntPostItems} " +
+                          $"PostProj={CntPostProjectiles} TimeRate={CntTimeRate} Transform={CntTransform} Dye={CntDyeReward}");
         }
 
         /// <summary>清掉羲和 Boss 的 NPC（回归不要 Boss 战干扰；存档后世界不再带 Boss 复发）。</summary>

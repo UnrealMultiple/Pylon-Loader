@@ -3,7 +3,6 @@ using AsmArm64;
 using AsmInstruction = AsmArm64.Arm64Instruction;
 using AsmInstructionId = AsmArm64.Arm64InstructionId;
 using Il2CppInterop.Runtime;
-using Pylon.NaviteAPI.Host;
 
 namespace Pylon.ModLoader;
 
@@ -147,7 +146,7 @@ internal static class MethodCode
         {
             var word = *p;
             if (!TryPlanMovz(word, from, to, out var plan)) continue;
-            if (PatchNative.PatchInstruction((IntPtr)p, 0, plan.Expected, plan.Replacement.Word) == 0) patched++;
+            if (CodeWrite.TryWrite((IntPtr)p, plan.Expected, plan.Replacement.Word, out _)) patched++;
         }
         return patched;
     }
@@ -161,7 +160,7 @@ internal static class MethodCode
             var word = *p;
             var next = p[1];
             if (!TryPlanLoop(word, next, from, to, exitOnEqual, out var plan)) continue;
-            if (PatchNative.PatchInstruction((IntPtr)p, 0, plan.Expected, plan.Replacement.Word) == 0) patched++;
+            if (CodeWrite.TryWrite((IntPtr)p, plan.Expected, plan.Replacement.Word, out _)) patched++;
         }
         return patched;
     }

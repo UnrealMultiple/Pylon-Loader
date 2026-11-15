@@ -12,7 +12,10 @@
     <Compile Include="../../managed/Pylon.ModLoader/Core/Arm64PatchBuilder.cs" Link="Arm64PatchBuilder.cs" />
     <Compile Include="../../managed/Pylon.ModLoader/Core/Arm64Decoder.cs" Link="Arm64Decoder.cs" />
     <Compile Include="../../managed/Pylon.ModLoader/Core/Arm64PatchTransaction.cs" Link="Arm64PatchTransaction.cs" />
+    <Compile Include="../../managed/Pylon.ModLoader/Core/Arm64Relocator.cs" Link="Arm64Relocator.cs" />
     <Compile Include="../../managed/Pylon.ModLoader/Core/CodeSite.cs" Link="CodeSite.cs" />
+    <Compile Include="../../managed/Pylon.ModLoader/Core/InterceptFrame.cs" Link="InterceptFrame.cs" />
+    <Compile Include="../../managed/Pylon.ModLoader/Core/InterceptStub.cs" Link="InterceptStub.cs" />
     <Compile Include="../../managed/Pylon.NaviteAPI/Host/Arm64Native.cs" Link="Arm64Native.cs" />
   </ItemGroup>
 </Project>

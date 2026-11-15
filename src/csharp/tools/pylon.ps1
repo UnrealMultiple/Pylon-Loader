@@ -98,8 +98,12 @@ function Build-Managed {
 function Command-Push {
     if (-not $NoBuild) { Build-Managed }
     Step '推托管件到 files/pylon-managed'
-    foreach ($name in @('Pylon.ModLoader', 'Pylon.Managed', 'Pylon.Mod.Abstractions', 'Pylon.NaviteAPI')) {
-        $from = Join-Path $root "src\csharp\managed\$name\bin\$Configuration\net10.0\$name.dll"
+    foreach ($name in @('Pylon.ModLoader', 'Pylon.Managed', 'Pylon.Mod.Abstractions', 'Pylon.NaviteAPI', 'AsmArm64')) {
+        $from = if ($name -eq 'AsmArm64') {
+            Join-Path $root "src\csharp\managed\Pylon.ModLoader\bin\$Configuration\net10.0\AsmArm64.dll"
+        } else {
+            Join-Path $root "src\csharp\managed\$name\bin\$Configuration\net10.0\$name.dll"
+        }
         if (-not (Test-Path $from)) { Warn "跳过 $name.dll（没有产物）"; continue }
         Invoke-Adb push $from "/data/local/tmp/$name.dll" | Out-Null
         Invoke-Adb shell "run-as $pkg cp /data/local/tmp/$name.dll files/pylon-managed/$name.dll"
@@ -340,6 +344,8 @@ function Command-Deploy {
         $dll = "src\csharp\managed\$name\bin\$Configuration\net10.0\$name.dll"
         if (Test-Path $dll) { Copy-Item $dll $assetManaged -Force } else { Warn "缺 $name.dll" }
     }
+    $asmArm64 = "src\csharp\managed\Pylon.ModLoader\bin\$Configuration\net10.0\AsmArm64.dll"
+    if (Test-Path $asmArm64) { Copy-Item $asmArm64 $assetManaged -Force } else { Warn '缺 AsmArm64.dll' }
     Say ("{0} 个 dll" -f (Get-ChildItem $assetManaged -Filter *.dll).Count)
 
     Step '代理程序集 → debug assets/pylon-interop'

@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
+#include <fcntl.h>
 #include <limits>
 #include <mutex>
 #include <link.h>
@@ -62,6 +63,69 @@ int32_t Check(const PylonCodeSite* site, uint32_t offset, uint64_t bytes,
         return Result(d, PylonPatch_OutOfBounds, site->address);
     return Result(d, Mapping(site->address + offset, bytes, protection), site->address + offset);
 }
+int Readable(uint64_t address, uint64_t bytes) {
+    FILE* maps = std::fopen("/proc/self/maps", "r");
+    if (!maps) return 0;
+    char line[1024];
+    int result = 0;
+    uint64_t cursor = address;
+    uint64_t remaining = bytes;
+    while (std::fgets(line, sizeof(line), maps)) {
+        unsigned long long start, end;
+        char perms[5] = {};
+        if (std::sscanf(line, "%llx-%llx %4s", &start, &end, perms) != 3) continue;
+        if (cursor >= end) continue;
+        if (cursor < start) break;
+        if (perms[0] != 'r') break;
+        const uint64_t available = end - cursor;
+        if (remaining <= available) {
+            result = 1;
+            break;
+        }
+        remaining -= available;
+        cursor = end;
+    }
+    std::fclose(maps);
+    return result;
+}
+
+// Write one aligned 32-bit instruction through /proc/self/mem. This does NOT change
+// page permissions, so the page stays executable for the whole operation: no window
+// where another thread can hit a non-executable page. It also works for file-backed
+// private mappings (libil2cpp) and rwxp pages, where restoring the original protection
+// after a temporary RW mprotect can fail on Android.
+// The caller still serializes competing writers via patch_mutex; execution does not
+// need to be stopped for this single aligned word write.
+int32_t WriteWord(uint64_t address, uint32_t expected, uint32_t replacement,
+                  bool* written, uint32_t* actual, int* error) {
+    *written = false;
+    *error = 0;
+    auto* at = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(address));
+    uint32_t current = __atomic_load_n(at, __ATOMIC_ACQUIRE);
+    *actual = current;
+    if (current != expected) return PylonPatch_Conflict;
+    const int fd = open("/proc/self/mem", O_RDWR | O_CLOEXEC);
+    if (fd < 0) {
+        *error = errno;
+        return PylonPatch_BackendFailure;
+    }
+    ssize_t result;
+    do {
+        result = pwrite(fd, &replacement, sizeof(replacement), static_cast<off_t>(address));
+    } while (result < 0 && errno == EINTR);
+    if (result != static_cast<ssize_t>(sizeof(replacement))) {
+        *error = result < 0 ? errno : EIO;
+        close(fd);
+        return PylonPatch_BackendFailure;
+    }
+    close(fd);
+    __builtin___clear_cache(reinterpret_cast<char*>(at), reinterpret_cast<char*>(at + 1));
+    current = __atomic_load_n(at, __ATOMIC_ACQUIRE);
+    *actual = current;
+    if (current != replacement) return PylonPatch_Conflict;
+    *written = true;
+    return PylonPatch_Ok;
+}
 }
 
 static_assert(sizeof(PylonCodeSite) == 16);
@@ -89,6 +153,18 @@ PYLON_MOD_EXPORT int32_t PylonMod_Arm64Read(const PylonCodeSite* site, uint32_t 
     const auto* at = reinterpret_cast<const uint32_t*>(static_cast<uintptr_t>(site->address + offset));
     *out = __atomic_load_n(at, __ATOMIC_ACQUIRE);
     return Result(d, PylonPatch_Ok, site->address + offset, 0, *out);
+}
+
+PYLON_MOD_EXPORT int32_t PylonMod_TryReadMemory(uint64_t address, uint8_t* out,
+    uint32_t byteLength, PylonPatchDiagnostic* d) {
+    if (!out || address == 0 || byteLength == 0 || (address & 3))
+        return Result(d, PylonPatch_InvalidArgument, address);
+    if (address > std::numeric_limits<uintptr_t>::max() ||
+        byteLength > std::numeric_limits<uintptr_t>::max() - address)
+        return Result(d, PylonPatch_OutOfBounds, address);
+    if (!Readable(address, byteLength)) return Result(d, PylonPatch_Unmapped, address);
+    std::memcpy(out, reinterpret_cast<const void*>(static_cast<uintptr_t>(address)), byteLength);
+    return Result(d, PylonPatch_Ok, address);
 }
 
 PYLON_MOD_EXPORT int32_t PylonMod_Arm64Decode(uint64_t pc, uint32_t word,
@@ -134,21 +210,15 @@ PYLON_MOD_EXPORT int32_t PylonMod_Arm64Write(const PylonCodeSite* site, uint32_t
     const int32_t status = Check(site, offset, 4, d, &protection);
     if (status) return status;
     const uint64_t address = site->address + offset;
-    auto* at = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(address));
-    uint32_t actual = __atomic_load_n(at, __ATOMIC_ACQUIRE);
-    if (actual != expected) return Result(d, PylonPatch_Conflict, address, expected, actual);
-    const long pageSize = sysconf(_SC_PAGESIZE);
-    if (pageSize <= 0) return Result(d, PylonPatch_ProtectionFailed, address, expected, actual, errno);
-    const uintptr_t page = static_cast<uintptr_t>(address) / pageSize * pageSize;
-    if (mprotect(reinterpret_cast<void*>(page), static_cast<size_t>(pageSize), protection | PROT_WRITE))
-        return Result(d, PylonPatch_ProtectionFailed, address, expected, actual, errno);
-    actual = expected;
-    const bool written = __atomic_compare_exchange_n(at, &actual, replacement, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
-    if (written) __builtin___clear_cache(reinterpret_cast<char*>(at), reinterpret_cast<char*>(at + 1));
-    if (mprotect(reinterpret_cast<void*>(page), static_cast<size_t>(pageSize), protection))
-        return Result(d, PylonPatch_ProtectionRestoreFailed, address, expected, written ? replacement : actual, errno);
-    return Result(d, written ? PylonPatch_Ok : PylonPatch_Conflict,
-                  address, expected, written ? replacement : actual);
+    bool written = false;
+    uint32_t actual = 0;
+    int error = 0;
+    const int32_t writeStatus = WriteWord(address, expected, replacement, &written, &actual, &error);
+    if (writeStatus == PylonPatch_Ok)
+        return Result(d, PylonPatch_Ok, address, expected, replacement);
+    if (writeStatus == PylonPatch_Conflict)
+        return Result(d, PylonPatch_Conflict, address, expected, actual);
+    return Result(d, writeStatus, address, expected, actual, error);
 #endif
 }
 
@@ -407,29 +477,16 @@ PYLON_MOD_EXPORT int32_t PylonMod_TryWritePatchV2(const PylonPatchRequestV2* r,
     std::memcpy(entry + 1, ExpectedV2(r), r->methodByteLength);
     entry->address = r->imageBase + r->methodRva + r->byteOffset;
     const uint32_t expected = reinterpret_cast<const uint32_t*>(entry + 1)[r->byteOffset / 4];
-    auto* at = reinterpret_cast<uint32_t*>(static_cast<uintptr_t>(entry->address));
+    bool written = false;
     uint32_t actual = expected;
-    const long pageSize = sysconf(_SC_PAGESIZE);
-    if (pageSize <= 0) {
-        std::free(entry);
-        return ResultV2(d, r, PylonPatch_ProtectionFailed, r->byteOffset, expected, actual, errno);
-    }
-    const uintptr_t page = static_cast<uintptr_t>(entry->address) / pageSize * pageSize;
-    if (mprotect(reinterpret_cast<void*>(page), static_cast<size_t>(pageSize), protection | PROT_WRITE)) {
-        const int error = errno;
-        std::free(entry);
-        return ResultV2(d, r, PylonPatch_ProtectionFailed, r->byteOffset, expected, actual, error);
-    }
-    const bool written = __atomic_compare_exchange_n(at, &actual, r->replacement, false,
-                                                     __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+    int error = 0;
+    const int32_t writeStatus = WriteWord(entry->address, expected, r->replacement,
+                                          &written, &actual, &error);
     if (written) {
-        __builtin___clear_cache(reinterpret_cast<char*>(at), reinterpret_cast<char*>(at + 1));
         entry->next = installed_patches;
         installed_patches = entry;
     } else std::free(entry);
-    const int restored = mprotect(reinterpret_cast<void*>(page), static_cast<size_t>(pageSize), protection);
-    return ResultV2(d, r, restored ? PylonPatch_ProtectionRestoreFailed :
-                    written ? PylonPatch_Ok : PylonPatch_Conflict, r->byteOffset,
-                    expected, written ? r->replacement : actual, restored ? errno : 0, written);
+    return ResultV2(d, r, writeStatus, r->byteOffset, expected,
+                    written ? r->replacement : actual, error, written);
 #endif
 }

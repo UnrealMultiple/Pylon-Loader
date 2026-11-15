@@ -380,15 +380,15 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         var total = (uint)(VanillaCounts.Buff + ModContent.GetContent<ModBuff>().Count);
         var vanilla = (uint)VanillaCounts.Buff;
 
-        var patches = new (string Ns, string Type, string Method, int Argc, uint Old, uint New, int Below)[]
+        var patches = new (System.Type Class, string Method, int Argc, uint Old, uint New, int Below)[]
         {
-            ("", "GUIBuffs", "Draw", 0, vanilla - 2, total - 2, 1),
-            ("", "GUIBuffs", "Draw", 0, vanilla, total, 1),
-            ("Terraria", "Main", "GetNurseHealCost", 0, vanilla - 1, total - 1, 0),
-            ("Terraria", "Main", "NPCChatText_DoNurseHeal", 1, vanilla - 1, total - 1, 0),
-            ("", "GUINPCDialogue", "Option1Clicked", 1, vanilla - 1, total - 1, 0),
-            ("", "GUINPCDialogue", "SetupButtonText", 6, vanilla - 1, total - 1, 0),
-            ("Terraria", "NPC", "RequestBuffRemoval", 1, vanilla - 1, total - 1, 0),
+            (typeof(GUIBuffs), "Draw", 0, vanilla - 2, total - 2, 1),
+            (typeof(GUIBuffs), "Draw", 0, vanilla, total, 1),
+            (typeof(Main), "GetNurseHealCost", 0, vanilla - 1, total - 1, 0),
+            (typeof(Main), "NPCChatText_DoNurseHeal", 1, vanilla - 1, total - 1, 0),
+            (typeof(GUINPCDialogue), "Option1Clicked", 1, vanilla - 1, total - 1, 0),
+            (typeof(GUINPCDialogue), "SetupButtonText", 6, vanilla - 1, total - 1, 0),
+            (typeof(NPC), "RequestBuffRemoval", 1, vanilla - 1, total - 1, 0),
         };
 
         var ok = 0;
@@ -396,14 +396,15 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         {
             try
             {
-                var name = string.IsNullOrEmpty(p.Ns) ? p.Type : p.Ns + "." + p.Type;
-                var changed = Pylon.NaviteAPI.Host.PatchNative.CompareLimit(name, p.Method, p.Argc, p.Old, p.New, p.Below, 0);
+                var name = p.Class.FullName ?? p.Class.Name;
+                var changed = RuntimeLimitInstaller.PatchMethod(p.Class, p.Method, p.Argc,
+                    p.Old, p.New, p.Below != 0, false, Log);
                 if (changed > 0) ok++;
                 else Log.Warn($"[buff] 上限补丁没生效：{name}.{p.Method} {p.Old}→{p.New}（结果 {changed}）");
             }
             catch (Exception e)
             {
-                Log.Warn($"[buff] 上限补丁异常：{p.Type}.{p.Method}：{e.Message}");
+                Log.Warn($"[buff] 上限补丁异常：{p.Class.Name}.{p.Method}：{e.Message}");
             }
         }
 

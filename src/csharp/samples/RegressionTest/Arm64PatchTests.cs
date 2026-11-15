@@ -58,5 +58,9 @@ internal static class Arm64PatchTests
         {
             log.Warn("[arm64] callback boundary test failed: " + e.Message);
         }
+
+        // P1: generated-stub end-to-end test. Kept outside the legacy checks so a failure
+        // here is reported with its own [p1] prefix.
+        Arm64InterceptDeviceTests.Run(log);
     }
 }

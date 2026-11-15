@@ -18,7 +18,7 @@ Host/             namespace Pylon.NaviteAPI.Host
   LogNative             PylonMod_Log
   HookNative            PylonMod_Hook*
   ThreadNative          PylonMod_IsGameThread / *ThreadId
-  PatchNative           PylonMod_PatchCompareLimit / PylonMod_LastError
+  PatchNative           PylonMod_CallWithStatics
 ```
 
 ## 约束

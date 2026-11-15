@@ -1,4 +1,3 @@
-using Pylon.NaviteAPI.Host;
 using Terraria.GameContent.UI.Chat;
 
 namespace Pylon.ModLoader;
@@ -69,9 +68,9 @@ internal static class ChatTagPatches
             if (p[0] != TstBlue || p[2] != LsrRed || p[4] != AndGreen) continue;
             if (!IsCbzW8(p[3]) || !IsCbzW8(p[5])) continue;
 
-            var ok = PatchNative.PatchInstruction((IntPtr)p, 0, TstBlue, TstRgb) == 0 &&
-                     PatchNative.PatchInstruction((IntPtr)(p + 3), 0, p[3], Nop) == 0 &&
-                     PatchNative.PatchInstruction((IntPtr)(p + 5), 0, p[5], Nop) == 0;
+            var ok = CodeWrite.TryWrite((IntPtr)p, TstBlue, TstRgb, out _) &&
+                     CodeWrite.TryWrite((IntPtr)(p + 3), p[3], Nop, out _) &&
+                     CodeWrite.TryWrite((IntPtr)(p + 5), p[5], Nop, out _);
             if (!ok) log.Warn("[item] PrintInline 颜色判断改写被内核拒绝");
             return;
         }

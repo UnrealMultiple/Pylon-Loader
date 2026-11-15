@@ -8,7 +8,8 @@ public readonly record struct PatchWriteDiagnostic(PatchStatus Status, int Syste
 
 /// <summary>
 /// Single-instruction installation with a complete, static method fingerprint.
-/// The caller authenticates the actual image BuildID and guarantees quiescence.
+/// The caller authenticates the actual image BuildID and guarantees quiescence of the
+/// whole code page while a write is applied.
 /// Plans never infer expected bytes from live code. No multiword transaction is exposed.
 /// </summary>
 public sealed class Arm64PatchTransaction
@@ -66,7 +67,7 @@ public sealed class Arm64PatchTransaction
 
     public bool TryValidate(out PatchWriteDiagnostic diagnostic) => Execute(false, false, out diagnostic);
 
-    /// <param name="callerGuaranteesQuiescence">All executing threads must be excluded from the target method for the entire call.</param>
+    /// <param name="callerGuaranteesQuiescence">No competing writer may change the target word for the entire call. Execution does not need to stop: native writes one aligned word through /proc/self/mem and never changes page permissions.</param>
     public bool TryApply(bool callerGuaranteesQuiescence, out PatchWriteDiagnostic diagnostic) =>
         Execute(true, callerGuaranteesQuiescence, out diagnostic);
 

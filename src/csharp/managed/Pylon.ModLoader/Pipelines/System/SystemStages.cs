@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Pylon.NaviteAPI.Host;
@@ -11,7 +12,7 @@ namespace Pylon.ModLoader;
 /// </summary>
 internal static unsafe class SystemStages
 {
-    // ---- 阶段编号（内核 mod/SystemBridges.h 同表，增删要两边同步）----
+    // ---- 阶段编号（与 stage 表一一对应，增删要同步 Dispatch/StageIntercept）----
     private const int PlayersBegin = 0;
     private const int PlayersEnd = 1;
     private const int NpcsBegin = 2;
@@ -34,6 +35,8 @@ internal static unsafe class SystemStages
         public uint[] Expected => expected; // 4 条指令指纹
         public HookId[] Hooks => hooks;     // 有订阅才装桥
         public bool Installed;
+        public int FirstHit;
+        public MidBodyInterception? Interception;
     }
 
     private static readonly Stage[] Stages =
@@ -71,11 +74,9 @@ internal static unsafe class SystemStages
 
     internal static void Build(IModLog log)
     {
-        if (HookNative.IsAvailable() == 0)
-        {
-            log.Info("[system] ShadowHook 不可用，系统阶段不装");
-            return;
-        }
+        var hookAvailable = HookNative.IsAvailable() != 0;
+        if (!hookAvailable)
+            log.Info("[system] ShadowHook 不可用：入口钩与 UpdateTimeRate 跳过，中体桥照常安装");
 
         var hooks = LoaderHost.Current.Hooks;
         var installed = 0;
@@ -85,8 +86,12 @@ internal static unsafe class SystemStages
         if (hooks.Channel(HookId.PreUpdateEntities).Length > 0 ||
             hooks.Channel(HookId.PostUpdateEverything).Length > 0)
         {
-            On.Terraria.Main.DoUpdateInWorld += DoUpdateInWorld;
-            names.Add("入口 PreUpdateEntities/PostUpdateEverything");
+            if (hookAvailable)
+            {
+                On.Terraria.Main.DoUpdateInWorld += DoUpdateInWorld;
+                names.Add("入口 PreUpdateEntities/PostUpdateEverything");
+            }
+            else log.Warn("[system] 入口 PreUpdateEntities/PostUpdateEverything 需要 ShadowHook，跳过");
         }
 
         for (var i = 0; i < Stages.Length; i++)
@@ -104,24 +109,18 @@ internal static unsafe class SystemStages
                     continue;
                 }
 
-                var rc = SystemBridgeNative.Install(i, body, stage.Offset, stage.Expected, out _);
-                if (rc == -2)
+                // No fallback: a failed install leaves the stage disabled rather than
+                // silently going back to the removed legacy x16 bridge.
+                if (!TryInstallStub(stage, i, body, log))
                 {
-                    log.Warn($"[system] {stage.Name}：桥位指纹不符（游戏版本变了），跳过");
+                    log.Warn($"[system] {stage.Name}: C# stub install failed, stage skipped");
                     continue;
                 }
-                if (rc != 0)
-                {
-                    log.Warn($"[system] {stage.Name}：挂钩失败 rc={rc}（{PylonError()}），跳过");
-                    continue;
-                }
-
-                SystemBridgeNative.Subscribe(i, &OnStage);
                 stage.Installed = true;
                 installed++;
                 names.Add(stage.Name);
-
-                if (i == ClockAdvance) On.Terraria.Main.UpdateTimeRate += UpdateTimeRate;
+                if (i == ClockAdvance && hookAvailable)
+                    On.Terraria.Main.UpdateTimeRate += UpdateTimeRate;
             }
             catch (Exception e)
             {
@@ -148,48 +147,133 @@ internal static unsafe class SystemStages
         return false;
     }
 
-    private static string PylonError()
+    private static bool TryInstallStub(Stage stage, int index, IntPtr body, IModLog log)
     {
-        var pointer = PatchNative.LastError();
-        return pointer == IntPtr.Zero ? "内核无明细" : Marshal.PtrToStringUTF8(pointer) ?? "内核无明细";
+        var site = unchecked((ulong)body.ToInt64()) + (ulong)stage.Offset;
+        if (!CodeImage.TryQuery(site, out var image, out var status) ||
+            image.ImageBase == 0 || string.IsNullOrEmpty(image.BuildId))
+        {
+            log.Warn($"[system] {stage.Name}: image identity unavailable ({status})");
+            return false;
+        }
+        if (site < image.ImageBase || site - image.ImageBase > uint.MaxValue)
+        {
+            log.Warn($"[system] {stage.Name}: site 0x{site:x} is outside the image");
+            return false;
+        }
+
+        // The stage table only keeps a static 16-byte window. MidBodyIntercept validates
+        // exactly this window with native ABI v2; no JSON method RVA is involved.
+        var fingerprint = new byte[16];
+        for (var i = 0; i < 4; i++)
+            BinaryPrimitives.WriteUInt32LittleEndian(fingerprint.AsSpan(i * 4, 4), stage.Expected[i]);
+        var live = new byte[16];
+        fixed (byte* destination = live)
+        {
+            if (Arm64Native.TryReadMemory(site, destination, 16, out _) != 0)
+            {
+                log.Warn($"[system] {stage.Name}: site 0x{site:x} is not readable");
+                return false;
+            }
+        }
+        for (var i = 0; i < fingerprint.Length; i++)
+        {
+            if (live[i] == fingerprint[i]) continue;
+            log.Warn($"[system] {stage.Name}: 16-byte fingerprint mismatch at 0x{site + (uint)i:x}");
+            return false;
+        }
+
+        var profile = new CodeSiteProfile(
+            image.BuildId,
+            "system-stub",
+            site,
+            (uint)(site - image.ImageBase),
+            0,
+            16,
+            "SystemStages",
+            stage.Name,
+            Array.AsReadOnly(stage.Expected),
+            Array.AsReadOnly(fingerprint));
+        InterceptHandler handler = frame => StageIntercept(index, frame);
+        if (!MidBodyIntercept.TryInstall(profile, image.BuildId, handler, true,
+                out var interception, out var diagnostics, log))
+        {
+            log.Warn($"[system] {stage.Name}: MidBodyIntercept refused: " +
+                     string.Join("; ", diagnostics));
+            return false;
+        }
+        stage.Interception = interception;
+        log.Info($"[system] {stage.Name}: stub site=0x{site:x} " +
+                 $"strategy={interception!.RelocationStrategy}");
+        return true;
     }
 
     // ===================== 每帧分派 =====================
 
-    [UnmanagedCallersOnly]
-    private static void OnStage(int stage, IntPtr value)
+    /// <summary>Entry point of the generated stub's managed callback.</summary>
+    private static void Dispatch(int stage, IntPtr value)
+    {
+        switch (stage)
+        {
+            case PlayersBegin: Fan(HookId.PreUpdatePlayers); break;
+            case PlayersEnd: Fan(HookId.PostUpdatePlayers); break;
+            case NpcsBegin: Fan(HookId.PreUpdateNPCs); break;
+            case NpcsEnd:
+                Fan(HookId.PostUpdateNPCs);
+                Fan(HookId.PreUpdateGores);
+                break;
+            case GoresEnd: Fan(HookId.PostUpdateGores); break;
+            case ItemsBegin:
+                Fan(HookId.PostUpdateProjectiles);
+                Fan(HookId.PreUpdateItems);
+                break;
+            case ItemsEnd: Fan(HookId.PostUpdateItems); break;
+            case Transform: ModifyTransform(); break;
+            case ClockAdvance:
+                if (value != IntPtr.Zero) Unsafe.Write((void*)value, _clockRate);
+                break;
+            case DyeReward:
+                if (value != IntPtr.Zero) RewriteDyePool(*(DyeFrame*)value);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Generated-stub entry. The frame is only valid for the duration of this call;
+    /// values needed after the callback are copied out (clock double, dye pointers).
+    /// Returning false makes the stub execute the original site instruction.
+    /// </summary>
+    private static bool StageIntercept(int stage, IntPtr frame)
     {
         try
         {
+            if (System.Threading.Interlocked.Exchange(ref Stages[stage].FirstHit, 1) == 0)
+                Log.Info($"[system] {Stages[stage].Name}: stub first dispatch");
             switch (stage)
             {
-                case PlayersBegin: Fan(HookId.PreUpdatePlayers); break;
-                case PlayersEnd: Fan(HookId.PostUpdatePlayers); break;
-                case NpcsBegin: Fan(HookId.PreUpdateNPCs); break;
-                case NpcsEnd:
-                    Fan(HookId.PostUpdateNPCs);
-                    Fan(HookId.PreUpdateGores);
-                    break;
-                case GoresEnd: Fan(HookId.PostUpdateGores); break;
-                case ItemsBegin:
-                    Fan(HookId.PostUpdateProjectiles);
-                    Fan(HookId.PreUpdateItems);
-                    break;
-                case ItemsEnd: Fan(HookId.PostUpdateItems); break;
-                case Transform: ModifyTransform(); break;
                 case ClockAdvance:
-                    if (value != IntPtr.Zero) Unsafe.Write((void*)value, _clockRate);
+                    var rate = InterceptFrame.GetDouble(frame, 0);
+                    var before = rate;
+                    Dispatch(stage, (IntPtr)(void*)&rate);
+                    if (rate != before && double.IsFinite(rate) && rate >= 0)
+                        InterceptFrame.SetDouble(frame, 0, rate);
                     break;
                 case DyeReward:
-                    if (value != IntPtr.Zero) RewriteDyePool(*(DyeFrame*)value);
+                    var dye = new DyeFrame(
+                        (IntPtr)unchecked((long)InterceptFrame.GetGpr(frame, 19)),
+                        (IntPtr)unchecked((long)InterceptFrame.GetGpr(frame, 21)));
+                    Dispatch(stage, (IntPtr)(void*)&dye);
+                    break;
+                default:
+                    Dispatch(stage, IntPtr.Zero);
                     break;
             }
         }
         catch (Exception e)
         {
-            // 异常越过 UnmanagedCallersOnly 帧就是进程崩溃，必须吃干净。
-            Safe.Once("system.stage", "[system] 阶段分派异常：" + Safe.Describe(e), true);
+            Safe.Once("system.stub", "[system] stub 阶段分派异常：" + Safe.Describe(e), true);
         }
+        return false;
     }
 
     private static void Fan(HookId id)

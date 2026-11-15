@@ -123,7 +123,8 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
             var total = VanillaCounts.Npc + ModContent.GetContent<ModNpc>().Count;
             var old = (uint)(VanillaCounts.Npc - 2);
             var updated = (uint)(total - 2);
-            var changed = Pylon.NaviteAPI.Host.PatchNative.CompareLimit("Terraria.Lang", "GetNPCName", 1, old, updated, 0, 0);
+            var changed = RuntimeLimitInstaller.PatchMethod(typeof(Lang), "GetNPCName", 1,
+                old, updated, false, false, log);
             if (changed > 0) log.Info($"[npc] Lang.GetNPCName 上限补丁：{old}→{updated}（{changed} 处）");
             else log.Warn($"[npc] Lang.GetNPCName 上限补丁没生效（{old}→{updated}）");
         }

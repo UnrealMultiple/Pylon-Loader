@@ -8,8 +8,6 @@
 
 #include "il2cpp/Domain.h"
 #include "il2cpp/Invoke.h"
-#include "mod/LimitPatch.h"
-#include "mod/SystemBridges.h"
 #include "pylon/Log.h"
 
 using namespace pylon;
@@ -215,43 +213,6 @@ PYLON_MOD_EXPORT void* PylonMod_MethodPointer(const char* qualified_name, const 
         return nullptr;
     }
     return method_pointer;
-}
-
-PYLON_MOD_EXPORT int32_t PylonMod_PatchCompareLimit(const char* qualifiedName, const char* method,
-                                                    int32_t argc, uint32_t oldLimit,
-                                                    uint32_t newLimit, int32_t belowToo,
-                                                    int32_t shifted) {
-    ClearError();
-    if (qualifiedName == nullptr || method == nullptr || *method == '\0') {
-        SetError("类型名或方法名为空");
-        return -1;
-    }
-    if (argc < 0) {
-        SetError("参数个数不能为负");
-        return -1;
-    }
-    if (oldLimit > 0xFFFu || newLimit > 0xFFFu) {
-        SetError("上限放不进 cmp 的 12 位立即数");
-        return -1;
-    }
-
-    const auto session = Enter();
-    if (!session) return -1;
-
-    auto resolved = il2cpp::Method::Resolve(*session, qualifiedName, method, argc);
-    if (!resolved) {
-        SetError(resolved.reason);
-        return -1;
-    }
-
-    const auto patched = pylon::mod::PatchCompareLimit(resolved.value.info(), oldLimit, newLimit,
-                                           belowToo != 0, shifted != 0);
-    if (patched == 0) {
-        SetError("没有找到可改的 cmp #" + std::to_string(oldLimit) + "（方法 " +
-                 resolved.value.Describe() + "）");
-        return 0;
-    }
-    return patched;
 }
 
 PYLON_MOD_EXPORT int32_t PylonMod_GetInt32Field(void* instance, const char* type,
@@ -552,27 +513,6 @@ PYLON_MOD_EXPORT int32_t PylonMod_ReadString(void* managed_string, char* out, in
 
 extern "C" int32_t pylon_call_with_x27(void* arg0, void* arg1, void* fn, void* statics);
 
-PYLON_MOD_EXPORT int32_t PylonMod_PatchInstruction(void* body, int32_t byte_offset,
-                                                   uint32_t expected, uint32_t replacement) {
-    ClearError();
-    if (body == nullptr || byte_offset < 0 || (byte_offset & 3) != 0) {
-        SetError("方法体或字节偏移非法（偏移须 4 字节对齐）");
-        return -1;
-    }
-    auto* at = reinterpret_cast<uint32_t*>(reinterpret_cast<uintptr_t>(body) + byte_offset);
-    if (*at != expected) {
-        char expect[16] = {0};
-        std::snprintf(expect, sizeof(expect), "0x%08X", expected);
-        SetError(std::string("指令指纹不符（期望 ") + expect + "，实际不同——游戏版本变了？）");
-        return -2;
-    }
-    if (!mod::WriteInstruction(at, replacement)) {
-        SetError("指令改写失败（mprotect / clear_cache）");
-        return -3;
-    }
-    return 0;
-}
-
 PYLON_MOD_EXPORT int32_t PylonMod_CallWithStatics(void* fn, void* statics, void* arg0, void* arg1) {
     ClearError();
     if (fn == nullptr || statics == nullptr) {
@@ -580,21 +520,4 @@ PYLON_MOD_EXPORT int32_t PylonMod_CallWithStatics(void* fn, void* statics, void*
         return 0;
     }
     return pylon_call_with_x27(arg0, arg1, fn, statics);
-}
-
-PYLON_MOD_EXPORT int32_t PylonMod_SystemBridgeInstall(int32_t stage, void* body,
-                                                      int32_t byteOffset,
-                                                      const uint32_t* expected,
-                                                      void** trampoline) {
-    ClearError();
-    const int32_t rc = pylon::mod::SystemBridgeInstall(stage, body, byteOffset, expected, trampoline);
-    if (rc == -1) SetError("桥参数非法（stage/方法体/偏移/指纹指针）");
-    else if (rc == -2) SetError("桥位指纹不符（16 字节）——游戏版本变了？");
-    else if (rc == -3) SetError("挂钩失败（ShadowHook，见内核日志）");
-    return rc;
-}
-
-PYLON_MOD_EXPORT void PylonMod_SystemBridgeSubscribe(int32_t stage,
-                                                     void (*callback)(int32_t, void*)) {
-    pylon::mod::SystemBridgeSubscribe(stage, callback);
 }

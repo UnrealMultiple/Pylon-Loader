@@ -157,8 +157,8 @@ internal static class TileSavePipeline
                     throw new InvalidOperationException("SaveWorldTilesFast 挂钩失败 rc 非零（见内核日志）");
 
                 // 补丁失败不回滚钩子：detour 走真块 + 真数组遮蔽降级（_patched=false）。
-                _patched = PatchNative.PatchInstruction(_body, LoadStaticsOffset, LoadStaticsInsn,
-                    MovFromX27Insn) == 0;
+                _patched = CodeWrite.TryWrite(
+                    (IntPtr)((byte*)_body + LoadStaticsOffset), LoadStaticsInsn, MovFromX27Insn, out _);
             }
 
             On.Terraria.IO.WorldFile.LoadWorldTiles += LoadTiles;

@@ -64,7 +64,9 @@ internal sealed class LootPipeline : ILoaderModule, ILoaderModuleRefresh
             var changed = 0;
             foreach (var below in new[] { 0, 1 })
             {
-                changed += Pylon.NaviteAPI.Host.PatchNative.CompareLimit("Terraria.NPC", "NPCLoot", 0, old, updated, below, 0);
+                var result = RuntimeLimitInstaller.PatchMethod(typeof(NPC), "NPCLoot", 0,
+                    old, updated, below != 0, false, Log);
+                if (result > 0) changed += result;
             }
 
             if (changed > 0) Log.Info($"[loot] NPC.NPCLoot 上限补丁：{old}→{updated}（{changed} 处）");

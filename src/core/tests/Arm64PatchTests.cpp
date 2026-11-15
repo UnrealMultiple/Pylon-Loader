@@ -3,6 +3,7 @@
 #include "pylon/mod/ModApi.h"
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <sys/mman.h>
 #include <unistd.h>
 
@@ -191,6 +192,74 @@ int main() {
     REQUIRE(PylonMod_TryWritePatchV2(&badWindow, &diagnostic) == PylonPatch_FingerprintMismatch);
     REQUIRE(diagnostic.byteOffset == 8 && diagnostic.actual == 0xd503201f && diagnostic.expected == 0);
     REQUIRE(PylonMod_TryWritePatchV2(&window, &diagnostic) == 0);
+
+    uint64_t page = 0;
+    REQUIRE(PylonMod_ReserveCodePage(address, 0, &page) == PylonPatch_InvalidArgument);
+    REQUIRE(PylonMod_ReserveCodePage(address, PylonCodePage_MaxBytes + 1, &page) == PylonPatch_InvalidArgument);
+    REQUIRE(PylonMod_ReserveCodePage(address, 64, nullptr) == PylonPatch_InvalidArgument);
+    REQUIRE(PylonMod_ReserveCodePage(0, 64, &page) == PylonPatch_InvalidArgument);
+    REQUIRE(PylonMod_ReserveCodePage(address, 64, &page) == 0);
+    REQUIRE(page % static_cast<uint64_t>(sysconf(_SC_PAGESIZE)) == 0);
+    const long long reach = PylonCodePage_ReachBytes;
+    const long long delta = static_cast<long long>(page) - static_cast<long long>(address);
+    REQUIRE(delta >= -reach - static_cast<long long>(pageSize) && delta <= reach + static_cast<long long>(pageSize));
+    const uint8_t stubBytes[] = {0x1f, 0x20, 0x03, 0xd5};
+    REQUIRE(PylonMod_SealCodePage(page, stubBytes, sizeof(stubBytes)) == 0);
+    REQUIRE(PylonMod_SealCodePage(page, stubBytes, sizeof(stubBytes)) == PylonPatch_Conflict);
+    REQUIRE(PylonMod_SealCodePage(page + pageSize, stubBytes, sizeof(stubBytes)) == PylonPatch_Conflict);
+    REQUIRE(PylonMod_SealCodePage(page, nullptr, 4) == PylonPatch_InvalidArgument);
+    REQUIRE(PylonMod_SealCodePage(page, stubBytes, PylonCodePage_MaxBytes + 1) == PylonPatch_InvalidArgument);
+    REQUIRE(std::memcmp(reinterpret_cast<const void*>(page), stubBytes, sizeof(stubBytes)) == 0);
+    uint8_t readBack[4] = {};
+    REQUIRE(PylonMod_TryReadMemory(page, readBack, sizeof(readBack), &error) == 0);
+    REQUIRE(std::memcmp(readBack, stubBytes, sizeof(stubBytes)) == 0);
+    REQUIRE(PylonMod_TryReadMemory(page, nullptr, 4, &error) == PylonPatch_InvalidArgument);
+    REQUIRE(PylonMod_TryReadMemory(page, readBack, 0, &error) == PylonPatch_InvalidArgument);
+    REQUIRE(PylonMod_TryReadMemory(0, readBack, 4, &error) == PylonPatch_InvalidArgument);
+    REQUIRE(PylonMod_TryReadMemory(page + 1, readBack, 4, &error) == PylonPatch_InvalidArgument);
+    REQUIRE(PylonMod_TryReadMemory(0x4000000000000000ULL, readBack, 4, &error) == PylonPatch_Unmapped);
+    auto* readOnly = static_cast<uint8_t*>(mmap(nullptr, pageSize, PROT_READ | PROT_WRITE,
+                                               MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
+    REQUIRE(readOnly != MAP_FAILED);
+    std::memcpy(readOnly, stubBytes, sizeof(stubBytes));
+    REQUIRE(mprotect(readOnly, pageSize, PROT_READ) == 0);
+    std::memset(readBack, 0, sizeof(readBack));
+    REQUIRE(PylonMod_TryReadMemory(reinterpret_cast<uint64_t>(readOnly), readBack,
+                                   sizeof(readBack), &error) == 0);
+    REQUIRE(std::memcmp(readBack, stubBytes, sizeof(stubBytes)) == 0);
+    REQUIRE(munmap(readOnly, pageSize) == 0);
+    REQUIRE(PylonMod_ReleaseCodePage(0) == PylonPatch_InvalidArgument);
+    REQUIRE(PylonMod_ReleaseCodePage(page + 0x100000) == PylonPatch_Conflict);
+    REQUIRE(PylonMod_ReleaseCodePage(page) == 0);
+    REQUIRE(PylonMod_ReleaseCodePage(page) == PylonPatch_Conflict);
+    REQUIRE(PylonMod_SealCodePage(page, stubBytes, sizeof(stubBytes)) == PylonPatch_Conflict);
+#if defined(__aarch64__)
+    uint64_t bypass = 0;
+    REQUIRE(PylonMod_ReserveCodePage(address, 16, &bypass) == 0);
+    REQUIRE(mprotect(memory, pageSize, PROT_READ | PROT_WRITE) == 0);
+    memory[12] = 0xd503201f;
+    memory[13] = 0x52800120;
+    memory[14] = 0xd65f03c0;
+    __builtin___clear_cache(reinterpret_cast<char*>(memory + 12), reinterpret_cast<char*>(memory + 15));
+    REQUIRE(mprotect(memory, pageSize, PROT_READ | PROT_EXEC) == 0);
+    const uint64_t resume = reinterpret_cast<uintptr_t>(memory + 13);
+    const uint64_t stubAddress = bypass + 0;
+    const long long backOffset = static_cast<long long>(resume) - static_cast<long long>(stubAddress);
+    const uint32_t back = 0x14000000u | static_cast<uint32_t>((backOffset >> 2) & 0x03ffffffu);
+    const uint8_t bypassBytes[4] = {
+        static_cast<uint8_t>(back), static_cast<uint8_t>(back >> 8),
+        static_cast<uint8_t>(back >> 16), static_cast<uint8_t>(back >> 24)};
+    REQUIRE(PylonMod_SealCodePage(bypass, bypassBytes, sizeof(bypassBytes)) == 0);
+    const uint64_t nopSite = reinterpret_cast<uintptr_t>(memory + 12);
+    const long long stubOffset = static_cast<long long>(bypass) - static_cast<long long>(nopSite);
+    const uint32_t jump = 0x14000000u | static_cast<uint32_t>((stubOffset >> 2) & 0x03ffffffu);
+    REQUIRE(mprotect(memory, pageSize, PROT_READ | PROT_WRITE) == 0);
+    memory[12] = jump;
+    __builtin___clear_cache(reinterpret_cast<char*>(memory + 12), reinterpret_cast<char*>(memory + 13));
+    REQUIRE(mprotect(memory, pageSize, PROT_READ | PROT_EXEC) == 0);
+    auto passThrough = reinterpret_cast<int (*)()>(memory + 12);
+    REQUIRE(passThrough() == 9);
+#endif
 #else
     REQUIRE(PylonMod_TryWritePatchV2(&request, &diagnostic) == PylonPatch_Unsupported);
 #endif

@@ -296,6 +296,11 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
 
     internal void Build()
     {
+        // Build runs after the game tables are ready, later than LoaderRegistry's early
+        // Refresh pass. Assign here as well so mod styles get their ids before the
+        // DrawWaters immediate patch and before the style table is grown.
+        WaterTable.Assign();
+
         var total = WaterTable.Total;
         if (total > 0) TableMaintenance.Ensure(WaterTables.Style, total).GrowAll(Log.Info);
 

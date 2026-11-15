@@ -1,5 +1,5 @@
-using System.Runtime.InteropServices;
-using Pylon.NaviteAPI.Host;
+using Terraria;
+using Terraria.GameContent;
 
 namespace Pylon.ModLoader;
 
@@ -9,84 +9,70 @@ namespace Pylon.ModLoader;
 /// </summary>
 internal static class LimitPatch
 {
-    private const uint TileCount = 754;
+    internal const uint TileCount = 754;
 
-    private readonly record struct Entry(
-        string Type,
+    /// <summary>
+    /// Runtime locator input. <see cref="Class"/> is the Il2CppInterop proxy type;
+    /// <see cref="MethodCode.TryResolve"/> turns it into the native method address at runtime.
+    /// <see cref="Sites"/> is the expected match count (metadata, not an address).
+    /// </summary>
+    internal readonly record struct Entry(
+        System.Type Class,
         string Method,
         int Argc,
         uint Old,
         int Offset,
+        int Sites,
         bool BelowToo = false,
-        bool Shifted = false);
-
-    private static readonly Entry[] Entries =
-    [
-        new("Terraria.WorldGen", "PlaceTile", 7, TileCount - 1, -1),
-        new("Terraria.WorldGen", "PlaceObject", 8, TileCount - 1, -1),
-        new("Terraria.WorldGen", "KillTile", 5, TileCount - 1, -1),
-        new("Terraria.WorldGen", "KillWall", 3, TileCount - 1, -1),
-        new("Terraria.WorldGen", "TileFrameImportant", 5, TileCount - 1, -1),
-        new("Terraria.WorldGen", "WouldTileReplacementWork", 3, TileCount - 1, -1),
-        new("Terraria.WorldGen", "CheckPile", 2, TileCount - 1, -1),
-        new("Terraria.WorldGen", "Check2x1", 3, TileCount - 1, -1),
-        new("Terraria.WorldGen", "Check2x2Style", 3, TileCount - 1, -1),
-        new("Terraria.WorldGen", "placeTrap", 3, TileCount - 1, -1),
-        new("Terraria.WorldGen", "BlockBelowMakesSandConvertIntoHardenedSand", 2, TileCount - 1, -1),
-        new("Terraria.DelegateMethods", "SpreadTile", 6, TileCount - 1, -1),
-        new("Terraria.Projectile", "AI_006", 0, TileCount - 1, -1),
-        new("Terraria.Player", "PlaceThing_Tiles_CheckRopeUsability", 1, TileCount - 1, -1),
-        new("Terraria.GameContent.SmartCursorHelper", "Step_Boulders", 3, TileCount - 1, -1),
-        new("Terraria.GameContent.SmartCursorHelper", "Step_PumpkinSeeds", 3, TileCount - 1, -1),
-        new("Terraria.WorldGen", "TileFrameCosmetic", 3, TileCount, 0, BelowToo: true),
-        new("Terraria.WorldGen", "ValidateTypes", 0, TileCount, 0, BelowToo: true),
-        new("Terraria.Collision", "IsWorldPointSolid", 2, TileCount, 0),
-        new("Terraria.TileData", "GetTileDefinition", 8, TileCount, 0, Shifted: true),
-    ];
-
-    /// <summary>Install the pinned offline profile after loaded ELF identity verification.</summary>
-    internal static int Apply(int total, IModLog log) => StaticLimitInstaller.Apply(total, log);
-
-    internal static int ApplyLegacyMethod(string method, int total, IModLog log)
+        bool Shifted = false)
     {
-        foreach (var entry in Entries)
-        {
-            if (entry.Type + "$$" + entry.Method != method) continue;
-            var target = (uint)(total + entry.Offset);
-            var count = PatchNative.CompareLimit(entry.Type, entry.Method, entry.Argc, entry.Old, target,
-                entry.BelowToo ? 1 : 0, entry.Shifted ? 1 : 0);
-            log.Warn($"[arm64] legacy limit path retained: {method} count={count}");
-            return count > 0 ? 0 : 1;
-        }
-        return 1;
+        internal string TypeName => Class.FullName ?? Class.Name;
     }
 
-    /// <summary>Legacy native string scanner. Kept to avoid losing unsupported comparisons during migration.</summary>
-    internal static int ApplyLegacy(int total, IModLog log)
+    internal static readonly Entry[] Entries =
+    [
+        new(typeof(WorldGen), "PlaceTile", 7, TileCount - 1, -1, 2),
+        new(typeof(WorldGen), "PlaceObject", 8, TileCount - 1, -1, 1),
+        new(typeof(WorldGen), "KillTile", 5, TileCount - 1, -1, 1),
+        new(typeof(WorldGen), "KillWall", 3, TileCount - 1, -1, 1),
+        new(typeof(WorldGen), "TileFrameImportant", 5, TileCount - 1, -1, 1),
+        new(typeof(WorldGen), "WouldTileReplacementWork", 3, TileCount - 1, -1, 1),
+        new(typeof(WorldGen), "CheckPile", 2, TileCount - 1, -1, 1),
+        new(typeof(WorldGen), "Check2x1", 3, TileCount - 1, -1, 1),
+        new(typeof(WorldGen), "Check2x2Style", 3, TileCount - 1, -1, 1),
+        new(typeof(WorldGen), "placeTrap", 3, TileCount - 1, -1, 1),
+        new(typeof(WorldGen), "BlockBelowMakesSandConvertIntoHardenedSand", 2, TileCount - 1, -1, 1),
+        new(typeof(DelegateMethods), "SpreadTile", 6, TileCount - 1, -1, 1),
+        new(typeof(Projectile), "AI_006", 0, TileCount - 1, -1, 1),
+        new(typeof(Player), "PlaceThing_Tiles_CheckRopeUsability", 1, TileCount - 1, -1, 1),
+        new(typeof(SmartCursorHelper), "Step_Boulders", 3, TileCount - 1, -1, 1),
+        new(typeof(SmartCursorHelper), "Step_PumpkinSeeds", 3, TileCount - 1, -1, 1),
+        new(typeof(WorldGen), "TileFrameCosmetic", 3, TileCount, 0, 1, BelowToo: true),
+        new(typeof(WorldGen), "ValidateTypes", 0, TileCount, 0, 1, BelowToo: true),
+        new(typeof(Collision), "IsWorldPointSolid", 2, TileCount, 0, 1),
+        new(typeof(TileData), "GetTileDefinition", 8, TileCount, 0, 1, Shifted: true),
+    ];
+
+    /// <summary>Rollback switch: false = pinned offline JSON profile.</summary>
+    internal static bool UseRuntimeInstaller = true;
+
+    /// <summary>Install the runtime-resolved profile; no JSON addresses are required.</summary>
+    internal static int Apply(int total, IModLog log)
     {
         if (total <= TileCount) return 0;
-
-        var failed = 0;
-        foreach (var entry in Entries)
-        {
-            var target = (uint)(total + entry.Offset);
-            var patched = PatchNative.CompareLimit(entry.Type, entry.Method, entry.Argc, entry.Old, target,
-                entry.BelowToo ? 1 : 0, entry.Shifted ? 1 : 0);
-
-            if (patched > 0) continue;
-
-            failed++;
-            var reason = patched == 0 ? "指令里没找到 cmp" : "内核报错：" + LastError();
-            log.Warn($"[tile] {entry.Type}.{entry.Method} 的上限 {entry.Old} → {target} 没改成（{reason}）");
-        }
-
-        if (failed == 0) log.Info($"[tile] 编译期上限已顶到 {total}（{Entries.Length} 个方法）");
+        if (!UseRuntimeInstaller) return StaticLimitInstaller.Apply(total, log);
+        var failed = RuntimeLimitInstaller.Apply(total, log);
+        if (failed != 0)
+            log.Warn($"[limit] runtime installer failed={failed}; JSON profile was not applied " +
+                     "(rollback: LimitPatch.UseRuntimeInstaller=false)");
         return failed;
     }
 
     /// <summary>
     /// Install one explicit offline method profile after the host has authenticated the loaded image.
-    /// The host must exclude execution of this method throughout all writes. No live bytes become expected.
+    /// The host must exclude competing writers throughout all writes; execution may continue because
+    /// native writes one aligned word through /proc/self/mem without changing page permissions.
+    /// No live bytes become expected.
     /// </summary>
     internal static bool ApplyProfile(CompareLimitMethodProfile profile, string expectedBuildId,
         string authenticatedBuildId, ulong imageBase, int total, bool callerGuaranteesQuiescence, IModLog log)
@@ -127,11 +113,5 @@ internal static class LimitPatch
             return false;
         }
         return true;
-    }
-
-    private static string LastError()
-    {
-        var pointer = PatchNative.LastError();
-        return pointer == IntPtr.Zero ? string.Empty : Marshal.PtrToStringUTF8(pointer) ?? string.Empty;
     }
 }

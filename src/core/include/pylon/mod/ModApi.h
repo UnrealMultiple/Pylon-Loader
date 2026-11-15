@@ -22,11 +22,6 @@ PYLON_MOD_EXPORT void* PylonMod_FindType(const char* qualifiedName);
 PYLON_MOD_EXPORT void* PylonMod_MethodPointer(const char* qualifiedName, const char* method,
                                               int32_t argc);
 
-PYLON_MOD_EXPORT int32_t PylonMod_PatchCompareLimit(const char* qualifiedName, const char* method,
-                                                    int32_t argc, uint32_t oldLimit,
-                                                    uint32_t newLimit, int32_t belowToo,
-                                                    int32_t shifted);
-
 PYLON_MOD_EXPORT int32_t PylonMod_GetInt32Field(void* instance, const char* type,
                                                 const char* field, int32_t* out);
 PYLON_MOD_EXPORT int32_t PylonMod_SetInt32Field(void* instance, const char* type,
@@ -91,12 +86,12 @@ PYLON_MOD_EXPORT int32_t PylonMod_HookRemove(void* target);
 
 PYLON_MOD_EXPORT int32_t PylonMod_HookAvailable();
 
-PYLON_MOD_EXPORT int32_t PylonMod_PatchInstruction(void* body, int32_t byteOffset,
-                                                   uint32_t expected, uint32_t replacement);
-
 // ARM64 patch ABI v1. All functions return a PylonPatchStatus (0 = success).
 // CodeSite bounds are supplied by the caller, not inferred method boundaries.
-// Callers must keep mappings alive and quiesce executing threads while patching.
+// Callers must keep mappings alive and serialize competing writers while patching.
+// The write is a single aligned 32-bit store through /proc/self/mem; it does NOT
+// change page permissions, so the page remains executable and running threads do not
+// need to be suspended. Competing writers still must be excluded by the caller.
 enum PylonPatchStatus : int32_t {
     PylonPatch_Ok = 0, PylonPatch_InvalidArgument = 1, PylonPatch_OutOfBounds = 2,
     PylonPatch_Unmapped = 3, PylonPatch_NotExecutable = 4, PylonPatch_FingerprintMismatch = 5,
@@ -142,8 +137,9 @@ PYLON_MOD_EXPORT int32_t PylonMod_Arm64PcRelative(uint64_t pc, uint32_t word,
     uint64_t* target, PylonPatchDiagnostic* diagnostic);
 PYLON_MOD_EXPORT int32_t PylonMod_Arm64Validate(const PylonCodeSite* site, uint32_t byteOffset,
     const uint32_t* expected, uint32_t wordCount, PylonPatchDiagnostic* diagnostic);
-// One aligned instruction only; no multi-instruction transaction or thread suspension.
-// ProtectionRestoreFailed means the instruction WAS written; actual reports replacement.
+// One aligned instruction only; no multi-instruction transaction.
+// Writes go through /proc/self/mem and never remove EXEC, so executing threads may
+// continue; exclude competing writers for the duration of the call.
 PYLON_MOD_EXPORT int32_t PylonMod_Arm64Write(const PylonCodeSite* site, uint32_t byteOffset,
     uint32_t expected, uint32_t replacement, PylonPatchDiagnostic* diagnostic);
 // Stable v1 names used by the managed strategy layer.
@@ -153,6 +149,8 @@ PYLON_MOD_EXPORT int32_t PylonMod_TryReadInstruction32(const PylonCodeSite* site
     uint32_t byteOffset, uint32_t* out, PylonPatchDiagnostic* diagnostic);
 PYLON_MOD_EXPORT int32_t PylonMod_TryReadWords(const PylonCodeSite* site,
     uint32_t byteOffset, uint32_t* out, uint32_t wordCount, PylonPatchDiagnostic* diagnostic);
+PYLON_MOD_EXPORT int32_t PylonMod_TryReadMemory(uint64_t address, uint8_t* out,
+    uint32_t byteLength, PylonPatchDiagnostic* diagnostic);
 PYLON_MOD_EXPORT int32_t PylonMod_TryWriteInstruction32(const PylonCodeSite* site,
     uint32_t byteOffset, uint32_t expected, uint32_t replacement, PylonPatchDiagnostic* diagnostic);
 PYLON_MOD_EXPORT int32_t PylonMod_TryWritePatch(const PylonCodeSite* site,
@@ -167,12 +165,16 @@ PYLON_MOD_EXPORT int32_t PylonMod_TryWritePatch(const PylonCodeSite* site,
 // opaque values; it does NOT authenticate a binary, discover method bounds, suspend
 // threads, keep mappings alive, or implement a general intercept/relocation backend.
 // Caller must retain all request buffers/mappings for the call and exclude competing
-// writes/execution throughout validation+write+cache maintenance (Quiescent asserted).
+// writes throughout validation+write+cache maintenance (Quiescent asserted).
+// The write is a single aligned 32-bit store through /proc/self/mem; it does not change
+// page permissions, so execution does not need to be suspended. The Quiescent flag now
+// means "no competing writers", not "whole-page execution stopped".
 // A process-lifetime registry reserves written addresses and (ownerId, siteId) pairs;
 // there is deliberately no uninstall/reset API. IDs must be nonzero and process-unique.
 // Only replacementWordCount == 1 is supported: no multiword transaction is promised.
 // Status always uses PylonPatchStatus; diagnostics distinguish whether a write occurred.
-// ProtectionRestoreFailed can occur with either write state; inspect writeState.
+// ProtectionFailed/ProtectionRestoreFailed remain in the ABI but are not produced by
+// the /proc/self/mem write path.
 constexpr uint32_t PylonPatch_AbiV2 = 2;
 enum PylonPatchFlagsV2 : uint32_t {
     PylonPatchV2_BuildAuthenticated = 1, PylonPatchV2_Quiescent = 2
@@ -226,11 +228,12 @@ PYLON_MOD_EXPORT int32_t PylonMod_TryWritePatchV2(const PylonPatchRequestV2* req
 
 PYLON_MOD_EXPORT int32_t PylonMod_CallWithStatics(void* fn, void* statics, void* arg0, void* arg1);
 
-PYLON_MOD_EXPORT int32_t PylonMod_SystemBridgeInstall(int32_t stage, void* body,
-                                                      int32_t byteOffset,
-                                                      const uint32_t* expected,
-                                                      void** trampoline);
-
-PYLON_MOD_EXPORT void PylonMod_SystemBridgeSubscribe(int32_t stage,
-                                                     void (*callback)(int32_t stage,
-                                                                      void* value));
+constexpr int32_t PylonCodePage_MaxBytes = 0x10000;
+constexpr int32_t PylonCodePage_ReachBytes = 120 * 1024 * 1024;
+PYLON_MOD_EXPORT int32_t PylonMod_ReserveCodePage(uint64_t nearAddress, uint32_t byteSize,
+                                                  uint64_t* outPageAddress);
+PYLON_MOD_EXPORT int32_t PylonMod_SealCodePage(uint64_t pageAddress, const uint8_t* bytes,
+                                               uint32_t byteLength);
+// Releases a reserved code page. Caller must guarantee that no site or thread can
+// branch into the page anymore (for example after a later install step failed).
+PYLON_MOD_EXPORT int32_t PylonMod_ReleaseCodePage(uint64_t pageAddress);
