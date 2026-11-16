@@ -6,10 +6,7 @@ using Terraria.ObjectData;
 
 namespace Pylon.ModLoader;
 
-/// <summary>
-/// 方块管线：挖、尘土、掉落、边框、通电、制作站、右键。
-/// 每类型的位集与掉落数据在 TileTable（密集 struct 数组）。
-/// </summary>
+/// <summary>方块管线：挖、尘土、掉落、边框、通电、制作站、右键；每类型的位集与掉落数据在 TileTable（密集 struct 数组）。</summary>
 internal sealed class TilePipeline : ILoaderModule
 {
     public static TilePipeline Instance { get; } = new();
@@ -36,14 +33,16 @@ internal sealed class TilePipeline : ILoaderModule
         On.Terraria.WorldGen.TileFrame += Frame;
         On.Terraria.Wiring.HitWireSingle += Wire;
         On.Terraria.Player.AdjTiles += Stations;
+        On.Terraria.Player.GetPickaxeDamage += PickaxeDamage;
         On.Terraria.Player.TileInteractionsUse += Interact;
         On.Terraria.Player.TileInteractionsMouseOver += MouseOver;
         On.Terraria.WorldGen.UpdateWorld_OvergroundTile += RandomUpdateOver;
         On.Terraria.WorldGen.UpdateWorld_UndergroundTile += RandomUpdateUnder;
         TileMergeFix.Install();
         TileInteractionHooks.Install();
+        TileEffectsHooks.Install();
 
-        Log.Info("[tile] 已挂（挖 / 尘土 / 掉落 / 边框 / 通电 / 制作站 / 右键 / 光标 / 随机更新）；逐格绘制与光照本版无入口");
+        Log.Info("[tile] 已挂（挖 / 尘土 / 掉落 / 边框 / 通电 / 制作站 / 右键 / 光标 / 周边效果 / 随机更新）；逐格绘制与光照本版无入口");
         return true;
     }
 
@@ -54,22 +53,10 @@ internal sealed class TilePipeline : ILoaderModule
         LimitPatch.Apply(VanillaCounts.Tile + ModContent.Count(ContentKind.Tile), Log);
         TileTable.Build(Log);
         TileMergeFix.FixToTotal();
-        PostSetupTileMerge();
-        ModDoors.Build(Log);
         TileSavePipeline.Build(Log);
         TileLists.Build(Log);
         ModTileMap.Build(Log);
         TileDrawHooks.Build(Log);
-    }
-
-    private static void PostSetupTileMerge()
-    {
-        var globals = GlobalTileRegistry.For(HookId.PostSetupTileMerge);
-        for (var i = 0; i < globals.Count; i++)
-        {
-            var global = globals[i];
-            Safe.Run(global.Name + ".PostSetupTileMerge", global.PostSetupTileMerge);
-        }
     }
 
     internal void Maintain()
@@ -428,21 +415,99 @@ internal sealed class TilePipeline : ILoaderModule
         orig(i, j, resetFrame, noBreak);
     }
 
-    private void Wire(On.Terraria.Wiring.orig_HitWireSingle orig, int i, int j)
-    {
-        var tile = TileTable.At(i, j);
+    [ThreadStatic] private static int _wireDepth;
+    [ThreadStatic] private static int _wireX;
+    [ThreadStatic] private static int _wireY;
+    private static readonly HashSet<int> _wireReported = [];
 
-        if (tile is not null && tile.HookEnabled(HookId.HitWire))
+    /// <summary>电线作用域（基线 TileHooks.WireScope 同款）：记下本次信号点 (i,j)，同点重入直接放行不重复派发，不同点是新的独立作用域；释放时（owner）才在原版信号处理之后派发 mod 方块与全局的 HitWire。</summary>
+    internal readonly struct WireScope : IDisposable
+    {
+        internal readonly bool Allowed;
+        private readonly bool _owner;
+        private readonly int _x, _y, _type, _prevDepth, _prevX, _prevY;
+
+        internal WireScope(int i, int j)
         {
+            if (_wireDepth > 0 && _wireX == i && _wireY == j)
+            {
+                Allowed = true;
+                return;
+            }
+
+            var tile = Main.tile[i, j];
+            _type = tile.type;
+            foreach (var global in GlobalTileRegistry.For(HookId.PreHitWire))
+            {
+                try
+                {
+                    if (!global.PreHitWire(i, j, _type)) return;
+                }
+                catch (Exception e)
+                {
+                    if (_wireReported.Add(HashCode.Combine(global.GetType(), HookId.PreHitWire)))
+                        ContentErrors.Report($"[tile] {global.Name}.PreHitWire 异常：{Safe.Describe(e)}");
+                }
+            }
+
+            Allowed = true;
+            _owner = true;
+            _x = i;
+            _y = j;
+            _prevDepth = _wireDepth;
+            _prevX = _wireX;
+            _prevY = _wireY;
+            _wireDepth++;
+            _wireX = i;
+            _wireY = j;
+        }
+
+        public void Dispose()
+        {
+            if (!_owner) return;
             try
             {
-                tile.HitWire(i, j);
+                var tile = TileTable.At(_x, _y);
+                if (tile is not null && tile.HookEnabled(HookId.HitWire))
+                {
+                    try
+                    {
+                        tile.HitWire(_x, _y);
+                    }
+                    catch (Exception e)
+                    {
+                        if (_wireReported.Add(HashCode.Combine(tile.Type, HookId.HitWire)))
+                            ContentErrors.Report($"[tile] {tile.Name}.HitWire 异常：{Safe.Describe(e)}");
+                    }
+                }
+                foreach (var global in GlobalTileRegistry.For(HookId.HitWire))
+                {
+                    try
+                    {
+                        global.HitWire(_x, _y, _type);
+                    }
+                    catch (Exception e)
+                    {
+                        if (_wireReported.Add(HashCode.Combine(global.GetType(), HookId.HitWire)))
+                            ContentErrors.Report($"[tile] {global.Name}.HitWire 异常：{Safe.Describe(e)}");
+                    }
+                }
             }
-            catch (Exception e)
+            finally
             {
-                Fail(tile, HookId.HitWire, e);
+                _wireDepth = _prevDepth;
+                _wireX = _prevX;
+                _wireY = _prevY;
             }
         }
+    }
+
+    private void Wire(On.Terraria.Wiring.orig_HitWireSingle orig, int i, int j)
+    {
+        using var scope = new WireScope(i, j);
+        if (!scope.Allowed) return;
+
+        if (NpcStatueWire.TryTrigger(i, j)) return;
 
         orig(i, j);
     }
@@ -664,7 +729,7 @@ internal sealed class TilePipeline : ILoaderModule
         var wall = WallTable.At(i, j);
         if (wall is not null && wall.HookEnabled(HookId.RandomUpdate))
         {
-            try { wall.RandomUpdate(i, j); }
+            try { wall.RandomUpdate(i, j, underground); }
             catch (Exception e)
             {
                 if (_reported.Add(HashCode.Combine(wall.Type, HookId.RandomUpdate, 1)))
@@ -690,6 +755,19 @@ internal sealed class TilePipeline : ILoaderModule
     {
         if (!IsIn(set, type)) return;
         set![type] = value;
+    }
+
+    private static int PickaxeDamage(On.Terraria.Player.orig_GetPickaxeDamage orig, Player player,
+                                     int i, int j, int power, int buffer, Tile tile)
+    {
+        var damage = orig(player, i, j, power, buffer, tile);
+
+        var type = tile.type;
+        if (!TileTable.Has(type)) return damage;
+
+        ref var meta = ref TileTable.Meta(type);
+        if (power < meta.MinPick) return 0;
+        return meta.MineResist > 0f ? (int)(damage / meta.MineResist) : damage;
     }
 
     private void Fail(ModTile? tile, HookId hook, Exception exception)

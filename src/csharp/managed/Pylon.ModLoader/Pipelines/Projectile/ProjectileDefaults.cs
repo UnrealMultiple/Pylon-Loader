@@ -3,20 +3,15 @@ using Terraria;
 
 namespace Pylon.ModLoader;
 
-/// <summary>
-/// Projectile.SetDefaults 接管：自定义弹幕不调原版（原版对未知 type 会把弹幕判死），
-/// 改成"清出厂值 → 作者 SetDefaults → 收尾"，原版弹幕照走原版并补一次 Global 分派。
-/// </summary>
+/// <summary>Projectile.SetDefaults 接管：自定义弹幕清出厂值后走作者 SetDefaults，原版弹幕照走原版并补一次 Global 分派。</summary>
 internal sealed class ProjectileDefaults(ProjectileBinding binding)
 {
     private Projectile? _factory;
 
-    /// <summary>安装期造模板时置位：只填原版字段，不调作者的 mod 分支。</summary>
     public bool Suppress { get; set; }
 
     public void Install() => On.Terraria.Projectile.SetDefaults += SetDefaults;
 
-    /// <summary>每个自定义弹幕造一份模板：SetStaticDefaults 要在真实 Projectile 上写帧数、hostile 等。</summary>
     public void CreateTemplates(IModLog log)
     {
         var count = 0;
@@ -38,7 +33,6 @@ internal sealed class ProjectileDefaults(ProjectileBinding binding)
 
                 type.AutoStaticDefaults();
                 type.SetStaticDefaults();
-                type.PostStaticDefaults();
                 count++;
             }
             catch (Exception e)
@@ -74,8 +68,7 @@ internal sealed class ProjectileDefaults(ProjectileBinding binding)
             var mod = binding.Rebind(proj);
             if (mod is not null)
             {
-                mod.SetDefaults(proj);
-                mod.PostSetDefaults(proj);
+                mod.SetDefaults();
                 Finish(proj, mod);
             }
 
@@ -87,7 +80,6 @@ internal sealed class ProjectileDefaults(ProjectileBinding binding)
         }
     }
 
-    /// <summary>原版 SetDefaults 末尾那几步：用作者的值重做一遍，否则尺寸、穿透、active 都不对。</summary>
     private static void Finish(Projectile proj, ModProjectile mod)
     {
         proj.type = mod.Type;
@@ -102,7 +94,6 @@ internal sealed class ProjectileDefaults(ProjectileBinding binding)
         }
         catch
         {
-            // 表还没建好：按单帧算，下面的尺寸推断只是尽力而为。
         }
 
         try
@@ -117,7 +108,6 @@ internal sealed class ProjectileDefaults(ProjectileBinding binding)
         }
         catch
         {
-            // 贴图还没上传：留 0 让游戏兜底。
         }
 
         var scale = proj.scale <= 0 ? 1f : proj.scale;
@@ -131,12 +121,10 @@ internal sealed class ProjectileDefaults(ProjectileBinding binding)
         if (proj.type <= 0) return;
         if (GlobalProjectileRegistry.All.Count == 0) return;
 
-        // 每次 SetDefaults 都重建实体级列表：槽位复用不能继承上一发的 AppliesToEntity 结果。
         GlobalProjectileRegistry.Attach(proj, true);
         foreach (var global in GlobalProjectileRegistry.For(proj, HookId.SetDefaults)) global.SetDefaults(proj);
     }
 
-    /// <summary>把这些字段恢复成 <c>new Projectile()</c> 的出厂值；type / whoAmI / position 由调用方管。</summary>
     private void ResetToFactory(Projectile p)
     {
         var d = _factory ??= new Projectile();
@@ -204,6 +192,5 @@ internal sealed class ProjectileDefaults(ProjectileBinding binding)
         p.usesIDStaticNPCImmunity = d.usesIDStaticNPCImmunity;
         p.usesLocalNPCImmunity = d.usesLocalNPCImmunity;
         p.appliesImmunityTimeOnSingleHits = d.appliesImmunityTimeOnSingleHits;
-        // owner 不清：NewProjectile 可能先写 owner 再调 SetDefaults，清掉会把弹幕挂到 0 号玩家身上。
     }
 }

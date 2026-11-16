@@ -6,17 +6,13 @@ using Terraria.Graphics;
 
 namespace Pylon.ModLoader;
 
-/// <summary>
-/// 玩家管线：按玩家分派作者的 ModPlayer 钩子。
-/// 每个钩子写成显式循环（不用委托/闭包）：这些入口多数是每帧每玩家，闭包会变成每帧分配。
-/// </summary>
+/// <summary>玩家管线：按玩家分派作者的 ModPlayer 钩子；每个钩子写成显式循环，避免每帧闭包分配。</summary>
 internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 {
     public static PlayerPipeline Instance { get; } = new();
 
     private readonly PlayerBinding _binding = new();
 
-    /// <summary>玩家 → 他的 ModPlayer 实例（绘制管线按层问"这一层画不画"要用）。</summary>
     internal PlayerBinding Binding => _binding;
     private readonly HashSet<int> _reported = [];
 
@@ -29,9 +25,9 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.Player.ResetEffects += ResetEffects;
         On.Terraria.Player.UpdateEquips += Equips;
         On.Terraria.Player.UpdateLifeRegen += LifeRegen;
-        On.Terraria.Player.UpdateManaRegen += ManaRegen;
         On.Terraria.Player.UpdateDead += Dead;
         On.Terraria.Player.Update += Update;
+        On.Terraria.Player.UpdateBuffs += Buffs;
         On.Terraria.Player.KillMe += KillMe;
         PlayerHurtHooks.Install();
         PlayerUpdateHooks.Install();
@@ -39,6 +35,7 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.Player.ItemCheck += ItemCheck;
         On.Terraria.Player.CanUseItem += CanUse;
         On.Terraria.Player.ApplyPotionDelay += PotionDelay;
+        On.Terraria.Player.AddBuff += AddBuff;
 
         On.Terraria.Player.RefreshInfoAccs += InfoAccessories;
         On.Terraria.GameInput.TriggersSet.CopyInto += TriggersCopied;
@@ -49,22 +46,21 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.Player.Spawn += Spawned;
         On.Terraria.Player.Teleport += Teleport;
         On.Terraria.Player.PickupItem += Pickup;
+        On.Terraria.Player.OnHit += HitAnything;
+        On.GUIPlayerCreateMenu.SetupStartingItems += StartingItemsCreated;
+        On.Terraria.Player.DropItems += StartingItemsDropped;
 
         Refresh();
         Log.Info($"[player] 已挂（重置 / 更新 / 装备 / 再生 / 死亡 / 物品检查 / 能力键 / 复活 / 传送 / 拾取），模板 {_binding.Count}");
         return true;
     }
 
-    /// <summary>注册期：只记模板，位集等内容都注册完再算。</summary>
     internal void Register(ModPlayer template) => _binding.Register(template);
 
-    /// <summary>某个玩家的全部 ModPlayer 实例（按下标与模板一一对应）。</summary>
     internal ModPlayer[] ModsOf(Player player) => _binding.Of(player);
 
-    /// <summary>有人覆写这个钩子吗：没人就整段跳过。</summary>
     internal bool ModsActive(HookId hook) => _binding.Active(hook);
 
-    /// <summary>这一帧要藏哪些层：在层排序完之后、绘制之前问一次。</summary>
     internal void HideDrawLayers(Terraria.DataStructures.PlayerDrawSet drawInfo)
     {
         if (!_binding.Active(HookId.HideDrawLayers)) return;
@@ -87,7 +83,6 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    /// <summary>整表排序时给作者一次改层位的机会（没有玩家实例，跑模板）。</summary>
     internal void ModifyDrawLayerOrdering(IDictionary<PlayerDrawLayer, PlayerDrawLayer.Position> positions)
     {
         if (!_binding.Active(HookId.ModifyDrawLayerOrdering)) return;
@@ -113,6 +108,8 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private void ResetEffects(On.Terraria.Player.orig_ResetEffects orig, Player self)
     {
+        orig(self);
+
         if (_binding.Active(HookId.ResetEffects))
         {
             foreach (var mod in _binding.Of(self))
@@ -121,7 +118,7 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
                 try
                 {
-                    mod.ResetEffects(self);
+                    mod.ResetEffects();
                 }
                 catch (Exception e)
                 {
@@ -130,10 +127,11 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
             }
         }
 
-        orig(self);
-
-        // 上限加成每帧从 0 开始：作者在 ModifyMaxStats 里加，UpdateEquips 之后统一加到上限。
         if (!_binding.Active(HookId.ModifyMaxStats)) return;
+
+        var health = StatModifier.Default;
+        var mana = StatModifier.Default;
+        var any = false;
 
         foreach (var mod in _binding.Of(self))
         {
@@ -141,12 +139,29 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
             try
             {
-                mod.ModifyMaxStats(self);
+                mod.ModifyMaxStats(out var h, out var m);
+                health = health.CombineWith(h);
+                mana = mana.CombineWith(m);
+                any = true;
             }
             catch (Exception e)
             {
                 Fail(mod, HookId.ModifyMaxStats, e);
             }
+        }
+
+        if (!any) return;
+
+        try
+        {
+            var life = self.statLifeMax;
+            var magic = self.statManaMax;
+            self.statLifeMax2 = Math.Max(1, self.statLifeMax2 + (int)health.ApplyTo(life) - life);
+            self.statManaMax2 = Math.Max(0, self.statManaMax2 + (int)mana.ApplyTo(magic) - magic);
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report("[player] ModifyMaxStats 应用异常：" + Safe.Describe(e));
         }
     }
 
@@ -160,7 +175,7 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
                 try
                 {
-                    mod.PreUpdate(self);
+                    mod.PreUpdate();
                 }
                 catch (Exception e)
                 {
@@ -180,7 +195,7 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
             try
             {
-                mod.PostUpdate(self);
+                mod.PostUpdate();
             }
             catch (Exception e)
             {
@@ -189,6 +204,44 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
+
+    private void Buffs(On.Terraria.Player.orig_UpdateBuffs orig, Player self, int i)
+    {
+        if (_binding.Active(HookId.PreUpdateBuffs))
+        {
+            foreach (var mod in _binding.Of(self))
+            {
+                if (!mod.HookEnabled(HookId.PreUpdateBuffs)) continue;
+
+                try
+                {
+                    mod.PreUpdateBuffs();
+                }
+                catch (Exception e)
+                {
+                    Fail(mod, HookId.PreUpdateBuffs, e);
+                }
+            }
+        }
+
+        orig(self, i);
+
+        if (!_binding.Active(HookId.PostUpdateBuffs)) return;
+
+        foreach (var mod in _binding.Of(self))
+        {
+            if (!mod.HookEnabled(HookId.PostUpdateBuffs)) continue;
+
+            try
+            {
+                mod.PostUpdateBuffs();
+            }
+            catch (Exception e)
+            {
+                Fail(mod, HookId.PostUpdateBuffs, e);
+            }
+        }
+    }
 
     private void Equips(On.Terraria.Player.orig_UpdateEquips orig, Player self, int i)
     {
@@ -200,29 +253,19 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
         if (mods is not null)
         {
-            var health = 0;
-            var mana = 0;
-
             foreach (var mod in mods)
             {
-                // 作者的加成本来就是累加：先汇总再一次性加到上限，避免逐次写 statLifeMax2 被游戏中途覆盖。
-                health += mod.CumulativeHealth;
-                mana += mod.CumulativeMana;
-
                 if (!mod.HookEnabled(HookId.UpdateEquips)) continue;
 
                 try
                 {
-                    mod.UpdateEquips(self);
+                    mod.UpdateEquips();
                 }
                 catch (Exception e)
                 {
                     Fail(mod, HookId.UpdateEquips, e);
                 }
             }
-
-            if (health != 0) self.statLifeMax2 += health;
-            if (mana != 0) self.statManaMax2 += mana;
         }
 
         if (_binding.Active(HookId.FrameEffects))
@@ -233,7 +276,7 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
                 try
                 {
-                    mod.FrameEffects(self);
+                    mod.FrameEffects();
                 }
                 catch (Exception e)
                 {
@@ -250,7 +293,7 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
             try
             {
-                mod.PostUpdateEquips(self);
+                mod.PostUpdateEquips();
             }
             catch (Exception e)
             {
@@ -269,7 +312,7 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
                 try
                 {
-                    mod.UpdateBadLifeRegen(self);
+                    mod.UpdateBadLifeRegen();
                 }
                 catch (Exception e)
                 {
@@ -288,32 +331,11 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
             try
             {
-                mod.UpdateLifeRegen(self);
+                mod.UpdateLifeRegen();
             }
             catch (Exception e)
             {
                 Fail(mod, HookId.UpdateLifeRegen, e);
-            }
-        }
-    }
-
-    private void ManaRegen(On.Terraria.Player.orig_UpdateManaRegen orig, Player self)
-    {
-        orig(self);
-
-        if (!_binding.Active(HookId.UpdateManaRegen)) return;
-
-        foreach (var mod in _binding.Of(self))
-        {
-            if (!mod.HookEnabled(HookId.UpdateManaRegen)) continue;
-
-            try
-            {
-                mod.UpdateManaRegen(self);
-            }
-            catch (Exception e)
-            {
-                Fail(mod, HookId.UpdateManaRegen, e);
             }
         }
     }
@@ -328,7 +350,7 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
                 try
                 {
-                    mod.UpdateDead(self);
+                    mod.UpdateDead();
                 }
                 catch (Exception e)
                 {
@@ -347,18 +369,21 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
     private void KillMe(On.Terraria.Player.orig_KillMe orig, Player self, PlayerDeathReason damageSource, double dmg,
                         int hitDirection, bool pvp)
     {
-        if (_binding.Active(HookId.PreKill))
+        var dies = !self.dead && !self.creativeGodMode;
+
+        if (dies && _binding.Active(HookId.PreKill))
         {
             var allowed = true;
+            bool playSound = true, genDust = true;
+            var source = damageSource;
 
-            // 与语义：所有实例都跑（后面可能只是在记录），任一否决就不死。
             foreach (var mod in _binding.Of(self))
             {
                 if (!mod.HookEnabled(HookId.PreKill)) continue;
 
                 try
                 {
-                    if (!mod.PreKill(self, damageSource, dmg, hitDirection, pvp)) allowed = false;
+                    if (!mod.PreKill(dmg, hitDirection, pvp, ref playSound, ref genDust, ref source)) allowed = false;
                 }
                 catch (Exception e)
                 {
@@ -366,13 +391,13 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
                 }
             }
 
-            // 作者要求"别死"：既不走原版死亡，也不发 Kill。
             if (!allowed) return;
+            damageSource = source;
         }
 
         orig(self, damageSource, dmg, hitDirection, pvp);
 
-        if (!_binding.Active(HookId.Kill)) return;
+        if (!dies || !self.dead || !_binding.Active(HookId.Kill)) return;
 
         foreach (var mod in _binding.Of(self))
         {
@@ -380,12 +405,111 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
             try
             {
-                mod.Kill(self, damageSource, dmg, hitDirection, pvp);
+                mod.Kill(dmg, hitDirection, pvp, damageSource);
             }
             catch (Exception e)
             {
                 Fail(mod, HookId.Kill, e);
             }
+        }
+    }
+
+    private void HitAnything(On.Terraria.Player.orig_OnHit orig, Player self, float x, float y, Terraria.Entity victim)
+    {
+        orig(self, x, y, victim);
+
+        if (!_binding.Active(HookId.OnHitAnything)) return;
+
+        foreach (var mod in _binding.Of(self))
+        {
+            if (!mod.HookEnabled(HookId.OnHitAnything)) continue;
+
+            try
+            {
+                mod.OnHitAnything(x, y, victim);
+            }
+            catch (Exception e)
+            {
+                Fail(mod, HookId.OnHitAnything, e);
+            }
+        }
+    }
+
+    private void StartingItemsCreated(On.GUIPlayerCreateMenu.orig_SetupStartingItems orig, GUIPlayerCreateMenu self)
+    {
+        orig(self);
+        var pending = Main.PendingPlayer;
+        if (pending is not null) Starting(pending, mediumCoreDeath: false);
+    }
+
+    private void StartingItemsDropped(On.Terraria.Player.orig_DropItems orig, Player self, bool gemsOnly)
+    {
+        orig(self, gemsOnly);
+        if (!gemsOnly && self.difficulty == 1) Starting(self, mediumCoreDeath: true);
+    }
+
+    private void Starting(Player player, bool mediumCoreDeath)
+    {
+        try
+        {
+            var inventory = player.inventory;
+            var vanilla = new List<Item>();
+            for (var i = 0; i < 50 && i < inventory.Length; i++)
+            {
+                var item = inventory[i];
+                if (item is not null && item.type > 0 && item.stack > 0) vanilla.Add(item);
+            }
+
+            var byMod = new Dictionary<string, List<Item>> { ["Terraria"] = vanilla };
+
+            foreach (var mod in _binding.Of(player))
+            {
+                if (!mod.HookEnabled(HookId.AddStartingItems)) continue;
+                var name = mod.Mod?.Name;
+                if (name is null) continue;
+
+                try
+                {
+                    var added = mod.AddStartingItems(mediumCoreDeath);
+                    if (added is not null)
+                    {
+                        if (!byMod.TryGetValue(name, out var list)) byMod[name] = list = [];
+                        list.AddRange(added);
+                    }
+                }
+                catch (Exception e)
+                {
+                    Fail(mod, HookId.AddStartingItems, e);
+                }
+            }
+
+            foreach (var mod in _binding.Of(player))
+            {
+                if (!mod.HookEnabled(HookId.ModifyStartingInventory)) continue;
+
+                try
+                {
+                    mod.ModifyStartingInventory(byMod, mediumCoreDeath);
+                }
+                catch (Exception e)
+                {
+                    Fail(mod, HookId.ModifyStartingInventory, e);
+                }
+            }
+
+            var items = byMod.Values.SelectMany(l => l)
+                .Where(item => item is not null && item.type > 0 && item.stack > 0)
+                .ToList();
+
+            for (var i = 0; i < 50 && i < inventory.Length; i++)
+                inventory[i] = i < items.Count ? items[i]! : new Item();
+
+            for (var i = 50; i < items.Count; i++)
+                player.GetOrDropItem(items[i], default);
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report($"[player] 开局背包异常：{Safe.Describe(e)}");
         }
     }
 
@@ -405,7 +529,7 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
                 try
                 {
-                    if (!mod.PreItemCheck(self)) run = false;
+                    if (!mod.PreItemCheck()) run = false;
                 }
                 catch (Exception e)
                 {
@@ -426,7 +550,7 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
             try
             {
-                mod.PostItemCheck(self);
+                mod.PostItemCheck();
             }
             catch (Exception e)
             {
@@ -449,7 +573,7 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
             try
             {
-                if (!mod.CanUseItem(self, item)) allowed = false;
+                if (!mod.CanUseItem(item)) allowed = false;
             }
             catch (Exception e)
             {
@@ -460,23 +584,70 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
         return allowed && orig(self);
     }
 
-    /// <summary>接口给的是"这一帧的延迟值"，作者否决时连原版一起跳过（不加计时、不给药水病）。</summary>
+    /// <summary>药水病建立期间的作用域：AddBuff(PotionSickness) 在这里做作者链，否决时整个不加药水病。</summary>
+    private sealed class PotionScope
+    {
+        public Player Player = null!;
+        public Item Item = null!;
+        public int Previous;
+        public bool Blocked;
+    }
+
+    [ThreadStatic] private static PotionScope? _potion;
+
     private void PotionDelay(On.Terraria.Player.orig_ApplyPotionDelay orig, Player self, Item sItem)
     {
-        if (!_binding.Active(HookId.ApplyPotionDelay))
+        var outer = _potion;
+        var scope = new PotionScope { Player = self, Item = sItem, Previous = self.potionDelay };
+        _potion = scope;
+        try
         {
             orig(self, sItem);
+        }
+        finally
+        {
+            _potion = outer;
+            if (scope.Blocked) self.potionDelay = scope.Previous;
+        }
+    }
+
+    private void AddBuff(On.Terraria.Player.orig_AddBuff orig, Player self, int type, int time, bool quiet)
+    {
+        var scope = _potion;
+        if (scope is null || !ReferenceEquals(scope.Player, self) || type != Terraria.ID.BuffID.PotionSickness)
+        {
+            orig(self, type, time, quiet);
             return;
         }
 
-        var delay = self.potionDelay;
+        var item = scope.Item;
+        var modItem = ItemPipeline.Instance.InstanceOf(item);
+
+        var delay = time;
+
+        if (modItem is { } m && m.Plan.Has(HookId.ModifyPotionDelay))
+        {
+            try { m.ModifyPotionDelay(self, ref delay); }
+            catch (Exception e) { ContentErrors.Report($"[player] {m.FullKey}.ModifyPotionDelay 异常：{Safe.Describe(e)}"); }
+        }
+
+        foreach (var global in GlobalItemRegistry.For(item, HookId.ModifyPotionDelay))
+        {
+            try { global.ModifyPotionDelay(item, self, ref delay); }
+            catch (Exception e) { ContentErrors.Report($"[player] {global.FullKey}.ModifyPotionDelay 异常：{Safe.Describe(e)}"); }
+        }
+
+        delay = Math.Max(0, delay);
+
+        var allowed = true;
+
         foreach (var mod in _binding.Of(self))
         {
             if (!mod.HookEnabled(HookId.ApplyPotionDelay)) continue;
 
             try
             {
-                if (!mod.ApplyPotionDelay(self, sItem, delay)) return;
+                if (!mod.ApplyPotionDelay(item, delay)) allowed = false;
             }
             catch (Exception e)
             {
@@ -484,31 +655,63 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
             }
         }
 
-        orig(self, sItem);
+        if (modItem is { } owner && owner.Plan.Has(HookId.ApplyPotionDelay))
+        {
+            try
+            {
+                if (!owner.ApplyPotionDelay(self, delay)) allowed = false;
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[player] {owner.FullKey}.ApplyPotionDelay 异常：{Safe.Describe(e)}");
+            }
+        }
+
+        foreach (var global in GlobalItemRegistry.For(item, HookId.ApplyPotionDelay))
+        {
+            try
+            {
+                if (!global.ApplyPotionDelay(item, self, delay)) allowed = false;
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[player] {global.FullKey}.ApplyPotionDelay 异常：{Safe.Describe(e)}");
+            }
+        }
+
+        if (delay <= 0 || !allowed)
+        {
+            scope.Blocked = true;
+            return;
+        }
+
+        self.potionDelay = delay;
+        orig(self, type, delay, quiet);
     }
 
     private void Pickup(On.Terraria.Player.orig_PickupItem orig, Player self, WorldItem itemToPickUp)
     {
-        if (_binding.Active(HookId.OnPickup))
+        if (_binding.Active(HookId.OnPickup) && itemToPickUp is not null)
         {
-            var item = itemToPickUp?.inner;
-
-            if (item is not null)
+            var take = true;
+            foreach (var mod in _binding.Of(self))
             {
-                foreach (var mod in _binding.Of(self))
-                {
-                    if (!mod.HookEnabled(HookId.OnPickup)) continue;
+                if (!mod.HookEnabled(HookId.OnPickup)) continue;
 
-                    try
-                    {
-                        // false = 物品从地上消失但不进背包。
-                        if (!mod.OnPickup(self, item)) return;
-                    }
-                    catch (Exception e)
-                    {
-                        Fail(mod, HookId.OnPickup, e);
-                    }
+                try
+                {
+                    take &= mod.OnPickup(itemToPickUp);
                 }
+                catch (Exception e)
+                {
+                    Fail(mod, HookId.OnPickup, e);
+                }
+            }
+
+            if (!take)
+            {
+                itemToPickUp.TurnToAirAndSync();
+                return;
             }
         }
 
@@ -531,7 +734,7 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
             try
             {
-                mod.ResetInfoAccessories(self);
+                mod.ResetInfoAccessories();
             }
             catch (Exception e)
             {
@@ -552,7 +755,7 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
             try
             {
-                mod.ArmorSetBonusActivated(self);
+                mod.ArmorSetBonusActivated();
             }
             catch (Exception e)
             {
@@ -573,7 +776,7 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
             try
             {
-                mod.ArmorSetBonusHeld(self, holdTime);
+                mod.ArmorSetBonusHeld(holdTime);
             }
             catch (Exception e)
             {
@@ -589,7 +792,6 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
         if (!_binding.Active(HookId.OnEquipmentLoadoutSwitched)) return;
 
-        // 只在这个预设真的换了之后才发：作者拿它当"换装完成"的信号。
         if (self.CurrentLoadoutIndex == old) return;
 
         foreach (var mod in _binding.Of(self))
@@ -598,7 +800,7 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
             try
             {
-                mod.OnEquipmentLoadoutSwitched(self, old, self.CurrentLoadoutIndex);
+                mod.OnEquipmentLoadoutSwitched(old, self.CurrentLoadoutIndex);
             }
             catch (Exception e)
             {
@@ -616,7 +818,6 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
         var wasDead = self.dead;
         orig(self, context);
 
-        // 死亡状态可能在进入 Spawn 之前就被清掉,所以复活上下文也要认。
         if ((!wasDead && context != PlayerSpawnContext.ReviveFromDeath) || !_binding.Active(HookId.OnRespawn)) return;
 
         foreach (var mod in _binding.Of(self))
@@ -625,7 +826,7 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
             try
             {
-                mod.OnRespawn(self);
+                mod.OnRespawn();
             }
             catch (Exception e)
             {
@@ -646,7 +847,7 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
                 try
                 {
-                    if (!mod.CanBeTeleportedTo(self, newPos, context)) return;
+                    if (!mod.CanBeTeleportedTo(newPos, context)) return;
                 }
                 catch (Exception e)
                 {
@@ -658,7 +859,6 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
         orig(self, newPos, Style, extraInfo);
     }
 
-    /// <summary>手机版只给一个样式号：翻成作者认的那四个场景名。</summary>
     private static string ContextOf(int style) => style switch
     {
         1 => "TeleportRod",
@@ -691,7 +891,7 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
             try
             {
-                mod.ProcessTriggers(player, self);
+                mod.ProcessTriggers(self);
             }
             catch (Exception e)
             {
@@ -700,7 +900,6 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    /// <summary>同一 (类型, 钩子) 只记一条：这些入口多数每帧都走。</summary>
     private void Fail(ModPlayer mod, HookId hook, Exception exception)
     {
         if (!_reported.Add(HashCode.Combine(mod.GetType().Name.GetHashCode(), hook))) return;

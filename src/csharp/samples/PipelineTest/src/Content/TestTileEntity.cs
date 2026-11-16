@@ -10,7 +10,7 @@ using Terraria.ObjectData;
 
 namespace PipelineTest.Content;
 
-/// <summary>带方块实体的测试方块：放下即建实体，拆掉即摘实体（实体由 TileEntity 属性声明）。</summary>
+/// <summary>带方块实体的测试方块：放下即建实体（管线按 IsTileValidForEntity 规则建），拆掉即摘实体。</summary>
 public sealed class TestEntityTile : ModTile
 {
     public override void SetStaticDefaults()
@@ -19,9 +19,6 @@ public sealed class TestEntityTile : ModTile
         Main.tileBlockLight[Type] = true;
         AddMapEntry(new Color(120, 90, 160));
     }
-
-    /// <summary>这块方块放下时要建的实体（写类名，不是 FullName）。</summary>
-    public override string? TileEntity => nameof(TestTileEntity);
 }
 
 /// <summary>测试方块实体：每帧回调、放置 / 拆除、存档 / 同步都计数，且每个实体有自己的状态。</summary>

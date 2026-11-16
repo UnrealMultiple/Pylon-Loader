@@ -13,20 +13,20 @@ namespace RegressionTest.Content
     {
         public override string DisplayName => "回归召唤杖";
 
-        public override void SetDefaults(Item item)
+        public override void SetDefaults()
         {
-            item.width = 20;
-            item.height = 20;
-            item.summon = true;
-            item.damage = 10;
-            item.mana = 10;
-            item.useTime = 30;
-            item.useAnimation = 30;
-            item.useStyle = (byte)ItemUseStyleID.Swing;
-            item.noMelee = true;
-            item.shoot = ModContent.ProjectileType<MinionProjectile>();
-            item.shootSpeed = 1f;
-            item.buffType = 0;
+            Item.width = 20;
+            Item.height = 20;
+            Item.summon = true;
+            Item.damage = 10;
+            Item.mana = 10;
+            Item.useTime = 30;
+            Item.useAnimation = 30;
+            Item.useStyle = (byte)ItemUseStyleID.Swing;
+            Item.noMelee = true;
+            Item.shoot = ModContent.ProjectileType<MinionProjectile>();
+            Item.shootSpeed = 1f;
+            Item.buffType = 0;
         }
     }
 
@@ -35,24 +35,25 @@ namespace RegressionTest.Content
     {
         public override string DisplayName => "回归仆从";
 
-        public override void SetDefaults(Projectile proj)
+        public override void SetDefaults()
         {
-            proj.width = 24;
-            proj.height = 24;
-            proj.aiStyle = -1;
-            proj.friendly = true;
-            proj.minion = true;
-            proj.minionSlots = 0.5f;
-            proj.penetrate = -1;
-            proj.timeLeft = 18000;
-            proj.tileCollide = false;
-            proj.usesIDStaticNPCImmunity = true; // P1-3：perIDStaticNPCImmunity 二维表
-            proj.ignoreWater = true;
-            proj.netImportant = true;
+            Projectile.width = 24;
+            Projectile.height = 24;
+            Projectile.aiStyle = -1;
+            Projectile.friendly = true;
+            Projectile.minion = true;
+            Projectile.minionSlots = 0.5f;
+            Projectile.penetrate = -1;
+            Projectile.timeLeft = 18000;
+            Projectile.tileCollide = false;
+            Projectile.usesIDStaticNPCImmunity = true; // P1-3：perIDStaticNPCImmunity 二维表
+            Projectile.ignoreWater = true;
+            Projectile.netImportant = true;
         }
 
-        public override void AI(Projectile proj)
+        public override void AI()
         {
+            var proj = Projectile;
             var owner = Main.player[proj.owner];
             if (owner == null || !owner.active)
             {
@@ -70,6 +71,6 @@ namespace RegressionTest.Content
                 RegressionTestMod.Log?.Info($"[rt] 仆从在岗 type={proj.type} usesIDStatic={proj.usesIDStaticNPCImmunity}");
         }
 
-        public override bool? CanHitNPC(Projectile proj, NPC target) => target.friendly ? false : null;
+        public override bool? CanHitNPC(NPC target) => target.friendly ? false : null;
     }
 }

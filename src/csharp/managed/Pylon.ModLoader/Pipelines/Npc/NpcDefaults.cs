@@ -6,11 +6,7 @@ using Terraria.GameContent;
 
 namespace Pylon.ModLoader;
 
-/// <summary>
-/// NPC.SetDefaults 接管：原版先跑（它负责写 scale / color / alpha 这类绘制乘数的出厂值），
-/// 之后叠作者的默认值，再把原版"因为 type 超界而提前 return"漏掉的收尾补上。
-/// 同时缓存"这个类型多宽、多少帧"——补宽高与 FindFrame 都要用。
-/// </summary>
+/// <summary>NPC.SetDefaults 接管：原版先跑，再叠作者默认值并补上原版 type 超界提前 return 漏掉的收尾；同时缓存帧数与贴图尺寸。</summary>
 internal sealed class NpcDefaults(NpcBinding binding)
 {
     private readonly Dictionary<int, FrameSize> _sizes = [];
@@ -31,16 +27,13 @@ internal sealed class NpcDefaults(NpcBinding binding)
     {
         try
         {
-            // 原版那条 type > NPCID.Count - 1 的比较在 IL2CPP 上改不了：这里等价补"原版清空后应有的出厂值"。
             ResetToFactory(npc);
             npc.type = type;
 
             var mod = binding.Rebind(npc);
             if (mod is null) return;
 
-            mod.SetDefaults(npc);
-            mod.ApplyBuffImmunity(npc);
-            mod.PostSetDefaults(npc);
+            mod.SetDefaults();
             Finish(npc, mod);
         }
         catch (Exception e)
@@ -49,7 +42,6 @@ internal sealed class NpcDefaults(NpcBinding binding)
         }
     }
 
-    /// <summary>原版对 mod 类型会提前 return：这里补上它本来会写的那组默认值。</summary>
     private static void ResetToFactory(NPC npc)
     {
         var ai = npc.ai;
@@ -82,7 +74,6 @@ internal sealed class NpcDefaults(NpcBinding binding)
         npc.rarity = 0;
     }
 
-    /// <summary>游戏 SetDefaults 末尾那几步，用作者的值重做一遍。</summary>
     private void Finish(NPC npc, ModNpc mod)
     {
         var type = mod.Type;
@@ -98,16 +89,13 @@ internal sealed class NpcDefaults(NpcBinding binding)
         npc.netID = type;
         npc.active = true;
 
-        // 原版 SetDefaults 的尾部在作者填值之前就跑过了：生命与基础攻防都还是 0，按作者的值重做。
         npc.defDamage = npc.damage;
         npc.defDefense = npc.defense;
         npc.life = npc.lifeMax;
-        // ScaleStats 对 friendly / townNPC 提前退出、不写 defLifeMax；留 0 的话城镇 NPC 的 AI_007 会把 lifeMax 清零。
         npc.defLifeMax = npc.lifeMax;
 
         try
         {
-            // 两个空 Nullable = "不覆盖"：interop 里填值等于把托管指针交给原生。
             npc.ScaleStats(new Il2CppSystem.Nullable<int>(), new Il2CppSystem.Nullable<float>());
             npc.life = npc.lifeMax;
         }
@@ -122,7 +110,6 @@ internal sealed class NpcDefaults(NpcBinding binding)
         if (npc.type <= 0) return;
         if (!GlobalNpcRegistry.AnyWith(HookId.SetDefaults)) return;
 
-        // 实体级列表每次都重建：槽位复用与同类型重生都不继承上一只的 AppliesToEntity 结果。
         GlobalNpcRegistry.Attach(npc, true);
         foreach (var global in GlobalNpcRegistry.For(npc, HookId.SetDefaults))
         {
@@ -148,13 +135,11 @@ internal sealed class NpcDefaults(NpcBinding binding)
         }
         catch
         {
-            // 表还没建好：按单帧处理。
         }
 
         return 1;
     }
 
-    /// <summary>贴图整宽与单帧高；贴图不在表里时返回 0（不缓存，等下次）。</summary>
     public void TextureSize(int type, out int width, out int height)
     {
         if (_sizes.TryGetValue(type, out var cached))
@@ -194,7 +179,6 @@ internal sealed class NpcDefaults(NpcBinding binding)
         return height;
     }
 
-    /// <summary>兜底：作者没覆写 FindFrame 时，原版对未知类型不会填 frame，这里按贴图补上（安装期就把模板 frame 定好）。</summary>
     public void EnsureFrame(NPC npc)
     {
         TextureSize(npc.type, out var width, out var height);
@@ -206,7 +190,6 @@ internal sealed class NpcDefaults(NpcBinding binding)
         if (changed) npc.frame = frame;
     }
 
-    /// <summary>接管原版 FindFrame 之前先填好 frame 的 X/Width/Height：作者只写 frame.Y。</summary>
     public int PrepareFrame(NPC npc)
     {
         TextureSize(npc.type, out var width, out var height);

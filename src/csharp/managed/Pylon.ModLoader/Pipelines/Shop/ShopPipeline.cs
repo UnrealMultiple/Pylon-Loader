@@ -2,10 +2,7 @@ using Terraria;
 
 namespace Pylon.ModLoader;
 
-/// <summary>
-/// 商店管线：只接管 mod 槽号的装货（`InventoryStorage.SetupShop`），原版普通商店交给游戏,旅行商店在原版装货之后分派全局模板。
-/// NPC 聊天按钮、原版商店改写本版不接，见 docs/pipeline/content-shop.md。
-/// </summary>
+/// <summary>商店管线：只接管 mod 槽号的装货（InventoryStorage.SetupShop），原版普通商店交给游戏，旅行商店在原版装货之后分派全局模板。</summary>
 internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
 {
     public static ShopPipeline Instance { get; } = new();
@@ -19,13 +16,12 @@ internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.InventoryStorage.SetupShop += SetupShop;
         On.Terraria.InventoryStorage.SetupTravelShop += SetupTravelShop;
 
-        Log.Info("[shop] 已挂（mod 槽号装货）；聊天按钮与原版商店改写本版不接");
+        Log.Info("[shop] 已挂（mod 槽号装货 / 原版商店改写 / 旅行商店）");
         return true;
     }
 
     public void Refresh() => ShopTable.Rebuild();
 
-    /// <summary>安装期一次：收表。</summary>
     internal void Build()
     {
         ShopTable.Rebuild();
@@ -33,7 +29,6 @@ internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
         if (ShopTable.Count > 0) Log.Info($"[shop] 安装：{ShopTable.Count} 家店");
     }
 
-    /// <summary>原版先装货,再按注册顺序让全局模板改写固定容量货架与下一个空槽。</summary>
     private static void SetupTravelShop(On.Terraria.InventoryStorage.orig_SetupTravelShop orig)
     {
         orig();
@@ -45,7 +40,6 @@ internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
         var nextSlot = 0;
         while (nextSlot < items.Length && items[nextSlot] != 0) nextSlot++;
 
-        // 此入口没有 NPC 实体:必须用模板,不能按 AppliesToEntity 筛选或创建实体副本。
         foreach (var global in GlobalNpcRegistry.All)
         {
             try
@@ -61,20 +55,50 @@ internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
         for (var i = 0; i < items.Length; i++) native[i] = items[i];
     }
 
-    // ===================== 装货 =====================
-
     private static void SetupShop(On.Terraria.InventoryStorage.orig_SetupShop orig, InventoryStorage self, int type)
     {
         if (ShopTable.Of(type) is not { } shop)
         {
             orig(self, type);
+            ActiveShop(self, NpcOf(type), "Shop");
             return;
         }
 
         Fill(self, shop);
+        ActiveShop(self, NpcOf(shop.NpcType), shop.Name);
     }
 
-    /// <summary>按作者的表现填：条件逐条求值，价格/货币覆盖游戏自己的。</summary>
+    private static void ActiveShop(InventoryStorage storage, NPC? npc, string shopName)
+    {
+        var slots = storage.item;
+        if (slots is null) return;
+
+        var items = new Item[slots.Length];
+        for (var i = 0; i < items.Length; i++) items[i] = slots[i];
+
+        if (npc is not null)
+        {
+            if (NpcPipeline.Instance.InstanceOf(npc) is { } mod && mod.HookEnabled(HookId.ModifyActiveShop))
+            {
+                try { mod.ModifyActiveShop(shopName, items); }
+                catch (Exception e) { ContentErrors.Report($"[shop] {mod.FullKey}.ModifyActiveShop 异常：{Safe.Describe(e)}"); }
+            }
+
+            foreach (var global in GlobalNpcRegistry.For(npc, HookId.ModifyActiveShop))
+            {
+                try { global.ModifyActiveShop(npc, shopName, items); }
+                catch (Exception e) { ContentErrors.Report($"[shop] {global.FullKey}.ModifyActiveShop 异常：{Safe.Describe(e)}"); }
+            }
+        }
+
+        for (var i = 0; i < items.Length; i++)
+        {
+            var item = items[i];
+            if (item is not null && item.type > 0) item.isAShopItem = true;
+            slots[i] = item;
+        }
+    }
+
     private static void Fill(InventoryStorage storage, NpcShop shop)
     {
         var entries = shop.Entries;
@@ -82,7 +106,6 @@ internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
         storage.Resize(Math.Max(1, entries.Count));
         storage.FillWithEmptyInstances();
 
-        // AddItemToShop 在这版不会追加（货架永远是空的）；直接写 item 槽。
         var slots = storage.item;
         var slot = 0;
 
@@ -103,7 +126,6 @@ internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             if (entry.Currency.HasValue) item.shopSpecialCurrency = entry.Currency.Value;
 
-            // 手机端货架只认 isAShopItem 的条目；不设就是空店。
             item.isAShopItem = true;
 
             if (slots is not null && slot < slots.Length) slots[slot++] = item;
@@ -113,10 +135,6 @@ internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
         if (slots is not null && slot > 0) storage.maxItems = Math.Max(storage.maxItems, slot);
     }
 
-    /// <summary>
-    /// 价格乘好感度：<c>Main.ShopHelper.GetShoppingSettings</c> 给出这个 NPC 对当前玩家的 <c>PriceAdjustment</c>
-    /// （0.75 ~ 1.5，原版城镇商店用的就是这个）。拿不到（不在店里 / 没有 NPC）就原价。
-    /// </summary>
     private static int WithHappiness(int price, int npcType)
     {
         try
@@ -138,7 +156,6 @@ internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    /// <summary>当前对话的那个 NPC（按类型号找活着的那一个）；没有就 null。</summary>
     private static NPC? NpcOf(int npcType)
     {
         var npcs = Main.npc;

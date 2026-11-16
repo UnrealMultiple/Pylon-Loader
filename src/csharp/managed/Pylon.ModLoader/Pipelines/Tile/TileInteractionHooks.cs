@@ -1,6 +1,7 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Terraria;
 using Terraria.GameContent;
+using Terraria.GameContent.ObjectInteractions;
 using Terraria.ID;
 
 namespace Pylon.ModLoader;
@@ -19,6 +20,56 @@ internal static class TileInteractionHooks
         On.Terraria.GameContent.PlayerSleepingHelper.GetSleepingTargetInfo += Sleeping;
         On.Terraria.WorldGen.SlopeTile += Slope;
         On.Terraria.WorldGen.PoundTile += Pound;
+        On.Terraria.GameContent.ObjectInteractions.TileSmartInteractCandidateProvider.FillPotentialTargetTiles += SmartInteract;
+    }
+
+    private static void SmartInteract(
+        On.Terraria.GameContent.ObjectInteractions.TileSmartInteractCandidateProvider.orig_FillPotentialTargetTiles orig,
+        TileSmartInteractCandidateProvider self, SmartInteractScanSettings settings)
+    {
+        orig(self, settings);
+
+        if (Main.tile is null) return;
+
+        var lx = Math.Max(0, settings.LX);
+        var ly = Math.Max(0, settings.LY);
+        var hx = Math.Min(Main.maxTilesX - 1, settings.HX);
+        var hy = Math.Min(Main.maxTilesY - 1, settings.HY);
+        var targets = self.targets;
+
+        for (var i = lx; i <= hx; i++)
+        for (var j = ly; j <= hy; j++)
+        {
+            var tile = Main.tile[i, j];
+            if (!tile.active()) continue;
+
+            var mod = TileTable.Of(tile.type);
+            if (mod is null || !mod.HookEnabled(HookId.HasSmartInteract)) continue;
+
+            bool smart;
+            try
+            {
+                smart = mod.HasSmartInteract(i, j, settings);
+            }
+            catch (Exception e)
+            {
+                Fail(mod, nameof(ModTile.HasSmartInteract), e);
+                continue;
+            }
+
+            if (!smart) continue;
+
+            var value = self.JoinValue(i, j);
+            var exists = false;
+            for (var k = 0; k < targets.Count; k++)
+            {
+                if (targets[k] != value) continue;
+                exists = true;
+                break;
+            }
+
+            if (!exists) targets.Add(value);
+        }
     }
 
     private static ModTile? At(int x, int y)
@@ -88,7 +139,6 @@ internal static class TileInteractionHooks
     private static void Shift(int x, int y, int type, int shift, int dust)
     {
         Terraria.Audio.SoundEngine.PlaySound(SoundID.Unlock, x * 16, y * 16, 1, 1f, 0f);
-        // 默认动作只移动同类型的 2×2 格；manual 作者已经处理的帧和特效不能再改一次。
         for (var i = x; i <= x + 1 && i < Main.maxTilesX; i++)
         for (var j = y; j <= y + 1 && j < Main.maxTilesY; j++)
         {

@@ -115,13 +115,6 @@ internal static class MountTests
             });
         });
 
-        PT.Case("MOUNT-W2", c =>
-        {
-            // GetSpecificData/SetSpecificData 往返（Loader 侧表）。
-            Content.TestMount.SetSpecificData(player, 42);
-            c.Eq(Content.TestMount.GetSpecificData(player) as int?, 42, "GetSpecificData 往返");
-        });
-
         PT.Case("MOUNT-W3", c =>
         {
             // 收尾排在 W1 的 150 帧断言之后（帧号错开），不然同一帧就把骑乘拆了。

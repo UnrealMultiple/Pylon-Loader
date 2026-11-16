@@ -3,10 +3,7 @@ using Terraria.ObjectData;
 
 namespace Pylon.ModLoader;
 
-/// <summary>
-/// 方块实体管线：每帧分派、放置 / 摘除、多人同步、侧车存档。
-/// 类型表在 <see cref="TileEntityTable"/>，实例绑定在 <see cref="TileEntityBinding"/>。
-/// </summary>
+/// <summary>方块实体管线：每帧分派、放置 / 摘除、多人同步、侧车存档；类型表在 TileEntityTable，实例绑定在 TileEntityBinding。</summary>
 internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
 {
     private const string SaveSection = "ents";
@@ -18,7 +15,6 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private readonly HashSet<long> _reported = [];
 
-    /// <summary>每个类型的定时同步间隔（帧，0 = 不定时）；索引 = 类型号。</summary>
     private int[] _intervals = [];
 
     private NetPipeline _net = null!;
@@ -39,22 +35,58 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.IO.WorldFile.InternalSaveWorld += SaveWorld;
         On.Terraria.NetMessage.SendSection += SendSection;
         On.Terraria.WorldGen.PlaceTile += PlaceTile;
-        // 多格家具（3x4 的晶塔就是）不走 WorldGen.PlaceTile 的实体钩子：玩家真正放下时游戏走的是
-        // TileObjectData.CallPostPlacementPlayerHook —— 只能从这里补，不补就没有实体、进不了晶塔列表。
         On.Terraria.ObjectData.TileObjectData.CallPostPlacementPlayerHook += CallPostPlacement;
         On.Terraria.WorldGen.KillTile += KillTile;
+        On.Terraria.Player.PlaceThing_Tiles += Placing;
 
         Log.Info("[tileentity] 已挂（每帧 / 清世界 / 读档 / 存档 / 同步 / 放置即建实体 / 拆除即摘实体）");
         return true;
     }
 
-    // ===================== 放置 / 拆除 =====================
+    [ThreadStatic] private static int _placing;
 
-    /// <summary>
-    /// 方块放下之后：<see cref="ModTile.TileEntity"/> 指了实体名的就建那个实体（一块一类，作者的声明说了算）；
-    /// 没指的回落到老规则——凡是 <c>IsTileValidForEntity</c> 认这块位置的模板，就地建实体。
-    /// 客户端不建：权威在服务器，等广播（与 <c>Place</c> 的语义一致）。
-    /// </summary>
+    private static void Placing(On.Terraria.Player.orig_PlaceThing_Tiles orig, Player self, bool action)
+    {
+        _placing++;
+        try
+        {
+            orig(self, action);
+        }
+        finally
+        {
+            _placing--;
+        }
+    }
+
+    private static void Placed(int i, int j, int type)
+    {
+        var item = Main.LocalPlayer.HeldItem;
+
+        if (TileTableOf(type) is { } tile && tile.HookEnabled(HookId.PlaceInWorld))
+        {
+            try
+            {
+                tile.PlaceInWorld(i, j, item);
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[tile] {tile.Name}.PlaceInWorld 异常：{Safe.Describe(e)}");
+            }
+        }
+
+        foreach (var global in GlobalTileRegistry.For(HookId.PlaceInWorld))
+        {
+            try
+            {
+                global.PlaceInWorld(i, j, type, item);
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[tile] {global.FullKey}.PlaceInWorld 异常：{Safe.Describe(e)}");
+            }
+        }
+    }
+
     private static bool PlaceTile(On.Terraria.WorldGen.orig_PlaceTile orig, int i, int j, int Type, bool mute,
                                   bool forced, int plr, int style)
     {
@@ -62,42 +94,14 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
 
         if (!placed) return placed;
 
-        // 作者的放置回调：不管建不建实体都要跑（作者可能只是想记一笔）。
-        if (TileTableOf(Type) is { } placer && placer.HookEnabled(HookId.AfterPlacement))
-        {
-            var direction = plr >= 0 && plr < Main.player.Length && Main.player[plr] is { } player
-                ? player.direction
-                : 0;
+        if (_placing > 0 && (uint)Type < (uint)TileTable.Shapes.Length && TileTable.Shapes[Type] is null)
+            Placed(i, j, Type);
 
-            try
-            {
-                _ = placer.Hook_AfterPlacement(i, j, Type, style, direction, -1);
-            }
-            catch (Exception e)
-            {
-                ContentErrors.Report($"[tileentity] {placer.Name}.Hook_AfterPlacement 异常：{Safe.Describe(e)}");
-            }
-        }
+        var direction = plr >= 0 && plr < Main.player.Length && Main.player[plr] is { } player
+            ? player.direction
+            : 0;
 
-        // 这里要看"有没有登记过实体类型"，不是"世界里现在有几个实体"：
-        // 用后者的话第一个实体永远建不起来（放第一块时世界里有 0 个）。
         if (TileEntityTable.Count == 0 || Main.netMode == 1) return placed;
-
-        // 声明优先：ModTile.TileEntity 指了名字，就只建那一个。
-        if (TileTableOf(Type) is { } tile && tile.TileEntity is { } wanted)
-        {
-            var named = TileEntityBinding.ByName(tile.Mod?.Name ?? "", wanted);
-            if (named is null)
-            {
-                ContentErrors.Report($"[tileentity] 方块 {tile.Name} 声明的实体 \"{wanted}\" 不存在（要写同类名）");
-            }
-            else if (TileEntityBinding.Find(named, i, j) < 0)
-            {
-                TileEntityBinding.Place(named, i, j);
-            }
-
-            return placed;
-        }
 
         var all = TileEntityBinding.All;
         for (var index = 0; index < all.Count; index++)
@@ -119,37 +123,40 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
 
             if (!valid) continue;
 
-            TileEntityBinding.Place(template, i, j);
+            var id = TileEntityBinding.Place(template, i, j);
+            if (id >= 0) EntityPlaced(id, i, j, Type, style, direction, -1);
         }
 
         return placed;
     }
 
-    /// <summary>多格家具放下后：把作者的 <see cref="ModTile.Hook_AfterPlacement"/> 补上（晶塔在这里建实体）。</summary>
+    private static void EntityPlaced(int id, int i, int j, int type, int style, int direction, int alternate)
+    {
+        if (TileEntityBinding.ByID(id) is not { } entity || !entity.Plan.Has(HookId.AfterPlacement)) return;
+
+        try
+        {
+            _ = entity.Hook_AfterPlacement(i, j, type, style, direction, alternate);
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report($"[tileentity] {entity.FullName}.Hook_AfterPlacement 异常：{Safe.Describe(e)}");
+        }
+    }
+
     private static bool CallPostPlacement(On.Terraria.ObjectData.TileObjectData.orig_CallPostPlacementPlayerHook orig,
                                           int i, int j, int type, int style, int direction, int alternate, TileObject data)
     {
         var placed = orig(i, j, type, style, direction, alternate, data);
 
-        if (TileTableOf(type) is not { } placer || !placer.HookEnabled(HookId.AfterPlacement)) return placed;
-
-        try
-        {
-            _ = placer.Hook_AfterPlacement(i, j, type, style, direction, alternate);
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report($"[tileentity] {placer.Name}.Hook_AfterPlacement 异常：{Safe.Describe(e)}");
-        }
+        Placed(i, j, type);
 
         return placed;
     }
 
-    /// <summary>类型号 → 我们的 ModTile（不是我们的就 null）。</summary>
     private static ModTile? TileTableOf(int type) =>
         ModContent.Find(ContentKind.Tile, type) as ModTile;
 
-    /// <summary>方块被拆掉之后：那块位置上的实体一并摘掉（<c>fail</c> = 只是敲了一下，没拆）。</summary>
     private static void KillTile(On.Terraria.WorldGen.orig_KillTile orig, int i, int j, bool fail, bool effectOnly, bool noItem)
     {
         orig(i, j, fail, effectOnly, noItem);
@@ -157,18 +164,15 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
         if (fail || effectOnly || TileEntityTable.Count == 0) return;
         if (TileEntityBinding.At(i, j) is not { } entity) return;
 
-        // 走 KillEntity 而不是直接 Remove：作者的 OnKill 必须跑到（它常用来收拾附属状态）。
         Instance.KillEntity(entity);
     }
 
-    /// <summary>新内容发号：每次 Mod 注册后都要跟上，否则作者的 SetupContent 读不到 ID。</summary>
     public void Refresh()
     {
         TileEntityTable.Assign();
         RebuildIntervals();
     }
 
-    /// <summary>把每个类型声明的同步间隔抄进侧表：每帧循环里就只是一次数组读，不再问作者。</summary>
     private void RebuildIntervals()
     {
         var count = TileEntityTable.Count;
@@ -182,7 +186,6 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    /// <summary>安装期：每个模板的 SetStaticDefaults 与 Load 各一次。</summary>
     internal void Build()
     {
         TileEntityTable.Assign();
@@ -202,12 +205,6 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
         if (count > 0) Log.Info($"[tileentity] 安装：{count} 个类型（ID 从 {FirstId} 起）");
     }
 
-    // ===================== 作者 API 的落点 =====================
-
-    /// <summary>
-    /// 放进世界。客户端只发请求（合法性由服务器判），服务器放完广播给所有人。
-    /// 返回新实体的 ID；客户端与越界 / 已被占用时 -1。
-    /// </summary>
     internal int Place(ModTileEntity template, int i, int j)
     {
         if (!IsValid(template, i, j)) return -1;
@@ -225,7 +222,6 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
         return id;
     }
 
-    /// <summary>摘掉 (i, j) 上本类型的实体；客户端只发请求，等服务器广播。</summary>
     internal void Kill(ModTileEntity template, int i, int j)
     {
         if (Main.netMode == 1)
@@ -248,8 +244,6 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
         Call(entity, HookId.OnKill, static e => e.OnKill());
         TileEntityBinding.Remove(entity);
     }
-
-    // ===================== 每帧 =====================
 
     private void Tick(On.Terraria.DataStructures.TileEntity.orig_PerformUpdates orig)
     {
@@ -276,7 +270,6 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
             Call(entity, HookId.Update, static e => e.Update());
         }
 
-        // 这一帧新放的实体也要收 PostGlobalUpdate，所以这里重取长度。
         count = list.Count;
         for (var i = 0; i < count && i < list.Count; i++)
             Call(list[i], HookId.PostGlobalUpdate, static e => e.PostGlobalUpdate());
@@ -284,10 +277,6 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
         if (Main.netMode == 2) PeriodicSync();
     }
 
-    /// <summary>
-    /// 定时把声明了 <see cref="ModTileEntity.NetUpdateInterval"/> 的实体重新发一遍（服务器是唯一权威）。
-    /// 按"帧号 % 间隔 == 实体 ID % 间隔"错开发送：同一帧不会把所有实体压成一串包，也不需要每个实体记计时器。
-    /// </summary>
     private void PeriodicSync()
     {
         var all = TileEntityBinding.All;
@@ -331,9 +320,6 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
         ContentErrors.Report($"[tileentity] {entity.FullName}.{what} 异常：{Safe.Describe(exception)}");
     }
 
-    // ===================== 网络 =====================
-
-    /// <summary>服务器 → 所有人（或某个人）发一个实体：ID + 左上角 + 类型键 + 作者的载荷。</summary>
     private void SendEntity(int id, int toClient)
     {
         if (_net is null || Main.netMode == 0) return;
@@ -369,7 +355,6 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
         }, -1, -1);
     }
 
-    /// <summary>客户端 → 服务器：请放下 / 请摘掉（连键一起带，服务器用同一套表反查模板）。</summary>
     private void Request(ModTileEntity template, int i, int j, byte action)
     {
         if (_net is null) return;
@@ -400,7 +385,6 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    /// <summary>客户端收实体：已有同 ID 就只补数据，没有就按服务器给的 ID 新建。</summary>
     private void ApplyEntity(Il2CppSystem.IO.BinaryReader reader)
     {
         var id = reader.ReadInt32();
@@ -435,7 +419,6 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
         if (entity is not null) TileEntityBinding.Remove(entity);
     }
 
-    /// <summary>服务器收放置请求：格子合法性以服务器为准，没人能靠伪造包在这里放东西。</summary>
     private void ServerPlace(Il2CppSystem.IO.BinaryReader reader)
     {
         var key = reader.ReadString();
@@ -475,7 +458,6 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
         SendKilled(id);
     }
 
-    /// <summary>新玩家进到某一段世界时，把这一段里的实体补发给他（否则他要等实体下次发数据才知道有这东西）。</summary>
     private void SendSection(On.Terraria.NetMessage.orig_SendSection orig, int whoAmi, int sectionX, int sectionY)
     {
         orig(whoAmi, sectionX, sectionY);
@@ -495,8 +477,6 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
             SendEntity(all[i].ID, whoAmi);
         }
     }
-
-    // ===================== 存档 =====================
 
     private static void ClearWorldPostfix(On.Terraria.WorldGen.orig_clearWorld orig)
     {
@@ -617,13 +597,11 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    /// <summary>方块实体的侧车存档：与 Mod 的世界数据分文件（那是按 Mod 分键的私有数据，这是跨 Mod 的位置表）。</summary>
     private static string? DataFile()
     {
         var path = Main.worldPathName;
         if (string.IsNullOrEmpty(path)) return null;
 
-        // 手机版 worldPathName 自带 ".wld"：直接拼会得到 xxx.wld.wld.tileentities.json。
         if (path.EndsWith(".wld", StringComparison.OrdinalIgnoreCase)) path = path[..^4];
         return path + ".wld.tileentities.json";
     }

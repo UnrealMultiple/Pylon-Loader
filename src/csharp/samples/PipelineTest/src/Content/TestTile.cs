@@ -85,7 +85,7 @@ public sealed class TestTileBlockItem : ModItem
 {
     public override string DisplayName => "测试方块";
 
-    public override void SetDefaults(Item item) => item.DefaultToPlaceableTile(ModContent.TileType<TestTileBlock>());
+    public override void SetDefaults() => Item.DefaultToPlaceableTile(ModContent.TileType<TestTileBlock>());
 }
 
 /// <summary>放下测试 2x2 家具。</summary>
@@ -93,5 +93,5 @@ public sealed class TestTileObjectItem : ModItem
 {
     public override string DisplayName => "测试家具";
 
-    public override void SetDefaults(Item item) => item.DefaultToPlaceableTile(ModContent.TileType<TestTileObject>());
+    public override void SetDefaults() => Item.DefaultToPlaceableTile(ModContent.TileType<TestTileObject>());
 }

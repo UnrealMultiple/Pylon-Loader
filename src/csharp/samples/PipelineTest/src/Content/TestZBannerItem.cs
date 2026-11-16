@@ -8,12 +8,12 @@ public sealed class TestZBannerItem : ModItem
 {
     public override string DisplayName => "测试旗子";
 
-    public override void SetDefaults(Item item)
+    public override void SetDefaults()
     {
-        item.width = 12;
-        item.height = 30;
-        item.maxStack = 999;
-        item.value = 100;
-        item.DefaultToPlaceableTile(ModContent.TileType<TestZBannerTile>(), 0);
+        Item.width = 12;
+        Item.height = 30;
+        Item.maxStack = 999;
+        Item.value = 100;
+        Item.DefaultToPlaceableTile(ModContent.TileType<TestZBannerTile>(), 0);
     }
 }

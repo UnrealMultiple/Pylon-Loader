@@ -9,12 +9,6 @@ public abstract class GlobalTile : ModType
     /// <summary>只放共享数值（TileObjectData 在这段时间里可以改原版方块的形状/锚点）。</summary>
     public override void SetStaticDefaults() { }
 
-    /// <summary>所有内容安装完成之后一次（跨 Mod 引用放这里）。</summary>
-    public virtual void PostSetupContent() { }
-
-    /// <summary>SetupContent 之后一次：改 Main.tileMerge 的地方。</summary>
-    public virtual void PostSetupTileMerge() { }
-
     /// <summary>这个 tile 能不能被挖；返回 false = 挖不动（blockDamaged 是可写引用）。</summary>
     public virtual bool CanKillTile(int i, int j, int type, ref bool blockDamaged) => true;
 
@@ -41,6 +35,9 @@ public abstract class GlobalTile : ModType
 
     /// <summary>玩家刚把它放下（item 是手里那个）。</summary>
     public virtual void PlaceInWorld(int i, int j, int type, Item item) { }
+
+    /// <summary>这块在玩家附近（closer = 在屏幕上）。</summary>
+    public virtual void NearbyEffects(int i, int j, int type, bool closer) { }
 
     /// <summary>投射物炸这一格；返回 false = 这格留着。</summary>
     public virtual bool CanExplode(int i, int j, int type) => true;

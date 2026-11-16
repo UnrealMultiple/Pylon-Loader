@@ -41,7 +41,7 @@ internal static class PlayerDamageSources
         }
         var own = NpcPipeline.Instance.InstanceOf(npc);
         if (own is null || !own.HookEnabled(HookId.CanHitPlayer)) return true;
-        try { return own.CanHitPlayer(npc, target, ref cooldown); }
+        try { return own.CanHitPlayer(target, ref cooldown); }
         catch (Exception e) { Fail(own, HookId.CanHitPlayer, e); return true; }
     }
 
@@ -58,7 +58,7 @@ internal static class PlayerDamageSources
         }
         var own = ProjectilePipeline.Instance.InstanceOf(projectile);
         if (own is null || !own.Plan.Has(hook)) return true;
-        try { return pvp ? own.CanHitPvp(projectile, target) : own.CanHitPlayer(projectile, target); }
+        try { return pvp ? own.CanHitPvp(target) : own.CanHitPlayer(target); }
         catch (Exception e) { Fail(own, hook, e); return true; }
     }
 
@@ -68,7 +68,7 @@ internal static class PlayerDamageSources
         if (own is not null && own.HookEnabled(HookId.ModifyHitPlayer))
         {
             var previous = modifiers;
-            try { own.ModifyHitPlayer(npc, target, ref modifiers); Require(modifiers); }
+            try { own.ModifyHitPlayer(target, ref modifiers); Require(modifiers); }
             catch (Exception e) { modifiers ??= previous; Fail(own, HookId.ModifyHitPlayer, e); }
         }
         foreach (var global in GlobalNpcRegistry.For(npc, HookId.ModifyHitPlayer))
@@ -85,7 +85,7 @@ internal static class PlayerDamageSources
         if (own is not null && own.Plan.Has(HookId.ModifyHitPlayer))
         {
             var previous = modifiers;
-            try { own.ModifyHitPlayer(projectile, target, ref modifiers); Require(modifiers); }
+            try { own.ModifyHitPlayer(target, ref modifiers); Require(modifiers); }
             catch (Exception e) { modifiers ??= previous; Fail(own, HookId.ModifyHitPlayer, e); }
         }
         foreach (var global in GlobalProjectileRegistry.For(projectile, HookId.ModifyHitPlayer))
@@ -101,7 +101,7 @@ internal static class PlayerDamageSources
         var own = NpcPipeline.Instance.InstanceOf(npc);
         if (own is not null && own.HookEnabled(HookId.OnHitPlayer))
         {
-            try { own.OnHitPlayer(npc, target, info); }
+            try { own.OnHitPlayer(target, info); }
             catch (Exception e) { Fail(own, HookId.OnHitPlayer, e); }
         }
         foreach (var global in GlobalNpcRegistry.For(npc, HookId.OnHitPlayer))
@@ -116,7 +116,7 @@ internal static class PlayerDamageSources
         var own = ProjectilePipeline.Instance.InstanceOf(projectile);
         if (own is not null && own.Plan.Has(HookId.OnHitPlayer))
         {
-            try { own.OnHitPlayer(projectile, target, info); }
+            try { own.OnHitPlayer(target, info); }
             catch (Exception e) { Fail(own, HookId.OnHitPlayer, e); }
         }
         foreach (var global in GlobalProjectileRegistry.For(projectile, HookId.OnHitPlayer))

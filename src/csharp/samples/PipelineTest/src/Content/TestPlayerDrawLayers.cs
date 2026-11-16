@@ -48,11 +48,14 @@ public static class PlayerDrawProbe
 
             TextureWidth = texture.Width;
 
-            // 手机版 DrawData 没有 sourceRect 参数，用三参构造。
-            AddOk = ModPlayer.AddDrawData(drawInfo,
-                new DrawData(texture, drawInfo.Position - Main.screenPosition + offset, Color.White));
-
+            // 手机版缓存是定长原生数组，直接写下一个活动格（DrawData 没有 sourceRect 三参构造）。
+            var cache = drawInfo.DrawDataCache;
+            var count = drawInfo.DrawDataCacheCount;
+            AddOk = cache is not null && count >= 0 && count < cache.Length;
             if (!AddOk) return;
+
+            cache[count] = new DrawData(texture, drawInfo.Position - Main.screenPosition + offset, Color.White);
+            drawInfo.DrawDataCacheCount = count + 1;
 
             Added++;
             CacheAfter = drawInfo.DrawDataCacheCount;

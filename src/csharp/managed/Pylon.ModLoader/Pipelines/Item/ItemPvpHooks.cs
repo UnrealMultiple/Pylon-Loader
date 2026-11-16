@@ -73,7 +73,7 @@ internal static class ItemPvpHooks
         var own = Own(attack.Item);
         if (own is not null && own.Plan.Has(HookId.CanHitPvp))
         {
-            try { if (!own.CanHitPvp(attack.Item, self, target)) return false; }
+            try { if (!own.CanHitPvp(self, target)) return false; }
             catch (Exception e) { Fail(own, HookId.CanHitPvp, e); }
         }
         var allowed = true;
@@ -81,7 +81,7 @@ internal static class ItemPvpHooks
             foreach (var mod in PlayerPipeline.Instance.ModsOf(self))
             {
                 if (!mod.HookEnabled(HookId.CanHitPvp)) continue;
-                try { allowed &= mod.CanHitPvp(self, attack.Item, target); }
+                try { allowed &= mod.CanHitPvp(attack.Item, target); }
                 catch (Exception e) { Fail(mod, HookId.CanHitPvp, e); }
             }
         return allowed;
@@ -134,7 +134,7 @@ internal static class ItemPvpHooks
         if (own is not null && own.Plan.Has(HookId.ModifyHitPvp))
         {
             var previous = modifiers;
-            try { own.ModifyHitPvp(item, player, target, ref modifiers); Require(modifiers); }
+            try { own.ModifyHitPvp(player, target, ref modifiers); Require(modifiers); }
             catch (Exception e) { modifiers ??= previous; Fail(own, HookId.ModifyHitPvp, e); }
         }
         foreach (var global in GlobalItemRegistry.For(item, HookId.ModifyHitPvp))
@@ -150,7 +150,7 @@ internal static class ItemPvpHooks
         var own = Own(item);
         if (own is not null && own.Plan.Has(HookId.OnHitPvp))
         {
-            try { own.OnHitPvp(item, player, target, info); }
+            try { own.OnHitPvp(player, target, info); }
             catch (Exception e) { Fail(own, HookId.OnHitPvp, e); }
         }
         foreach (var global in GlobalItemRegistry.For(item, HookId.OnHitPvp))

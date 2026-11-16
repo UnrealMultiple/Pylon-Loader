@@ -8,11 +8,7 @@ using Terraria;
 
 namespace Pylon.ModLoader;
 
-/// <summary>
-/// 装备贴图管线：跑作者 <c>ModItem.Load</c> 收表、按部位扩表、发号、把贴图写进槽位（主表 + 平行层）。
-/// 绘制不挂钩子——作者把 <c>item.headSlot/bodySlot/legSlot/backSlot/…</c> 设成 <c>EquipTexture.Slot</c>
-/// 就走游戏自己的绘制。效果钩子与时装套判定本版不接，见 docs/pipeline/content-equiptexture.md。
-/// </summary>
+/// <summary>装备贴图管线：收表、按部位扩表、发号、写贴图槽位；效果与套装钩子挂玩家更新入口。</summary>
 internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
 {
     public static EquipPipeline Instance { get; } = new();
@@ -21,7 +17,6 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
 
     public IReadOnlyList<TableRequest> Tables => EquipRequests;
 
-    /// <summary>15 个部位 + 4 张复合层：目标长度由各部位当前内容数算（没内容就是 0，不扩）。</summary>
     private static readonly TableRequest[] EquipRequests = BuildEquipRequests();
 
     private static TableRequest[] BuildEquipRequests()
@@ -56,9 +51,6 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         return true;
     }
 
-    // ===================== 效果（全部 15 个部位） =====================
-
-    /// <summary>穿戴栏 / 时装栏里每件 mod 装备都跑作者的 UpdateEquip / UpdateAccessory。</summary>
     private static void ApplyEquipFunctional(On.Terraria.Player.orig_ApplyEquipFunctional orig, Player self, int itemSlot, Item currentItem)
     {
         orig(self, itemSlot, currentItem);
@@ -71,7 +63,6 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         Effects(self, currentItem, vanity: true);
     }
 
-    /// <summary>这件装备（armor 数组里的一项）带不带 mod 槽位；带就分派回调。</summary>
     private static void Effects(Player player, Item? item, bool vanity)
     {
         if (item is null || item.IsAir) return;
@@ -87,12 +78,12 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
             {
                 if (vanity)
                 {
-                    equip.Item?.UpdateVanity(item, player);
+                    equip.Item?.UpdateVanity(player);
                 }
                 else
                 {
-                    equip.Item?.UpdateEquip(item, player);
-                    equip.Item?.UpdateAccessory(item, player, vanity, hideVisual: false);
+                    equip.Item?.UpdateEquip(player);
+                    equip.Item?.UpdateAccessory(player, hideVisual: false);
                 }
             }
             catch (Exception e)
@@ -102,9 +93,6 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    // ===================== 饰品互斥 =====================
-
-    /// <summary>两件饰品能不能同时穿：任一件声明了拒绝就拒绝。</summary>
     private static bool CanEquipBothAccessories(On.Terraria.UI.ItemSlot.orig_CanEquipBothAccessories orig,
         Item acc1, Item acc2, bool vanity)
     {
@@ -133,14 +121,10 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         return ModContent.Find(ContentKind.Item, item.type) as ModItem;
     }
 
-    // ===================== SetMatch 与翅膀 =====================
-
-    /// <summary>画盔甲时问"这件画到哪"：mod 盔甲按作者声明改槽/长袍。</summary>
     private static int SetMatch(On.Terraria.Player.orig_SetMatch orig, Terraria.Player.SetMatchRequest request, ref bool somethingSpecial)
     {
         var result = orig(request, ref somethingSpecial);
 
-        // 用请求里带的三个槽位（原版按它们取贴图），不是玩家当前穿的：绘制时装/替换时两者可能不同。
         var slot = request.ArmorSlotRequested switch
         {
             0 => request.Head,
@@ -168,7 +152,6 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
     }
 
 
-    /// <summary>空中穿的 mod 翅膀（找 3..9 号饰品槽里 wingSlot 等于 logic 的那件）。</summary>
     private static Item? EquippedWings(Player player, int logic)
     {
         var armor = player.armor;
@@ -186,7 +169,6 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         return null;
     }
 
-    /// <summary>竖直速度：作者改五个引用，管线按原版同一套公式重算 velocity.Y。</summary>
     private static void WingMovement(On.Terraria.Player.orig_WingMovement orig, Player self)
     {
         var logic = self.wingsLogic;
@@ -196,7 +178,6 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
             return;
         }
 
-        // 悬停上飞原版自己算（翼 4 那套），作者的五个数管不到，交回原版。
         if (logic == 4 && self.TryingToHoverUp)
         {
             orig(self);
@@ -212,7 +193,6 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
             var maxCan = 0.5f;
             var rising = 0.1f;
 
-            // 作者的翅膀可能借用了原版某个 wingsLogic；先用那个分支的原版数值打底，作者不想要的自己改。
             SeedVanilla(self, logic, ref falling, ref rising, ref maxCan, ref maxAscent, ref constant);
 
             equip.VerticalWingSpeeds(self, ref falling, ref rising, ref maxCan, ref maxAscent, ref constant);
@@ -251,11 +231,6 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    /// <summary>
-    /// 原版每个 <c>wingsLogic</c> 分支的速度数值表：作者的翅膀借用了原版逻辑号时，从这里取打底值，
-    /// 手感才和原版那对翅膀一致（不给这套表的话所有 mod 翅膀都是同一副"中庸"手感）。
-    /// 数值照抄原版对应分支；没列的号保持通用默认。
-    /// </summary>
     private static void SeedVanilla(Player player, int logic, ref float falling, ref float rising, ref float maxCan,
                                     ref float maxAscent, ref float constant)
     {
@@ -305,7 +280,6 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    /// <summary>悬停翼（44/45）的额外推挤：按上下键时在竖直速度上叠一层。</summary>
     private static void Hover(Player player, float jump)
     {
         if (player.TryingToHoverUp)
@@ -339,7 +313,6 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    /// <summary>平飞速度：作者改两个引用，写回 accRunSpeed / runAcceleration。</summary>
     private static void WingAirLogicTweaks(On.Terraria.Player.orig_WingAirLogicTweaks orig, Player self)
     {
         orig(self);
@@ -356,8 +329,6 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
 
             self.accRunSpeed = speed;
             self.runAcceleration = acceleration;
-            // 原版平飞时水平速度上限也按 accRunSpeed 走；只改 accRunSpeed 不动 maxRunSpeed，
-            // 移动会被 maxRunSpeed（步行速度 3）夹住 —— 表现就是翅膀能飞、平飞按左右没反应。
             self.maxRunSpeed = speed;
         }
         catch (Exception e)
@@ -366,7 +337,6 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    /// <summary>翅膀动画：mod 翅膀声明了 WingUpdate（返回 true）就由作者接管帧。</summary>
     private static void WingFrame(On.Terraria.Player.orig_WingFrame orig, Player self, bool wingFlap)
     {
         var wings = self.wings;
@@ -384,8 +354,6 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
 
         orig(self, wingFlap);
     }
-
-    // ===================== 效果 =====================
 
     private static void UpdateEquips(On.Terraria.Player.orig_UpdateEquips orig, Player self, int i)
     {
@@ -411,7 +379,6 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         Vanity(EquipType.Legs, legs, head, body, legs, self);
     }
 
-    /// <summary>穿齐三件时的套装效果：三件里任一件认这套，就跑它的 UpdateArmorSet。</summary>
     private static void UpdateArmorSets(On.Terraria.Player.orig_UpdateArmorSets orig, Player self, int i)
     {
         orig(self, i);
@@ -439,7 +406,7 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         try
         {
             if (!mod.IsArmorSet(head, body, legs)) return;
-            mod.UpdateArmorSet(piece, player);
+            mod.UpdateArmorSet(player);
         }
         catch (Exception e)
         {
@@ -484,7 +451,6 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         EquipTable.Assign();
     }
 
-    /// <summary>安装期一次：收表 → 扩表 → 发号 → 写贴图。要在作者 <c>SetDefaults</c> 之前跑（作者在那里读 Slot）。</summary>
     internal void Build()
     {
         EquipTable.Collect();
@@ -506,8 +472,6 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
             var count = EquipTable.Of(type).Count;
             if (count <= 0) continue;
 
-            // 扩表器收的是"目标总长"，不是 mod 数量：传 mod 数量的话它认为新长度还不如原版长，
-            // 直接判定完成、一张表都不扩 —— 槽位发出去却没人能写，游戏画到就是越界空指针。
             var total = EquipTable.Vanilla(type) + count;
 
             TableMaintenance.Ensure(EquipTable.Set(type), total).GrowAll(Log.Info);
@@ -516,12 +480,8 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
             for (var index = 0; index < companions.Length; index++)
                 TableMaintenance.Ensure(companions[index], total).GrowAll(Log.Info);
 
-            // 原版用 ArmorIDs.<部位>.Count 当槽位上界：槽位发到 Count 就等于越界，绘制时整件跳过。
-            // 只扩 TextureAssets / Item.*Type 而不写 Count，盔甲就是"贴图在表里、人身上不画"。
             EquipTables.WriteCount(type, total);
 
-            // 游戏侧还有一张"槽位 → 物品编号"的表（Item.headType / bodyType / legType）：
-            // 时装绘制与默认的时装套判定都按槽位反查物品，不补长、不写进去的话 mod 盔甲画不出来。
             switch (type)
             {
                 case EquipType.Head:
@@ -549,7 +509,6 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         _ => type.ToString(),
     };
 
-    /// <summary>把"槽位 → 物品编号"写进游戏那张表（原版靠它按时装槽位找物品）。</summary>
     private static void WriteSlotOwners()
     {
         for (var part = 0; part < EquipTable.Parts.Length; part++)
@@ -586,10 +545,6 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    /// <summary>
-    /// 游戏侧的逐槽开关：复合贴图的新帧码表，以及翅膀的飞行数值表。
-    /// 缺了它们盔甲画得出来但帧号错位（走动时一团马赛克），翅膀看得见却一格都飞不动。
-    /// </summary>
     private static void WriteSwitches()
     {
         NewFraming(EquipType.Body);
@@ -599,10 +554,6 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         RefillWingStats();
     }
 
-    /// <summary>
-    /// 给翅膀槽位写飞行数值。这张表游戏会整张重建（WingStats 的初始化器），重建后新槽位的
-    /// FlyTime 归零、表也缩回原版长度 —— 表现就是翅膀画得出来却一格都飞不动，所以要能反复补。
-    /// </summary>
     private static void RefillWingStats()
     {
         var wings = EquipTable.Of(EquipType.Wing);
@@ -620,11 +571,6 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static bool _wingStatsWarned;
 
-    /// <summary>
-    /// 每帧确认一次：穿着 mod 翅膀但飞行数值是 0（表被重建过）就重写；
-    /// 顺手把飞行时间补上 —— 原版是按 wingsLogic 一条条分支写 <c>wingTimeMax</c> 的，
-    /// mod 槽位走不到任何分支，不补就是 0（按跳跃键毫无反应）。
-    /// </summary>
     private static void EnsureWingStats(Player player)
     {
         var slot = player.wings;
@@ -705,10 +651,7 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
     }
 }
 
-/// <summary>
-/// 装备贴图的 19 类原生表（15 个部位 + 复合层 / 手臂层），以及只和装备槽位有关的原生读写。
-/// 谁用装备贴图谁从这里取表；扩容/补扩由框架统一调度。
-/// </summary>
+/// <summary>装备贴图的 19 类原生表（15 个部位 + 复合层 / 手臂层）与装备槽位相关的原生读写。</summary>
 internal static class EquipTables
 {
     private static readonly Type[] Types =
@@ -752,7 +695,6 @@ internal static class EquipTables
 
     private static readonly int[] VanillaCache = new int[24];
 
-    /// <summary>原版装备贴图表长：没有编译期常量，只能在扩表之前按表长捕获一次（按部位缓存）。</summary>
     internal static int Vanilla(int part, TextureTable table)
     {
         if ((uint)part < (uint)VanillaCache.Length && VanillaCache[part] > 0) return VanillaCache[part];
@@ -762,10 +704,6 @@ internal static class EquipTables
         return length > 0 ? length : 0;
     }
 
-    /// <summary>
-    /// 写 <c>ArmorIDs.&lt;部位&gt;.Count</c>：原版拿它当装备槽位上界（<c>槽位 &lt; Count</c> 才画），
-    /// 只扩表不写它就是"贴图有了、槽位发出去了，原版判定越界整件跳过"。Face / Beard 的字段是 sbyte，其余是 int。
-    /// </summary>
     internal static void WriteCount(EquipType part, int total)
     {
         switch (part)
@@ -788,10 +726,6 @@ internal static class EquipTables
         }
     }
 
-    /// <summary>
-    /// 给 <c>ArmorIDs.&lt;部位&gt;.Sets</c> 里"逐槽开关"的某一位置值。
-    /// 表短了返回 false：这些开关是画角色时逐槽读的，越界写会踩到邻居的内存。
-    /// </summary>
     internal static bool SetFlag(EquipType part, int slot, bool value)
     {
         var flags = part switch
@@ -807,11 +741,6 @@ internal static class EquipTables
         return true;
     }
 
-    /// <summary>
-    /// 给 <c>ArmorIDs.Wing.Sets.Stats</c> 的 [from, to) 写一份默认翅膀数值（飞行时间 100 等）。
-    /// 这张表决定 <c>wingTimeMax</c> 与平飞/悬停下坠速度：新槽位留 0 就是 FlyTime=0 —— 翅膀画得出来、
-    /// 一格都飞不动（按跳跃键毫无反应）。返回实际写了几槽（表还没建/太短返回 0）。
-    /// </summary>
     internal static int FillWingStats(int from, int to)
     {
         var stats = ArmorIDs.Wing.Sets.Stats;
@@ -831,10 +760,6 @@ internal static class EquipTables
         return to - from;
     }
 
-    /// <summary>
-    /// 读 <c>ArmorIDs.Wing.Sets.Stats[slot].FlyTime</c>：-1 = 表没有/太短，0 = 这个槽位还没写飞行数值。
-    /// 游戏会整张重建这张表（WingStats 初始化器），所以调用方靠它判断"要不要重写一遍"。
-    /// </summary>
     public static int WingFlyTime(int slot)
     {
         var stats = ArmorIDs.Wing.Sets.Stats;

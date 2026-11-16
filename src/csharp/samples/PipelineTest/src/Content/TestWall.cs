@@ -61,12 +61,12 @@ public sealed class TestWall : ModWall
         return true;
     }
 
-    public override void AnimateWall(ref int frame, ref int frameCounter)
+    public override void AnimateWall(ref byte frame, ref byte frameCounter)
     {
         if (++frameCounter >= 5)
         {
             frameCounter = 0;
-            frame = (frame + 1) % 2;
+            frame = (byte)((frame + 1) % 2);
         }
     }
 
@@ -76,7 +76,7 @@ public sealed class TestWall : ModWall
         r = 0.5f;
     }
 
-    public override void RandomUpdate(int i, int j) => Randoms++;
+    public override void RandomUpdate(int i, int j, bool underground) => Randoms++;
 }
 
 /// <summary>只挂掉落与地图项的对照墙（ItemDrop 属性决定掉什么）。</summary>
@@ -96,5 +96,5 @@ public sealed class TestWallItem : ModItem
 {
     public override string DisplayName => "测试墙";
 
-    public override void SetDefaults(Item item) => item.DefaultToPlaceableWall((ushort)ModContent.WallType<TestWall>());
+    public override void SetDefaults() => Item.DefaultToPlaceableWall((ushort)ModContent.WallType<TestWall>());
 }

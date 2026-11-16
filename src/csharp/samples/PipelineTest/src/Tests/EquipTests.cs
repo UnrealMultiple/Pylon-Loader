@@ -1,16 +1,12 @@
-using System;
 using Pylon.ModLoader;
 using Terraria;
+using Terraria.GameContent;
 using Terraria.ID;
 using Terraria.UI;
 
 namespace PipelineTest.Tests;
 
-/// <summary>
-/// 装备贴图管线。
-/// equip（Ready）：AutoloadEquip 等价的槽位发号、槽位主人表、贴图进表、饰品互斥。
-/// equip-w（World）：穿上身后 UpdateEquip / UpdateAccessory / 套装 / 时装套 / 翅膀速度回调。
-/// </summary>
+/// <summary>装备贴图管线：equip（Ready：槽位发号、槽位主人表、贴图进表、饰品互斥）+ equip-w（World：穿身上后 UpdateEquip / UpdateAccessory / 套装 / 时装套 / 翅膀速度回调）。</summary>
 internal static class EquipTests
 {
     public static void Register()
@@ -63,19 +59,19 @@ internal static class EquipTests
             var wings = ContentSamples.ItemsByType[ModContent.ItemType<Content.TestWings>()];
             var shield = ContentSamples.ItemsByType[ModContent.ItemType<Content.TestShield>()];
 
-            var assets = Terraria.GameContent.TextureAssets.ArmorHead;
+            var assets = TextureAssets.ArmorHead;
             c.True(helmet!.headSlot < assets.Length && assets[helmet.headSlot] is not null, $"ArmorHead[{helmet.headSlot}]");
-            var composite = Terraria.GameContent.TextureAssets.ArmorBodyComposite;
+            var composite = TextureAssets.ArmorBodyComposite;
             c.True(body!.bodySlot < composite.Length && composite[body.bodySlot] is not null, $"ArmorBodyComposite[{body.bodySlot}]");
-            var legAssets = Terraria.GameContent.TextureAssets.ArmorLeg;
+            var legAssets = TextureAssets.ArmorLeg;
             c.True(legs!.legSlot < legAssets.Length && legAssets[legs.legSlot] is not null, $"ArmorLeg[{legs.legSlot}]");
-            var wingAssets = Terraria.GameContent.TextureAssets.Wings;
+            var wingAssets = TextureAssets.Wings;
             c.True(wings!.wingSlot < wingAssets.Length && wingAssets[wings.wingSlot] is not null, $"Wings[{wings.wingSlot}]");
-            var shieldAssets = Terraria.GameContent.TextureAssets.AccShield;
+            var shieldAssets = TextureAssets.AccShield;
             c.True(shield!.shieldSlot < shieldAssets.Length && shieldAssets[shield.shieldSlot] is not null, $"AccShield[{shield.shieldSlot}]");
 
             // 女性躯干层也是同一张表长：不写的话女性角色穿 mod 胸甲画不出来（或画成别人的）。
-            var femaleBody = Terraria.GameContent.TextureAssets.FemaleBody;
+            var femaleBody = TextureAssets.FemaleBody;
             c.True(body!.bodySlot < femaleBody.Length && femaleBody[body.bodySlot] is not null, $"FemaleBody[{body.bodySlot}]");
         });
 

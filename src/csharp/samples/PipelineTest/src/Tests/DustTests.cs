@@ -5,11 +5,7 @@ using Terraria;
 
 namespace PipelineTest.Tests;
 
-/// <summary>
-/// 管线 11：Dust —— 注册面 + 功能面。
-/// mod 尘土不进游戏图集：走 DustPipeline.Spawn 生成，由管线自己 Update / Draw。
-/// Ready：发号 / 贴图 / GetAlpha；World：在玩家周围撒一圈，肉眼可见地飘散收缩。
-/// </summary>
+/// <summary>管线 11：Dust —— 注册面（Ready：发号 / 贴图 / GetAlpha；mod 尘土走 DustPipeline.Spawn 生成，由管线自己 Update / Draw）+ 功能面（World：在玩家周围撒一圈，肉眼可见地飘散收缩）。</summary>
 internal static class DustTests
 {
     public static void Register()
@@ -29,7 +25,6 @@ internal static class DustTests
             c.True(dust.Type >= 10000, $"type={dust.Type}（mod 尘土从 10000 起）");
         });
 
-        // H1 功能：Spawn 真实生成 → OnSpawn 被调，noGravity 落位
         PT.Case("DUST-H1", c =>
         {
             if (dust is null) { c.Fail("没有实例"); return; }
@@ -41,7 +36,6 @@ internal static class DustTests
             if (d is not null) c.True(d.noGravity, "OnSpawn 里设置的 noGravity 生效");
         });
 
-        // T1：贴图资源可加载（mod 尘土自己的贴图，不进游戏图集）
         PT.Case("DUST-T1", c =>
         {
             if (dust is null) { c.Fail("没有实例"); return; }
@@ -50,16 +44,14 @@ internal static class DustTests
                 c.True(dust.Texture.Value is not null && dust.Texture.Value.Pointer != IntPtr.Zero, "贴图已解码");
         });
 
-        // H3：GetAlpha 返回染色
         PT.Case("DUST-H3", c =>
         {
             if (dust is null) { c.Fail("没有实例"); return; }
-            var alpha = dust.GetAlpha(new Il2CppMicrosoft.Xna.Framework.Graphics.Color(255, 255, 255, 255));
-            c.True(alpha.R == 255 && alpha.G == 0, $"GetAlpha={alpha}（期望洋红）");
+            var alpha = dust.GetAlpha(null!, new Il2CppMicrosoft.Xna.Framework.Graphics.Color(255, 255, 255, 255));
+            c.True(alpha is { } mine && mine.R == 255 && mine.G == 0, $"GetAlpha={alpha}（期望洋红）");
         });
     }
 
-    /// <summary>进世界后：绕玩家撒 24 颗，向外飘散并随管线物理收缩。</summary>
     private static void RunWorld()
     {
         var dust = ModContent.GetInstance<Content.TestDust>();

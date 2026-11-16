@@ -30,7 +30,6 @@ internal static class FishingLineHooks
         var wantsBobber = bobber is not null && bobber.Plan.Has(HookId.ModifyFishingLine);
         var wantsRod = rod is not null && rod.Plan.Has(HookId.ModifyFishingLine);
         var outer = _lineColor;
-        // 无覆写的嵌套绘制仍需使用它自己的原版颜色，不能继承外层浮标的修改。
         _lineColor = null;
         try
         {
@@ -44,12 +43,12 @@ internal static class FishingLineHooks
             var color = VanillaLineColor(held?.type ?? 0);
             if (wantsBobber)
             {
-                try { bobber!.ModifyFishingLine(projectile, ref offset, ref color); }
+                try { bobber!.ModifyFishingLine(ref offset, ref color); }
                 catch (Exception e) { Fail(bobber!, e); }
             }
             if (wantsRod)
             {
-                try { rod!.ModifyFishingLine(held!, projectile, ref offset, ref color); }
+                try { rod!.ModifyFishingLine(projectile, ref offset, ref color); }
                 catch (Exception e) { Fail(rod!, e); }
             }
             _lineColor = color;

@@ -103,3 +103,7 @@ type.Register().Add(ModContent.ItemType<Foo>(), price: 500, happinessPrice: true
 | 语义明确 | `Register()` 发号（99 往下）+ 查重，重复注册抛异常 |
 | 语义明确 | `Condition` 每次开这家店都会重新求值，别在里面做重活 |
 | 本版不生效 | 聊天按钮入口；作者需要显式 `NpcShop.Open()` |
+
+## 2026-11-17 批：ModifyActiveShop
+
+- 原版店（shopName="Shop"）与 mod 店装货后把快照 Item[] 交给作者（ModNpc → GlobalNpc），写回货架并统一补 isAShopItem；旅行商店维持原批的全局模板分派。

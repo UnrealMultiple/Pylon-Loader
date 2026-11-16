@@ -37,15 +37,15 @@ internal static class ItemTests2
             c.True(kb >= 0f, $"GetWeaponKnockback={kb}");
         });
 
-        // E1 功能：TooltipLines 含 TestItem.ModifyTooltipLines 加的行（RebuildTooltip 全链）
+        // E1 功能：声明的 Tooltip 进游戏 tooltip 表（本地化全链）
         PT.Case("ITEM-E1", c =>
         {
             var probe = new Item();
             probe.SetDefaults(ModContent.TypeOf<Content.TestItem>(), null);
             probe.RebuildTooltip();
-            // TestItem 声明 Tooltip="这是一行测试介绍" → TooltipLines 应含这行
+            // TestItem 声明 Tooltip="这是一行测试介绍" → 应正好 1 行
             var count = probe.ToolTip.Lines;
-            c.True(count >= 2, $"tooltip 行数={count}（声明 1 行 + ModifyTooltipLines 加 1 行 = 2）");
+            c.Eq(count, 1, $"tooltip 行数={count}（声明的 1 行）");
         });
     }
 }

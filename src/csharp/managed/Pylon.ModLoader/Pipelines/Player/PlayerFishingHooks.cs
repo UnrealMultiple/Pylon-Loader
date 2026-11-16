@@ -1,3 +1,4 @@
+using Il2CppMicrosoft.Xna.Framework;
 using Terraria;
 using Terraria.DataStructures;
 
@@ -21,14 +22,153 @@ internal static class PlayerFishingHooks
         On.Terraria.Player.QuickSpawnItem_IEntitySource_Item += QuickSpawn;
         On.Terraria.Player.QuickSpawnItem_IEntitySource_Item_GetItemSettings += QuickSpawnWithSettings;
         On.Terraria.Player.ItemCheck_CheckFishingBobber_ConsumeBait += ConsumeBait;
+        On.Terraria.Player.GetFishingConditions += Conditions;
+        On.Terraria.Player.GetAnglerReward += AnglerReward;
+        On.Terraria.Player.GetAnglerRewardRarityMultiplier += AnglerRarity;
+        On.Terraria.Player.GetOrDropItem += OrDrop;
         FishingLineHooks.Install();
+    }
+
+    private static bool _loggedLevel;
+
+    private static PlayerFishingConditions Conditions(On.Terraria.Player.orig_GetFishingConditions orig, Player self)
+    {
+        var result = orig(self);
+
+        if (result.BaitItemType == 2673 || result.BaitPower == 0 || result.PolePower == 0) return result;
+        if (!Players.ModsActive(HookId.GetFishingLevel)) return result;
+
+        var rod = FindItem(self, result.PoleItemType, [self.selectedItem]);
+        var bait = FindItem(self, result.BaitItemType, [54, 55, 56, 57]);
+
+        var multiplier = result.LevelMultipliers;
+        foreach (var mod in Players.ModsOf(self))
+        {
+            if (!mod.HookEnabled(HookId.GetFishingLevel)) continue;
+
+            try { mod.GetFishingLevel(rod, bait, ref multiplier); }
+            catch (Exception e) { Fail(mod, HookId.GetFishingLevel, e); }
+        }
+
+        if (!float.IsFinite(multiplier) || multiplier == result.LevelMultipliers) return result;
+
+        var level = BaseLevel(self, result);
+        result.LevelMultipliers = multiplier;
+        result.FinalFishingLevel = Math.Max(0, (int)(level * multiplier));
+        return result;
+    }
+
+    private static Item FindItem(Player player, int type, int[] first)
+    {
+        var inventory = player.inventory;
+        if (type <= 0 || inventory is null) return new Item();
+
+        foreach (var i in first)
+        {
+            if ((uint)i >= (uint)inventory.Length) continue;
+            var item = inventory[i];
+            if (item is not null && item.type == type && item.stack > 0) return item;
+        }
+
+        for (var i = 0; i < 58 && i < inventory.Length; i++)
+        {
+            var item = inventory[i];
+            if (item is not null && item.type == type && item.stack > 0) return item;
+        }
+
+        return new Item();
+    }
+
+    private static int BaseLevel(Player player, PlayerFishingConditions result)
+    {
+        var bonus = 0;
+        if (player.FindBuffIndex(25) != -1) bonus += 5;
+        if (player.canFloatInWater && player.wet) bonus += 5;
+        if (player.sitting.isSitting) bonus += 5;
+
+        var level = result.BaitPower + result.PolePower + player.fishingSkill + bonus;
+        if ((int)(level * result.LevelMultipliers) == result.FinalFishingLevel || result.LevelMultipliers <= 0) return level;
+
+        if (!_loggedLevel)
+        {
+            _loggedLevel = true;
+            LoaderHost.Current.Log.Info(
+                $"[fishing] 原版最终等级 {result.FinalFishingLevel} ≠ 基础 {level} × {result.LevelMultipliers}；改按商回退");
+        }
+
+        return (int)MathF.Round(result.FinalFishingLevel / result.LevelMultipliers);
+    }
+
+    private sealed class RewardScope
+    {
+        public Player Player = null!;
+        public float Multiplier = 1f;
+        public List<Item> Items { get; } = [];
+        public GetItemSettings? Settings;
+        public bool HasSettings;
+    }
+
+    [ThreadStatic] private static RewardScope? _rewards;
+
+    private static void AnglerReward(On.Terraria.Player.orig_GetAnglerReward orig, Player self, NPC angler, int questItemType)
+    {
+        var outer = _rewards;
+        var scope = new RewardScope { Player = self };
+        _rewards = scope;
+        try
+        {
+            orig(self, angler, questItemType);
+        }
+        finally
+        {
+            _rewards = outer;
+        }
+
+        if (Players.ModsActive(HookId.AnglerQuestReward))
+        {
+            foreach (var mod in Players.ModsOf(self))
+            {
+                if (!mod.HookEnabled(HookId.AnglerQuestReward)) continue;
+
+                try { mod.AnglerQuestReward(scope.Multiplier, scope.Items); }
+                catch (Exception e) { Fail(mod, HookId.AnglerQuestReward, e); }
+            }
+        }
+
+        var settings = (scope.HasSettings ? scope.Settings : null) ?? GetItemSettings.NPCEntityToPlayerInventorySettings;
+        foreach (var item in scope.Items)
+        {
+            if (item is not null && item.type > 0 && item.stack > 0) self.GetOrDropItem(item, settings);
+        }
+    }
+
+    private static float AnglerRarity(On.Terraria.Player.orig_GetAnglerRewardRarityMultiplier orig, int questsDone)
+    {
+        var value = orig(questsDone);
+        if (_rewards is not null) _rewards.Multiplier = value;
+        return value;
+    }
+
+    private static void OrDrop(On.Terraria.Player.orig_GetOrDropItem orig, Player self, Item item, GetItemSettings settings)
+    {
+        var scope = _rewards;
+        if (scope is null || !ReferenceEquals(scope.Player, self))
+        {
+            orig(self, item, settings);
+            return;
+        }
+
+        scope.Items.Add(item);
+        scope.Settings = settings;
+        scope.HasSettings = true;
     }
 
     private static bool ConsumeBait(On.Terraria.Player.orig_ItemCheck_CheckFishingBobber_ConsumeBait orig,
                                     Player self, Projectile bobber, out int baitTypeUsed)
     {
-        var mods = LoaderHost.Current.Hooks.Channel(HookId.ConsumeBait);
-        if (mods.IsEmpty)
+        var systemMods = LoaderHost.Current.Hooks.Channel(HookId.ConsumeBait);
+        var wantPlayers = Players.ModsActive(HookId.CanConsumeBait);
+        if (systemMods.IsEmpty && !wantPlayers)
             return orig(self, bobber, out baitTypeUsed);
 
         var inv = self.inventory;
@@ -39,7 +179,23 @@ internal static class PlayerFishingHooks
         var vanillaBait = baitTypeUsed;
 
         bool? decision = null;
-        foreach (var mod in mods)
+
+        if (wantPlayers && caught && baitTypeUsed > 0)
+        {
+            var bait = FindBait(inv, baitTypeUsed);
+            foreach (var mod in Players.ModsOf(self))
+            {
+                if (!mod.HookEnabled(HookId.CanConsumeBait)) continue;
+                try
+                {
+                    var d = mod.CanConsumeBait(bait);
+                    if (d is not null && decision != false) decision = d;
+                }
+                catch (Exception e) { Fail(mod, HookId.CanConsumeBait, e); }
+            }
+        }
+
+        foreach (var mod in systemMods)
         {
             try
             {
@@ -64,9 +220,58 @@ internal static class PlayerFishingHooks
             {
                 RestoreSlot(inv, changed, before);
             }
+            else
+            {
+                GiveBack(inv, vanillaBait);
+            }
         }
 
         return caught;
+    }
+
+    private static void ConsumeOne(Item[] inv, int type)
+    {
+        if (type <= 0) return;
+
+        for (var i = 0; i < inv.Length; i++)
+        {
+            var item = inv[i];
+            if (item is null || item.type != type || item.stack <= 0) continue;
+            item.stack--;
+            if (item.stack <= 0) inv[i] = new Item();
+            return;
+        }
+    }
+
+    private static Item FindBait(Item[] inv, int type)
+    {
+        for (var i = 0; i < inv.Length; i++)
+        {
+            var item = inv[i];
+            if (item is not null && item.type == type) return item;
+        }
+
+        return new Item { type = type, stack = 1 };
+    }
+
+    private static void GiveBack(Item[] inv, int type)
+    {
+        for (var i = 0; i < inv.Length; i++)
+        {
+            var item = inv[i];
+            if (item is null || item.type != type || item.stack <= 0) continue;
+            item.stack++;
+            return;
+        }
+
+        for (var i = 0; i < inv.Length; i++)
+        {
+            if (inv[i] is null || inv[i]!.type == 0 || inv[i]!.stack == 0)
+            {
+                inv[i] = new Item { type = type, stack = 1 };
+                return;
+            }
+        }
     }
 
     private static void Snapshot(Item[] inv, Span<int> before)
@@ -107,20 +312,6 @@ internal static class PlayerFishingHooks
         }
     }
 
-    private static void ConsumeOne(Item[] inv, int type)
-    {
-        if (type <= 0) return;
-
-        for (var i = 0; i < inv.Length; i++)
-        {
-            var item = inv[i];
-            if (item is null || item.type != type || item.stack <= 0) continue;
-            item.stack--;
-            if (item.stack <= 0) inv[i] = new Item();
-            return;
-        }
-    }
-
     private static Player? Owner(Projectile projectile, HookId hook)
     {
         if (!Players.ModsActive(hook)) return null;
@@ -141,7 +332,7 @@ internal static class PlayerFishingHooks
             foreach (var mod in Players.ModsOf(player))
             {
                 if (!mod.HookEnabled(HookId.ModifyFishingAttempt)) continue;
-                try { mod.ModifyFishingAttempt(player, ref attempt); }
+                try { mod.ModifyFishingAttempt(ref attempt); }
                 catch (Exception e) { Fail(mod, HookId.ModifyFishingAttempt, e); }
             }
             attempt.rolledItemDrop = item;
@@ -156,11 +347,26 @@ internal static class PlayerFishingHooks
         orig(self, ref attempt);
         var player = Owner(self, HookId.CatchFish);
         if (player is null) return;
+
+        var item = attempt.rolledItemDrop;
+        var npc = attempt.rolledEnemySpawn;
+        var sonar = new AdvancedPopupRequest();
+        var position = self.position;
+
         foreach (var mod in Players.ModsOf(player))
         {
             if (!mod.HookEnabled(HookId.CatchFish)) continue;
-            try { mod.CatchFish(player, ref attempt); }
+            try { mod.CatchFish(attempt, ref item, ref npc, ref sonar, ref position); }
             catch (Exception e) { Fail(mod, HookId.CatchFish, e); }
+        }
+
+        attempt.rolledItemDrop = item;
+        attempt.rolledEnemySpawn = npc;
+
+        if (player.sonarPotion && sonar.Text is not null &&
+            !ReferenceEquals(sonar.Text, Terraria.Localization.LocalizedText.Empty))
+        {
+            PopupText.AssignAsSonarText(PopupText.NewText(sonar, position));
         }
     }
 
@@ -186,7 +392,7 @@ internal static class PlayerFishingHooks
         foreach (var mod in Players.ModsOf(player))
         {
             if (!mod.HookEnabled(HookId.ModifyCaughtFish)) continue;
-            try { mod.ModifyCaughtFish(player, fish); }
+            try { mod.ModifyCaughtFish(fish); }
             catch (Exception e) { Fail(mod, HookId.ModifyCaughtFish, e); }
         }
     }

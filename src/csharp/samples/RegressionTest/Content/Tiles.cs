@@ -17,7 +17,7 @@ namespace RegressionTest.Content
     /// </summary>
     public sealed class FurnitureTile : ModTile
     {
-        public static int SaveCalls, LoadCalls, RandomCalls, IndiCalls, DrawPosCalls, SpriteCalls, PreDrawCalls;
+        public static int RandomCalls, IndiCalls, DrawPosCalls, SpriteCalls, PreDrawCalls;
 
         public override void SetStaticDefaults()
         {
@@ -44,21 +44,6 @@ namespace RegressionTest.Content
 
         /// <summary>P1-7：家具本体也挂随机更新（计数用，生长主体在 CropTile）。</summary>
         public override void RandomUpdate(int i, int j) => RandomCalls++;
-
-        /// <summary>P1-8a：作者数据（写简单 int/string，避开 NaN 雷区）。</summary>
-        public override void SaveData(int x, int y, TagCompound tag)
-        {
-            SaveCalls++;
-            tag.Set("rt", 1);
-            tag.Set("note", "F" + x + "," + y);
-        }
-
-        public override void LoadData(int x, int y, TagCompound tag)
-        {
-            LoadCalls++;
-            var note = tag.GetString("note");
-            RegressionTestMod.Log?.Info($"[rt] FurnitureTile.LoadData({x},{y}) note={note}");
-        }
 
         /// <summary>P1-6c：作者帧偏移（相邻家具错开 18px 看镜像/偏移）。</summary>
         public override void AnimateIndividualTile(int type, int i, int j, ref int frameXOffset, ref int frameYOffset)
@@ -92,13 +77,13 @@ namespace RegressionTest.Content
     {
         public override string DisplayName => "回归家具";
 
-        public override void SetDefaults(Item item)
+        public override void SetDefaults()
         {
-            item.width = 24;
-            item.height = 24;
-            item.maxStack = 99;
-            item.rare = 1;
-            item.DefaultToPlaceableTile(ModContent.TileType<FurnitureTile>());
+            Item.width = 24;
+            Item.height = 24;
+            Item.maxStack = 99;
+            Item.rare = 1;
+            Item.DefaultToPlaceableTile(ModContent.TileType<FurnitureTile>());
         }
     }
 
@@ -157,7 +142,7 @@ namespace RegressionTest.Content
     {
         public override string DisplayName => "回归裸方块";
 
-        public override void SetDefaults(Item item) =>
-            item.DefaultToPlaceableTile(ModContent.TileType<BareTile>());
+        public override void SetDefaults() =>
+            Item.DefaultToPlaceableTile(ModContent.TileType<BareTile>());
     }
 }

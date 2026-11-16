@@ -37,6 +37,17 @@ internal static class NpcTests
             c.True(len > type, $"NPC 贴图表长={len}（应 > {type}）");
             if (len > type) c.NotNull(table![type], $"[{type}] 槽位");
         });
+
+        PT.Case("NPC-T2", c =>
+        {
+            var townType = ModContent.NpcType<Content.TestTownNpc>();
+            var profiles = Terraria.GameContent.TownNPCProfiles.Instance?._townNPCProfiles;
+            c.NotNull(profiles, "游戏档案表");
+            if (profiles is null) return;
+            var has = profiles.TryGetValue(townType, out var profile);
+            c.True(has, $"TestTownNpc({townType}) 的档案已注册进游戏表");
+            if (has) c.NotNull(profile, "档案对象");
+        });
     }
 
     private static void RunWorld()

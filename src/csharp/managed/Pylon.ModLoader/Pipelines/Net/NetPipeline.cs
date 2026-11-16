@@ -6,10 +6,7 @@ using Terraria.Net;
 
 namespace Pylon.ModLoader;
 
-/// <summary>
-/// Mod 数据通道：一个消息号 + 一个种类字节。四种包：Mod 包 / 世界 / NPC 附加 / 弹幕附加。
-/// 载荷的序列化在 NetCodec。
-/// </summary>
+/// <summary>Mod 数据通道：一个消息号 + 一个种类字节，含 Mod 包 / 世界 / NPC 附加 / 弹幕附加四种包；载荷序列化在 NetCodec。</summary>
 internal sealed class NetPipeline : ILoaderModule
 {
     public static NetPipeline Instance { get; } = new();
@@ -142,7 +139,7 @@ internal sealed class NetPipeline : ILoaderModule
         if (npc is null || !npc.active) return;
 
         var own = new NetWriter();
-        (ModContent.Find(ContentKind.Npc, npc.type) as ModNpc)?.SendExtraAI(npc, own);
+        (ModContent.Find(ContentKind.Npc, npc.type) as ModNpc)?.SendExtraAI(own);
 
         var globals = GlobalNpcRegistry.All;
         var writer = Begin();
@@ -187,7 +184,7 @@ internal sealed class NetPipeline : ILoaderModule
         if (Main.netMode == 1 && projectile.owner != Main.myPlayer) return;
 
         var own = new NetWriter();
-        (ModContent.Find(ContentKind.Projectile, projectile.type) as ModProjectile)?.SendExtraAI(projectile, own);
+        (ModContent.Find(ContentKind.Projectile, projectile.type) as ModProjectile)?.SendExtraAI(own);
 
         var globals = GlobalProjectileRegistry.All;
         var key = projectile.key;
@@ -414,7 +411,7 @@ internal sealed class NetPipeline : ILoaderModule
 
         try
         {
-            (ModContent.Find(ContentKind.Npc, type) as ModNpc)?.ReceiveExtraAI(npc, new NetReader(own));
+            (ModContent.Find(ContentKind.Npc, type) as ModNpc)?.ReceiveExtraAI(new NetReader(own));
         }
         catch (Exception e)
         {
@@ -454,8 +451,7 @@ internal sealed class NetPipeline : ILoaderModule
 
         try
         {
-            (ModContent.Find(ContentKind.Projectile, type) as ModProjectile)?.ReceiveExtraAI(
-                projectile, new NetReader(own));
+            (ModContent.Find(ContentKind.Projectile, type) as ModProjectile)?.ReceiveExtraAI(new NetReader(own));
         }
         catch (Exception e)
         {

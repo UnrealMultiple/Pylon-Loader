@@ -11,12 +11,12 @@
 | `NetMessage.SendSection` | 新玩家进到某一段世界时，把这一段里的实体补发给他 |
 | Mod 通道的子通道（自己的种类字节） | 实体广播 / 摘除广播 / 放置请求 / 摘除请求 → `NetReceive`、`OnNetPlace`、`OnKill` |
 | 作者调 `Place` / `Kill` | 单人：本地放/摘；服务器：放/摘后广播；客户端：只发请求，等服务器广播 |
-| `WorldGen.PlaceTile` 之后 | `ModTile.TileEntity` 指了实体名就建那一个；否则按 `IsTileValidForEntity` 的老规则建（客户端不建，等广播） |
-| 放置完成（原 `PlacementHook` 的时机） | `ModTile.Hook_AfterPlacement(i, j, type, style, direction, alternate)`，默认 -1 |
+| `WorldGen.PlaceTile` 之后 | `ModTile.TileEntity` 指了实体名就建那一个（家具路径经 `CallPostPlacementPlayerHook` 也补建）；建好后对实体实例调 `ModTileEntity.Hook_AfterPlacement(...)`（服务端/单机）；没有声明的按 `IsTileValidForEntity` 的老规则建（客户端不建，等广播） |
+| 放置完成（原 `PlacementHook` 的时机） | `ModTile.Hook_AfterPlacement(i, j, type, style, direction, alternate)`，默认 -1；实体实例的 `ModTileEntity.Hook_AfterPlacement` 在 `PlaceDeclared` 建好后由 `EntityPlaced` 调 |
 
 **已接**：静态 `ByID` / `ByPosition`（`ModTileEntity.ByID` / `ByPosition`，返回内部表的只读视图，见对应小节）。
 
-**不接**（见文末「这一版没接」）：`TileEntity.Place` / `Kill` / `OnPlaced` / `OnRemoved` 的静态入口、`TileEntitiesManager` 注册。`PlacementHook` 的能力改以 `ModTile.TileEntity` 声明 + `Hook_AfterPlacement` 回调接上（见没接第 1 条）。
+**不接**（见文末「这一版没接」）：`TileEntity.Place` / `Kill` / `OnPlaced` / `OnRemoved` 的静态入口、`TileEntitiesManager` 注册。`PlacementHook` 的能力改以 `ModTile.TileEntity` 声明 + `ModTileEntity.Hook_AfterPlacement` 回调接上（见没接第 1 条）。
 
 已核对（铁律 1）：存档（`LoadWorld` / `InternalSaveWorld` / `SendSection`）与网络（放置广播 / 摘除广播 / 放置请求 / 摘除请求）均与参考实现同集；参考里多出的那条「`NetMessage.SendData` 拦 `TileEntitySharing`（86）按 ID 重发实体」在本构建没有对应入口——`dump.cs` 里 `NetMessage.SendData` 的 86 号分支不存在，收实体的路径已经由子通道的 `ActionEntity` 覆盖。
 
@@ -145,11 +145,11 @@ if (ModTileEntity.ByPosition.TryGetValue(new Point16(x, y), out var here)) { }
 
 ### 这一版没接
 
-1. ~~**`PlacementHook` / `Generic_HookPostPlaceMyPlayer`**~~：**已接（改走声明式）**。核对结论：`PlacementHook` 结构体本身存在（`refs/dump.cs:109216`，`TileObjectData` 的 `HookPostPlaceMyPlayer` 等四个属性也都在），但**没有任何被调用点**（全 `dump.cs` 只搜到属性与字段定义，找不到 `.hook` 被调用的语句）——这个构建里自动放置根本不走 `PlacementHook`，玩家放块走的是 `WorldGen.PlaceTile`。因此接的是 `ModTile.TileEntity`（声明 "放下这块自动建哪个实体"，写同类名）+ `ModTile.Hook_AfterPlacement`（放完回调，对应原签名 `(i, j, type, style, direction, alternate)`）：`PlaceTile` 后置先看声明、有就建那一个（客户端不建，等服务器广播）；没有声明的回落到 "`IsTileValidForEntity` 认了就建" 的老规则。通用放置的其余入口（`HookPlaceOverride` / `HookCheckIfCanPlace`）是原版方块自己的事，mod 方块不经它们。
+1. ~~**`PlacementHook` / `Generic_HookPostPlaceMyPlayer`**~~：**已接（改走声明式）**。核对结论：`PlacementHook` 结构体本身存在（`refs/dump.cs:109216`，`TileObjectData` 的 `HookPostPlaceMyPlayer` 等四个属性也都在），但**没有任何被调用点**（全 `dump.cs` 只搜到属性与字段定义，找不到 `.hook` 被调用的语句）——这个构建里自动放置根本不走 `PlacementHook`，玩家放块走的是 `WorldGen.PlaceTile`。因此接的是 `ModTile.TileEntity`（声明 "放下这块自动建哪个实体"，写同类名）+ 两级放完回调：`ModTile.Hook_AfterPlacement`（放块回调，签名 `(i, j, type, style, direction, alternate)`）与 `ModTileEntity.Hook_AfterPlacement`（实体实例回调，`PlaceDeclared` 建好实体后调，服务端/单机）。分派范围：`PlaceTile` 后置先看声明、有就建那一个（客户端不建，等服务器广播）；多格家具不走 `PlaceTile` 的实体钩子，由 `CallPostPlacementPlayerHook` 后置补建并同样调两级回调；没有声明的回落到 "`IsTileValidForEntity` 认了就建" 的老规则。通用放置的其余入口（`HookPlaceOverride` / `HookCheckIfCanPlace`）是原版方块自己的事，mod 方块不经它们。
 2. ~~**静态 `ByID` / `ByPosition` / `TryGet`**~~：**已接**——`ModTileEntity.ByID`（`int → 实例`）与 `ModTileEntity.ByPosition`（`Point16 → 实例`）返回管线内部表的只读视图，随放置/拆除实时更新；`TryGet` 用 `ByID.TryGetValue(...)` 即可，不再单开。
 3. **`TileEntity.Place` / `Kill` 的静态入口**：mod 实体不在 `TileEntitiesManager` 里，这两个入口收不到自己的事件；等价能力走 `WorldGen.PlaceTile` / `KillTile` 两处（放下就建实体、拆掉就摘实体，`IsTileValidForEntity` 为真的模板才建）。
 4. ~~**每帧增量同步**~~：**已接（定时同步）**——`ModTileEntity.NetUpdateInterval`（帧；0 = 不定时）声明之后，服务器在 `PerformUpdates` 的每帧分派末尾按 `帧号 % 间隔 == 实体 ID % 间隔` 错开把该实体整个重发一遍（复用实体包：`NetSend` 载荷 + 位置/类型），客户端走同一条 `ActionEntity` 接收路径。不做的是**每帧**：间隔按帧给，作者要更快就调小，但每帧广播在实体多时会把带宽吃满，所以默认 0（关）。`SendExtraAI` 那种"只发 AI 字段、不带位置"的细分包没有单开——实体包本身就小，多一条协议不如复用一条。
-5. **`Hook_AfterPlacement` 的通用放置流程 / 按 Mod 卸载的粒度**：前者仍然没有调用点（自动建实体走的是 `IsTileValidForEntity`，不是它）；后者在卸载世界时整表清空（Pylon 目前不在运行期卸载 Mod）。
+5. **按 Mod 卸载的粒度**：卸载世界时整表清空（Pylon 目前不在运行期卸载 Mod）。~~`Hook_AfterPlacement` 的通用放置流程~~：**已接**（见第 1 条——虽不走通用放置流程，但声明式实体与家具路径都会在建好后调实体实例的 `Hook_AfterPlacement`）。
 
 ### 对作者 API 的影响
 

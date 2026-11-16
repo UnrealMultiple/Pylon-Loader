@@ -62,7 +62,11 @@ public abstract class ModTileEntity : ModType
     /// </summary>
     public virtual int NetUpdateInterval => 0;
 
-    /// <summary>自定义放置钩子（配 PlacementHook 用）；默认 -1 = 交给通用放置。本版没有通用放置流程，不会被调。</summary>
+    /// <summary>
+    /// 实体建立成功后的回调（对位 TML PlacementHook）：
+    /// 管线在放置/读档建好实体后，对新建实例调用一次（服务端/单机）。
+    /// 返回 -1 = 没有别的返回值，管线忽略。
+    /// </summary>
     public virtual int Hook_AfterPlacement(int i, int j, int type, int style, int direction, int alternate) => -1;
 
     /// <summary>
@@ -84,5 +88,6 @@ public abstract class ModTileEntity : ModType
     public static int CountInWorld() => TileEntityBinding.Count;
 }
 
-// 未移植：TryGet（按格取实体的便捷入口，用 Find 即可）、Generic_Hook_AfterPlacement（本版没有 PlacementHook 封装）。
+// 未移植：TryGet（按格取实体的便捷入口，用 Find 即可）。
+// Hook_AfterPlacement 已接：管线放好实体后调用（放置来源：作者在 PlaceInWorld 里手动 Place，或 IsTileValidForEntity 的自动规则）。
 // ModType 派生类由注册管线自动发现。

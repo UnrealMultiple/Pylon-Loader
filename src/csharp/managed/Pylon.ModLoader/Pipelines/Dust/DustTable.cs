@@ -3,7 +3,6 @@ namespace Pylon.ModLoader;
 /// <summary>尘土表：mod 尘土自己发号（不进游戏的图集，所以号段和原版无关）。</summary>
 internal static class DustTable
 {
-    /// <summary>mod 尘土的起始编号（只在我们自己的绘制里用，不交给游戏图集）。</summary>
     internal const int Base = 10000;
 
     private static readonly List<ModDust> Dusts = [];
@@ -18,7 +17,6 @@ internal static class DustTable
         return (uint)index < (uint)Dusts.Count ? Dusts[index] : null;
     }
 
-    /// <summary>发号；幂等。</summary>
     internal static void Assign()
     {
         foreach (var dust in ModContent.GetContent<ModDust>())
@@ -27,6 +25,7 @@ internal static class DustTable
 
             dust.Type = Base + Dusts.Count;
             dust.Registered = true;
+            dust.Hooks = HookScan.Of(dust.GetType(), typeof(ModDust));
             Dusts.Add(dust);
         }
     }

@@ -27,19 +27,19 @@ public sealed class TestNetPlayer : ModPlayer
         LastSync = "";
     }
 
-    public override void SyncPlayer(Player player, int toWho, int fromWho, bool newPlayer)
+    public override void SyncPlayer(int toWho, int fromWho, bool newPlayer)
     {
         CtSyncPlayer++;
         LastSync = $"{toWho}/{fromWho}/{newPlayer}";
     }
 
-    public override void CopyClientState(Player player, ModPlayer targetCopy) => CtCopyClientState++;
+    public override void CopyClientState(ModPlayer targetCopy) => CtCopyClientState++;
 
-    public override void SendClientChanges(Player player, ModPlayer clientPlayer) => CtSendClientChanges++;
+    public override void SendClientChanges(ModPlayer clientPlayer) => CtSendClientChanges++;
 
-    public override void OnEnterWorld(Player player) => CtOnEnterWorld++;
+    public override void OnEnterWorld() => CtOnEnterWorld++;
 
-    public override void PlayerConnect(Player player) => CtPlayerConnect++;
+    public override void PlayerConnect() => CtPlayerConnect++;
 
-    public override void PlayerDisconnect(Player player) => CtPlayerDisconnect++;
+    public override void PlayerDisconnect() => CtPlayerDisconnect++;
 }

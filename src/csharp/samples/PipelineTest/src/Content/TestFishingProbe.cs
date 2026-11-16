@@ -37,9 +37,9 @@ internal static class FishingProbe
 
 public sealed class TestFishingPlayer : ModPlayer
 {
-    public override void ModifyCaughtFish(Player player, Item fish)
+    public override void ModifyCaughtFish(Item fish)
     {
-        if (!FishingProbe.Active || player.whoAmI != FishingProbe.PlayerIndex) return;
+        if (!FishingProbe.Active || Player.whoAmI != FishingProbe.PlayerIndex) return;
         FishingProbe.CaughtCalls++;
         FishingProbe.LastFish = fish;
         if (FishingProbe.ThrowCaught) throw new InvalidOperationException("PT fishing caught probe");
@@ -52,18 +52,18 @@ public sealed class TestFishingBobber : ModProjectile
 {
     public override string TexturePath => "assets/projectiles/TestProjectile.png";
 
-    public override void SetDefaults(Projectile projectile)
+    public override void SetDefaults()
     {
-        projectile.width = projectile.height = 14;
-        projectile.aiStyle = 61;
-        projectile.friendly = true;
-        projectile.tileCollide = false;
-        projectile.timeLeft = 600;
+        Projectile.width = Projectile.height = 14;
+        Projectile.aiStyle = 61;
+        Projectile.friendly = true;
+        Projectile.tileCollide = false;
+        Projectile.timeLeft = 600;
     }
 
-    public override void ModifyFishingLine(Projectile projectile, ref Vector2 lineOriginOffset, ref Color lineColor)
+    public override void ModifyFishingLine(ref Vector2 lineOriginOffset, ref Color lineColor)
     {
-        if (!FishingProbe.Matches(projectile)) return;
+        if (!FishingProbe.Matches(Projectile)) return;
         FishingProbe.ProjectileCalls++;
         FishingProbe.Order += "P";
         if (!FishingProbe.AlterLine) return;
@@ -77,16 +77,16 @@ public sealed class TestFishingPole : ModItem
     public override string TexturePath => "assets/items/TestItem.png";
     public override string DisplayName => "捕鱼入口探针鱼竿";
 
-    public override void SetDefaults(Item item)
+    public override void SetDefaults()
     {
-        item.width = item.height = 20;
-        item.maxStack = 1;
-        item.fishingPole = 20;
-        item.shoot = ModContent.ProjectileType<TestFishingBobber>();
-        item.shootSpeed = 8f;
+        Item.width = Item.height = 20;
+        Item.maxStack = 1;
+        Item.fishingPole = 20;
+        Item.shoot = ModContent.ProjectileType<TestFishingBobber>();
+        Item.shootSpeed = 8f;
     }
 
-    public override void ModifyFishingLine(Item item, Projectile bobber, ref Vector2 lineOriginOffset, ref Color lineColor)
+    public override void ModifyFishingLine(Projectile bobber, ref Vector2 lineOriginOffset, ref Color lineColor)
     {
         if (!FishingProbe.Matches(bobber)) return;
         FishingProbe.ItemCalls++;

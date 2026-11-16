@@ -15,28 +15,28 @@ public sealed class TestProjectile : ModProjectile
     public static int AiCount;
     public static int PostAiCount;
 
-    public override void SetDefaults(Projectile proj)
+    public override void SetDefaults()
     {
-        proj.width = 22;
-        proj.height = 22;
-        proj.damage = 50;
-        proj.friendly = true;
-        proj.timeLeft = 600;
-        proj.penetrate = -1;      // 命中后不消失，方便观察
-        proj.light = 0.9f;        // 自发光
-        proj.tileCollide = false; // 穿墙，方便观察
+        Projectile.width = 22;
+        Projectile.height = 22;
+        Projectile.damage = 50;
+        Projectile.friendly = true;
+        Projectile.timeLeft = 600;
+        Projectile.penetrate = -1;      // 命中后不消失，方便观察
+        Projectile.light = 0.9f;        // 自发光
+        Projectile.tileCollide = false; // 穿墙，方便观察
     }
 
-    public override void OnSpawn(Projectile proj) => OnSpawnCount++;
+    public override void OnSpawn(Terraria.DataStructures.IEntitySource? source) => OnSpawnCount++;
 
-    public override bool PreAI(Projectile proj) => true;
+    public override bool PreAI() => true;
 
-    public override void AI(Projectile proj)
+    public override void AI()
     {
         AiCount++;
-        proj.rotation += 0.2f;
-        proj.scale = 1f + 0.25f * (float)System.Math.Sin(proj.timeLeft * 0.3);
+        Projectile.rotation += 0.2f;
+        Projectile.scale = 1f + 0.25f * (float)System.Math.Sin(Projectile.timeLeft * 0.3);
     }
 
-    public override void PostAI(Projectile proj) => PostAiCount++;
+    public override void PostAI() => PostAiCount++;
 }

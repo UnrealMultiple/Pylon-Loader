@@ -29,6 +29,20 @@ internal static class PlayerUpdateTests
                 player.CapAttackSpeeds();
                 c.Eq(PlayerUpdateProbe.Misc, 1, "攻击速度计算后实际派发");
             });
+            PT.Case("PLAYER-U3", c =>
+            {
+                TestPlayer.RegenProbeActive = true;
+                TestPlayer.RegenHits = 0;
+                try
+                {
+                    player.UpdateLifeRegen();
+                    c.True(TestPlayer.RegenHits >= 1, $"自然再生桥命中 {TestPlayer.RegenHits} 次（桥没装上=0）");
+                }
+                finally
+                {
+                    TestPlayer.RegenProbeActive = false;
+                }
+            });
         }
         finally
         {

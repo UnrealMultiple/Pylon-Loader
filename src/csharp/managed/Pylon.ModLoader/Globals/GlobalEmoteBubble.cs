@@ -30,6 +30,6 @@ public abstract class GlobalEmoteBubble : ModType
     /// <summary>表情菜单里的取帧（游戏的与 mod 的表情都会问）；null = 不问。</summary>
     public virtual Rectangle? GetFrameInEmoteMenu(int emoteType, int frame, int frameCounter) => null;
 
-    /// <summary>菜单里每帧的帧计数（本版没有对应入口，保留声明；见文档"这一版没接"）。</summary>
+    /// <summary>菜单里每帧的帧计数；基线同款声明、但基线自身也没有调用点（reference-dead），保留不接。</summary>
     public virtual bool UpdateFrameInEmoteMenu(int emoteType, ref int frameCounter) => true;
 }

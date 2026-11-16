@@ -2,10 +2,7 @@ using Terraria;
 
 namespace Pylon.ModLoader;
 
-/// <summary>
-/// 伤害类别管线：把物品声明的类别挂到武器的伤害 / 暴击 / 击退三个入口上。
-/// 玩家侧的类别加成（饰品、buff 汇总）本版不做，见 docs/pipeline/content-damageclass.md。
-/// </summary>
+/// <summary>伤害类别管线：把物品声明的类别挂到武器的伤害 / 暴击 / 击退 / 体积入口上。</summary>
 internal sealed class DamageClassPipeline : ILoaderModule, ILoaderModuleRefresh
 {
     public static DamageClassPipeline Instance { get; } = new();
@@ -19,77 +16,284 @@ internal sealed class DamageClassPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.Player.GetWeaponDamage += WeaponDamage;
         On.Terraria.Player.GetWeaponCrit += WeaponCrit;
         On.Terraria.Player.GetWeaponKnockback += WeaponKnockback;
+        On.Terraria.Player.GetAdjustedItemScale += ItemScale;
 
-        Log.Info("[damageclass] 已挂（伤害 / 暴击 / 击退三个乘区）");
+        Log.Info("[damageclass] 已挂（伤害 / 暴击 / 击退 / 体积；类别乘区 + 作者钩子）");
         return true;
     }
 
-    public void Refresh() => DamageClassTable.Rebuild();
+    public void Refresh() { }
 
-    /// <summary>安装期一次：收表 + 静态默认值。</summary>
     internal void Build()
     {
-        DamageClassTable.Rebuild();
+        var count = 0;
+        foreach (var cls in ModContent.GetContent<ModDamageClass>())
+        {
+            cls.SetStaticDefaults();
+            count++;
+        }
 
-        foreach (var cls in ModContent.GetContent<ModDamageClass>()) cls.SetStaticDefaults();
-
-        if (DamageClassTable.Count > 0) Log.Info($"[damageclass] 安装：{DamageClassTable.Count} 件武器声明了类别");
+        if (count > 0) Log.Info($"[damageclass] 安装：{count} 个类别");
     }
-
-    // ===================== 乘区 =====================
 
     private static int WeaponDamage(On.Terraria.Player.orig_GetWeaponDamage orig, Player self, Item sItem)
     {
-        var damage = orig(self, sItem);
+        var value = orig(self, sItem);
 
-        if (sItem is null || DamageClassTable.Of(sItem.type) is not { } cls) return damage;
+        if (sItem is null || sItem.type <= 0 || sItem.stack <= 0) return value;
 
-        try
+        var baseDamage = sItem.damage;
+        var start = baseDamage > 0 ? new StatModifier((float)value / baseDamage, 1f) : StatModifier.Default;
+        var damage = start;
+
+        DispatchModifyWeaponDamage(sItem, self, ref damage);
+
+        if (damage.Equals(start)) return value;
+
+        var at = Math.Max(baseDamage, 0);
+        var result = value + ((double)damage.ApplyTo(at) - start.ApplyTo(at));
+        if (!double.IsFinite(result)) return value;
+
+        var nearest = (int)Math.Round(result);
+        return Math.Max(0, Math.Abs(result - nearest) < 1e-3 ? nearest : (int)result);
+    }
+
+    private static void DispatchModifyWeaponDamage(Item item, Player player, ref StatModifier damage)
+    {
+        if (ModContent.IsCustom(ContentKind.Item, item.type))
         {
-            var multiplier = cls.DamageMultiplier;
-            if (multiplier == 1f) return damage;
-
-            var scaled = (int)(damage * multiplier);
-            return scaled < 1 ? (damage > 0 ? 1 : 0) : scaled;
+            var mod = ItemPipeline.Instance.InstanceOf(item);
+            if (mod is not null && mod.Plan.Has(HookId.ModifyWeaponDamage))
+            {
+                try
+                {
+                    mod.ModifyWeaponDamage(player, ref damage);
+                }
+                catch (Exception e)
+                {
+                    Fail(mod, HookId.ModifyWeaponDamage, e);
+                }
+            }
         }
-        catch (Exception e)
+
+        foreach (var global in GlobalItemRegistry.For(item, HookId.ModifyWeaponDamage))
         {
-            ContentErrors.Report($"[damageclass] {cls.Name}.DamageMultiplier 异常：{Safe.Describe(e)}");
-            return damage;
+            try
+            {
+                global.ModifyWeaponDamage(item, player, ref damage);
+            }
+            catch (Exception e)
+            {
+                Fail(global, HookId.ModifyWeaponDamage, e);
+            }
+        }
+
+        var mods = PlayerPipeline.Instance.ModsOf(player);
+        for (var i = 0; i < mods.Length; i++)
+        {
+            var mod = mods[i];
+            if (!mod.HookEnabled(HookId.ModifyWeaponDamage)) continue;
+
+            try
+            {
+                mod.ModifyWeaponDamage(item, ref damage);
+            }
+            catch (Exception e)
+            {
+                Fail(mod, HookId.ModifyWeaponDamage, e);
+            }
         }
     }
 
     private static int WeaponCrit(On.Terraria.Player.orig_GetWeaponCrit orig, Player self, Item sItem)
     {
-        var crit = orig(self, sItem);
+        var value = orig(self, sItem);
 
-        if (sItem is null || DamageClassTable.Of(sItem.type) is not { } cls) return crit;
+        if (sItem is null || sItem.type <= 0 || sItem.stack <= 0) return value;
 
-        try
+        var crit = (float)value;
+        DispatchModifyWeaponCrit(sItem, self, ref crit);
+
+        if (crit == value || !float.IsFinite(crit)) return value;
+        return (int)(crit + 5E-06f);
+    }
+
+    private static void DispatchModifyWeaponCrit(Item item, Player player, ref float crit)
+    {
+        if (ModContent.IsCustom(ContentKind.Item, item.type))
         {
-            return crit + cls.CritBonus;
+            var mod = ItemPipeline.Instance.InstanceOf(item);
+            if (mod is not null && mod.Plan.Has(HookId.ModifyWeaponCrit))
+            {
+                try
+                {
+                    mod.ModifyWeaponCrit(player, ref crit);
+                }
+                catch (Exception e)
+                {
+                    Fail(mod, HookId.ModifyWeaponCrit, e);
+                }
+            }
         }
-        catch (Exception e)
+
+        foreach (var global in GlobalItemRegistry.For(item, HookId.ModifyWeaponCrit))
         {
-            ContentErrors.Report($"[damageclass] {cls.Name}.CritBonus 异常：{Safe.Describe(e)}");
-            return crit;
+            try
+            {
+                global.ModifyWeaponCrit(item, player, ref crit);
+            }
+            catch (Exception e)
+            {
+                Fail(global, HookId.ModifyWeaponCrit, e);
+            }
+        }
+
+        var mods = PlayerPipeline.Instance.ModsOf(player);
+        for (var i = 0; i < mods.Length; i++)
+        {
+            var mod = mods[i];
+            if (!mod.HookEnabled(HookId.ModifyWeaponCrit)) continue;
+
+            try
+            {
+                mod.ModifyWeaponCrit(item, ref crit);
+            }
+            catch (Exception e)
+            {
+                Fail(mod, HookId.ModifyWeaponCrit, e);
+            }
         }
     }
 
     private static float WeaponKnockback(On.Terraria.Player.orig_GetWeaponKnockback orig, Player self, Item sItem, float KnockBack)
     {
-        var knockback = orig(self, sItem, KnockBack);
+        var value = orig(self, sItem, KnockBack);
 
-        if (sItem is null || DamageClassTable.Of(sItem.type) is not { } cls) return knockback;
+        if (sItem is null || sItem.type <= 0 || sItem.stack <= 0) return value;
 
-        try
+        var start = KnockBack != 0 ? new StatModifier(value / KnockBack, 1f) : StatModifier.Default;
+        var knockback = start;
+
+        DispatchModifyWeaponKnockback(sItem, self, ref knockback);
+
+        if (knockback.Equals(start)) return value;
+
+        var result = value + (knockback.ApplyTo(KnockBack) - start.ApplyTo(KnockBack));
+        return float.IsFinite(result) ? Math.Max(0f, result) : value;
+    }
+
+    private static void DispatchModifyWeaponKnockback(Item item, Player player, ref StatModifier knockback)
+    {
+        if (ModContent.IsCustom(ContentKind.Item, item.type))
         {
-            return knockback * cls.KnockbackMultiplier;
+            var mod = ItemPipeline.Instance.InstanceOf(item);
+            if (mod is not null && mod.Plan.Has(HookId.ModifyWeaponKnockback))
+            {
+                try
+                {
+                    mod.ModifyWeaponKnockback(player, ref knockback);
+                }
+                catch (Exception e)
+                {
+                    Fail(mod, HookId.ModifyWeaponKnockback, e);
+                }
+            }
         }
-        catch (Exception e)
+
+        foreach (var global in GlobalItemRegistry.For(item, HookId.ModifyWeaponKnockback))
         {
-            ContentErrors.Report($"[damageclass] {cls.Name}.KnockbackMultiplier 异常：{Safe.Describe(e)}");
-            return knockback;
+            try
+            {
+                global.ModifyWeaponKnockback(item, player, ref knockback);
+            }
+            catch (Exception e)
+            {
+                Fail(global, HookId.ModifyWeaponKnockback, e);
+            }
+        }
+
+        var mods = PlayerPipeline.Instance.ModsOf(player);
+        for (var i = 0; i < mods.Length; i++)
+        {
+            var mod = mods[i];
+            if (!mod.HookEnabled(HookId.ModifyWeaponKnockback)) continue;
+
+            try
+            {
+                mod.ModifyWeaponKnockback(item, ref knockback);
+            }
+            catch (Exception e)
+            {
+                Fail(mod, HookId.ModifyWeaponKnockback, e);
+            }
         }
     }
+
+    private static float ItemScale(On.Terraria.Player.orig_GetAdjustedItemScale orig, Player self, Item item)
+    {
+        var value = orig(self, item);
+
+        if (item is null || item.type <= 0) return value;
+
+        var scale = value;
+        DispatchModifyItemScale(item, self, ref scale);
+
+        return float.IsFinite(scale) ? Math.Max(0f, scale) : value;
+    }
+
+    private static void DispatchModifyItemScale(Item item, Player player, ref float scale)
+    {
+        if (ModContent.IsCustom(ContentKind.Item, item.type))
+        {
+            var mod = ItemPipeline.Instance.InstanceOf(item);
+            if (mod is not null && mod.Plan.Has(HookId.ModifyItemScale))
+            {
+                try
+                {
+                    mod.ModifyItemScale(player, ref scale);
+                }
+                catch (Exception e)
+                {
+                    Fail(mod, HookId.ModifyItemScale, e);
+                }
+            }
+        }
+
+        foreach (var global in GlobalItemRegistry.For(item, HookId.ModifyItemScale))
+        {
+            try
+            {
+                global.ModifyItemScale(item, player, ref scale);
+            }
+            catch (Exception e)
+            {
+                Fail(global, HookId.ModifyItemScale, e);
+            }
+        }
+
+        var mods = PlayerPipeline.Instance.ModsOf(player);
+        for (var i = 0; i < mods.Length; i++)
+        {
+            var mod = mods[i];
+            if (!mod.HookEnabled(HookId.ModifyItemScale)) continue;
+
+            try
+            {
+                mod.ModifyItemScale(item, ref scale);
+            }
+            catch (Exception e)
+            {
+                Fail(mod, HookId.ModifyItemScale, e);
+            }
+        }
+    }
+
+    private static void Fail(ModItem mod, HookId hook, Exception e) =>
+        ContentErrors.Report($"[damageclass] {mod.FullKey}.{hook} 异常：{Safe.Describe(e)}");
+
+    private static void Fail(GlobalItem global, HookId hook, Exception e) =>
+        ContentErrors.Report($"[damageclass] {global.FullKey}.{hook} 异常：{Safe.Describe(e)}");
+
+    private static void Fail(ModPlayer mod, HookId hook, Exception e) =>
+        ContentErrors.Report($"[damageclass] {mod.Mod?.Name}/{mod.GetType().Name}.{hook} 异常：{Safe.Describe(e)}");
 }

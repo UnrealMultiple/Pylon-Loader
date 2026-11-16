@@ -9,15 +9,11 @@ using Terraria.ID;
 
 namespace Pylon.ModLoader;
 
-/// <summary>
-/// 弹幕管线：把 ModProjectile / GlobalProjectile 接进"生成 → AI → 移动 → 命中 → 死亡 → 绘制 → 钩爪"这条链。
-/// 跨钩子上下文只有两处（移动帧、绘制帧），都用定长结构体栈：每帧每实体都走的路不能分配。
-/// </summary>
+/// <summary>弹幕管线：把 ModProjectile / GlobalProjectile 接进"生成 → AI → 移动 → 命中 → 死亡 → 绘制 → 钩爪"这条链；跨钩子上下文用定长结构体栈，避免每帧分配。</summary>
 internal sealed class ProjectilePipeline : ILoaderModule
 {
     public static ProjectilePipeline Instance { get; } = new();
 
-    /// <summary>跨管线回调复用绑定实例，不能重新取模板或另建一份实体状态。</summary>
     internal ModProjectile? InstanceOf(Projectile? projectile) => _binding.InstanceOf(projectile);
 
     private const int FrameDepth = 2;
@@ -82,7 +78,6 @@ internal sealed class ProjectilePipeline : ILoaderModule
         return true;
     }
 
-    /// <summary>安装期：给每个自定义弹幕造模板并跑静态默认值三连。</summary>
     internal void SetupTemplates(IModLog log) => _defaults.CreateTemplates(log);
 
 #region AI
@@ -106,7 +101,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
             if (mod is not null && !mod.Spawned)
             {
                 mod.Spawned = true;
-                if (mod.Plan.Has(HookId.OnSpawn)) mod.OnSpawn(self);
+                if (mod.Plan.Has(HookId.OnSpawn)) mod.OnSpawn(null);
             }
         }
         catch (Exception e)
@@ -118,11 +113,10 @@ internal sealed class ProjectilePipeline : ILoaderModule
         {
             try
             {
-                if (!mod.PreAI(self)) skip = true;
+                if (!mod.PreAI()) skip = true;
             }
             catch (Exception e)
             {
-                // 异常不能撤销作者已经作出的跳过决定；默认继续原版 AI。
                 Fail("PreAI", self.type, e);
             }
         }
@@ -151,7 +145,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
             {
                 var vanilla = VanillaHookLimit(self.type);
                 var numHooks = vanilla;
-                mod.NumGrappleHooks(self, Main.player[self.owner], ref numHooks);
+                mod.NumGrappleHooks(Main.player[self.owner], ref numHooks);
                 if (numHooks != vanilla)
                 {
                     hookLimit = numHooks;
@@ -214,7 +208,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
         {
             if (!skip)
             {
-                if (mod is not null && mod.Plan.Has(HookId.AI)) mod.AI(self);
+                if (mod is not null && mod.Plan.Has(HookId.AI)) mod.AI();
                 if (globals)
                 {
                     foreach (var global in GlobalProjectileRegistry.For(self, HookId.AI)) global.AI(self);
@@ -229,7 +223,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
                 foreach (var global in GlobalProjectileRegistry.For(self, HookId.PostAI)) global.PostAI(self);
             }
 
-            if (mod is not null && mod.Plan.Has(HookId.PostAI)) mod.PostAI(self);
+            if (mod is not null && mod.Plan.Has(HookId.PostAI)) mod.PostAI();
         }
         catch (Exception e)
         {
@@ -247,7 +241,6 @@ internal sealed class ProjectilePipeline : ILoaderModule
             if (self.originalDamage != 0) return;
             if (ModContent.Find(ContentKind.Projectile, self.type) is null) return;
 
-            // IL2CPP 接口在托管侧是代理类，不能 as，要用 TryCast 落到目标代理类。
             var itemUse = spawnSource is not null ? spawnSource.TryCast<EntitySource_ItemUse>() : null;
             if (itemUse?.Item is null) return;
 
@@ -259,7 +252,6 @@ internal sealed class ProjectilePipeline : ILoaderModule
         }
     }
 
-    /// <summary>浮点版 <c>NewProjectile(x, y, speedX, speedY, ...)</c>。</summary>
     private int Spawned(On.Terraria.Projectile.orig_NewProjectile_IEntitySource_float_float_float_float_int_int_float_int_float_float_float_NewProjectileModifier orig, IEntitySource spawnSource,
                         float x, float y, float speedX, float speedY, int type, int damage, float knockBack, int owner,
                         float ai0, float ai1, float ai2, NewProjectileModifier modifier)
@@ -278,7 +270,6 @@ internal sealed class ProjectilePipeline : ILoaderModule
         return outer == 0 ? DispatchSpawned(result, spawnSource, type) : result;
     }
 
-    /// <summary>向量版 <c>NewProjectile(position, velocity, ...)</c>：两个重载都要挂。</summary>
     private int SpawnedVector(On.Terraria.Projectile.orig_NewProjectile_IEntitySource_Vector2_Vector2_int_int_float_int_float_float_float_NewProjectileModifier orig, IEntitySource spawnSource,
                               Vector2 position, Vector2 velocity, int type, int damage, float knockBack, int owner,
                               float ai0, float ai1, float ai2, NewProjectileModifier modifier)
@@ -297,10 +288,6 @@ internal sealed class ProjectilePipeline : ILoaderModule
         return outer == 0 ? DispatchSpawned(result, spawnSource, type) : result;
     }
 
-    /// <summary>
-    /// 两个重载共用的生成分派：作者 <c>OnSpawn</c> + <c>GlobalProjectile.OnSpawn</c>；
-    /// 嵌套调用只由最外层分派一次。生成时就调，不等首帧 AI。
-    /// </summary>
     private int DispatchSpawned(int result, IEntitySource? spawnSource, int type)
     {
         if (result < 0) return result;
@@ -316,7 +303,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
             if (_binding.InstanceOf(projectile) is { } mod && !mod.Spawned)
             {
                 mod.Spawned = true;
-                if (mod.Plan.Has(HookId.OnSpawn)) mod.OnSpawn(projectile);
+                if (mod.Plan.Has(HookId.OnSpawn)) mod.OnSpawn(spawnSource);
             }
         }
         catch (Exception e)
@@ -390,7 +377,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
             }
 
             if (allowed && mod is not null && mod.Plan.Has(HookId.ShouldUpdatePosition))
-                allowed = mod.ShouldUpdatePosition(self);
+                allowed = mod.ShouldUpdatePosition();
         }
         catch (Exception e)
         {
@@ -400,7 +387,6 @@ internal sealed class ProjectilePipeline : ILoaderModule
         if (allowed) orig(self, wetVelocity);
     }
 
-    /// <summary>把 TileCollideStyle 的改写写进帧，并让游戏这一帧按改后的值算碰撞。</summary>
     private bool PushMove(Projectile proj, bool hasCollision, bool hasStyle, ModProjectile? mod)
     {
         if (_moveDepth >= FrameDepth) return false;
@@ -428,7 +414,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
             var allowed = true;
 
             if (mod is not null && mod.Plan.Has(HookId.TileCollideStyle))
-                allowed = mod.TileCollideStyle(proj, ref width, ref height, ref fallThrough, ref anchor);
+                allowed = mod.TileCollideStyle(ref width, ref height, ref fallThrough, ref anchor);
 
             foreach (var global in GlobalProjectileRegistry.For(proj, HookId.TileCollideStyle))
             {
@@ -497,7 +483,6 @@ internal sealed class ProjectilePipeline : ILoaderModule
     private static bool Collided(Projectile proj, in MoveFrame frame) =>
         proj.velocity.X != frame.OldVelocity.X || proj.velocity.Y != frame.OldVelocity.Y;
 
-    /// <summary>撞块：OnTileCollide 收撞击前的速度；返回 false 表示这一发不该死。</summary>
     private void ReportCollision(Projectile proj, ModProjectile? mod, ref MoveFrame frame)
     {
         frame.Reported = true;
@@ -512,7 +497,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
             break;
         }
 
-        if (allowed && mod is not null && mod.Plan.Has(HookId.OnTileCollide) && !mod.OnTileCollide(proj, oldVelocity))
+        if (allowed && mod is not null && mod.Plan.Has(HookId.OnTileCollide) && !mod.OnTileCollide(oldVelocity))
             allowed = false;
 
         if (!frame.PendingKill) return;
@@ -521,7 +506,6 @@ internal sealed class ProjectilePipeline : ILoaderModule
         else if (proj.active) proj.Kill();
     }
 
-    /// <summary>GetCollisionParams 每帧被调多次：只把 TileCollideStyle 的决定喂回去，不再问作者。</summary>
     private void CollisionParams(On.Terraria.Projectile.orig_GetCollisionParams orig, Projectile self,
                                  out Vector2 resizeAnchor, out int colWidth, out int colHeight)
     {
@@ -542,7 +526,6 @@ internal sealed class ProjectilePipeline : ILoaderModule
         9, 12, 13, 15, 24, 663, 665, 667, 677, 678, 679, 688, 689, 690, 691, 692, 693, 1037, 1049, 1105,
     ];
 
-    /// <summary>原版 HandleMovement 里的 fallThrough 判定；作者改写它之前必须知道原值。</summary>
     private static bool VanillaFallThrough(Projectile proj)
     {
         if (proj.decidesManualFallThrough) return proj.shouldFallThrough;
@@ -603,7 +586,6 @@ internal sealed class ProjectilePipeline : ILoaderModule
             return;
         }
 
-        // 移动途中撞块致死先挂起：等 HandleMovement 结束、OnTileCollide 表态后再决定。
         if (_moveDepth > 0)
         {
             ref var moving = ref Move;
@@ -635,7 +617,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
                 break;
             }
 
-            if (allowed && mod is not null && mod.Plan.Has(HookId.PreKill) && !mod.PreKill(self, timeLeft))
+            if (allowed && mod is not null && mod.Plan.Has(HookId.PreKill) && !mod.PreKill(timeLeft))
                 allowed = false;
 
             if (!allowed)
@@ -644,7 +626,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
                 return;
             }
 
-            if (mod is not null && mod.Plan.Has(HookId.OnKill)) mod.OnKill(self, timeLeft);
+            if (mod is not null && mod.Plan.Has(HookId.OnKill)) mod.OnKill(timeLeft);
             foreach (var global in onKill) global.OnKill(self, timeLeft);
         }
         catch (Exception e)
@@ -685,7 +667,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
                 if (verdict == true) allowedByGlobal = true;
             }
 
-            if (proceed && !allowedByGlobal && mod is not null && mod.Plan.Has(HookId.CanDamage) && !mod.CanDamage(self))
+            if (proceed && !allowedByGlobal && mod is not null && mod.Plan.Has(HookId.CanDamage) && !mod.CanDamage())
                 proceed = false;
         }
         catch (Exception e)
@@ -712,7 +694,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
                 wasPet = InRange(Main.projPet, type) && Main.projPet[type];
                 if (wasPet)
                 {
-                    if (modContact) contact = mod!.MinionContactDamage(self);
+                    if (modContact) contact = mod!.MinionContactDamage();
                     if (!contact)
                     {
                         foreach (var global in contactGlobals)
@@ -736,7 +718,6 @@ internal sealed class ProjectilePipeline : ILoaderModule
             }
         }
 
-        // 宠物贴身判定与自定义碰撞都读"类型表"而不是这一发：改—调—还原必须夹在同一个 try/finally 里。
         var petChanged = contact && InRange(Main.projPet, type);
         var complexChanged = customCollision && InRange(ProjectileID.Sets.IsAComplexCollision, type);
 
@@ -773,7 +754,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
                 return verdict;
             }
 
-            if (mod is not null && mod.Plan.Has(HookId.Colliding) && mod.Colliding(self, myRect, targetRect) is { } mine)
+            if (mod is not null && mod.Plan.Has(HookId.Colliding) && mod.Colliding(myRect, targetRect) is { } mine)
                 return mine;
         }
         catch (Exception e)
@@ -794,7 +775,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
 
         try
         {
-            if (mod is not null && mod.Plan.Has(HookId.ModifyDamageHitbox)) mod.ModifyDamageHitbox(self, ref box);
+            if (mod is not null && mod.Plan.Has(HookId.ModifyDamageHitbox)) mod.ModifyDamageHitbox(ref box);
             foreach (var global in globals) global.ModifyDamageHitbox(self, ref box);
         }
         catch (Exception e)
@@ -811,7 +792,6 @@ internal sealed class ProjectilePipeline : ILoaderModule
 
     private bool CanCutTiles(On.Terraria.Projectile.orig_CanCutTiles orig, Projectile self)
     {
-        // 原版 CutTiles 内部会再问一次，不能让它绕回去再问作者（否则重入）。
         if (_cutting != 0 && _cutting == ProjectileBinding.Address(self)) return true;
 
         var mod = _binding.InstanceOf(self);
@@ -825,7 +805,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
                 return verdict;
             }
 
-            if (mod is not null && mod.Plan.Has(HookId.CanCutTiles) && mod.CanCutTiles(self) is { } mine) return mine;
+            if (mod is not null && mod.Plan.Has(HookId.CanCutTiles) && mod.CanCutTiles() is { } mine) return mine;
         }
         catch (Exception e)
         {
@@ -851,7 +831,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
             if (!self.CanCutTiles()) return;
 
             foreach (var global in globals) global.CutTiles(self);
-            if (modCut) mod!.CutTiles(self);
+            if (modCut) mod!.CutTiles();
         }
         catch (Exception e)
         {
@@ -894,7 +874,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
                 return verdict;
             }
 
-            if (mod is not null && mod.Plan.Has(HookId.GetAlpha) && mod.GetAlpha(self, light) is { } mine) return mine;
+            if (mod is not null && mod.Plan.Has(HookId.GetAlpha) && mod.GetAlpha(light) is { } mine) return mine;
         }
         catch (Exception e)
         {
@@ -920,6 +900,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
         }
 
         var light = LightAt(proj);
+        var owner = overridePlayer ?? (proj.owner >= 0 && proj.owner < Main.player.Length ? Main.player[proj.owner] : null);
         var extras = true;
         var sprite = true;
 
@@ -928,10 +909,10 @@ internal sealed class ProjectilePipeline : ILoaderModule
             try
             {
                 foreach (var global in extrasGlobals)
-                    if (!global.PreDrawExtras(proj)) extras = false;
+                    if (!global.PreDrawExtras(proj, owner!)) extras = false;
 
                 if (extras && mod is not null && mod.Plan.Has(HookId.PreDrawExtras))
-                    extras = mod.PreDrawExtras(proj);
+                    extras = mod.PreDrawExtras(owner!);
             }
             catch (Exception e)
             {
@@ -944,11 +925,11 @@ internal sealed class ProjectilePipeline : ILoaderModule
         {
             foreach (var global in pre)
             {
-                if (global.PreDraw(proj, ref light)) continue;
+                if (global.PreDraw(proj, owner!, ref light)) continue;
                 sprite = false;
             }
 
-            if (mod is not null && mod.Plan.Has(HookId.PreDraw) && !mod.PreDraw(proj, light)) sprite = false;
+            if (mod is not null && mod.Plan.Has(HookId.PreDraw) && !mod.PreDraw(owner!, ref light)) sprite = false;
         }
         catch (Exception e)
         {
@@ -978,8 +959,8 @@ internal sealed class ProjectilePipeline : ILoaderModule
 
             try
             {
-                if (mod is not null && mod.Plan.Has(HookId.PostDraw)) mod.PostDraw(proj, light);
-                foreach (var global in post) global.PostDraw(proj, light);
+                if (mod is not null && mod.Plan.Has(HookId.PostDraw)) mod.PostDraw(owner!, light);
+                foreach (var global in post) global.PostDraw(proj, owner!, light);
             }
             catch (Exception e)
             {
@@ -1051,7 +1032,8 @@ internal sealed class ProjectilePipeline : ILoaderModule
         try
         {
             var allowed = true;
-            if (template is not null && template.Plan.Has(HookId.CanUseGrapple)) allowed = template.CanUseGrapple(player, shoot);
+            if (template is not null && template.Plan.Has(HookId.CanUseGrapple))
+                allowed = template.CanUseGrapple(player) != false;
 
             foreach (var global in canUse)
             {
@@ -1062,7 +1044,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
             if (!allowed) return false;
 
             var chosen = shoot;
-            if (template is not null && template.Plan.Has(HookId.UseGrapple)) chosen = template.UseGrapple(player, shoot);
+            if (template is not null && template.Plan.Has(HookId.UseGrapple)) template.UseGrapple(player, ref chosen);
             foreach (var global in GlobalProjectileRegistry.TemplatesFor(HookId.UseGrapple))
                 global.UseGrapple(player, ref chosen);
 
@@ -1097,14 +1079,16 @@ internal sealed class ProjectilePipeline : ILoaderModule
         try
         {
             var player = Main.player[self.owner];
+            var x = (int)(self.position.X + self.width / 2f) / 16;
+            var y = (int)(self.position.Y + self.height / 2f) / 16;
 
             bool? verdict = null;
             if (mod is not null && mod.Plan.Has(HookId.GrappleCanLatchOnTo))
-                verdict = mod.GrappleCanLatchOnTo(self, player, theTile);
+                verdict = mod.GrappleCanLatchOnTo(player, x, y);
 
             foreach (var global in GlobalProjectileRegistry.For(self, HookId.GrappleCanLatchOnTo))
             {
-                var answer = global.GrappleCanLatchOnTo(self, player, theTile);
+                var answer = global.GrappleCanLatchOnTo(self, player, x, y);
                 if (answer == false) return false;
                 if (answer == true) verdict = true;
             }
@@ -1119,7 +1103,6 @@ internal sealed class ProjectilePipeline : ILoaderModule
         return orig(self, theTile);
     }
 
-    /// <summary>射程：超了就往回收（ai[0]=1，与 AI_007 自己的回收状态一致）。</summary>
     private static void ApplyGrappleRange(Projectile proj, ModProjectile mod)
     {
         if (mod.AIType > 0) return;
@@ -1129,7 +1112,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
         var center = owner.MountedCenter;
         var dx = center.X - (proj.position.X + proj.width * 0.5f);
         var dy = center.Y - (proj.position.Y + proj.height * 0.5f);
-        if (Math.Sqrt(dx * dx + dy * dy) <= mod.GrappleRange(proj)) return;
+        if (Math.Sqrt(dx * dx + dy * dy) <= mod.GrappleRange()) return;
 
         var ai = proj.ai;
         ai[0] = 1f;
@@ -1191,7 +1174,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
         if (baseSpeed <= 0) return;
 
         var speed = baseSpeed;
-        mod.GrappleRetreatSpeed(proj, Main.player[proj.owner], ref speed);
+        mod.GrappleRetreatSpeed(Main.player[proj.owner], ref speed);
 
         var ratio = speed / baseSpeed;
         if (ratio == 1f) return;
@@ -1199,7 +1182,6 @@ internal sealed class ProjectilePipeline : ILoaderModule
         proj.velocity = new Vector2(proj.velocity.X * ratio, proj.velocity.Y * ratio);
     }
 
-    /// <summary>挂住后把玩家拉过去：目标点是所有已挂住的钩爪中心，第一个钩爪的收绳速度决定快慢。</summary>
     private void GrapplingForces(On.Terraria.Player.orig_GetGrapplingForces orig, Player self, Vector2 fromPosition,
                                  out Il2CppSystem.Nullable<int> preferredDirection,
                                  out float velocityX, out float velocityY)
@@ -1226,7 +1208,6 @@ internal sealed class ProjectilePipeline : ILoaderModule
                 var hook = Main.projectile[grappling[i]];
                 if (hook is null || !hook.active || hook.ai[0] != 2f) continue;
 
-                // 原版自带拉力的钩爪：别插手。
                 if (hook.type is 446 or 652 or 865) return;
 
                 centerX += hook.position.X + hook.width * 0.5f;
@@ -1247,13 +1228,13 @@ internal sealed class ProjectilePipeline : ILoaderModule
 
                 var mod = _binding.InstanceOf(hook);
                 if (mod is not null && mod.Plan.Has(HookId.GrappleTargetPoint))
-                    mod.GrappleTargetPoint(hook, self, ref centerX, ref centerY);
+                    mod.GrappleTargetPoint(self, ref centerX, ref centerY);
             }
 
             var speed = VanillaPullSpeed(first.type);
             var firstMod = _binding.InstanceOf(first);
             if (firstMod is not null && firstMod.Plan.Has(HookId.GrapplePullSpeed))
-                firstMod.GrapplePullSpeed(first, self, ref speed);
+                firstMod.GrapplePullSpeed(self, ref speed);
 
             var dx = centerX - fromPosition.X;
             var dy = centerY - fromPosition.Y;
@@ -1326,7 +1307,6 @@ internal sealed class ProjectilePipeline : ILoaderModule
     private static bool InRange(Il2CppArrayBase<bool>? array, int index) =>
         array is not null && index >= 0 && index < array.Length;
 
-    /// <summary>同一 (钩子, 类型) 只记一条：AI/撞块这类每帧路径出错会刷屏。</summary>
     private void Fail(string hook, int type, Exception exception)
     {
         if (!_reported.Add(HashCode.Combine(hook, type))) return;

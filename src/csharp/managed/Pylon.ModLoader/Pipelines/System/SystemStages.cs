@@ -6,13 +6,9 @@ using Terraria;
 
 namespace Pylon.ModLoader;
 
-/// <summary>
-/// 系统阶段（ModSystem 等价物的每帧面）：游戏的玩家/NPC/物品更新子阶段内联在
-/// DoUpdateInWorld 方法体中部，九个中体桥把时机送到这里再扇出给 mod。
-/// </summary>
+/// <summary>系统阶段（ModSystem 等价物的每帧面）：游戏的玩家/NPC/物品更新子阶段内联在 DoUpdateInWorld 方法体中部，九个中体桥把时机送到这里再扇出给 mod。</summary>
 internal static unsafe class SystemStages
 {
-    // ---- 阶段编号（与 stage 表一一对应，增删要同步 Dispatch/StageIntercept）----
     private const int PlayersBegin = 0;
     private const int PlayersEnd = 1;
     private const int NpcsBegin = 2;
@@ -23,17 +19,19 @@ internal static unsafe class SystemStages
     private const int Transform = 7;
     private const int ClockAdvance = 8;
     private const int DyeReward = 9;
+    private const int NaturalRegen = 10;
 
     private sealed class Stage(System.Type klass, string name, string method, int argc, int offset,
-                               uint[] expected, HookId[] hooks)
+                               uint[] expected, HookId[] hooks, HookId? playerHook = null)
     {
         public System.Type Class => klass;
         public string Name => name;
         public string Method => method;
         public int Argc => argc;
         public int Offset => offset;
-        public uint[] Expected => expected; // 4 条指令指纹
-        public HookId[] Hooks => hooks;     // 有订阅才装桥
+        public uint[] Expected => expected;
+        public HookId[] Hooks => hooks;
+        public HookId? PlayerHook => playerHook;
         public bool Installed;
         public int FirstHit;
         public MidBodyInterception? Interception;
@@ -47,12 +45,10 @@ internal static unsafe class SystemStages
             [0xd0011b88, 0xf9451908, 0x2a1f03f5, 0xf9400108], [HookId.PostUpdatePlayers]),
         new(typeof(Main), "NPCsBegin", "DoUpdateInWorld", 0, 0x884,
             [0xaa1f03e0, 0x3900811f, 0x94063b79, 0xaa1f03e0], [HookId.PreUpdateNPCs]),
-        // 游戏没有独立的 Gores 开始点：PreUpdateGores 与 PostUpdateNPCs 共用 NPCsEnd。
         new(typeof(Main), "NPCsEnd", "DoUpdateInWorld", 0, 0xf40,
             [0xb0011b88, 0xf9451908, 0x120002c9, 0x90011c75], [HookId.PostUpdateNPCs, HookId.PreUpdateGores]),
         new(typeof(Main), "GoresEnd", "DoUpdateInWorld", 0, 0x114c,
             [0x2a1f03f5, 0xf94003a0, 0xb940e008, 0x35000068], [HookId.PostUpdateGores]),
-        // 弹幕的 Post 与物品的 Pre 共用 ItemsBegin（PostUpdateProjectiles 已归一到桥，见 ModEnvironmentHooks）。
         new(typeof(Main), "ItemsBegin", "DoUpdateInWorld", 0, 0x1740,
             [0xb00119f7, 0xf0011a18, 0xb0011af9, 0xb0011cfc], [HookId.PostUpdateProjectiles, HookId.PreUpdateItems]),
         new(typeof(Main), "ItemsEnd", "DoUpdateInWorld", 0, 0x1a14,
@@ -61,13 +57,12 @@ internal static unsafe class SystemStages
             [0x97fc20b1, 0x37000220, 0xf9400360, 0xb940e008], [HookId.ModifyTransformMatrix]),
         new(typeof(Main), "ClockAdvance", "UpdateTime", 0, 0xb8c,
             [0x1e602960, 0xfd024500, 0x97efb520, 0xf94002e0], [HookId.ModifyTimeRate]),
-        // 奖励池是方法局部变量（0xef0 时点落在 x21），入口钩够不到——走中体桥。
         new(typeof(Player), "DyeReward", "GetDyeTraderReward", 1, 0xef0,
             [0xb9401aa1, 0x9000fe16, 0xd000fd78, 0xf947d2d6], [HookId.GetDyeTraderReward]),
+        new(typeof(Player), "NaturalRegen", "UpdateLifeRegen", 0, 0x828,
+            [0xbd481e60, 0xd000b709, 0xf9400300, 0xd000b70a], [], HookId.NaturalLifeRegen),
     ];
 
-    // 时钟缓存：UpdateTimeRate 后缀算好，ClockAdvance 桥注入 d0（d0 与 dayRate 的换算是
-    // 真机验证的行为，不在这里重新推导）。
     private static double _clockRate = 1, _tileRemainder, _eventRemainder;
 
     private static IModLog Log => LoaderHost.Current.Log;
@@ -82,7 +77,6 @@ internal static unsafe class SystemStages
         var installed = 0;
         var names = new List<string>();
 
-        // PreUpdateEntities / PostUpdateEverything 用 DoUpdateInWorld 入口钩就够（桥位在 0x1b8 以远，无冲突）。
         if (hooks.Channel(HookId.PreUpdateEntities).Length > 0 ||
             hooks.Channel(HookId.PostUpdateEverything).Length > 0)
         {
@@ -98,7 +92,7 @@ internal static unsafe class SystemStages
         {
             var stage = Stages[i];
             if (stage.Installed) continue;
-            if (!Gated(hooks, stage.Hooks)) continue;
+            if (!Gated(hooks, stage)) continue;
 
             try
             {
@@ -109,8 +103,6 @@ internal static unsafe class SystemStages
                     continue;
                 }
 
-                // No fallback: a failed install leaves the stage disabled rather than
-                // silently going back to the removed legacy x16 bridge.
                 if (!TryInstallStub(stage, i, body, log))
                 {
                     log.Warn($"[system] {stage.Name}: C# stub install failed, stage skipped");
@@ -138,9 +130,11 @@ internal static unsafe class SystemStages
         }
     }
 
-    private static bool Gated(HookBus hooks, HookId[] ids)
+    private static bool Gated(HookBus hooks, Stage stage)
     {
-        foreach (var id in ids)
+        if (stage.PlayerHook is { } playerHook)
+            return PlayerPipeline.Instance.ModsActive(playerHook);
+        foreach (var id in stage.Hooks)
         {
             if (hooks.Channel(id).Length > 0) return true;
         }
@@ -162,8 +156,6 @@ internal static unsafe class SystemStages
             return false;
         }
 
-        // The stage table only keeps a static 16-byte window. MidBodyIntercept validates
-        // exactly this window with native ABI v2; no JSON method RVA is involved.
         var fingerprint = new byte[16];
         for (var i = 0; i < 4; i++)
             BinaryPrimitives.WriteUInt32LittleEndian(fingerprint.AsSpan(i * 4, 4), stage.Expected[i]);
@@ -208,9 +200,6 @@ internal static unsafe class SystemStages
         return true;
     }
 
-    // ===================== 每帧分派 =====================
-
-    /// <summary>Entry point of the generated stub's managed callback.</summary>
     private static void Dispatch(int stage, IntPtr value)
     {
         switch (stage)
@@ -238,11 +227,6 @@ internal static unsafe class SystemStages
         }
     }
 
-    /// <summary>
-    /// Generated-stub entry. The frame is only valid for the duration of this call;
-    /// values needed after the callback are copied out (clock double, dye pointers).
-    /// Returning false makes the stub execute the original site instruction.
-    /// </summary>
     private static bool StageIntercept(int stage, IntPtr frame)
     {
         try
@@ -263,6 +247,13 @@ internal static unsafe class SystemStages
                         (IntPtr)unchecked((long)InterceptFrame.GetGpr(frame, 19)),
                         (IntPtr)unchecked((long)InterceptFrame.GetGpr(frame, 21)));
                     Dispatch(stage, (IntPtr)(void*)&dye);
+                    break;
+                case NaturalRegen:
+                    var regen = BitConverter.UInt32BitsToSingle((uint)InterceptFrame.GetVectorUInt64(frame, 9, 0));
+                    var regenBefore = regen;
+                    DispatchNaturalRegen((IntPtr)unchecked((long)InterceptFrame.GetGpr(frame, 19)), ref regen);
+                    if (regen != regenBefore && float.IsFinite(regen))
+                        *(float*)((byte*)frame + InterceptFrame.VectorOffset + 9 * 16) = regen;
                     break;
                 default:
                     Dispatch(stage, IntPtr.Zero);
@@ -323,10 +314,26 @@ internal static unsafe class SystemStages
         Main.GameViewMatrix = transform;
     }
 
-    // ===================== 染料商奖励池（GetDyeTraderReward）=====================
+    private static void DispatchNaturalRegen(IntPtr player, ref float regen)
+    {
+        if (player == IntPtr.Zero || !PlayerPipeline.Instance.ModsActive(HookId.NaturalLifeRegen)) return;
 
-    // 桥在 GetDyeTraderReward 方法体 0xef0（局部 List 落在 x21）：指针随 DyeFrame 进来，
-    // 池手术全在托管侧走生成代理（等价 runtime_invoke Clear/Add）。
+        var self = new Terraria.Player(player);
+        foreach (var mod in PlayerPipeline.Instance.ModsOf(self))
+        {
+            if (!mod.HookEnabled(HookId.NaturalLifeRegen)) continue;
+
+            try
+            {
+                mod.NaturalLifeRegen(ref regen);
+            }
+            catch (Exception e)
+            {
+                Safe.Report($"{mod.Mod?.Name}/{mod.GetType().Name}.NaturalLifeRegen", e);
+            }
+        }
+    }
+
     private const int DyePoolCapacity = 512;
 
     [StructLayout(LayoutKind.Sequential)]
@@ -336,8 +343,6 @@ internal static unsafe class SystemStages
         public readonly IntPtr Pool = pool;
     }
 
-    // 整池改写：读现池 → 派发 → Clear 重写（跳过非正数）→
-    // 全空补 0（游戏随后随机取池，空池会崩）；改写中途失败就停在部分重写。
     private static void RewriteDyePool(DyeFrame frame)
     {
         if (frame.Pool == IntPtr.Zero) return;
@@ -353,6 +358,24 @@ internal static unsafe class SystemStages
             if (items is not null)
             {
                 for (var i = 0; i < count; i++) pool.Add(items[i]);
+            }
+
+            if (frame.Player != IntPtr.Zero && PlayerPipeline.Instance.ModsActive(HookId.GetDyeTraderReward))
+            {
+                var player = new Terraria.Player(frame.Player);
+                foreach (var mod in PlayerPipeline.Instance.ModsOf(player))
+                {
+                    if (!mod.HookEnabled(HookId.GetDyeTraderReward)) continue;
+
+                    try
+                    {
+                        mod.GetDyeTraderReward(pool);
+                    }
+                    catch (Exception e)
+                    {
+                        Safe.Report($"{mod.Mod?.Name}/{mod.GetType().Name}.GetDyeTraderReward", e);
+                    }
+                }
             }
 
             foreach (var mod in LoaderHost.Current.Hooks.Channel(HookId.GetDyeTraderReward))
@@ -384,10 +407,6 @@ internal static unsafe class SystemStages
         }
     }
 
-    // ===================== 时钟（ModifyTimeRate）=====================
-
-    // 本构建没有可写的 timeRate 字段：三倍率落在 dayRate 与 desiredWorldTilesUpdateRate
-    // 两个 int 上（小数用余数累加保精度），d0 由 ClockAdvance 桥注入。
     private static void UpdateTimeRate(On.Terraria.Main.orig_UpdateTimeRate orig)
     {
         orig();
@@ -416,7 +435,6 @@ internal static unsafe class SystemStages
         _eventRemainder = eventRate % 1;
     }
 
-    /// <summary>作者写出的倍率不合法（NaN/负数/超 int）就保持原值，不污染时钟。</summary>
     private static double Rate(double value, double fallback) =>
         double.IsFinite(value) && value >= 0 && value <= int.MaxValue ? value : fallback;
 

@@ -14,6 +14,11 @@ internal static class PlayerUpdateHooks
         if (_installed) return;
         _installed = true;
         PlayerFishingHooks.Install();
+        PlayerNurseShopHooks.Install();
+        PlayerCraftingHooks.Install();
+        PlayerJumpHooks.Install();
+        On.Terraria.Player.UpdateDyes += Dyes;
+        On.Terraria.Player.UpdateVisibleAccessories += VisibleAccessories;
         On.Terraria.Player.RecalculateLuck += Luck;
         On.Terraria.Player.CapAttackSpeeds += Misc;
         On.Terraria.Player.HorizontalMovement += RunSpeeds;
@@ -38,14 +43,14 @@ internal static class PlayerUpdateHooks
         foreach (var mod in mods)
         {
             if (!mod.HookEnabled(HookId.PreModifyLuck)) continue;
-            try { if (!mod.PreModifyLuck(self, ref luck)) vanilla = false; }
+            try { if (!mod.PreModifyLuck(ref luck)) vanilla = false; }
             catch (Exception e) { Fail(mod, HookId.PreModifyLuck, e); }
         }
         if (vanilla) { orig(self); luck = self.luck; }
         foreach (var mod in mods)
         {
             if (!mod.HookEnabled(HookId.ModifyLuck)) continue;
-            try { mod.ModifyLuck(self, ref luck); }
+            try { mod.ModifyLuck(ref luck); }
             catch (Exception e) { Fail(mod, HookId.ModifyLuck, e); }
         }
         self.luck = luck;
@@ -59,13 +64,13 @@ internal static class PlayerUpdateHooks
 
     private static void RunSpeeds(On.Terraria.Player.orig_HorizontalMovement orig, Player self)
     {
+        ExtraJumpTable.UpdateHorizontalSpeeds(self);
         Dispatch(self, HookId.PostUpdateRunSpeeds);
         orig(self);
     }
 
     private static void Update(On.Terraria.Player.orig_Update orig, Player self, int index)
     {
-        // 碰撞分支在一帧内可能走多次，只在当前 Update 窗口首次进入时派发。
         var outer = Moved.Remove(self.Pointer);
         try { orig(self, index); }
         finally
@@ -112,6 +117,19 @@ internal static class PlayerUpdateHooks
         if (!Main.gameMenu && Main.LocalPlayer is { } player) Dispatch(player, HookId.UpdateAutopause);
     }
 
+    private static void Dyes(On.Terraria.Player.orig_UpdateDyes orig, Player self)
+    {
+        orig(self);
+        Dispatch(self, HookId.UpdateDyes);
+    }
+
+    private static void VisibleAccessories(On.Terraria.Player.orig_UpdateVisibleAccessories orig, Player self)
+    {
+        orig(self);
+        Dispatch(self, HookId.UpdateVisibleAccessories);
+        Dispatch(self, HookId.UpdateVisibleVanityAccessories);
+    }
+
     private static void Dispatch(Player player, HookId hook)
     {
         if (!Players.ModsActive(hook)) return;
@@ -122,10 +140,13 @@ internal static class PlayerUpdateHooks
             {
                 switch (hook)
                 {
-                    case HookId.PostUpdateMiscEffects: mod.PostUpdateMiscEffects(player); break;
-                    case HookId.PostUpdateRunSpeeds: mod.PostUpdateRunSpeeds(player); break;
-                    case HookId.PreUpdateMovement: mod.PreUpdateMovement(player); break;
-                    case HookId.UpdateAutopause: mod.UpdateAutopause(player); break;
+                    case HookId.PostUpdateMiscEffects: mod.PostUpdateMiscEffects(); break;
+                    case HookId.PostUpdateRunSpeeds: mod.PostUpdateRunSpeeds(); break;
+                    case HookId.PreUpdateMovement: mod.PreUpdateMovement(); break;
+                    case HookId.UpdateAutopause: mod.UpdateAutopause(); break;
+                    case HookId.UpdateDyes: mod.UpdateDyes(); break;
+                    case HookId.UpdateVisibleAccessories: mod.UpdateVisibleAccessories(); break;
+                    case HookId.UpdateVisibleVanityAccessories: mod.UpdateVisibleVanityAccessories(); break;
                 }
             }
             catch (Exception e) { Fail(mod, hook, e); }

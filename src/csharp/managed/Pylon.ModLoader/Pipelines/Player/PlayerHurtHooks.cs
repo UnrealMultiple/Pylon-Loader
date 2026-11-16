@@ -55,7 +55,7 @@ internal static class PlayerHurtHooks
             foreach (var mod in mods)
             {
                 if (!mod.HookEnabled(HookId.ImmuneTo)) continue;
-                try { immune |= mod.ImmuneTo(self, damageSource, cooldownCounter, dodgeable); }
+                try { immune |= mod.ImmuneTo(damageSource, cooldownCounter, dodgeable); }
                 catch (Exception e) { Fail(mod, HookId.ImmuneTo, e); }
             }
             if (immune) return 0;
@@ -74,7 +74,7 @@ internal static class PlayerHurtHooks
                 foreach (var mod in mods)
                 {
                     if (!mod.HookEnabled(HookId.CanBeHitByNPC)) continue;
-                    try { allowed &= mod.CanBeHitByNPC(self, npc, ref slot); }
+                    try { allowed &= mod.CanBeHitByNPC(npc, ref slot); }
                     catch (Exception e) { Fail(mod, HookId.CanBeHitByNPC, e); }
                 }
             }
@@ -84,7 +84,7 @@ internal static class PlayerHurtHooks
                 foreach (var mod in mods)
                 {
                     if (!mod.HookEnabled(HookId.CanBeHitByProjectile)) continue;
-                    try { allowed &= mod.CanBeHitByProjectile(self, projectile); }
+                    try { allowed &= mod.CanBeHitByProjectile(projectile); }
                     catch (Exception e) { Fail(mod, HookId.CanBeHitByProjectile, e); }
                 }
             }
@@ -96,7 +96,7 @@ internal static class PlayerHurtHooks
                     foreach (var mod in PlayerPipeline.Instance.ModsOf(attacker))
                     {
                         if (!mod.HookEnabled(HookId.CanHitPvpWithProj)) continue;
-                        try { allowed &= mod.CanHitPvpWithProj(attacker, projectile, self); }
+                        try { allowed &= mod.CanHitPvpWithProj(projectile, self); }
                         catch (Exception e) { Fail(mod, HookId.CanHitPvpWithProj, e); }
                     }
                 }
@@ -104,7 +104,6 @@ internal static class PlayerHurtHooks
             if (!allowed) return 0;
 
             modifiers = new HurtModifiers(damageSource, damage, hitDirection, pvp, slot, dodgeable, quiet, crit);
-            // 远端重放的伤害已经完成来源修饰，服务器转发不能再次乘同一份武器加成。
             if (pvp && (Main.netMode == 0 || self.whoAmI == Main.myPlayer) &&
                 ItemPvpHooks.Source(damageSource, self.whoAmI, out var itemAttacker, out var sourceItem))
             {
@@ -139,7 +138,6 @@ internal static class PlayerHurtHooks
             return orig(self, damageSource, damage, hitDirection, pvp, quiet, crit, cooldownCounter, dodgeable);
         }
 
-        // 原版还会减一次防御；防御后修饰必须先逆算，不能把最终伤害直接作为入参。
         var rawValue = modifiers.ChangesAfterDefense
             ? Math.Ceiling(pending.Damage + defense * perPoint - 1e-6)
             : Math.Round(modifiers.SourceDamage.ApplyTo(modifiers.damage) * modifiers.IncomingDamageMultiplier);
@@ -176,9 +174,9 @@ internal static class PlayerHurtHooks
             {
                 switch (hook)
                 {
-                    case HookId.ModifyHitByNPC: mod.ModifyHitByNPC(player, npc!, ref modifiers); break;
-                    case HookId.ModifyHitByProjectile: mod.ModifyHitByProjectile(player, projectile!, ref modifiers); break;
-                    default: mod.ModifyHurt(player, ref modifiers); break;
+                    case HookId.ModifyHitByNPC: mod.ModifyHitByNPC(npc!, ref modifiers); break;
+                    case HookId.ModifyHitByProjectile: mod.ModifyHitByProjectile(projectile!, ref modifiers); break;
+                    default: mod.ModifyHurt(ref modifiers); break;
                 }
                 if (modifiers is null) throw new InvalidOperationException("受伤修改器不能替换为 null");
             }
@@ -197,7 +195,7 @@ internal static class PlayerHurtHooks
         foreach (var mod in mods)
         {
             if (!mod.HookEnabled(hook)) continue;
-            try { dodged |= consumable ? mod.ConsumableDodge(player, info) : mod.FreeDodge(player, info); }
+            try { dodged |= consumable ? mod.ConsumableDodge(info) : mod.FreeDodge(info); }
             catch (Exception e) { Fail(mod, hook, e); }
         }
         return dodged;
@@ -212,10 +210,10 @@ internal static class PlayerHurtHooks
             {
                 switch (hook)
                 {
-                    case HookId.OnHitByNPC: mod.OnHitByNPC(player, npc!, info); break;
-                    case HookId.OnHitByProjectile: mod.OnHitByProjectile(player, projectile!, info); break;
-                    case HookId.OnHurt: mod.OnHurt(player, info); break;
-                    case HookId.PostHurt: mod.PostHurt(player, info); break;
+                    case HookId.OnHitByNPC: mod.OnHitByNPC(npc!, info); break;
+                    case HookId.OnHitByProjectile: mod.OnHitByProjectile(projectile!, info); break;
+                    case HookId.OnHurt: mod.OnHurt(info); break;
+                    case HookId.PostHurt: mod.PostHurt(info); break;
                 }
             }
             catch (Exception e) { Fail(mod, hook, e); }

@@ -46,7 +46,7 @@ public abstract class ModPrefix : ModType
     public override void SetStaticDefaults() { }
 
     /// <summary>掷前缀时的权重；游戏自己的前缀权重都是 1。</summary>
-    public virtual int RollChance(Item item) => 1;
+    public virtual float RollChance(Item item) => 1f;
 
     /// <summary>这个前缀能不能出现在这个物品上（默认按 RollChance &gt; 0）。</summary>
     public virtual bool CanRoll(Item item) => RollChance(item) > 0;
@@ -67,8 +67,11 @@ public abstract class ModPrefix : ModType
 
     /// <summary>每帧，这个前缀的饰品装备着时。</summary>
     public virtual void ApplyAccessoryEffects(Player player) { }
+
+    /// <summary>这个前缀往物品 tooltip 里加的行；null = 不加。</summary>
+    public virtual IEnumerable<TooltipLine>? GetTooltipLines(Item item) => null;
 }
 
 // 未移植 SetStats 的单参数变体：JS 方便写法（{ damage, knockBack, ... }），C# 里没有对应物。
-// 未移植 GetTooltipLines：TooltipLine 已有，但 ContentKind 还没有 Prefix，等前缀管线定形后接。
 // 未移植 register / isModType / getModPrefix / getTypeByName：注册走自动发现，后三个读 PrefixTable 注册表。
+// Category 保持 Pylon 的 int 常量形态（PrefixTable 以 int 分类；基线的 PrefixCategory 枚举值一一对应）。

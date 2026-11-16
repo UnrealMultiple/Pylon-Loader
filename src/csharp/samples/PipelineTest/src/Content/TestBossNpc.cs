@@ -12,24 +12,24 @@ public sealed class TestBossNpc : ModNpc
 
     public override ModBossBar BossBar => ModContent.GetInstance<TestBossBar>();
 
-    public override void SetDefaults(NPC npc)
+    public override void SetDefaults()
     {
-        npc.width = 40;
-        npc.height = 40;
-        npc.lifeMax = 5000;
-        npc.life = 5000;
-        npc.damage = 0;
-        npc.defense = 0;
-        npc.boss = true;
-        npc.friendly = true;
-        npc.noGravity = true;
-        npc.noTileCollide = true;
-        npc.aiStyle = -1;
-        npc.HitSound = SoundID.NPCHit1;
-        npc.DeathSound = SoundID.NPCDeath1;
+        NPC.width = 40;
+        NPC.height = 40;
+        NPC.lifeMax = 5000;
+        NPC.life = 5000;
+        NPC.damage = 0;
+        NPC.defense = 0;
+        NPC.boss = true;
+        NPC.friendly = true;
+        NPC.noGravity = true;
+        NPC.noTileCollide = true;
+        NPC.aiStyle = -1;
+        NPC.HitSound = SoundID.NPCHit1;
+        NPC.DeathSound = SoundID.NPCDeath1;
     }
 
-    public override void OnSpawn(NPC npc, IEntitySource source) => npc.timeLeft = 3600;
+    public override void OnSpawn(IEntitySource source) => NPC.timeLeft = 3600;
 
-    public override bool CheckActive(NPC npc) => false;
+    public override bool CheckActive() => false;
 }

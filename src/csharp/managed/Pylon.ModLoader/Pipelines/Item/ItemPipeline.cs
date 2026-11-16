@@ -1,15 +1,13 @@
 using Pylon.ModLoader.Tables;
 using Pylon.ModLoader.Textures;
 using Il2CppMicrosoft.Xna.Framework;
+using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Terraria;
 using Terraria.DataStructures;
 
 namespace Pylon.ModLoader;
 
-/// <summary>
-/// 物品管线：把 ModItem 接进"用 / 挥 / 装备 / 射"这条链。
-/// 分派顺序固定为本物品先、GlobalItem 后；射击上下文是实例字段，不跨线程、不跨射击。
-/// </summary>
+/// <summary>物品管线：把 ModItem 接进"用/挥/装备/射"链；分派为本物品先、GlobalItem 后，射击上下文是实例字段。</summary>
 internal sealed class ItemPipeline : ILoaderModule
 {
     public static ItemPipeline Instance { get; } = new();
@@ -32,23 +30,32 @@ internal sealed class ItemPipeline : ILoaderModule
 
     public bool Install()
     {
+        _globalShoot = GlobalItemRegistry.AnyWith(HookId.CanShoot, HookId.ModifyShootStats, HookId.Shoot);
         _defaults.Install();
         ItemAnglerQuest.Install();
         ItemAmmoHooks.Install();
         ItemHealHooks.Install();
         ItemPvpHooks.Install();
+        ItemPickupHooks.Install();
         ItemSortingHooks.Install();
         ItemSavePipeline.Instance.Install();
+        ItemTimingHooks.Install();
+        ItemFrameHooks.Install();
+        ItemManaHooks.Install();
+        ItemHitboxHooks.Install();
+        ItemEquipHooks.Install();
 
         On.Terraria.Player.ItemCheck_CheckCanUse_Inner += CanUse;
         On.Terraria.Player.ItemCheck_StartActualUse += Use;
         On.Terraria.Player.ItemCheck_ApplyUseStyle += ApplyUseStyle;
+        On.Terraria.Player.ItemCheck_ApplyHoldStyle += ApplyHoldStyle;
         On.Terraria.Player.ApplyEquipFunctional += EquipFunctional;
         On.Terraria.Player.ApplyEquipVanity += EquipVanity;
         On.Terraria.Player.GrantArmorBenefits += GrantArmorBenefits;
         On.Terraria.Player.UpdateEquips += UpdateInventory;
         On.Terraria.Player.ItemCheck_Shoot += ShootGate;
         On.Terraria.Projectile.NewProjectile_IEntitySource_float_float_float_float_int_int_float_int_float_float_float_NewProjectileModifier += NewProjectile;
+        On.Terraria.Item.GetAlpha += GetAlpha;
 
         Log.Info("[item] 已挂（使用 / 装备 / 背包 / 射击）");
         return true;
@@ -61,6 +68,41 @@ internal sealed class ItemPipeline : ILoaderModule
 
     internal ModItem? InstanceOf(Item item) => _binding.InstanceOf(item);
 
+    private static Color GetAlpha(On.Terraria.Item.orig_GetAlpha orig, Item self, Color newColor)
+    {
+        if (self is null || self.type <= 0) return orig(self, newColor);
+
+        foreach (var global in GlobalItemRegistry.For(self, HookId.GetAlpha))
+        {
+            try
+            {
+                if (global.GetAlpha(self, newColor) is Color changed) return changed;
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[item] {global.FullKey}.GetAlpha 异常：{Safe.Describe(e)}");
+            }
+        }
+
+        if (ModContent.IsCustom(ContentKind.Item, self.type))
+        {
+            var mod = Instance.InstanceOf(self);
+            if (mod is not null && mod.Plan.Has(HookId.GetAlpha))
+            {
+                try
+                {
+                    if (mod.GetAlpha(newColor) is Color changed) return changed;
+                }
+                catch (Exception e)
+                {
+                    ContentErrors.Report($"[item] {mod.FullKey}.GetAlpha 异常：{Safe.Describe(e)}");
+                }
+            }
+        }
+
+        return orig(self, newColor);
+    }
+
     private bool CanUse(On.Terraria.Player.orig_ItemCheck_CheckCanUse_Inner orig,
                         Player self, Item sItem, bool ignoreCursed)
     {
@@ -69,7 +111,7 @@ internal sealed class ItemPipeline : ILoaderModule
             if (IsModItem(sItem))
             {
                 var mod = ModOf(sItem);
-                if (mod is not null && mod.Plan.Has(HookId.CanUseItem) && !mod.CanUseItem(sItem, self)) return false;
+                if (mod is not null && mod.Plan.Has(HookId.CanUseItem) && !mod.CanUseItem(self)) return false;
 
                 foreach (var global in GlobalItemRegistry.For(sItem, HookId.CanUseItem))
                 {
@@ -93,16 +135,23 @@ internal sealed class ItemPipeline : ILoaderModule
         {
             if (!IsModItem(sItem)) return;
 
-            var used = false;
-            var mod = ModOf(sItem);
-            if (mod is not null && mod.Plan.Has(HookId.UseItem)) used = mod.UseItem(sItem, self);
+            bool? used = null;
 
             foreach (var global in GlobalItemRegistry.For(sItem, HookId.UseItem))
             {
-                if (global.Plan.Has(HookId.UseItem) && global.UseItem(sItem, self)) used = true;
+                if (!global.Plan.Has(HookId.UseItem)) continue;
+                var value = global.UseItem(sItem, self);
+                if (value.HasValue && used != false) used = value.Value;
             }
 
-            if (used) ApplyItemTime(self, sItem);
+            var mod = ModOf(sItem);
+            if (mod is not null && mod.Plan.Has(HookId.UseItem))
+            {
+                var value = mod.UseItem(self);
+                if (value.HasValue && used != false) used = value.Value;
+            }
+
+            if (used == true) ApplyItemTime(self, sItem);
         }
         catch (Exception e)
         {
@@ -133,19 +182,13 @@ internal sealed class ItemPipeline : ILoaderModule
             var mod = ModOf(sItem);
             if (mod is not null)
             {
-                if (mod.Plan.Has(HookId.UseStyle)) mod.UseStyle(sItem, self, mountOffset, heldItemFrame);
-                if (mod.Plan.Has(HookId.HoldStyle)) mod.HoldStyle(sItem, self, mountOffset, heldItemFrame);
-                if (mod.Plan.Has(HookId.HoldItem)) mod.HoldItem(sItem, self);
+                if (mod.Plan.Has(HookId.UseStyle)) mod.UseStyle(self, heldItemFrame);
+                if (mod.Plan.Has(HookId.HoldItem)) mod.HoldItem(self);
             }
 
             foreach (var global in GlobalItemRegistry.For(sItem, HookId.UseStyle))
             {
-                if (global.Plan.Has(HookId.UseStyle)) global.UseStyle(sItem, self, mountOffset, heldItemFrame);
-            }
-
-            foreach (var global in GlobalItemRegistry.For(sItem, HookId.HoldStyle))
-            {
-                if (global.Plan.Has(HookId.HoldStyle)) global.HoldStyle(sItem, self, mountOffset, heldItemFrame);
+                if (global.Plan.Has(HookId.UseStyle)) global.UseStyle(sItem, self, heldItemFrame);
             }
 
             foreach (var global in GlobalItemRegistry.For(sItem, HookId.HoldItem))
@@ -157,6 +200,67 @@ internal sealed class ItemPipeline : ILoaderModule
         {
             Log.Warn("[item] UseStyle 异常：" + e.Message);
         }
+    }
+
+    private void ApplyHoldStyle(On.Terraria.Player.orig_ItemCheck_ApplyHoldStyle orig,
+                                Player self, float mountOffset, Item sItem, Rectangle heldItemFrame)
+    {
+        orig(self, mountOffset, sItem, heldItemFrame);
+
+        try
+        {
+            if (sItem is null || sItem.type <= 0) return;
+
+            var mod = ModOf(sItem);
+            if (mod is not null && mod.Plan.Has(HookId.HoldoutOffset))
+            {
+                try { ApplyHoldout(self, mod.HoldoutOffset()); }
+                catch (Exception e) { Log.Warn("[item] HoldoutOffset 异常：" + e.Message); }
+            }
+
+            foreach (var global in GlobalItemRegistry.For(sItem, HookId.HoldoutOffset))
+            {
+                try { ApplyHoldout(self, global.HoldoutOffset(sItem.type)); }
+                catch (Exception e) { Log.Warn("[item] Global HoldoutOffset 异常：" + e.Message); }
+            }
+
+            if (!IsModItem(sItem) && GlobalItemRegistry.For(sItem, HookId.HoldStyle).Count == 0 &&
+                GlobalItemRegistry.For(sItem, HookId.HoldItem).Count == 0)
+            {
+                return;
+            }
+
+            if (mod is not null)
+            {
+                if (mod.Plan.Has(HookId.HoldStyle)) mod.HoldStyle(self, heldItemFrame);
+                if (mod.Plan.Has(HookId.HoldItem)) mod.HoldItem(self);
+            }
+
+            foreach (var global in GlobalItemRegistry.For(sItem, HookId.HoldStyle))
+            {
+                if (global.Plan.Has(HookId.HoldStyle)) global.HoldStyle(sItem, self, heldItemFrame);
+            }
+
+            foreach (var global in GlobalItemRegistry.For(sItem, HookId.HoldItem))
+            {
+                if (global.Plan.Has(HookId.HoldItem)) global.HoldItem(sItem, self);
+            }
+        }
+        catch (Exception e)
+        {
+            Log.Warn("[item] HoldStyle 异常：" + e.Message);
+        }
+    }
+
+    private static void ApplyHoldout(Player player, Vector2? offset)
+    {
+        if (offset is not { } o || (o.X == 0 && o.Y == 0)) return;
+        float x = o.X * player.direction, y = o.Y * player.gravDir;
+        float cos = MathF.Cos(player.itemRotation), sin = MathF.Sin(player.itemRotation);
+        var location = player.itemLocation;
+        location.X += x * cos - y * sin;
+        location.Y += x * sin + y * cos;
+        player.itemLocation = location;
     }
 
     private void EquipFunctional(On.Terraria.Player.orig_ApplyEquipFunctional orig,
@@ -179,7 +283,7 @@ internal sealed class ItemPipeline : ILoaderModule
             if (!IsModItem(item)) return;
 
             var mod = ModOf(item);
-            if (mod is not null && mod.Plan.Has(HookId.UpdateEquip)) mod.UpdateEquip(item, player);
+            if (mod is not null && mod.Plan.Has(HookId.UpdateEquip)) mod.UpdateEquip(player);
 
             foreach (var global in GlobalItemRegistry.For(item, HookId.UpdateEquip))
             {
@@ -204,13 +308,13 @@ internal sealed class ItemPipeline : ILoaderModule
             var mod = ModOf(currentItem);
             if (mod is not null)
             {
-                if (mod.Plan.Has(HookId.UpdateAccessory)) mod.UpdateAccessory(currentItem, self, true, false);
-                if (mod.Plan.Has(HookId.UpdateVanity)) mod.UpdateVanity(currentItem, self);
+                if (mod.Plan.Has(HookId.UpdateAccessory)) mod.UpdateAccessory(self, hideVisual: false);
+                if (mod.Plan.Has(HookId.UpdateVanity)) mod.UpdateVanity(self);
             }
 
             foreach (var global in GlobalItemRegistry.For(currentItem, HookId.UpdateAccessory))
             {
-                if (global.Plan.Has(HookId.UpdateAccessory)) global.UpdateAccessory(currentItem, self, true, false);
+                if (global.Plan.Has(HookId.UpdateAccessory)) global.UpdateAccessory(currentItem, self, hideVisual: false);
             }
         }
         catch (Exception e)
@@ -235,7 +339,7 @@ internal sealed class ItemPipeline : ILoaderModule
             {
                 var mod = ModOf(item);
                 if (mod is not null && mod.Plan.Has(HookId.UpdateInventory))
-                    mod.UpdateInventory(item, self);
+                    mod.UpdateInventory(self);
 
                 foreach (var global in GlobalItemRegistry.For(item, HookId.UpdateInventory))
                 {
@@ -257,35 +361,20 @@ internal sealed class ItemPipeline : ILoaderModule
         }
     }
 
+    private static bool _globalShoot;
+
+    private static bool WantedShoot(Item? sItem) =>
+        sItem is not null && sItem.type > 0 && (_globalShoot || ModContent.IsCustom(ContentKind.Item, sItem.type));
+
     private void ShootGate(On.Terraria.Player.orig_ItemCheck_Shoot orig,
                            Player self, int i, Item sItem, int weaponDamage, bool withAudioVisualFeedback)
     {
-        var skip = false;
-
         try
         {
-            if (IsModItem(sItem))
+            if (WantedShoot(sItem) && !CanShoot(sItem, self))
             {
-                var mod = ModOf(sItem);
-                if (mod is not null && mod.Plan.Has(HookId.CanShoot) && !mod.CanShoot(sItem, self))
-                {
-                    skip = true;
-                }
-                else
-                {
-                    foreach (var global in GlobalItemRegistry.For(sItem, HookId.CanShoot))
-                    {
-                        if (!global.Plan.Has(HookId.CanShoot) || global.CanShoot(sItem, self)) continue;
-                        skip = true;
-                        break;
-                    }
-                }
-
-                if (!skip)
-                {
-                    _shootingItem = sItem;
-                    _shootingPlayer = self;
-                }
+                self.ApplyItemTime(sItem);
+                return;
             }
         }
         catch (Exception e)
@@ -295,7 +384,9 @@ internal sealed class ItemPipeline : ILoaderModule
 
         try
         {
-            if (!skip) orig(self, i, sItem, weaponDamage, withAudioVisualFeedback);
+            _shootingItem = sItem;
+            _shootingPlayer = self;
+            orig(self, i, sItem, weaponDamage, withAudioVisualFeedback);
         }
         finally
         {
@@ -304,60 +395,128 @@ internal sealed class ItemPipeline : ILoaderModule
         }
     }
 
+    private static bool CanShoot(Item item, Player player)
+    {
+        var mods = PlayerPipeline.Instance.ModsOf(player);
+        for (var i = 0; i < mods.Length; i++)
+        {
+            var mod = mods[i];
+            if (!mod.HookEnabled(HookId.CanShoot)) continue;
+
+            try
+            {
+                if (!mod.CanShoot(item)) return false;
+            }
+            catch (Exception e) { ReportAuthor(PlayerKey(mod), HookId.CanShoot, e); }
+        }
+
+        foreach (var g in GlobalItemRegistry.For(item, HookId.CanShoot))
+        {
+            try
+            {
+                if (!g.CanShoot(item, player)) return false;
+            }
+            catch (Exception e) { ReportAuthor(g.FullKey, HookId.CanShoot, e); }
+        }
+
+        if (ItemPipeline.Instance.InstanceOf(item) is { } m && m.Plan.Has(HookId.CanShoot))
+        {
+            try { return m.CanShoot(player); }
+            catch (Exception e) { ReportAuthor(m.FullKey, HookId.CanShoot, e); }
+        }
+
+        return true;
+    }
+
     private int NewProjectile(On.Terraria.Projectile.orig_NewProjectile_IEntitySource_float_float_float_float_int_int_float_int_float_float_float_NewProjectileModifier orig,
                               IEntitySource spawnSource, float x, float y, float speedX, float speedY,
                               int type, int damage, float knockBack, int owner,
                               float ai0, float ai1, float ai2, NewProjectileModifier modifier)
     {
+        var item = _shootingItem;
+        var player = _shootingPlayer;
+        if (item is null || player is null || player.whoAmI != owner)
+            return orig(spawnSource, x, y, speedX, speedY, type, damage, knockBack, owner, ai0, ai1, ai2, modifier);
+
+        _shootingItem = null;
+        _shootingPlayer = null;
         try
         {
-            var item = _shootingItem;
-            if (item is null || !IsModItem(item))
-                return orig(spawnSource, x, y, speedX, speedY, type, damage, knockBack, owner, ai0, ai1, ai2, modifier);
+            var position = new Vector2(x, y);
+            var velocity = new Vector2(speedX, speedY);
 
-            var player = _shootingPlayer ?? Main.player[Main.myPlayer];
-            _shootingItem = null;
-            _shootingPlayer = null;
-
-            var stats = new ModItem.ShootStats
+            if (InstanceOf(item) is { } m && m.Plan.Has(HookId.ModifyShootStats))
             {
-                Position = new Vector2(x, y),
-                Velocity = new Vector2(speedX, speedY),
-                Type = type,
-                Damage = damage,
-                KnockBack = knockBack,
-            };
-
-            var mod = ModOf(item);
-            if (mod is not null && mod.Plan.Has(HookId.ModifyShootStats)) mod.ModifyShootStats(item, player, stats);
+                try { m.ModifyShootStats(player, ref position, ref velocity, ref type, ref damage, ref knockBack); }
+                catch (Exception e) { ReportAuthor(m.FullKey, HookId.ModifyShootStats, e); }
+            }
 
             foreach (var global in GlobalItemRegistry.For(item, HookId.ModifyShootStats))
             {
-                if (global.Plan.Has(HookId.ModifyShootStats)) global.ModifyShootStats(item, player, stats);
+                try { global.ModifyShootStats(item, player, ref position, ref velocity, ref type, ref damage, ref knockBack); }
+                catch (Exception e) { ReportAuthor(global.FullKey, HookId.ModifyShootStats, e); }
             }
 
-            var shoot = true;
-            if (mod is not null && mod.Plan.Has(HookId.Shoot))
-                shoot = mod.Shoot(item, player, stats.Position, stats.Velocity, stats.Type, stats.Damage, stats.KnockBack);
-
-            foreach (var global in GlobalItemRegistry.For(item, HookId.Shoot))
+            var playerMods = PlayerPipeline.Instance.ModsOf(player);
+            for (var i = 0; i < playerMods.Length; i++)
             {
-                if (!shoot || !global.Plan.Has(HookId.Shoot)) continue;
-                if (!global.Shoot(item, player, stats.Position, stats.Velocity, stats.Type, stats.Damage,
-                        stats.KnockBack, spawnSource)) shoot = false;
+                var mod = playerMods[i];
+                if (!mod.HookEnabled(HookId.ModifyShootStats)) continue;
+
+                try { mod.ModifyShootStats(item, ref position, ref velocity, ref type, ref damage, ref knockBack); }
+                catch (Exception e) { ReportAuthor(PlayerKey(mod), HookId.ModifyShootStats, e); }
             }
 
-            if (!shoot) return 1000;
+            var source = spawnSource?.TryCast<Terraria.DataStructures.EntitySource_ItemUse_WithAmmo>();
 
-            return orig(spawnSource, stats.Position.X, stats.Position.Y, stats.Velocity.X, stats.Velocity.Y,
-                        stats.Type, stats.Damage, stats.KnockBack, owner, ai0, ai1, ai2, modifier);
+            if (!Shoot(item, player, source, position, velocity, type, damage, knockBack)) return 1000;
+
+            return orig(spawnSource, position.X, position.Y, velocity.X, velocity.Y,
+                        type, damage, knockBack, owner, ai0, ai1, ai2, modifier);
         }
-        catch (Exception e)
+        finally
         {
-            Log.Warn("[item] Shoot 异常：" + e.Message);
-            return orig(spawnSource, x, y, speedX, speedY, type, damage, knockBack, owner, ai0, ai1, ai2, modifier);
+            _shootingItem = item;
+            _shootingPlayer = player;
         }
     }
+
+    private static bool Shoot(Item item, Player player, Terraria.DataStructures.EntitySource_ItemUse_WithAmmo? source,
+                              Vector2 position, Vector2 velocity, int type, int damage, float knockback)
+    {
+        var result = true;
+
+        var mods = PlayerPipeline.Instance.ModsOf(player);
+        for (var i = 0; i < mods.Length; i++)
+        {
+            var mod = mods[i];
+            if (!mod.HookEnabled(HookId.Shoot)) continue;
+
+            try { result &= mod.Shoot(item, source, position, velocity, type, damage, knockback); }
+            catch (Exception e) { ReportAuthor(PlayerKey(mod), HookId.Shoot, e); }
+        }
+
+        foreach (var g in GlobalItemRegistry.For(item, HookId.Shoot))
+        {
+            try { result &= g.Shoot(item, player, source, position, velocity, type, damage, knockback); }
+            catch (Exception e) { ReportAuthor(g.FullKey, HookId.Shoot, e); }
+        }
+
+        if (!result) return false;
+
+        if (ItemPipeline.Instance.InstanceOf(item) is { } m && m.Plan.Has(HookId.Shoot))
+        {
+            try { return m.Shoot(player, source, position, velocity, type, damage, knockback); }
+            catch (Exception e) { ReportAuthor(m.FullKey, HookId.Shoot, e); }
+        }
+
+        return true;
+    }
+
+    private static string PlayerKey(ModPlayer mod) => $"{mod.Mod?.Name}/{mod.GetType().Name}";
+
+    private static void ReportAuthor(string key, HookId hook, Exception e) =>
+        ContentErrors.Report($"[item] {key}.{hook} 异常：{Safe.Describe(e)}");
 }
 
 /// <summary>物品编号相关的原生表：物品、Lang、贴图、配方、前缀饰品槽……</summary>

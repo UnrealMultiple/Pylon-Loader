@@ -10,7 +10,7 @@ public sealed class TestGlobalBossBar : GlobalBossBar
 {
     public static int PreCalls, PostCalls, VanillaPreCalls;
 
-    public override bool PreDraw(SpriteBatch spriteBatch, NPC npc, BossBarDrawParams drawParams)
+    public override bool PreDraw(SpriteBatch spriteBatch, NPC npc, ref BossBarDrawParams drawParams)
     {
         PreCalls++;
         if (npc.type == NPCID.KingSlime) VanillaPreCalls++;

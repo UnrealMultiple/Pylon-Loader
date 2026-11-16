@@ -6,8 +6,8 @@
 |---|---|
 | 安装期（`Static`） | 发号 + `SetStaticDefaults` |
 | 生成（`DustPipeline.Spawn`） | `OnSpawn(dust)` |
-| 每帧更新（`Dust.UpdateDust` 之后） | `Update(dust)`（false = 消失） |
-| 每帧绘制（`Main.DrawDust` 之后） | `GetAlpha(color)` + 作者贴图 |
+| 每帧更新（`Dust.UpdateDust` 之后） | `Update(dust)`（false = 消失）→ 管线物理 → `MidUpdate(dust)`（true = 追加原版横向刹车 velocity.X /= 0.99） |
+| 每帧绘制（`Main.DrawDust` 之后） | `PreDraw(dust)`（先画，垫底；false = 常规绘制跳过）→ `GetAlpha(color)` + 作者贴图 |
 
 **不接**：进游戏图集（`TextureAssets.Dust` 是单张，做不到）、原版的尘土物理分支（`DustID` 那些特例）、碰撞与灯光、联网同步、`DustID.Sets` 的逐类型取值。
 

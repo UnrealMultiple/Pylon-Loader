@@ -30,7 +30,6 @@ internal static class NpcHeadHooks
 
     internal static void Build()
     {
-        // Resolving this hook initializes the game's profiles, which require ready content tables.
         if (!_profileInstalled)
         {
             On.Terraria.GameContent.TownNPCProfiles.GetHeadIndexSafe += EntityHead;
@@ -49,7 +48,6 @@ internal static class NpcHeadHooks
                 for (var j = previous; j < _heads.Length; j++)
                     _heads[j] = new Heads { Town = -1, Shimmer = -1, Boss = -1 };
             }
-            // Slots are stable across installation retries and later content registrations.
             for (var kind = 0; kind < 3; kind++)
             {
                 try
@@ -74,7 +72,6 @@ internal static class NpcHeadHooks
             if (!explicitPath) path = mod.TextureSibling(suffix);
             if (string.IsNullOrEmpty(path)) return;
             if (!path.EndsWith(".png", StringComparison.OrdinalIgnoreCase)) path += ".png";
-            // Default sibling heads are optional; explicit paths must report missing content.
             if (!explicitPath && !File.Exists(PylonTexture.Resolve(mod.Mod, path))) return;
             var asset = mod.Mod.LoadAsset(path);
             slot = first + assets.Count;
@@ -102,14 +99,6 @@ internal static class NpcHeadHooks
     {
         if (npc is null) return orig(npc!);
         var slot = TownSlot(npc.type, npc.IsShimmerVariant);
-        var mod = NpcPipeline.Instance.InstanceOf(npc);
-        if (mod is not null && mod.HookEnabled(HookId.NPCHeadSlot))
-        {
-            try { slot = mod.NPCHeadSlot(); }
-            catch (Exception e) { Safe.Report($"[npc] {mod.Name}.NPCHeadSlot", e); }
-            // -1 explicitly hides a head, including an automatically registered one.
-            return slot;
-        }
         return slot >= 0 ? slot : orig(npc);
     }
 

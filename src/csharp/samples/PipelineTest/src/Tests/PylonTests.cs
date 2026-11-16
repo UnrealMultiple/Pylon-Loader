@@ -216,7 +216,7 @@ internal static class PylonTests
         if (!TileObject.CanPlace(originX, originY, type, 0, 1, out var data, false, none)) return false;
         if (!TileObject.Place(data)) return false;
 
-        // 玩家真正放下时就是这一条：实体由 ModPylon.Hook_AfterPlacement 建（不再手工补）。
+        // 玩家真正放下时就是这一条：实体由 TestPylon.PlaceInWorld 建（不再手工补）。
         TileObjectData.CallPostPlacementPlayerHook(originX, originY, type, 0, 1, 0, data);
         return true;
     }

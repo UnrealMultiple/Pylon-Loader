@@ -12,11 +12,7 @@ using Terraria.ObjectData;
 
 namespace Pylon.ModLoader;
 
-/// <summary>
-/// 传送晶塔管线：把 mod 晶塔塞进游戏自己的晶塔列表（<c>Main.PylonSystem._pylons</c>），
-/// 让传送、附近判定、地图图标全部走原版逻辑；只有"列表里没有"这件事我们要补上。
-/// 另加：CanPlacePylon 的放置许可、NPC 数量检查转发给作者、地图上的连线与图标、点开地图。
-/// </summary>
+/// <summary>传送晶塔管线：把 mod 晶塔塞进游戏自己的晶塔列表，让传送、附近判定、地图图标全走原版逻辑；另管放置许可、NPC 数量检查转发、地图连线与点开地图。</summary>
 internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
 {
     public static PylonPipeline Instance { get; } = new();
@@ -25,7 +21,6 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    /// <summary>晶塔占的格数（3x4 的物体，判定"在附近"按这个方框算）。</summary>
     private const int PylonSpan = 4;
 
     private static List<(int X, int Y, int Type)> _current = [];
@@ -48,11 +43,6 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
 
     public void Refresh() => PylonTable.Assign();
 
-    /// <summary>
-    /// 安装期一次：只发号（PylonType 必须早于 <c>方块安装</c> 的 SetStaticDefaults 定下来），
-    /// 不再自己跑一遍作者的 SetStaticDefaults —— 那一步由 <see cref="TileTable.Build"/> 统一做；
-    /// 这里再跑会撞上 "Tile data is locked"，把晶塔的 3x4 形状挡在 TileObjectData 之外。
-    /// </summary>
     internal void Build()
     {
         PylonTable.Assign();
@@ -60,10 +50,6 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
         if (PylonTable.Count > 0) Log.Info($"[pylon] 安装：{PylonTable.Count} 个晶塔（类型号 {PylonTable.Base} 起）");
     }
 
-    /// <summary>
-    /// 立刻重算一次游戏晶塔列表：<c>RequestImmediateUpdate</c> 只是打标记，要等下一帧
-    /// <c>TeleportPylonsSystem.Update</c> 才真正刷新。放置/拆除后想马上看到结果时用这里。
-    /// </summary>
     internal static void RefreshNow()
     {
         var system = Main.PylonSystem;
@@ -80,22 +66,6 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    /// <summary>在 (x, y) 建晶塔实体（作者继承的那个 TEModdedPylon）；没有可用的返回 -1。</summary>
-    internal static int PlaceEntity(int x, int y)
-    {
-        foreach (var entity in TileEntityBinding.All)
-        {
-            if (entity is not TEModdedPylon template) continue;
-            if (TileEntityBinding.Find(template, x, y) >= 0) return -1;
-            if (!template.IsTileValidForEntity(x, y)) continue;
-            return TileEntityBinding.Place(template, x, y);
-        }
-
-        return -1;
-    }
-
-    // ===================== 列表抓取 =====================
-
     private static Il2CppSystem.Collections.Generic.List<TeleportPylonInfo> List(TeleportPylonsSystem system) => system._pylons;
 
     private static TeleportPylonInfo Info((int X, int Y, int Type) entry) => new()
@@ -104,7 +74,6 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
         TypeOfPylon = (TeleportPylonType)entry.Type,
     };
 
-    /// <summary>世界里所有 mod 晶塔：左上角格 + 类型号（从实体表里取，方块帧不可靠时也能定位）。</summary>
     private static List<(int X, int Y, int Type)> Current()
     {
         var found = new List<(int, int, int)>();
@@ -120,7 +89,6 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
         return found;
     }
 
-    /// <summary>把 mod 晶塔从游戏列表里摘掉（原版遍历列表时会崩，必须先摘）。</summary>
     private static List<(int X, int Y, int Type)> Strip(Il2CppSystem.Collections.Generic.List<TeleportPylonInfo> list)
     {
         var removed = new List<(int, int, int)>();
@@ -138,7 +106,7 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static void Send((int X, int Y, int Type) entry, NetTeleportPylonModule.SubPacketType kind)
     {
-        if (Main.netMode == 0) return; // 单人没有要广播的对象
+        if (Main.netMode == 0) return;
 
         try
         {
@@ -150,7 +118,6 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    /// <summary>游戏刷新自己的晶塔列表：先摘 mod 的，跑原版，再把 mod 的补回去并广播增删。</summary>
     private static void UpdateList(On.Terraria.GameContent.TeleportPylonsSystem.orig_UpdatePylonsListAndBroadcastChanges orig,
                                    TeleportPylonsSystem system)
     {
@@ -181,8 +148,6 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    // ===================== 附近判定 =====================
-
     private static bool NearAPylon(On.Terraria.GameContent.TeleportPylonsSystem.orig_IsPlayerNearAPylon orig, Player player)
     {
         if (orig(player)) return true;
@@ -204,9 +169,6 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
         return false;
     }
 
-    // ===================== 传送 =====================
-
-    /// <summary>目的地生物群系检查：围着晶塔扫一次场景，再问作者。</summary>
     private static bool AcceptsBiome(TeleportPylonsSystem system, ModPylon pylon, TeleportPylonInfo info)
     {
         var metrics = system._sceneMetrics;
@@ -218,7 +180,6 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
         return pylon.ValidTeleportCheck_BiomeRequirements(info, metrics);
     }
 
-    /// <summary>传送请求：mod 晶塔先做生物群系检查，再临时塞回列表让原版走完整流程。</summary>
     private static void HandleRequest(On.Terraria.GameContent.TeleportPylonsSystem.orig_HandleTeleportRequest orig,
                                       TeleportPylonsSystem system, TeleportPylonInfo info, int playerIndex)
     {
@@ -255,7 +216,6 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    /// <summary>NPC 数量检查：原版只认自己列表里的晶塔，mod 晶塔转发给作者。</summary>
     private static bool PositionHasEnoughNPCs(On.Terraria.GameContent.TeleportPylonsSystem.orig_DoesPositionHaveEnoughNPCs orig,
                                               int count, Point16 center)
     {
@@ -285,9 +245,6 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
         return orig(count, center);
     }
 
-    // ===================== 放置许可 =====================
-
-    /// <summary>CanPlacePylon：一个类型世界里只留一座。</summary>
     private static bool CanPlace(On.Terraria.TileObject.orig_CanPlace orig, int x, int y, int type, int style, int dir,
                                  out TileObject objectData, bool onlyCheck, Il2CppSystem.Nullable<int> forcedRandom)
     {
@@ -314,8 +271,6 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
         return orig(x, y, type, style, dir, out objectData, onlyCheck, forcedRandom);
     }
 
-    // ===================== 地图 =====================
-
     private static void DrawMap(On.Terraria.Map.TeleportPylonsMapLayer.orig_Draw orig, TeleportPylonsMapLayer layer,
                                 ref MapOverlayDrawContext context, ref string text)
     {
@@ -335,7 +290,6 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
             }
         }
 
-        // 原版必须画：它是整个地图图层的骨架，抛在这里地图就关不掉。
         try
         {
             orig(layer, ref context, ref text);
@@ -415,7 +369,6 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
         return new Vector2(region.X + region.Width / 2, region.Y + region.Height / 2);
     }
 
-    /// <summary>点晶塔打开全屏地图（ModPylon.RightClick 走这里）：原点按格子帧折，并清掉自动平移/重置，把视野落在晶塔上。</summary>
     internal static bool OpenMap(int i, int j)
     {
         try
@@ -438,10 +391,6 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    /// <summary>
-    /// 这一格所属多格物体的左上角：按格子的 frameX/frameY 折（<c>TileObjectData.Origin</c>
-    /// 只对放置锚点那一格成立，点塔身中间会算偏一格）。
-    /// </summary>
     private static Point16 TopLeftOf(int i, int j, Tile tile)
     {
         var data = TileObjectData.GetTileData(tile);

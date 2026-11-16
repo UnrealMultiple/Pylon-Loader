@@ -66,3 +66,13 @@ Pipelines/Item/
 2. `ModItem` 加 `virtual`；
 3. 在 `ItemPipeline` 对应游戏钩子里分派（本物品 → 全局）；
 4. 需要跨物品统一行为时，写 `GlobalItem`，由 `GlobalItemRegistry` 统一取订阅者。
+
+## 2026-11-17 批：使用/攻速/魔力/发射/挥击/饰品/盔甲色接线
+
+- **ItemTimingHooks**（新文件）：UseTime/UseAnimation/UseSpeed 三层乘积（ModItem × GlobalItem × ModPlayer），时长/动画再 ÷ UseSpeedMultiplier；ApplyItemTime 嵌套只缩放最外层。CanAutoReuseItem 三层顺序 ModPlayer(锁 false) → GlobalItem → ModItem；AltFunctionUse 在 ManageRightClickFeatures 里按基线条件补右键。UseAnimation 通知在 orig 前。
+- **ItemFrameHooks**（新文件）：PlayerFrame 后 UseItemFrame（动画中）/HoldItemFrame（可举时），通知型。
+- **ItemManaHooks**（新文件）：CheckMana/PredictWithoutUse 进 orig 前临时替换 manaCost = reduce × mult（ModItem → GlobalItem → ModPlayer）；OnMissingMana/OnConsumeMana 按基线公式。
+- **ItemPipeline.ShootGate/NewProjectile 重写**：CanShoot 三层顺序 ModPlayer.All → GlobalItem → ModItem；否决也吃 ApplyItemTime；ModifyShootStats ModItem → GlobalItem → ModPlayer；Shoot ModPlayer.All → GlobalItem 全员 AND → ModItem 结论；owner 匹配上下文，处理期间再进的 NewProjectile 透传。
+- **ItemHitboxHooks**（新文件）：ItemCheck_GetMeleeHitbox 后 UseItemHitbox；ItemCheck_EmitUseVisuals 后 MeleeEffects（ModItem → GlobalItem → ModPlayer）。
+- **ItemEquipHooks**（新文件）：饰品槽准入四入口（PickItemMovementAction/ArmorSwap/CanEquipAccessoryInSlot/InVanitySlot）；DrawArmorColor/ArmorArmGlowMask 的 GlobalItem 层在 PlayerDrawSet.BoringSetup 后按头/身/腿/手臂派发（ModItem 层等基线装备 API）。
+- **删除**：ModItem.DamageClass、AddEquipTexture/GetEquipSlot、便捷方法整段（DefaultTo*/SellPrice/BuyPrice/CloneDefaults/IsModType 等）、CommonMaxStack、ApplyPrefix、ModifyTooltipLines+TooltipLines、HideFromModMenu、EquipTexture 注册源（Collect 保留 Load 分派）。

@@ -40,7 +40,6 @@ internal static class ProjectileHitHooks
         var own = Own(projectile);
         foreach (var hook in SourceHooks) if (own is not null && own.Plan.Has(hook)) return true;
         foreach (var hook in PlayerHooks) if (Players.ModsActive(hook)) return true;
-        // 目标在原版循环内才确定；模板位集只用来判断是否需要保留这次来源。
         foreach (var npc in ModContent.GetContent<ModNpc>())
             foreach (var hook in TargetHooks) if (npc.HookEnabled(hook)) return true;
         return false;
@@ -86,7 +85,7 @@ internal static class ProjectileHitHooks
                 foreach (var mod in Players.ModsOf(owner))
                 {
                     if (!mod.HookEnabled(HookId.CanHitNPC)) continue;
-                    try { allowed &= mod.CanHitNPC(owner, npc); }
+                    try { allowed &= mod.CanHitNPC(npc); }
                     catch (Exception e) { Fail(mod, HookId.CanHitNPC, e); }
                 }
                 if (!allowed) return false;
@@ -98,7 +97,7 @@ internal static class ProjectileHitHooks
                     if (!mod.HookEnabled(HookId.CanHitNPCWithProj)) continue;
                     try
                     {
-                        var next = mod.CanHitNPCWithProj(owner, projectile, npc);
+                        var next = mod.CanHitNPCWithProj(projectile, npc);
                         if (next == false) return false;
                         result ??= next;
                     }
@@ -107,7 +106,6 @@ internal static class ProjectileHitHooks
                 if (result == false) return false;
             }
         }
-        // 显式的玩家决定优先于后续来源和目标判定；没有决定才继续查询。
         if (result is null) result = SourceGate(projectile, npc);
         if (result == false) return false;
         if (result is null) result = TargetGate(npc, projectile);
@@ -132,7 +130,7 @@ internal static class ProjectileHitHooks
         {
             try
             {
-                var next = own.CanHitNPC(projectile, npc);
+                var next = own.CanHitNPC(npc);
                 if (next == false) return false;
                 result ??= next;
             }
@@ -159,7 +157,7 @@ internal static class ProjectileHitHooks
         {
             try
             {
-                var next = own.CanBeHitByProjectile(npc, projectile);
+                var next = own.CanBeHitByProjectile(projectile);
                 if (next == false) return false;
                 result ??= next;
             }
@@ -174,7 +172,7 @@ internal static class ProjectileHitHooks
         if (own is not null && own.Plan.Has(HookId.ModifyHitNPC))
         {
             var previous = modifiers;
-            try { own.ModifyHitNPC(projectile, npc, ref modifiers); Require(modifiers); }
+            try { own.ModifyHitNPC(npc, ref modifiers); Require(modifiers); }
             catch (Exception e) { modifiers ??= previous; Fail(own, HookId.ModifyHitNPC, e); }
         }
         foreach (var global in GlobalProjectileRegistry.For(projectile, HookId.ModifyHitNPC))
@@ -187,7 +185,7 @@ internal static class ProjectileHitHooks
         if (target is not null && target.HookEnabled(HookId.ModifyHitByProjectile))
         {
             var previous = modifiers;
-            try { target.ModifyHitByProjectile(npc, projectile, ref modifiers); Require(modifiers); }
+            try { target.ModifyHitByProjectile(projectile, ref modifiers); Require(modifiers); }
             catch (Exception e) { modifiers ??= previous; Fail(target, HookId.ModifyHitByProjectile, e); }
         }
         foreach (var global in GlobalNpcRegistry.For(npc, HookId.ModifyHitByProjectile))
@@ -206,8 +204,8 @@ internal static class ProjectileHitHooks
                 var previous = modifiers;
                 try
                 {
-                    if (hook == HookId.ModifyHitNPC) mod.ModifyHitNPC(owner, npc, ref modifiers);
-                    else mod.ModifyHitNPCWithProj(owner, projectile, npc, ref modifiers);
+                    if (hook == HookId.ModifyHitNPC) mod.ModifyHitNPC(npc, ref modifiers);
+                    else mod.ModifyHitNPCWithProj(projectile, npc, ref modifiers);
                     Require(modifiers);
                 }
                 catch (Exception e) { modifiers ??= previous; Fail(mod, hook, e); }
@@ -220,7 +218,7 @@ internal static class ProjectileHitHooks
         var own = Own(projectile);
         if (own is not null && own.Plan.Has(HookId.OnHitNPC))
         {
-            try { own.OnHitNPC(projectile, npc, hit, done); }
+            try { own.OnHitNPC(npc, hit, done); }
             catch (Exception e) { Fail(own, HookId.OnHitNPC, e); }
         }
         foreach (var global in GlobalProjectileRegistry.For(projectile, HookId.OnHitNPC))
@@ -231,7 +229,7 @@ internal static class ProjectileHitHooks
         var target = Target(npc);
         if (target is not null && target.HookEnabled(HookId.OnHitByProjectile))
         {
-            try { target.OnHitByProjectile(npc, projectile, hit, done); }
+            try { target.OnHitByProjectile(projectile, hit, done); }
             catch (Exception e) { Fail(target, HookId.OnHitByProjectile, e); }
         }
         foreach (var global in GlobalNpcRegistry.For(npc, HookId.OnHitByProjectile))
@@ -248,8 +246,8 @@ internal static class ProjectileHitHooks
                 if (!mod.HookEnabled(hook)) continue;
                 try
                 {
-                    if (hook == HookId.OnHitNPC) mod.OnHitNPC(owner, npc, hit, done);
-                    else mod.OnHitNPCWithProj(owner, projectile, npc, hit, done);
+                    if (hook == HookId.OnHitNPC) mod.OnHitNPC(npc, hit, done);
+                    else mod.OnHitNPCWithProj(projectile, npc, hit, done);
                 }
                 catch (Exception e) { Fail(mod, hook, e); }
             }

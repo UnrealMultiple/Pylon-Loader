@@ -8,12 +8,11 @@ internal struct TileMeta
 {
     public HookMask Masks;
     public int DropItem;
+    public int MinPick;
+    public float MineResist;
 }
 
-/// <summary>
-/// 方块侧表：每类型的位集与掉落数据（密集 struct 数组），安装期建一次。
-/// 只有"指定样式的掉落"这种少数情况才进字典。
-/// </summary>
+/// <summary>方块侧表：每类型的位集与掉落数据（密集 struct 数组），安装期建一次；只有指定样式的掉落才进字典。</summary>
 internal static class TileTable
 {
     private static TileMeta[] _meta = new TileMeta[1024];
@@ -62,7 +61,6 @@ internal static class TileTable
             try
             {
                 tile.SetStaticDefaults();
-                tile.PostSetDefaults();
             }
             catch (Exception e)
             {
@@ -77,6 +75,8 @@ internal static class TileTable
             tile.Hooks = meta.Masks;
 
             if (tile.ItemDrop > 0) meta.DropItem = tile.ItemDrop;
+            meta.MinPick = tile.MinPick;
+            meta.MineResist = tile.MineResist;
 
             var drops = tile.ItemDrops;
             for (var i = 0; i < drops.Count; i++)

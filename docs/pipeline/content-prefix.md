@@ -93,3 +93,7 @@ Pipelines/Prefix/
 * **稀有度管线**：`Item.Prefix_1` 两边都挂，但一个在"前缀成立之后改 `item.rare`"，一个在"前缀成立之前问 `PrefixChance`、之后调 `Apply`"，互不读对方的中间值。
 * **Tooltip 管线**：前缀对 tooltip 的影响归 Tooltip 管线。
 * **安装管线**：写表、`SetStaticDefaults`、mod 物品的 `CanGetPrefixes` 标记都在安装期。
+
+## 2026-11-17 批：GetTooltipLines
+
+- 前缀的自定义提示行插在最后一个前缀行之后（TooltipPipeline 取行链）；ApplyPrefix 已删（基线没有）。

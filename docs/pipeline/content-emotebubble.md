@@ -139,3 +139,16 @@ public override int NPCReaction => EmoteID.Heart;
 | 生效 | NPC 反应（`NPCReaction`：最近的城镇 NPC 用指定原版表情回应） |
 | 生效 | `GlobalEmoteBubble`：`OnSpawn` / `UpdateFrame` / `GetFrame` / `PreDraw` / `PostDraw` / `GetFrameInEmoteMenu`（`PreDraw`/`PostDraw` 只对 mod 表情；`UpdateFrameInEmoteMenu` 未接） |
 | 新增约束 | `TexturePath` 指向的贴图必须是并排两个 34×28 图标；`GetFrame` 返回的区域必须落在贴图内 |
+
+## NPC 侧表情分派（2026-11-17 批：补全局链）
+
+泡泡锚在 NPC 上时，两条入口按「ModNpc 先答 → GlobalNpc 逐个补答」派发（基线 NPCLoader.Emotes 链）：
+
+* `EmoteBubble.PickNPCEmote` 之后：`ModNpc.PickEmote(closestPlayer, emoteList, otherAnchor)` →
+  `GlobalNpc.PickEmote(npc, ...)`（返回非 null 直接换掉要用的表情号；都 null 时从 emoteList 追加的候选随机挑）。
+  一方抛错不拦后面的。
+* `EmoteBubble.GetPosition` 之后：`ModNpc.EmoteBubblePosition(ref position, ref effect)` →
+  `GlobalNpc.EmoteBubblePosition(npc, ...)`，同异常语义。
+
+全局列表按位集门控取（`GlobalNpcRegistry.For(npc, hook)`）。`UpdateFrameInEmoteMenu` 维持
+reference-dead（基线零调用点），只有声明。

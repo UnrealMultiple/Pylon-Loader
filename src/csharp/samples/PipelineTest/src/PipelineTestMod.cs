@@ -10,12 +10,10 @@ namespace PipelineTest;
 
 public sealed class PipelineTestMod : Mod
 {
-    /// <summary>测试用：静态拿到本 Mod 实例（读 Name/Types/Logger）。</summary>
     public static PipelineTestMod Instance { get; private set; } = null!;
 
     public PipelineTestMod() => Instance = this;
 
-    // 界面层/系统绘制探针的路由：这三个时机属于 Mod 本身，覆写挂在 Mod 上。
     public override void ModifyInterfaceLayers(List<AuthorLayer> layers) =>
         TestInterfaceProbe.OnModifyInterfaceLayers(layers);
 
@@ -41,12 +39,10 @@ public sealed class PipelineTestMod : Mod
 
         LoadGroupSwitch();
 
-        // 组注册：一条管线一组
         Tests.HostTests.Register();
         Tests.RarityTests.Register();
         Tests.DamageClassTests.Register();
         Tests.KeybindTests.Register();
-        // Tests.KeybindTests.Register();
         Tests.SoundTests.Register();
         Tests.MusicTests.Register();
         Tests.CloudTests.Register();
@@ -104,6 +100,7 @@ public sealed class PipelineTestMod : Mod
         Tests.MenuTests.Register();
         Tests.ResourceOverlayTests.Register();
         Tests.BackgroundTests.Register();
+        Tests.JumpTests.Register();
 
         PT.Boot();
         Logger.Info("[PT] 组开关: " + (PT.Enabled is { } e ? string.Join(",", e) : "全部"));
@@ -116,22 +113,15 @@ public sealed class PipelineTestMod : Mod
         PT.End();
     }
 
-    /// <summary>tooltip 测试的光标扫描:开时每帧把一个采样点喂给游戏光标,光栅覆盖屏幕左上区域。</summary>
     public static bool TooltipSweep;
     private static int _sweepFrame;
 
-    // 真机实测(渲染面 1920x882)热键栏不在屏幕左上角:第 1 格约在 125..220 x 305..425,
-    // 原来的 (34..63, 34..41) 差了约 300 像素的 y,而且格宽约 75 像素、原扫描范围只有 30 像素。
-    // 改成覆盖左上区域的光栅,步长(约 54 x 23 像素)明显小于格宽,保证落进格子内部。
-    // 只移动光标、不按左键:悬停本身就会让游戏设置 Main.HoverItem 并走 tooltip 入口,
-    // 而按住左键会把物品抓到光标上,破坏后面的组。
     private const int SweepColumns = 16;
     private const int SweepRows = 14;
     private const float SweepWidthRatio = 0.45f;
     private const float SweepTopRatio = 0.24f;
     private const float SweepHeightRatio = 0.36f;
 
-    /// <summary>一轮光栅扫完需要的帧数;用例据此安排断言时机。</summary>
     public static int SweepFrames => SweepColumns * SweepRows;
 
     public override void PostUpdateEverything()
@@ -152,7 +142,6 @@ public sealed class PipelineTestMod : Mod
         Tests.RecipeTests.AddRecipes();
     }
 
-    /// <summary>读 Mod 目录的 tests.txt（一行一个组名，# 注释）；没有则跑全部。</summary>
     private void LoadGroupSwitch()
     {
         try

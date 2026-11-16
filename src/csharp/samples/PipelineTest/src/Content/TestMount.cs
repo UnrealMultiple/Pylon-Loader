@@ -25,7 +25,7 @@ public sealed class TestMountBuff : ModBuff
         BuffID.Sets.MountType[Type] = ModContent.MountType<TestMount>();
     }
 
-    public override void UpdatePlayer(Player player, int buffIndex)
+    public override void Update(Player player, ref int buffIndex)
     {
         UpdateCount++;
         player.mount.SetMount(ModContent.MountType<TestMount>(), player);
@@ -156,14 +156,14 @@ public sealed class TestMountItem : ModItem
 {
     public override string DisplayName => "测试坐骑物品";
 
-    public override void SetDefaults(Item item)
+    public override void SetDefaults()
     {
-        item.width = 20;
-        item.height = 30;
-        item.useTime = 20;
-        item.useAnimation = 20;
-        item.useStyle = (byte)Terraria.ID.ItemUseStyleID.Swing;
-        item.noMelee = true;
-        item.mountType = ModContent.MountType<TestMount>();
+        Item.width = 20;
+        Item.height = 30;
+        Item.useTime = 20;
+        Item.useAnimation = 20;
+        Item.useStyle = (byte)Terraria.ID.ItemUseStyleID.Swing;
+        Item.noMelee = true;
+        Item.mountType = ModContent.MountType<TestMount>();
     }
 }

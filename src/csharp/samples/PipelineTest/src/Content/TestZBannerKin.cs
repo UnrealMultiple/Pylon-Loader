@@ -10,18 +10,18 @@ public sealed class TestZBannerKin : ModNpc
 
     public override int Banner => ModContent.NpcType<TestZBannerNpc>();
 
-    public override void SetDefaults(Terraria.NPC npc)
+    public override void SetDefaults()
     {
-        npc.width = 40;
-        npc.height = 32;
-        npc.aiStyle = 1;
-        npc.lifeMax = 100;
-        npc.life = 100;
-        npc.damage = 0;
-        npc.defense = 0;
-        npc.friendly = false;
-        npc.knockBackResist = 0.6f;
-        npc.HitSound = SoundID.NPCHit1;
-        npc.DeathSound = SoundID.NPCDeath1;
+        NPC.width = 40;
+        NPC.height = 32;
+        NPC.aiStyle = 1;
+        NPC.lifeMax = 100;
+        NPC.life = 100;
+        NPC.damage = 0;
+        NPC.defense = 0;
+        NPC.friendly = false;
+        NPC.knockBackResist = 0.6f;
+        NPC.HitSound = SoundID.NPCHit1;
+        NPC.DeathSound = SoundID.NPCDeath1;
     }
 }

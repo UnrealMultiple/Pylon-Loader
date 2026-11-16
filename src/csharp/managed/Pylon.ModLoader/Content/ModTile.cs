@@ -1,6 +1,7 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Terraria;
+using Terraria.GameContent.ObjectInteractions;
 using Terraria.Localization;
 
 namespace Pylon.ModLoader;
@@ -34,26 +35,14 @@ public abstract class ModTile : ModType
     /// <summary>低于这个镐力的镐子挖不动。</summary>
     public virtual int MinPick => 0;
 
-    /// <summary>抗性：每次敲的伤害除以它。</summary>
-    public virtual int MineResist => 1;
+    /// <summary>抗性：每次敲的伤害除以它（同 TML，默认 1）。</summary>
+    public virtual float MineResist => 1f;
 
     /// <summary>挖掉时掉的物品 ID（0 = 用放置这块的 ModItem）。</summary>
     public virtual int ItemDrop => 0;
 
     /// <summary>也算作这些制作站（TileID.WorkBenches 之类）。</summary>
     public virtual int[] AdjTiles => [];
-
-    /// <summary>本方块是"关着的门"：开门态的 mod 方块类型（对方块应配 <see cref="DoorClosedType"/> 指回本方块）。声明后玩家与居民可自动开关此门（见 ModDoors）。-1 = 不是门。</summary>
-    public virtual int DoorOpenType => -1;
-
-    /// <summary>本方块是"开着的门"：关门态的 mod 方块类型（-1 = 不是门）。与 <see cref="DoorOpenType"/> 声明一边即可，两边都声明需一致。</summary>
-    public virtual int DoorClosedType => -1;
-
-    /// <summary>存世界时写自定义数据（.wld.tiles.json 侧车，按 FullKey 存取）；与 <see cref="LoadData"/> 配对，复用 <see cref="HookId.SaveData"/>。</summary>
-    public virtual void SaveData(int x, int y, TagCompound tag) { }
-
-    /// <summary>读世界后恢复；mod 缺席的行进等待名单，重装后下次读档回来。</summary>
-    public virtual void LoadData(int x, int y, TagCompound tag) { }
 
     /// <summary>贴图里一帧动画的高度（0 = 不按竖直帧表动画）。</summary>
     public virtual int AnimationFrameHeight => 0;
@@ -79,29 +68,11 @@ public abstract class ModTile : ModType
     /// <summary>这个钩子有没有被覆写：热路径上判定用。</summary>
     internal bool HookEnabled(HookId hook) => Hooks.Has(hook);
 
-    /// <summary>
-    /// 放下这块时自动建哪个方块实体：返回实体模板的 <see cref="ModType.Name"/>（同 Mod 下的名字）。
-    /// 默认 <c>null</c> = 不建；服务器/单人放完就建，客户端等服务器广播（权威在服务器，客户端不建）。
-    /// </summary>
-    public virtual string? TileEntity => null;
-
-    /// <summary>
-    /// 放置完成后的回调（对应 <c>PlacementHook</c> 的时机）：游戏把方块真正放下、玩家坐标定下来之后。
-    /// 返回 -1 = "没有别的返回值"，这是这条钩子链的约定，不是失败。
-    /// </summary>
-    public virtual int Hook_AfterPlacement(int i, int j, int type, int style, int direction, int alternate) => -1;
-
     private readonly List<MapEntry> _mapEntries = [];
     private readonly List<ItemDropEntry> _itemDrops = [];
 
     /// <summary>只放共享数值，不要碰游戏对象。</summary>
     public override void SetStaticDefaults() { }
-
-    /// <summary>SetStaticDefaults 之后紧接着（实心方块的 tileNoSunLight 已经写好）。</summary>
-    public virtual void PostSetDefaults() { }
-
-    /// <summary>所有内容安装完成之后一次（跨 Mod 引用放这里）。</summary>
-    public virtual void PostSetupContent() { }
 
     /// <summary>登记一条地图项：颜色 + 名字（null = 用 <see cref="CreateMapEntryName"/>）；键拼法与注册在管线里做。</summary>
     public virtual void AddMapEntry(Color color, LocalizedText? name = null)
@@ -182,9 +153,6 @@ public abstract class ModTile : ModType
     /// <summary>上面要来的那次绘制（飘着的遗物之类）。</summary>
     public virtual void SpecialDraw(int i, int j, SpriteBatch spriteBatch) { }
 
-    /// <summary>这格的尘土和粒子（只在屏幕上时）。</summary>
-    public virtual void EmitParticles(int i, int j, Tile tile, int tileFrameX, int tileFrameY, Color tileLight, bool visible) { }
-
     /// <summary>这块在玩家附近（closer = 在屏幕上）。</summary>
     public virtual void NearbyEffects(int i, int j, bool closer) { }
 
@@ -198,7 +166,7 @@ public abstract class ModTile : ModType
     public virtual void MouseOverFar(int i, int j) { }
 
     /// <summary>是不是智能交互的目标；默认跟着 <see cref="RightClick"/> 有没有被覆写。</summary>
-    public virtual bool HasSmartInteract(int i, int j, object settings) =>
+    public virtual bool HasSmartInteract(int i, int j, SmartInteractScanSettings settings) =>
         Plan.Has(HookId.RightClick);
 
     /// <summary>有电的线穿过这块。</summary>

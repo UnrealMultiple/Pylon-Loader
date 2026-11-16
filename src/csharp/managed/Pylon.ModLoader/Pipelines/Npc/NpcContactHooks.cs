@@ -27,7 +27,7 @@ internal static class NpcContactHooks
             if (own is not null && own.HookEnabled(HookId.ModifyHitNPC))
             {
                 var previous = modifiers;
-                try { own.ModifyHitNPC(attacker, target, ref modifiers); Validate(modifiers); }
+                try { own.ModifyHitNPC(target, ref modifiers); Validate(modifiers); }
                 catch (Exception e) { modifiers ??= previous; Fail(own, HookId.ModifyHitNPC, e); }
             }
             foreach (var global in GlobalNpcRegistry.For(attacker, HookId.ModifyHitNPC))
@@ -43,7 +43,7 @@ internal static class NpcContactHooks
             var own = NpcPipeline.Instance.InstanceOf(attacker);
             if (own is not null && own.HookEnabled(HookId.OnHitNPC))
             {
-                try { own.OnHitNPC(attacker, target, hit); }
+                try { own.OnHitNPC(target, hit); }
                 catch (Exception e) { Fail(own, HookId.OnHitNPC, e); }
             }
             foreach (var global in GlobalNpcRegistry.For(attacker, HookId.OnHitNPC))
@@ -85,13 +85,13 @@ internal static class NpcContactHooks
         var own = NpcPipeline.Instance.InstanceOf(source);
         if (own?.HookEnabled(HookId.CanHitNPC) == true)
         {
-            try { if (!own.CanHitNPC(source, target)) return false; }
+            try { if (!own.CanHitNPC(target)) return false; }
             catch (Exception e) { Fail(own, HookId.CanHitNPC, e); }
         }
         own = NpcPipeline.Instance.InstanceOf(target);
         if (own?.HookEnabled(HookId.CanBeHitByNPC) == true)
         {
-            try { if (!own.CanBeHitByNPC(target, source)) return false; }
+            try { if (!own.CanBeHitByNPC(source)) return false; }
             catch (Exception e) { Fail(own, HookId.CanBeHitByNPC, e); }
         }
         return true;

@@ -11,8 +11,8 @@ using Terraria.ObjectData;
 namespace RegressionTest.Content
 {
     /// <summary>
-    /// 测试门·关门态（本体）。DoorOpenType → 开门态方块。
-    /// 服务行：P2-6a（贴身自动开/离开自动关）、P2-6b/c（NPC/僵尸穿门）、P2-6d 对照。
+    /// 测试门·关门态（本体）。
+    /// （门对自动开关随 Pylon 独有的门对声明删除而移除；两块门方块保留作布景与放置验证。）
     /// </summary>
     public sealed class DoorClosedTile : ModTile
     {
@@ -35,12 +35,12 @@ namespace RegressionTest.Content
         }
 
         public override int DustType => DustID.Dirt;
-        public override int DoorOpenType => ModContent.TileType<DoorOpenTile>();
 
-        public override bool HasSmartInteract(int i, int j, object settings) => true;
+        public override bool HasSmartInteract(int i, int j,
+                                              Terraria.GameContent.ObjectInteractions.SmartInteractScanSettings settings) => true;
     }
 
-    /// <summary>测试门·开门态（占邻格）。DoorClosedType → 关门态方块。</summary>
+    /// <summary>测试门·开门态（占邻格）。</summary>
     public sealed class DoorOpenTile : ModTile
     {
         public override void SetStaticDefaults()
@@ -63,7 +63,6 @@ namespace RegressionTest.Content
         }
 
         public override int DustType => DustID.Dirt;
-        public override int DoorClosedType => ModContent.TileType<DoorClosedTile>();
     }
 
     /// <summary>放下测试门（关门态）。</summary>
@@ -71,12 +70,12 @@ namespace RegressionTest.Content
     {
         public override string DisplayName => "回归门";
 
-        public override void SetDefaults(Item item)
+        public override void SetDefaults()
         {
-            item.width = 20;
-            item.height = 34;
-            item.maxStack = 99;
-            item.DefaultToPlaceableTile(ModContent.TileType<DoorClosedTile>());
+            Item.width = 20;
+            Item.height = 34;
+            Item.maxStack = 99;
+            Item.DefaultToPlaceableTile(ModContent.TileType<DoorClosedTile>());
         }
     }
 

@@ -10,23 +10,14 @@ using Terraria.Utilities;
 
 namespace Pylon.ModLoader;
 
-/// <summary>自定义物品：一个类 = 一个物品类型，每个地上/背包里的实例对应一个本类实例。</summary>
+/// <summary>自定义物品：一个类 = 一个物品类型，每个地上/背包里的实例对应一个本类实例；钩子里用 <see cref="Item"/> 拿实体。</summary>
 public abstract class ModItem : ModType
 {
-    /// <summary>这套游戏的物品堆叠上限。</summary>
-    public const int CommonMaxStack = 9999;
-
-    /// <summary>true：不在 Mod 菜单里出现。</summary>
-    public virtual bool HideFromModMenu => false;
-
     /// <summary>名字（空 = 用 ItemName.&lt;类名&gt; 的本地化键）。</summary>
     public virtual string DisplayName => Name;
 
     /// <summary>描述（空 = 用 ItemTooltip.&lt;类名&gt;）；多行用 \n。</summary>
     public virtual string Tooltip => null!;
-
-    /// <summary>ModifyTooltipLines 改的那几行（由本地化管线填好）。</summary>
-    public List<string> TooltipLines { get; } = [];
 
     /// <summary>贴图相对 Mod 目录的路径；注册器按类名定，这里由管线接。</summary>
     public override string TexturePath => $"assets/items/{Name}.png";
@@ -34,24 +25,34 @@ public abstract class ModItem : ModType
     /// <summary>这个实例对应的游戏物品；注册期的模板上为 null。</summary>
     public Item Item { get; internal set; } = null!;
 
-    /// <summary>游戏复制了这个物品；返回副本对应的实例（由管线接管）。</summary>
-    public virtual ModItem Clone(Item newItem) => this;
+    /// <summary>游戏复制了这个物品；返回副本对应的实例（默认浅拷贝并换实体）。</summary>
+    public virtual ModItem Clone(Item newItem)
+    {
+        var copy = (ModItem)MemberwiseClone();
+        copy.Item = newItem;
+        return copy;
+    }
 
     /// <summary>true：新物品拿模板的副本（Clone），不是新实例。</summary>
     public virtual bool CloneNewInstances => false;
 
-    /// <summary>给一个新生实体造对应的实例（管线调）。</summary>
-    public virtual ModItem NewInstance(Item entity) => CloneNewInstances ? Clone(entity) : this;
+    /// <summary>给一个新生实体造对应的实例（默认新造，不是复用模板）。</summary>
+    public virtual ModItem NewInstance(Item entity)
+    {
+        if (CloneNewInstances) return Clone(entity);
 
-    /// <summary>注册时一次（AddEquipTexture 之类放这里）。安装期由装备管线调用，每个物品一次。</summary>
+        var instance = (ModItem)Activator.CreateInstance(GetType(), true)!;
+        instance.Mod = Mod;
+        instance.Item = entity;
+        return instance;
+    }
+
+    /// <summary>注册期一次。安装期由装备管线调用，每个物品一次。</summary>
     public virtual void Load() { }
 
     private List<EquipTexture>? _equipTextures;
 
-    /// <summary>这件武器的伤害类别（null = 不参与伤害类别乘区）。</summary>
-    public virtual ModDamageClass? DamageClass => null;
-
-    /// <summary>这张物品注册过的装备贴图（安装期由装备管线读）。</summary>
+    /// <summary>这件物品注册过的装备贴图（安装期由装备管线读）。</summary>
     internal IReadOnlyList<EquipTexture> EquipTextures =>
         _equipTextures is null ? Array.Empty<EquipTexture>() : _equipTextures;
 
@@ -73,20 +74,11 @@ public abstract class ModItem : ModType
     /// <summary>按注册名查这张物品某张装备贴图的槽位（在 SetDefaults 里用；没有就是 -1）。</summary>
     public int GetEquipSlot(EquipType part, string name) => EquipTable.SlotOf(part, name);
 
-    /// <summary>这一类型的每个物品生成时跑；数值都写在这。</summary>
-    public virtual void SetDefaults(Item item) { }
+    /// <summary>这一类型的每个物品生成时跑；数值都写进 <see cref="Item"/>。</summary>
+    public virtual void SetDefaults() { }
 
-    /// <summary>SetStaticDefaults 之后紧接着。</summary>
-    public virtual void PostStaticDefaults() { }
-
-    /// <summary>SetDefaults 之后紧接着。</summary>
-    public virtual void PostSetDefaults(Item item) { }
-
-    /// <summary>所有内容安装完成之后一次（跨 Mod 引用放这里）。</summary>
-    public virtual void PostSetupContent() { }
-
-    /// <summary>每种语言一次，TooltipLines 已填好；直接改它。</summary>
-    public virtual void ModifyTooltipLines() { }
+    /// <summary>配方注册期一次（AddRecipe 之类放这里）。</summary>
+    public virtual void AddRecipes() { }
 
     /// <summary>每次 tooltip 显示时一次（合成指南弹窗里也会，不带颜色）；直接改 tooltips 列表。</summary>
     public virtual void ModifyTooltips(List<TooltipLine> tooltips) { }
@@ -103,26 +95,55 @@ public abstract class ModItem : ModType
     /// <summary>这一行画完后（没画也跑）。</summary>
     public virtual void PostDrawTooltipLine(DrawableTooltipLine line) { }
 
-    /// <summary>在制作菜单做出这个物品时；item 是玩家将拿到的那份，还能改。</summary>
-    public virtual void OnCraft(Item item, Player player, Recipe recipe) { }
+    /// <summary>物品被创建时（同 TML）：制作、掉落、商店等来源各自带上下文；制作走 <see cref="RecipeItemCreationContext"/>。</summary>
+    public virtual void OnCreated(ItemCreationContext context) { }
+
+    // ===================== 使用 =====================
 
     /// <summary>false：这一次用不了这个物品。</summary>
-    public virtual bool CanUseItem(Item item, Player player) => true;
+    public virtual bool CanUseItem(Player player) => true;
 
-    /// <summary>每帧使用；返回 true = 物品算用过了（消耗品会被吃掉）。</summary>
-    public virtual bool UseItem(Item item, Player player) => false;
+    /// <summary>每帧使用；true = 物品算用过了（消耗品会被吃掉），false 显式不算，null = 交给游戏。</summary>
+    public virtual bool? UseItem(Player player) => null;
 
-    /// <summary>true：这物品能在背包里打开（袋子、箱子）。</summary>
-    public virtual bool CanRightClick(Item item) => false;
+    /// <summary>使用动画应用时（每帧使用）。</summary>
+    public virtual void UseAnimation(Player player) { }
 
-    /// <summary>打开时（ModifyItemLoot 之前）。</summary>
-    public virtual void RightClick(Item item, Player player) { }
+    /// <summary>null = 交给游戏（原版连发判定）；true/false 强制开或关自动连发。</summary>
+    public virtual bool? CanAutoReuseItem(Player player) => null;
 
-    /// <summary>物品掉落表第一次被问时跑一次：loot.Add/Remove 改掉落。</summary>
-    public virtual void ModifyItemLoot(ItemLoot itemLoot) { }
+    /// <summary>本次使用的用时倍率（乘区）。</summary>
+    public virtual float UseTimeMultiplier(Player player) => 1f;
 
-    /// <summary>false：打开不消耗这个物品。</summary>
-    public virtual bool ConsumeItem(Item item, Player player) => true;
+    /// <summary>本次使用的动画倍率（乘区）。</summary>
+    public virtual float UseAnimationMultiplier(Player player) => 1f;
+
+    /// <summary>整体使用速度倍率（乘区）。</summary>
+    public virtual float UseSpeedMultiplier(Player player) => 1f;
+
+    /// <summary>改这次使用的魔力开销：reduce 是减量、mult 是倍率（可写引用）。</summary>
+    public virtual void ModifyManaCost(Player player, ref float reduce, ref float mult) { }
+
+    /// <summary>魔力不够放不出来时。</summary>
+    public virtual void OnMissingMana(Player player, int neededMana) { }
+
+    /// <summary>实际消耗魔力之后。</summary>
+    public virtual void OnConsumeMana(Player player, int manaConsumed) { }
+
+    /// <summary>使用时画哪一帧。</summary>
+    public virtual void UseItemFrame(Player player) { }
+
+    /// <summary>握着时画哪一帧。</summary>
+    public virtual void HoldItemFrame(Player player) { }
+
+    /// <summary>true：右键也算主用途（AltFunctionUse 路径）。</summary>
+    public virtual bool AltFunctionUse(Player player) => false;
+
+    /// <summary>手里拿着时每帧一次。</summary>
+    public virtual void HoldItem(Player player) { }
+
+    /// <summary>鱼线从哪儿出来、什么颜色（两个可写引用，像素）。</summary>
+    public virtual void ModifyFishingLine(Projectile bobber, ref Vector2 lineOriginOffset, ref Color lineColor) { }
 
     /// <summary>true：是渔夫的任务鱼。</summary>
     public virtual bool IsQuestFish() => false;
@@ -133,176 +154,123 @@ public abstract class ModItem : ModType
     /// <summary>渔夫说的那句话（description）和去哪儿钓（catchLocation）。</summary>
     public virtual void AnglerQuestChat(ref string description, ref string catchLocation) { }
 
-    /// <summary>手里拿着时每帧一次。</summary>
-    public virtual void HoldItem(Item item, Player player) { }
-
     /// <summary>使用时的样子；游戏自己的样式之后跑。</summary>
-    public virtual void UseStyle(Item item, Player player, float mountOffset, Rectangle heldItemFrame) { }
+    public virtual void UseStyle(Player player, Rectangle heldItemFrame) { }
 
     /// <summary>握着时的样子；游戏自己的样式之后跑。</summary>
-    public virtual void HoldStyle(Item item, Player player, float mountOffset, Rectangle heldItemFrame) { }
+    public virtual void HoldStyle(Player player, Rectangle heldItemFrame) { }
 
     /// <summary>手上武器的位移，像素；返 null = 不动。</summary>
-    public virtual Vector2? HoldoutOffset(Item item, Player player) => null;
+    public virtual Vector2? HoldoutOffset() => null;
 
-    /// <summary>false：用得了，但不发射。</summary>
-    public virtual bool CanShoot(Item item, Player player) => true;
+    /// <summary>每帧，在背包里。</summary>
+    public virtual void UpdateInventory(Player player) { }
 
-    /// <summary>false:没有背包弹药也可使用对应弹药类别的默认非消耗样例。</summary>
-    public virtual bool NeedsAmmo(Item weapon, Player player) => true;
+    // ===================== 武器数值 =====================
 
-    /// <summary>null 按弹药类别匹配，true 允许额外类型，false 否决该候选。</summary>
-    public virtual bool? CanChooseAmmo(Item weapon, Item ammo, Player player) => null;
+    /// <summary>武器的伤害修正（同 TML：<see cref="StatModifier"/> 链）。</summary>
+    public virtual void ModifyWeaponDamage(Player player, ref StatModifier damage) { }
 
-    /// <summary>作为弹药时决定能否被这件武器选中；false 优先于任何允许。</summary>
-    public virtual bool? CanBeChosenAsAmmo(Item ammo, Item weapon, Player player) => null;
+    /// <summary>武器的击退修正（同 TML：<see cref="StatModifier"/> 链）。</summary>
+    public virtual void ModifyWeaponKnockback(Player player, ref StatModifier knockback) { }
 
-    /// <summary>false:正常发射但不消耗这份弹药。</summary>
-    public virtual bool CanConsumeAmmo(Item weapon, Item ammo, Player player) => true;
+    /// <summary>武器的暴击修正（同 TML：百分点）。</summary>
+    public virtual void ModifyWeaponCrit(Player player, ref float crit) { }
 
-    /// <summary>作为弹药时否决消耗。</summary>
-    public virtual bool CanBeConsumedAsAmmo(Item ammo, Item weapon, Player player) => true;
+    // ===================== 弹药 =====================
 
-    /// <summary>实际扣除弹药之后，最后一发清空物品之前。</summary>
-    public virtual void OnConsumeAmmo(Item weapon, Item ammo, Player player) { }
+    /// <summary>false：没有背包弹药也可使用对应弹药类别的默认非消耗样例。</summary>
+    public virtual bool NeedsAmmo(Player player) => true;
 
-    /// <summary>作为弹药实际扣除之后。</summary>
-    public virtual void OnConsumedAsAmmo(Item ammo, Item weapon, Player player) { }
-
-    /// <summary>弹药被选中后修改最终弹幕参数；damage 修饰应用在游戏已经计算的伤害上。</summary>
-    public virtual void PickAmmo(Item ammo, Item weapon, Player player, ref int type, ref float speed,
+    /// <summary>弹药被选中后修改最终弹幕参数（本类是弹药，weapon 是选它的武器）；damage 修饰应用在游戏已经计算的伤害上。</summary>
+    public virtual void PickAmmo(Item weapon, Player player, ref int type, ref float speed,
                                  ref StatModifier damage, ref float knockback) { }
 
-    /// <summary>一个弹幕发射前的参数；改字段就是改这一发。</summary>
-    public sealed class ShootStats
-    {
-        /// <summary>出膛位置。</summary>
-        public Vector2 Position;
+    /// <summary>null 按弹药类别匹配，true 允许额外类型，false 否决该候选（本类是武器）。</summary>
+    public virtual bool? CanChooseAmmo(Item ammo, Player player) => null;
 
-        /// <summary>出膛速度。</summary>
-        public Vector2 Velocity;
+    /// <summary>作为弹药时决定能否被这件武器选中；false 优先于任何允许（本类是弹药）。</summary>
+    public virtual bool? CanBeChosenAsAmmo(Item weapon, Player player) => null;
 
-        /// <summary>弹幕类型（已经被弹药换过）。</summary>
-        public int Type;
+    /// <summary>false：正常发射但不消耗这份弹药（本类是武器）。</summary>
+    public virtual bool CanConsumeAmmo(Item ammo, Player player) => true;
 
-        /// <summary>伤害。</summary>
-        public int Damage;
+    /// <summary>作为弹药时否决消耗（本类是弹药）。</summary>
+    public virtual bool CanBeConsumedAsAmmo(Item weapon, Player player) => true;
 
-        /// <summary>击退。</summary>
-        public float KnockBack;
-    }
+    /// <summary>实际扣除弹药之后，最后一发清空物品之前（本类是武器）。</summary>
+    public virtual void OnConsumeAmmo(Item ammo, Player player) { }
 
-    /// <summary>每个弹幕之前：改 stats 的位置、速度、类型、伤害、击退。</summary>
-    public virtual void ModifyShootStats(Item item, Player player, ShootStats stats) { }
+    /// <summary>作为弹药实际扣除之后。</summary>
+    public virtual void OnConsumedAsAmmo(Item weapon, Player player) { }
 
-    /// <summary>false：游戏不发射自己的弹幕（在这里造自己的）。</summary>
-    public virtual bool Shoot(Item item, Player player, Vector2 position, Vector2 velocity, int type, int damage, float knockBack) => true;
+    // ===================== 发射 =====================
 
-    /// <summary>回的血量（可写引用），基准是正的回血量。</summary>
-    public virtual void GetHealLife(Item item, Player player, bool quickHeal, ref int healValue) { }
+    /// <summary>false：用得了，但不发射。</summary>
+    public virtual bool CanShoot(Player player) => true;
 
-    /// <summary>回的魔量（可写引用）。</summary>
-    public virtual void GetHealMana(Item item, Player player, bool quickHeal, ref int healValue) { }
+    /// <summary>每个弹幕之前：位置/速度/类型/伤害/击退都是可写引用。</summary>
+    public virtual void ModifyShootStats(Player player, ref Vector2 position, ref Vector2 velocity, ref int type,
+                                         ref int damage, ref float knockback) { }
 
-    /// <summary>药水延时（可写引用），在游戏判否决和应用之前。</summary>
-    public virtual void ModifyPotionDelay(Item item, Player player, ref int baseDelay) { }
+    /// <summary>false：游戏不发射自己的弹幕（在这里用 source 造自己的）；source 可能是 null 包装。</summary>
+    public virtual bool Shoot(Player player, EntitySource_ItemUse_WithAmmo? source, Vector2 position, Vector2 velocity,
+                              int type, int damage, float knockback) => true;
 
-    /// <summary>false：不加计时也不给药水病，回血和消耗照旧。</summary>
-    public virtual bool ApplyPotionDelay(Item item, Player player, int potionDelay) => true;
+    /// <summary>这次挥击的碰撞盒（可写引用）；noHitbox = true 关掉伤害。</summary>
+    public virtual void UseItemHitbox(Player player, ref Rectangle hitbox, ref bool noHitbox) { }
+
+    /// <summary>近战挥出时；hitbox 是这一次的碰撞盒。</summary>
+    public virtual void MeleeEffects(Player player, Rectangle hitbox) { }
+
+    /// <summary>物品体积的倍率（同 TML）。</summary>
+    public virtual void ModifyItemScale(Player player, ref float scale) { }
+
+    // ===================== 命中 =====================
 
     /// <summary>null 保留原版命中规则，false 否决，true 允许当前近战目标。</summary>
-    public virtual bool? CanHitNPC(Item item, Player player, NPC target) => null;
+    public virtual bool? CanHitNPC(Player player, NPC target) => null;
 
     /// <summary>允许额外近战碰撞时扩展本次判定矩形，不改变后续目标的判定。</summary>
-    public virtual bool? CanMeleeAttackCollideWithNPC(Item item, Rectangle meleeAttackHitbox, Player player, NPC target) => null;
+    public virtual bool? CanMeleeAttackCollideWithNPC(Rectangle meleeAttackHitbox, Player player, NPC target) => null;
 
     /// <summary>目标防御修饰之后、原版扣血之前修改本次命中。</summary>
-    public virtual void ModifyHitNPC(Item item, Player player, NPC target, ref HitModifiers modifiers) { }
+    public virtual void ModifyHitNPC(Player player, NPC target, ref HitModifiers modifiers) { }
 
     /// <summary>原版确认命中后通知，damageDone 为目标实际可扣除的生命。</summary>
-    public virtual void OnHitNPC(Item item, Player player, NPC target, HitInfo hit, int damageDone) { }
+    public virtual void OnHitNPC(Player player, NPC target, HitInfo hit, int damageDone) { }
 
     /// <summary>false 否决当前武器的近战玩家目标，不覆盖原版距离与阵营判定。</summary>
-    public virtual bool CanHitPvp(Item item, Player player, Player target) => true;
+    public virtual bool CanHitPvp(Player player, Player target) => true;
 
     /// <summary>玩家防御计算之前修改此武器造成的 PvP 伤害。</summary>
-    public virtual void ModifyHitPvp(Item item, Player player, Player target, ref HurtModifiers modifiers) { }
+    public virtual void ModifyHitPvp(Player player, Player target, ref HurtModifiers modifiers) { }
 
     /// <summary>原版实际造成 PvP 伤害之后通知武器。</summary>
-    public virtual void OnHitPvp(Item item, Player player, Player target, HurtInfo info) { }
+    public virtual void OnHitPvp(Player player, Player target, HurtInfo info) { }
 
-    /// <summary>武器的伤害修正。</summary>
-    public virtual void ModifyWeaponDamage(Item item, Player player, ref int damage) { }
-
-    /// <summary>武器的暴击修正（可写引用）。</summary>
-    public virtual void ModifyWeaponCrit(Item item, Player player, ref int crit) { }
-
-    /// <summary>武器的击退修正。</summary>
-    public virtual void ModifyWeaponKnockback(Item item, Player player, ref float knockback) { }
-
-    /// <summary>物品体积的倍率（可写引用，含手套那层）。</summary>
-    public virtual void ModifyItemScale(Item item, Player player, ref float scale) { }
+    // ===================== 装备 =====================
 
     /// <summary>装备着时每帧一次（盔甲或饰品）。</summary>
-    public virtual void UpdateEquip(Item item, Player player) { }
+    public virtual void UpdateEquip(Player player) { }
 
-    /// <summary>饰品装备着时每帧一次；vanity = 在时装栏，hideVisual = 关了显示。</summary>
-    public virtual void UpdateAccessory(Item item, Player player, bool vanity, bool hideVisual) { }
-
-    /// <summary>false：这对饰品不能同时装（拖进槽和点着换都问）。</summary>
-    public virtual bool CanAccessoryBeEquippedWith(Item equippedItem, Item incomingItem, Player player) => true;
+    /// <summary>饰品装备着时每帧一次；hideVisual = 关了显示。</summary>
+    public virtual void UpdateAccessory(Player player, bool hideVisual) { }
 
     /// <summary>饰品在时装栏里。</summary>
-    public virtual void UpdateVanity(Item item, Player player) { }
+    public virtual void UpdateVanity(Player player) { }
 
-    /// <summary>登记盔甲套装一次（在内容就绪阶段）。</summary>
-    public virtual void AddArmorSets() { }
+    /// <summary>这件衣服画到哪个槽：equipSlot 是槽，robes = true 表示长袍（占腿）。</summary>
+    public virtual void SetMatch(bool male, ref int equipSlot, ref bool robes) { }
 
-    /// <summary>登记一套盔甲（1.4.5 那套）：text 是本地化键或原文，0 = 哪件都行。</summary>
-    public void CreateArmorSet(int head, int body, int legs, string text = "ArmorSetBonus.Empty",
-                               ArmorSetBonus.PartType primaryPart = ArmorSetBonus.PartType.None)
-    {
-        ArmorSetBonuses.Add(VanillaArmorSetEffect(), text, primaryPart, head, body, legs);
-
-        // 游戏的 BuildLookup 已经跑过：新套装要手工挂回每件衣服的包含表。
-        var set = ArmorSetBonuses.All[ArmorSetBonuses.All.Count - 1];
-        var types = new HashSet<int>();
-        if (head > 0) types.Add(head);
-        if (body > 0) types.Add(body);
-        if (legs > 0) types.Add(legs);
-
-        foreach (var type in types)
-        {
-            var old = ArmorSetBonuses.SetsContaining[type];
-            var length = old?.Length ?? 0;
-            var grown = new Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<ArmorSetBonus>(length + 1);
-            if (old is not null)
-            {
-                for (var i = 0; i < length; i++) grown[i] = old[i];
-            }
-            grown[length] = set;
-            ArmorSetBonuses.SetsContaining[type] = grown;
-        }
-    }
-
-    /// <summary>一次登记一批：三个列表的笛卡尔积。</summary>
-    public void CreateArmorSets(int[] heads, int[] bodies, int[] legs, string text = "ArmorSetBonus.Empty",
-                                ArmorSetBonus.PartType primaryPart = ArmorSetBonus.PartType.None)
-    {
-        heads ??= [0];
-        bodies ??= [0];
-        legs ??= [0];
-
-        foreach (var head in heads)
-            foreach (var body in bodies)
-                foreach (var leg in legs) CreateArmorSet(head, body, leg, text, primaryPart);
-    }
+    /// <summary>穿着这张贴图时每帧一次。</summary>
+    public virtual void EquipFrameEffects(Player player, EquipType type) { }
 
     /// <summary>每件穿着的 mod 衣服都会问；true = 这套齐了。</summary>
     public virtual bool IsArmorSet(Item head, Item body, Item legs) => false;
 
     /// <summary>套装效果；文字写 player 的 setBonus。</summary>
-    public virtual void UpdateArmorSet(Item item, Player player) { }
+    public virtual void UpdateArmorSet(Player player) { }
 
     /// <summary>时装套装判定，收的是画出来的槽位；默认问这些槽位物品的 IsArmorSet。</summary>
     public virtual bool IsVanitySet(int head, int body, int legs) =>
@@ -318,238 +286,138 @@ public abstract class ModItem : ModType
     /// <summary>这套的影子（armorEffectDraw* 那几个字段）。</summary>
     public virtual void ArmorSetShadows(Player player) { }
 
-    /// <summary>这件衣服画到哪个槽：equipSlot 是槽，robes = true 表示长袍（占腿）。</summary>
-    public virtual void SetMatch(bool male, ref int equipSlot, ref bool robes) { }
+    /// <summary>画盔甲时的颜色（可写引用）。经装备贴图分派；装备贴图注册入口删除后等基线装备 API 移植再接。</summary>
+    public virtual void DrawArmorColor(Player drawPlayer, float shadow, ref Color color, ref int glowMask,
+                                       ref Color glowMaskColor) { }
 
-    /// <summary>穿着这张贴图时每帧一次；type 是 EquipType。</summary>
-    public virtual void EquipFrameEffects(Player player, int type) { }
+    /// <summary>画手臂盔甲的辉光（可写引用）。经装备贴图分派；同 DrawArmorColor 待基线装备 API。</summary>
+    public virtual void ArmorArmGlowMask(Player drawPlayer, float shadow, ref int glowMask, ref Color color) { }
 
     /// <summary>空中这对翅膀的五个可写引用。</summary>
-    public virtual void VerticalWingSpeeds(Item item, Player player, ref float ascentWhenFalling, ref float ascentWhenRising,
-                                           ref float maxCanAscendMultiplier, ref float maxAscentMultiplier, ref float constantAscend) { }
+    public virtual void VerticalWingSpeeds(Player player, ref float ascentWhenFalling, ref float ascentWhenRising,
+                                           ref float maxCanAscendMultiplier, ref float maxAscentMultiplier,
+                                           ref float constantAscend) { }
 
     /// <summary>空中平飞的加速度和速度（两个可写引用）。</summary>
-    public virtual void HorizontalWingSpeeds(Item item, Player player, ref float speed, ref float acceleration) { }
+    public virtual void HorizontalWingSpeeds(Player player, ref float speed, ref float acceleration) { }
 
     /// <summary>true：翅膀由 mod 自己动画（游戏的 WingFrame 不跑）。</summary>
     public virtual bool WingUpdate(Player player, bool inUse) => false;
 
-    /// <summary>这对翅膀的 WingStats（在 SetStaticDefaults 里用，像 TL 的 ExMod）。</summary>
-    public void SetWingStats(int flyTime = 100, float flySpeedOverride = -1f, float accelerationMultiplier = 1f,
-                             bool hasHoldDownHoverFeatures = false, float hoverFlySpeedOverride = -1f,
-                             float hoverAccelerationMultiplier = 1f)
-    {
-        var slot = Item != null ? Item.wingSlot : -1;
-        if (slot <= 0) throw new InvalidOperationException($"{GetType().Name}.SetWingStats: 这物品没有翅膀（{TexturePath}）");
+    /// <summary>false：这个饰品槽装不上。</summary>
+    public virtual bool CanEquipAccessory(Player player, int slot, bool modded) => true;
 
-        var stats = ArmorIDs.Wing.Sets.Stats[slot];
-        stats.FlyTime = flyTime;
-        stats.AccRunSpeedOverride = flySpeedOverride;
-        stats.AccRunAccelerationMult = accelerationMultiplier;
-        stats.HasDownHoverStats = hasHoldDownHoverFeatures;
-        stats.DownHoverSpeedOverride = hoverFlySpeedOverride;
-        stats.DownHoverAccelerationMult = hoverAccelerationMultiplier;
-    }
+    /// <summary>false：这对饰品不能同时装（拖进槽和点着换都问）。</summary>
+    public virtual bool CanAccessoryBeEquippedWith(Item equippedItem, Item incomingItem, Player player) => true;
+
+    // ===================== 回复 =====================
+
+    /// <summary>回的血量（可写引用），基准是正的回血量。</summary>
+    public virtual void GetHealLife(Player player, bool quickHeal, ref int healValue) { }
+
+    /// <summary>回的魔量（可写引用）。</summary>
+    public virtual void GetHealMana(Player player, bool quickHeal, ref int healValue) { }
+
+    /// <summary>药水延时（可写引用），在否决判定（ApplyPotionDelay）之前。</summary>
+    public virtual void ModifyPotionDelay(Player player, ref int baseDelay) { }
+
+    /// <summary>false：不加计时也不给药水病，回血和消耗照旧。</summary>
+    public virtual bool ApplyPotionDelay(Player player, int potionDelay) => true;
+
+    // ===================== 拾取 =====================
+
+    /// <summary>吸取范围，像素（可写引用，在游戏的范围上加）。</summary>
+    public virtual void GrabRange(Player player, ref int grabRange) { }
+
+    /// <summary>true：由 mod 自己把物品移过去（改 velocity），游戏不吸。</summary>
+    public virtual bool GrabStyle(Player player) => false;
+
+    /// <summary>false：玩家既不捡也不吸这个物品（同 TML）。</summary>
+    public virtual bool CanPickup(Player player) => true;
+
+    /// <summary>被捡起时；false = 物品直接消失，不进背包（红心、经验珠）。</summary>
+    public virtual bool OnPickup(Player player) => true;
+
+    /// <summary>true：背包满了也能捡（配 OnPickup 消耗掉）。</summary>
+    public virtual bool ItemSpace(Player player) => false;
+
+    // ===================== 前缀 =====================
+
+    /// <summary>吃近战前缀（有伤害的近战武器）。</summary>
+    public virtual bool MeleePrefix() => Item.melee && !Item.noUseGraphic;
+
+    /// <summary>吃武器类前缀（noUseGraphic 的近战物品）。</summary>
+    public virtual bool WeaponPrefix() => Item.melee && Item.noUseGraphic;
+
+    /// <summary>吃远程前缀。</summary>
+    public virtual bool RangedPrefix() => Item.ranged;
+
+    /// <summary>吃魔法前缀。</summary>
+    public virtual bool MagicPrefix() => Item.magic;
+
+    /// <summary>吃召唤前缀。</summary>
+    public virtual bool SummonPrefix() => Item.summon;
+
+    /// <summary>false：这个前缀不在候选里。</summary>
+    public virtual bool AllowPrefix(int pre) => true;
+
+    /// <summary>掷前缀时强制的那个（&gt; 0），或 -1。</summary>
+    public virtual int ChoosePrefix(UnifiedRandom rand) => -1;
+
+    /// <summary>true 强给，false 拦住，null = 游戏的（pre：-1 制作/箱子，-2 重铸）。</summary>
+    public virtual bool? PrefixChance(int pre, UnifiedRandom rand) => null;
+
+    // ===================== 右键开袋 =====================
+
+    /// <summary>true：这物品能在背包里打开（袋子、箱子）。</summary>
+    public virtual bool CanRightClick() => false;
+
+    /// <summary>打开时（ModifyItemLoot 之前）。</summary>
+    public virtual void RightClick(Player player) { }
+
+    /// <summary>false：打开不消耗这个物品。</summary>
+    public virtual bool ConsumeItem(Player player) => true;
+
+    /// <summary>物品掉落表第一次被问时跑一次：loot.Add/Remove 改掉落。</summary>
+    public virtual void ModifyItemLoot(ItemLoot itemLoot) { }
+
+    // ===================== 绘制 =====================
+
+    /// <summary>画这个物品用的颜色；返 null = 用原色（同 TML）。</summary>
+    public virtual Color? GetAlpha(Color lightColor) => null;
+
+    /// <summary>地上画它之前；rotation 和 scale 是可写引用，false = 不画（同 TML）。</summary>
+    public virtual bool PreDrawInWorld(SpriteBatch spriteBatch, Color lightColor, Color alphaColor,
+                                       ref float rotation, ref float scale, int whoAmI) => true;
+
+    /// <summary>地上画它之后（否决了也跑）。</summary>
+    public virtual void PostDrawInWorld(SpriteBatch spriteBatch, Color lightColor, Color alphaColor,
+                                        float rotation, float scale, int whoAmI) { }
+
+    /// <summary>背包里画它之前（收的是游戏算好的帧、原点和缩放）；false = 不画。</summary>
+    public virtual bool PreDrawInInventory(SpriteBatch spriteBatch, Vector2 position, Rectangle frame,
+                                           Color drawColor, Color itemColor, Vector2 origin, float scale) => true;
+
+    /// <summary>背包里画它之后（否决了也跑）。</summary>
+    public virtual void PostDrawInInventory(SpriteBatch spriteBatch, Vector2 position, Rectangle frame,
+                                            Color drawColor, Color itemColor, Vector2 origin, float scale) { }
+
+    // ===================== 网络与存档 =====================
 
     /// <summary>
     /// 这件物品要跟着原版物品包一起过网的那部分状态；对端按 <see cref="NetReceive"/> 同顺序读。
-    /// 只在安装期登记过钩子（重写本方法）时才发，其余物品不占带宽。
+    /// 只在安装期登记过钩子（重写本方法）时才发，其余物品不占带宽。NetWriter 是 Pylon 对原生 writer 的安全封装。
     /// </summary>
     public virtual void NetSend(NetWriter writer) { }
 
     /// <summary>对端收到同一次物品包时读；顺序必须和 <see cref="NetSend"/> 一致。</summary>
     public virtual void NetReceive(NetReader reader) { }
 
-    /// <summary>每帧，在背包里。</summary>
-    public virtual void UpdateInventory(Item item, Player player) { }
-
-    /// <summary>吃近战前缀（有伤害的近战武器）。</summary>
-    public virtual bool MeleePrefix(Item item) => item != null && item.melee && !item.noUseGraphic;
-
-    /// <summary>吃武器类前缀（noUseGraphic 的近战物品）。</summary>
-    public virtual bool WeaponPrefix(Item item) => item != null && item.melee && item.noUseGraphic;
-
-    /// <summary>吃远程前缀。</summary>
-    public virtual bool RangedPrefix(Item item) => item != null && item.ranged;
-
-    /// <summary>吃魔法前缀。</summary>
-    public virtual bool MagicPrefix(Item item) => item != null && item.magic;
-
-    /// <summary>吃召唤前缀。</summary>
-    public virtual bool SummonPrefix(Item item) => item != null && item.summon;
-
-    /// <summary>掷前缀时强制的那个（&gt; 0），或 -1。</summary>
-    public virtual int ChoosePrefix(Item item, UnifiedRandom rand) => -1;
-
-    /// <summary>true 强给，false 拦住，null = 游戏的（pre：-1 制作/箱子，-2 重铸）。</summary>
-    public virtual bool? PrefixChance(Item item, int pre, UnifiedRandom rand) => null;
-
-    /// <summary>false：这个前缀不在候选里。</summary>
-    public virtual bool AllowPrefix(Item item, int pre) => true;
-
-    /// <summary>前缀的数值之后跑。</summary>
-    public virtual void ApplyPrefix(Item item, int pre) { }
-
-    /// <summary>画这个物品用的颜色；返 null = 用原色。地上时 item 是 WorldItem。</summary>
-    public virtual Color? GetAlpha(Item item, Color lightColor) => null;
-
-    /// <summary>地上画它之前；rotation 和 scale 是可写引用，false = 不画。</summary>
-    public virtual bool PreDrawInWorld(Item item, SpriteBatch spriteBatch, Color lightColor, Color alphaColor,
-                                       ref float rotation, ref float scale, int whoAmI) => true;
-
-    /// <summary>地上画它之后（否决了也跑）。</summary>
-    public virtual void PostDrawInWorld(Item item, SpriteBatch spriteBatch, Color lightColor, Color alphaColor,
-                                        float rotation, float scale, int whoAmI) { }
-
-    /// <summary>背包里画它之前（收的是游戏算好的帧和缩放）；false = 不画。</summary>
-    public virtual bool PreDrawInInventory(Item item, SpriteBatch spriteBatch, Vector2 position, Rectangle frame,
-                                           Color drawColor, Color itemColor, float scale) => true;
-
-    /// <summary>背包里画它之后（否决了也跑）。</summary>
-    public virtual void PostDrawInInventory(Item item, SpriteBatch spriteBatch, Vector2 position, Rectangle frame,
-                                            Color drawColor, Color itemColor, float scale) { }
-
-    /// <summary>地上时每帧一次（item 是 WorldItem）；光照和尘土放这。</summary>
-    public virtual void PostUpdate(WorldItem item) { }
-
-    /// <summary>地上物品的更新之前；false = 这一帧跳过游戏的更新（Post 照跑）。</summary>
-    public virtual bool PreUpdateInWorld(Item item, WorldItem worldItem) => true;
-
-    /// <summary>地上物品的更新之后。</summary>
-    public virtual void PostUpdateInWorld(Item item, WorldItem worldItem) { }
-
-    /// <summary>false：玩家既不捡也不吸这个物品。</summary>
-    public virtual bool CanPickup(WorldItem worldItem, Player player) => true;
-
-    /// <summary>被捡起时；false = 物品直接消失，不进背包（红心、经验珠）。</summary>
-    public virtual bool OnPickup(WorldItem worldItem, Player player) => true;
-
-    /// <summary>true：背包满了也能捡（配 OnPickup 消耗掉）。</summary>
-    public virtual bool ItemSpace(Item item, Player player) => false;
-
-    /// <summary>吸取范围，像素（可写引用，在游戏的范围上加）。</summary>
-    public virtual void GrabRange(WorldItem worldItem, Player player, ref int grabRange) { }
-
-    /// <summary>true：由 mod 自己把物品移过去（改 worldItem.velocity），游戏不吸。</summary>
-    public virtual bool GrabStyle(WorldItem worldItem, Player player) => false;
-
-    /// <summary>鱼线从哪儿出来、什么颜色（两个可写引用，像素）。</summary>
-    public virtual void ModifyFishingLine(Item item, Projectile bobber, ref Vector2 lineOriginOffset, ref Color lineColor) { }
-
     /// <summary>物品随玩家存档保存的自定义数据（写进侧车行；mod 卸载期间由？池原样保管）。</summary>
-    public virtual void SaveData(Item item, TagCompound tag) { }
+    public virtual void SaveData(TagCompound tag) { }
 
     /// <summary>读档后按保存的数据恢复（与 SaveData 配对）。</summary>
-    public virtual void LoadData(Item item, TagCompound tag) { }
-
-    /// <summary>照抄一个原版物品的字段（游戏这个版本没有 Item.CloneDefaults）。</summary>
-    public void CloneDefaults(int type)
-    {
-        var source = new Item();
-        source.SetDefaults(type, null);
-
-        foreach (var property in typeof(Item).GetProperties(BindingFlags.Public | BindingFlags.Instance))
-        {
-            if (!property.CanRead || !property.CanWrite || property.Name == "type") continue;
-            if (property.PropertyType.IsArray || typeof(Delegate).IsAssignableFrom(property.PropertyType)) continue;
-
-            // interop 的属性 setter 对个别字段会抛（类型不支持），跳过它继续抄其它字段。
-            try { property.SetValue(Item, property.GetValue(source)); }
-            catch (Exception) { }
-        }
-    }
-
-    /// <summary>使用时间、动画长度、自动连发和最合适的 useStyle。
-    /// ⚠ 坑（手机版）：读 item.shoot 定样式——shoot&gt;0 且非消耗品 → Shoot（远程，走 ItemCheck_Shoot 路径，ItemLoader 才能接管）；
-    /// 否则 Swing（近战，剑气走别的路径、依赖 ai）。必须先设 item.shoot 再调本方法，顺序反了拿 0 → 误判 Swing → 弹幕永不发射。</summary>
-    public void SetDefaultWeaponStyle(int useTime = 30, bool autoReuse = false)
-    {
-        var item = Item;
-        item.useTime = useTime;
-        item.useAnimation = useTime;
-        item.autoReuse = autoReuse;
-
-        if (item.melee) item.useStyle = (byte)ItemUseStyleID.Swing;
-        else if (item.shoot > 0 && !item.consumable) item.useStyle = (byte)ItemUseStyleID.Shoot;
-        else item.useStyle = (byte)ItemUseStyleID.Swing;
-    }
-
-    /// <summary>伤害、击退、暴击三个一起写。</summary>
-    public void SetWeaponValues(int damage = 0, float knockBack = 0f, int crit = 0)
-    {
-        Item.damage = damage;
-        Item.knockBack = knockBack;
-        Item.crit = crit;
-    }
-
-    /// <summary>稀有度和价格。</summary>
-    public void SetShopValues(int rarity = 0, int coinValue = 0)
-    {
-        Item.rare = rarity;
-        Item.value = coinValue;
-    }
-
-    /// <summary>一个放方块的物品。</summary>
-    public void DefaultToPlaceableTile(int typeToPlace, int styleToPlace = 0)
-    {
-        var item = Item;
-        item.createTile = typeToPlace;
-        item.placeStyle = styleToPlace;
-        item.useStyle = (byte)ItemUseStyleID.Swing;
-        item.useAnimation = 15;
-        item.useTime = 10;
-        item.maxStack = CommonMaxStack;
-        item.useTurn = true;
-        item.autoReuse = true;
-        item.consumable = true;
-    }
-
-    /// <summary>一个放墙的物品。</summary>
-    public void DefaultToPlaceableWall(ushort wallToPlace)
-    {
-        Item.DefaultToPlaceableWall(wallToPlace);
-        Item.createWall = wallToPlace;
-    }
-
-    /// <summary>游戏的火把（举着、发光、上墙），放的是 mod 的 tile。</summary>
-    public void DefaultToTorch(int tileType, int styleToPlace = 0, bool allowWaterPlacement = false)
-    {
-        Item.DefaultToTorch(styleToPlace, allowWaterPlacement);
-        Item.createTile = tileType;
-    }
-
-    /// <summary>游戏的音乐盒，放的是 mod 的 tile。</summary>
-    public void DefaultToMusicBox(int tileType, int styleToPlace = 0)
-    {
-        Item.DefaultToMusicBox(styleToPlace);
-        Item.createTile = tileType;
-        Item.placeStyle = styleToPlace;
-    }
-
-    /// <summary>一条鞭子。</summary>
-    public void DefaultToWhip(int projType, int damage, float knockBack, float shootSpeed, int animationTime = 30) =>
-        Item.DefaultToWhip(projType, damage, knockBack, shootSpeed, animationTime);
-
-    /// <summary>一把长矛。</summary>
-    public void DefaultToSpear(int projType, float pushForwardSpeed, int animationTime) =>
-        Item.DefaultToSpear(projType, pushForwardSpeed, animationTime);
-
-    /// <summary>一个高尔夫球。</summary>
-    public void DefaultToGolfBall(int projType) => Item.DefaultToGolfBall(projType);
-
-    /// <summary>白金/金/银/铜拼出来的卖价（单位铜）。</summary>
-    public static int SellPrice(int platinum = 0, int gold = 0, int silver = 0, int copper = 0) =>
-        Item.sellPrice(platinum, gold, silver, copper);
-
-    /// <summary>白金/金/银/铜拼出来的买价（单位铜）。</summary>
-    public static int BuyPrice(int platinum = 0, int gold = 0, int silver = 0, int copper = 0) =>
-        Item.buyPrice(platinum, gold, silver, copper);
-
-    /// <summary>这个编号是不是某个 mod 物品。</summary>
-    public static bool IsModType(int type) => ModContent.IsCustom(ContentKind.Item, type);
-
-    /// <summary>这物品是不是某个 mod 物品。</summary>
-    public static bool IsModItem(Item item) => item != null && IsModType(item.type);
+    public virtual void LoadData(TagCompound tag) { }
 
     /// <summary>这个编号的游戏样表那一份（IsVanitySet 用；没有就是 0 号）。</summary>
     private static Item Sample(int type) =>
@@ -568,5 +436,5 @@ public abstract class ModItem : ModType
     }
 }
 
-// 未移植 NetSend/NetReceive 与 AddRecipeGroups/AddRecipes/CreateRecipe/CreateRecipeGroup：网络、配方注册在各自管线里；物品存档（SaveData/LoadData）由 ItemSavePipeline 分派。
-// 未移植弹药整块与命中整块：要的 StatModifier / HitModifiers / HitInfo 在本版游戏元数据里没有。
+// 分派未接的声明钩子见各方法注释；接分派时同步 HookId（追加区）与调用点。
+// NetSend/NetReceive 用 Pylon 的 NetWriter/NetReader（原生 writer 的安全封装），形状与基准的 BinaryWriter 等价。

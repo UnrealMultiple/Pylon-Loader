@@ -42,9 +42,6 @@ public abstract class ModWall : ModType
     /// <summary>只放共享数值，不要碰游戏对象。</summary>
     public override void SetStaticDefaults() { }
 
-    /// <summary>所有内容安装完成之后一次（跨 Mod 引用放这里）。</summary>
-    public virtual void PostSetupContent() { }
-
     /// <summary>登记一条地图项：颜色 + 名字（null = 用 <see cref="CreateMapEntryName"/>）；键拼法与注册在管线里做。</summary>
     public virtual void AddMapEntry(Color color, LocalizedText? name = null)
     {
@@ -73,10 +70,10 @@ public abstract class ModWall : ModType
     public virtual void ModifyLight(int i, int j, ref float r, ref float g, ref float b) { }
 
     /// <summary>每帧一次，整个类型共用；frame 选帧表的那条 180 px。</summary>
-    public virtual void AnimateWall(ref int frame, ref int frameCounter) { }
+    public virtual void AnimateWall(ref byte frame, ref byte frameCounter) { }
 
     /// <summary>世界的随机更新（和方块的同一处）。</summary>
-    public virtual void RandomUpdate(int i, int j) { }
+    public virtual void RandomUpdate(int i, int j, bool underground) { }
 
     /// <summary>边框；返回 false = 保持原来的边框，style/frameNumber 可换边框帧。</summary>
     public virtual bool WallFrame(int i, int j, bool randomizeFrame, ref int style, ref int frameNumber) => true;

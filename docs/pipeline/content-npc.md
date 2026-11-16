@@ -113,3 +113,42 @@ NPC 与弹幕相反，是 **Global 先、本 NPC 后**（`AI` / `PostAI` 除外�
 * **音乐**：`ModNpc.Music` / `SceneEffectPriority` 由音乐管线读取。
 * **网络**：`SendExtraAI` / `ReceiveExtraAI` 归网络管线；聊天按钮点击是本地行为。
 * **安装管线**：静态默认值、样例、贴图槽、商店登记归安装管线；本管线不写表。
+
+## 2026-11-17 批：B8 补全接线（三波）
+
+- 已接：SpecialOnKill（NPCLoot/DropEoWLoot 前缀 gate，GlobalNpc 先 ModNpc 结论）、ModifyTypeName（get_TypeName）、CanFallThroughPlatforms（Nullable 链）、CanBeCaughtBy/OnCaughtBy（ItemCheck_CatchCritters 整段接管，基线循环照抄）、UsesPartyHat、DrawHealthBar（实体血条阶段作用域 + FindHealthBarOwner 轮转配对）、ModifyHoverBoundingBox/PreHoverInteract（HoverOverNPCs 暂移/暂藏恢复）、ModifyActiveShop（SetupShop 后快照 Item[]，写回补 isAShopItem）、NeedSaving/SaveData/LoadData（NpcSavePipeline 侧车行 "d" 键）。
+- blocked：PartyHatPosition/ChatBubblePosition（原生绘制调节桥）、TownNPCProfile（缺 ITownNPCProfile 具体实现）。
+
+## 2026-11-17 批：T4 死亡消息五入口链
+
+- 已接：`Pipelines/Npc/NpcDeathMessageHooks.cs`——`checkDead` / `DoDeathEvents_CelebrateBossDeath` 换入换出线程死亡状态（dying / deathMessageDone，仅覆写了 ModifyDeathMessage 的 NPC 或存在全局覆写时）；`Main.NewText` 两重载与 `Chat.ChatHelper.BroadcastChatMessage` 三个出口在城镇死色(255,25,25)/首领死色(175,75,255)上截获：先按 `ModNpc.DeathMessage` 属性拼字面文本，再走 ModifyDeathMessage 链——全局先（返回 false = 整条吞掉），ModNpc 后（返回 false = 吞掉，true = 用 custom/color 放行）。
+
+## 2026-11-17 批：T3 雕像对（CanGoToStatue/OnGoToStatue）
+
+- 已接：王座/后座雕像电线整段接管（`Pipelines/Npc/NpcStatueWire.cs`，挂在 TilePipeline 的 `Wiring.HitWireSingle` 作用域内）。识别 105 号雕像格（style 40=王座 / 41=后座）→ SkipWire 2×3 → CheckMech(300) → 候选收集（覆写 `CanGoToStatue` 的 mod NPC 作者定论：ModNpc bool、GlobalNpc bool?（false 否决/true 拍板/null 交原版类型表）→ 随机选一只 Teleport(style 14) 到雕像脚下 → `OnGoToStatue` 链。风格命中即接管，CheckMech 失败也不走原版。
+- 同批补：电线作用域（基线 TileHooks.WireScope 同款，`TilePipeline.WireScope`）——同点重入放行、owner 释放时派发 ModTile/GlobalTile 的 `HitWire`（对齐基线改到原版之后）；构造期派发 `GlobalTile.PreHitWire`。
+- 本批追删：NPCHeadSlot、ApplyBuffImmunity、HideFromBestiary/BestiaryRarityStars/BestiaryIcon、HideFromModMenu、CloneDefaults、NPCValue。
+
+## 2026-11-17 批：T2 镇攻八件套（中体桥）
+
+- 已接：TownNPCAttackStrength/Cooldown/Proj/ProjSpeed/Shoot/Magic/Swing + DrawTownAttackGun/DrawTownAttackSwing + 全局 BuffTownNPC（`Pipelines/Npc/NpcTownAttackHooks.cs`）。游戏 AI_007 本来就有城镇 NPC 的通用攻击段（投掷/开枪/施法/挥舞），桥在其 4 个攻击取值点、3 个散布调用点、1 个光环调用点、1 个挥舞宽高调用点、1 个命中盒修正点、DrawNPCExtras 2 个绘制点共 12 处中体拦截（指纹校验同 SystemStages；16 字节指纹逐字核对过本仓库 libil2cpp.so），作者链改完参数写回寄存器/栈，原版指令照常执行。
+- 门控：每类型位表（声明了攻击钩子的 mod NPC 才建作用域/分派）；有 BuffTownNPC 全局时全体安装（伤害乘数要作用于原版城镇 NPC 攻击，基线 InstallAll 同款）。
+- 语义照基线 NpcTownHooks.cpp + TownAttackHooks.cs：AttackArgs 逐 mode 的寄存器/栈槽映射、伤害先乘 TownDamage 再走作者链、extra/宽高钳 ≥1、random/aura 非有限回退、scope（mode+改后参数）供散布/光环/挥舞桥读取。
+- CanChat（基线 kind 6）核对并对齐：ForceCanTalk 改为"覆写了 CanChat 的 mod NPC 由作者定论（异常回原版），全局 false 一票否决 / true 拍板 / null 不参与"。
+- 样例：PipelineTest 的 TestTownNpc 加投掷样式四钩子（Strength/Cooldown/Proj/ProjSpeed），真机验收看攻击参数与日志。
+
+## 2026-11-17 批：T15 表情全局链 + T17 城镇 NPC 档案
+
+- GlobalNpc 表情两钩子补链（`Pipelines/EmoteBubble/EmoteBubblePipeline.cs`）：`PickEmote` 与
+  `EmoteBubblePosition` 从"只派 ModNpc"扩为「ModNpc 先答 → GlobalNpc 逐个补答」（基线
+  NPCLoader.Emotes 链；PickEmote 非 null 直接换掉结果，一方抛错不拦后面的）。
+- 城镇 NPC 外观档案已接（`Pipelines/Npc/NpcProfilePipeline.cs`，安装步"城镇 NPC 档案"）：
+  本构建的 `Terraria.GameContent.TownNPCProfiles` 档案系统是活的——`RerollVariation`（变体摇号）、
+  `GiveTownUniqueDataToNPCsThatNeedIt`（命名）、`DrawNPCCheckAlt`（贴图）、`GetHeadIndexSafe`
+  （头像）都查它的表。作者在 `ModNPC.TownNPCProfile()` 返回**游戏自带的具体实现**
+  （Profiles.LegacyNPCProfile / Profiles.VariantNPCProfile / TownNPCProfiles.LegacyWithSimpleShimmer；
+  托管类实现不了 il2cpp 接口，构造游戏类不需要），注册期写进 `Instance._townNPCProfiles`，
+  之后游戏自己按表查询。`GlobalNPC.ModifyTownNPCProfile` 在 mod 档案之后跑，非 null 直接换掉
+  （null 保持原版/mod 自己的；参数用 ContentSamples 样例 NPC）。只有 townNPC 样例才注册
+  （基线 IsTownSample 同款）。档案对象须可复用（注册期解析一次，与原版表语义一致）。
+- 样例：TestTownNpc 用 Guide 贴图路径注册档案；NPC-T2 断言档案进了游戏表。

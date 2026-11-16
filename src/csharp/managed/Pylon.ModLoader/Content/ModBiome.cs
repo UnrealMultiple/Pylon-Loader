@@ -25,6 +25,21 @@ public abstract class ModBiome : ModSceneEffect
     /// <summary>优先级 BiomeLow = 1；都激活时高的抢到音乐/背景/水。</summary>
     public override int Priority => 1;
 
+    /// <summary>图鉴元素（群落管线注册图鉴时建；null = 没建）。</summary>
+    internal Terraria.GameContent.Bestiary.SpawnConditionBestiaryInfoElement? BestiaryElement { get; set; }
+
+    /// <summary>这个群落的火把（玩家在群落里时选火把用）；-1 = 不管。手机版没有原版群落火把字段、基线也算而未用（blocked，见审计）。</summary>
+    public virtual int BiomeTorchItemType => -1;
+
+    /// <summary>这个群落的营火（同上；同因 blocked）。</summary>
+    public virtual int BiomeCampfireItemType => -1;
+
+    /// <summary>图鉴图标的贴图路径（30×30）；空 = 不换图标。</summary>
+    public virtual string BestiaryIcon => "";
+
+    /// <summary>群落图鉴背景的贴图路径（115×65）；空 = 用游戏的。</summary>
+    public virtual string BackgroundPath => "";
+
     /// <summary>图鉴头像背景色；null = 不换（用游戏的）。</summary>
     public virtual Color? BackgroundColor { get; set; }
 

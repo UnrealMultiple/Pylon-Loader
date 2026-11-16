@@ -6,10 +6,7 @@ using Terraria.Localization;
 
 namespace Pylon.ModLoader;
 
-/// <summary>
-/// 前缀表：类型 ↔ 实例、分类索引、名字表、原版表读取。
-/// 安装期与运行时写的是同一张表，所以不依赖管线实例。
-/// </summary>
+/// <summary>前缀表：类型 ↔ 实例、分类索引、名字表、原版表读取；安装期与运行时共用同一张表，不依赖管线实例。</summary>
 internal static class PrefixTable
 {
     private static readonly List<ModPrefix> ByType = [];
@@ -35,7 +32,6 @@ internal static class PrefixTable
     internal static List<ModPrefix> InCategory(int category) =>
         ByCategory.TryGetValue(category, out var list) ? list : [];
 
-    /// <summary>注册期只记账：那时语言还没加载，写进 Lang.prefix 会让启动卡住。</summary>
     internal static void Register(ModPrefix prefix)
     {
         if (prefix is null) return;
@@ -43,7 +39,6 @@ internal static class PrefixTable
         var category = prefix.Category;
         if (category < ModPrefix.CategoryMelee || category > ModPrefix.CategoryCustom)
         {
-            // 注册是一次遍历：抛出去会带走同批内容，所以退成 Custom + 报一条。
             Report(prefix, $"Category 要用 0..6，收到 {category}；按 Custom 处理");
             category = ModPrefix.CategoryCustom;
         }
@@ -51,7 +46,6 @@ internal static class PrefixTable
         if (!ByCategory.TryGetValue(category, out var list)) ByCategory[category] = list = [];
         list.Add(prefix);
 
-        // 槽表：运行时按号反查全靠它（all[type - VanillaCount] = prefix）。
         var slot = prefix.Type - VanillaCount;
         if (slot < 0)
         {
@@ -67,12 +61,10 @@ internal static class PrefixTable
         var key = "Mods." + (prefix.Mod is not null ? prefix.Mod.Name : "Mod") + ".Prefixes." + prefix.Name + ".DisplayName";
         Names[prefix.Type] = new Name(key, text);
 
-        // item.prefix 是 byte：超过 255 会串号，存档也跟着错位。
         if (prefix.Type > 255)
             Report(prefix, $"前缀号 {prefix.Type} 超过 255（item.prefix 是 byte），存档会错位");
     }
 
-    /// <summary>内容就绪：写表 → 标记 mod 物品可加前缀 → 跑静态默认值。</summary>
     internal static void Build(IModLog log)
     {
         var all = ModContent.GetContent<ModPrefix>();
@@ -98,7 +90,6 @@ internal static class PrefixTable
         log.Info($"[prefix] 安装：{all.Count} 个（类型 {VanillaCount}..{Count - 1}）");
     }
 
-    /// <summary>Lang.prefix 与 ReducedNaturalChance 跟着前缀总数长；换语言后游戏会重建，所以每次都要重填。</summary>
     internal static void WriteNames()
     {
         var total = Count;
@@ -123,7 +114,6 @@ internal static class PrefixTable
         }
     }
 
-    /// <summary>mod 物品在 CanGetPrefixes 里是扩表时按 false 填的，会连 Item.Prefix 都进不去。</summary>
     private static void MarkPrefixable(IModLog log)
     {
         var canGet = ItemID.Sets.CanGetPrefixes;
@@ -169,7 +159,6 @@ internal static class PrefixTable
 
     private static readonly Dictionary<Type, HookMask> ItemMasks = [];
 
-    /// <summary>ModItem 的钩子位集（按基类 ModItem 算，缓存在这里，不动物品管线的基类）。</summary>
     internal static bool HasHook(ModItem item, HookId hook)
     {
         var type = item.GetType();
@@ -182,7 +171,6 @@ internal static class PrefixTable
         return mask.Has(hook);
     }
 
-    /// <summary>物品能拿哪些分类的前缀：原版写死的 id 集合 + 作者在 ModItem 上的问询，任一命中即算。</summary>
     internal static int[] CategoriesOf(Item item)
     {
         var type = item.type;
@@ -198,15 +186,15 @@ internal static class PrefixTable
             else if (weapon && Ask(modItem!, ask)) list.Add(category);
         }
 
-        Take(ModPrefix.CategoryMelee, LegacySet("SwordsHammersAxesPicks", type), () => modItem!.MeleePrefix(item));
-        Take(ModPrefix.CategoryRanged, LegacySet("GunsBows", type), () => modItem!.RangedPrefix(item));
-        Take(ModPrefix.CategoryMagic, LegacySet("Magic", type), () => modItem!.MagicPrefix(item));
-        Take(ModPrefix.CategorySummon, LegacySet("Summon", type), () => modItem!.SummonPrefix(item));
+        Take(ModPrefix.CategoryMelee, LegacySet("SwordsHammersAxesPicks", type), () => modItem!.MeleePrefix());
+        Take(ModPrefix.CategoryRanged, LegacySet("GunsBows", type), () => modItem!.RangedPrefix());
+        Take(ModPrefix.CategoryMagic, LegacySet("Magic", type), () => modItem!.MagicPrefix());
+        Take(ModPrefix.CategorySummon, LegacySet("Summon", type), () => modItem!.SummonPrefix());
 
         var anyWeapon = LegacySet("SpearsMacesChainsawsDrillsPunchCannon", type) ||
                         LegacySet("BoomerangsChakrams", type) ||
                         LegacySet("ItemsThatCanHaveLegendary2", type) ||
-                        (weapon && Ask(modItem!, () => modItem!.WeaponPrefix(item))) ||
+                        (weapon && Ask(modItem!, () => modItem!.WeaponPrefix())) ||
                         list.Count > 0;
         if (anyWeapon) list.Add(ModPrefix.CategoryAnyWeapon);
 
@@ -237,7 +225,6 @@ internal static class PrefixTable
         }
     }
 
-    /// <summary>某个分类在游戏里对应的原版前缀表（mod 物品要靠它拿到原版前缀）。</summary>
     internal static int[] VanillaPrefixes(int category) => category switch
     {
         ModPrefix.CategoryMelee => Legacy("Prefixes", "PrefixesForSwords") as int[] ?? [],
@@ -255,7 +242,6 @@ internal static class PrefixTable
         LoaderHost.Current.Log.Warn($"[prefix] {prefix.Name}: {message}");
     }
 
-    // PrefixLegacy 的两个嵌套类在 interop 里是 internal：反射读一次，结果缓存。
     private static readonly Dictionary<string, Type?> LegacyTypes = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, object?> LegacyValues = new(StringComparer.Ordinal);
     private static readonly HashSet<string> LegacyDumped = new(StringComparer.Ordinal);
@@ -271,7 +257,6 @@ internal static class PrefixTable
         }
         catch
         {
-            // 没有这个嵌套类型时按缺表处理。
         }
 
         LegacyTypes[nested] = found;
@@ -304,7 +289,6 @@ internal static class PrefixTable
         return value;
     }
 
-    /// <summary>表名对不上时唯一能自证的线索：把真实成员名打一条。</summary>
     private static void Dump(string nested, Type type)
     {
         if (!LegacyDumped.Add(nested)) return;
@@ -338,7 +322,6 @@ internal static class PrefixTable
         }
     }
 
-    // 在发布原生表之前完成副本；引用数组的隐式转换仍逐项走运行时索引器与 GC 写屏障。
     private static LocalizedText[] Grow(LocalizedText[]? old, int length)
     {
         var grown = new LocalizedText[length];

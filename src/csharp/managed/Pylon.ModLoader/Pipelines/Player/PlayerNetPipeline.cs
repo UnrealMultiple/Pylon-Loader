@@ -2,15 +2,11 @@ using Terraria;
 
 namespace Pylon.ModLoader;
 
-/// <summary>
-/// 玩家客户端状态通道：群落状态机那类"只算自己"的数据要过网，得有人把"我看别人"的那份补上。
-/// 原版走法是三段：进世界时 SyncPlayer、每帧 clientClone + SendClientChanges、断开时 SyncDisconnectedPlayer。
-/// </summary>
+/// <summary>玩家客户端状态通道：进世界 SyncPlayer、每帧 clientClone + SendClientChanges、断开 SyncDisconnectedPlayer；补上"我看别人"的那份 mod 状态。</summary>
 internal sealed class PlayerNetPipeline : ILoaderModule
 {
     public static PlayerNetPipeline Instance { get; } = new();
 
-    // 基线：本地玩家上一份"客户端看到的样子"，每帧比对用；换人（重连 / 换槽）就换基线。
     private Player _baseline = null!;
     private ModPlayer[] _baselineMods = [];
     private bool _hasBaseline;
@@ -36,7 +32,6 @@ internal sealed class PlayerNetPipeline : ILoaderModule
 
     private static bool Wants(HookId hook) => PlayerPipeline.Instance.ModsActive(hook);
 
-    /// <summary>原版克隆玩家之后，把 mod 状态也复制一份（作者在 CopyClientState 里写哪些字段）。</summary>
     private static void CopyInto(Player from, Player to)
     {
         if (!Wants(HookId.CopyClientState)) return;
@@ -51,7 +46,7 @@ internal sealed class PlayerNetPipeline : ILoaderModule
 
             try
             {
-                source[i].CopyClientState(from, target[i]);
+                source[i].CopyClientState(target[i]);
             }
             catch (Exception e)
             {
@@ -77,7 +72,6 @@ internal sealed class PlayerNetPipeline : ILoaderModule
         return clone;
     }
 
-    /// <summary>客户端每帧：先和基线比对（SendClientChanges），原版跑完之后重打基线。</summary>
     private void UpdateClient(On.Terraria.Main.orig_UpdateClient orig)
     {
         if (Main.gameMenu || Main.netMode != 1 || Main.player[Main.myPlayer] is not { } me)
@@ -98,7 +92,7 @@ internal sealed class PlayerNetPipeline : ILoaderModule
 
                 try
                 {
-                    mods[i].SendClientChanges(me, _baselineMods[i]);
+                    mods[i].SendClientChanges(_baselineMods[i]);
                 }
                 catch (Exception e)
                 {
@@ -114,7 +108,6 @@ internal sealed class PlayerNetPipeline : ILoaderModule
 
         orig();
 
-        // 基线在原版同步之后重打：作者在 SendClientChanges 里发的字段下一帧才会被当成"已经发过了"。
         if (!_hasBaseline || !ReferenceEquals(_baseline, me))
         {
             _baseline = me;
@@ -132,7 +125,7 @@ internal sealed class PlayerNetPipeline : ILoaderModule
 
                 try
                 {
-                    current[i].CopyClientState(me, snapshot[i]);
+                    current[i].CopyClientState(snapshot[i]);
                 }
                 catch (Exception e)
                 {
@@ -142,7 +135,6 @@ internal sealed class PlayerNetPipeline : ILoaderModule
         }
     }
 
-    /// <summary>原生玩家同步之后：作者在这里把自己那份数据发出去（通常借 ModPacket）。</summary>
     private void SyncOnePlayer(On.Terraria.NetMessage.orig_SyncOnePlayer orig, int plr, int toWho, int fromWho)
     {
         orig(plr, toWho, fromWho);
@@ -160,7 +152,7 @@ internal sealed class PlayerNetPipeline : ILoaderModule
 
             try
             {
-                mods[i].SyncPlayer(player, toWho, fromWho, newPlayer);
+                mods[i].SyncPlayer(toWho, fromWho, newPlayer);
             }
             catch (Exception e)
             {
@@ -169,7 +161,6 @@ internal sealed class PlayerNetPipeline : ILoaderModule
         }
     }
 
-    /// <summary>玩家连上（含本机）：作者在这里初始化联机状态。</summary>
     private void Connected(On.Terraria.Player.Hooks.orig_PlayerConnect orig, int playerIndex)
     {
         orig(playerIndex);
@@ -186,7 +177,7 @@ internal sealed class PlayerNetPipeline : ILoaderModule
 
             try
             {
-                mods[i].PlayerConnect(player);
+                mods[i].PlayerConnect();
             }
             catch (Exception e)
             {
@@ -195,7 +186,6 @@ internal sealed class PlayerNetPipeline : ILoaderModule
         }
     }
 
-    /// <summary>游戏侧报告的断线：和 NetMessage 的清场钩子互补。</summary>
     private void Disconnected(On.Terraria.Player.Hooks.orig_PlayerDisconnect orig, int playerIndex)
     {
         if (Main.netMode != 0 && playerIndex >= 0 && playerIndex < Main.player.Length)
@@ -210,7 +200,7 @@ internal sealed class PlayerNetPipeline : ILoaderModule
 
                     try
                     {
-                        mods[i].PlayerDisconnect(player);
+                        mods[i].PlayerDisconnect();
                     }
                     catch (Exception e)
                     {
@@ -225,7 +215,6 @@ internal sealed class PlayerNetPipeline : ILoaderModule
         if (playerIndex == Main.myPlayer) _hasBaseline = false;
     }
 
-    /// <summary>进世界：本机客户端再发一次 SyncPlayer(-1, whoAmI, true)，并派发 OnEnterWorld。</summary>
     private void EnteredWorld(On.Terraria.Player.Hooks.orig_EnterWorld orig, int playerIndex)
     {
         orig(playerIndex);
@@ -244,7 +233,7 @@ internal sealed class PlayerNetPipeline : ILoaderModule
 
                 try
                 {
-                    mods[i].SyncPlayer(player, -1, playerIndex, newPlayer: true);
+                    mods[i].SyncPlayer(-1, playerIndex, newPlayer: true);
                 }
                 catch (Exception e)
                 {
@@ -262,7 +251,7 @@ internal sealed class PlayerNetPipeline : ILoaderModule
 
             try
             {
-                list[i].OnEnterWorld(player);
+                list[i].OnEnterWorld();
             }
             catch (Exception e)
             {
@@ -271,7 +260,6 @@ internal sealed class PlayerNetPipeline : ILoaderModule
         }
     }
 
-    /// <summary>断线清场：先把"玩家还在"的最后机会给作者，再交给原版。</summary>
     private void SyncDisconnectedPlayer(On.Terraria.NetMessage.orig_SyncDisconnectedPlayer orig, int plr)
     {
         if (Wants(HookId.PlayerDisconnect) && plr >= 0 && plr < Main.player.Length)
@@ -286,7 +274,7 @@ internal sealed class PlayerNetPipeline : ILoaderModule
 
                     try
                     {
-                        mods[i].PlayerDisconnect(player);
+                        mods[i].PlayerDisconnect();
                     }
                     catch (Exception e)
                     {

@@ -10,12 +10,15 @@
 | `WorldGen.KillTile_MakeTileDust` | `CreateDust`（每粒尘土，可换类型/不出） |
 | `WorldGen.KillTile_DropItems` | `CanDrop` + `GetItemDrops` + `ItemDrop`／`RegisterItemDrop` 的掉落表 |
 | `WorldGen.TileFrame` | `TileFrame`（边框重算，可否决） |
-| `Wiring.HitWireSingle` | `HitWire` |
+| `Wiring.HitWireSingle` | `GlobalTile.PreHitWire`（false = 信号不到这格）→ 王座/后座雕像整段接管（`NpcStatueWire`，见 content-npc）→ 原版信号 → `HitWire`（ModTile 与 GlobalTile，作用域释放后在原版之后跑；同点重入不重复派发） |
 | `Player.AdjTiles` | `AdjTiles`（这块也算制作站） |
-| `Player.TileInteractionsUse` | `RightClick`（返回 true = 已处理）、`HasSmartInteract` |
+| `Player.TileInteractionsUse` | `RightClick`（返回 true = 已处理） |
+| `TileSmartInteractCandidateProvider.FillPotentialTargetTiles` | `HasSmartInteract`（智能光标候选逐格问，`JoinValue` 去重进 targets） |
+| `WorldGen.PlaceTile` / `TileObjectData.CallPostPlacementPlayerHook` | `PlaceInWorld`（玩家放成功后，ModTile 先、GlobalTile 后；由 TileEntity 管线代分派） |
+| `SceneMetrics.Scan` | `NearbyEffects`（buff 区域 closer=false + 视觉区域 closer=true，ModTile 先、GlobalTile 后；`TileEffectsHooks` 分派） |
 | `Tile_PC.slope_1` | `Slope`（锤子敲，false = 不变） |
 
-**不接**（本版没有逐格的游戏入口，见第 2 节）：`PlaceInWorld`、`ModifyLight`、`AnimateTile`／`AnimateIndividualTile`、`SetDrawPositions`／`SetSpriteEffects`／`PreDraw`／`PostDraw`／`DrawEffects`／`SpecialDraw`／`EmitParticles`、`NearbyEffects`、`RandomUpdate`、`MouseOver`／`MouseOverFar`、`KillSound`、`CanExplode`、`GrowSapling`、`ModifySittingTargetInfo`／`ModifySleepingTargetInfo`、箱子四个钩子。
+**不接**（本版没有逐格的游戏入口，见第 2 节）：`ModifyLight`、`AnimateTile`／`AnimateIndividualTile`、`SetDrawPositions`／`SetSpriteEffects`／`PreDraw`／`PostDraw`／`DrawEffects`／`SpecialDraw`／`EmitParticles`、`RandomUpdate`、`MouseOver`／`MouseOverFar`、`KillSound`、`CanExplode`、`GrowSapling`、`ModifySittingTargetInfo`／`ModifySleepingTargetInfo`、箱子四个钩子。
 
 ## 2. 我们的设计
 
@@ -60,7 +63,7 @@ private struct TileMeta
 ### 2.4 分派顺序与语义
 
 * `KillTile`：先问 `CanKillTile`（挖不动就整段跳过）→ 调作者 `KillTile`（可以设 `fail`／`effectOnly`／`noItem`）→ 多格家具的左上角由游戏自己算，作者只收一次 `KillMultiTile`。
-* `RightClick`：`HasSmartInteract` 先答"这块是不是智能交互目标"，再调 `RightClick`；返回 true 表示"已处理"，游戏不再走默认交互。
+* `RightClick`：返回 true 表示"已处理"，游戏不再走默认交互。`HasSmartInteract` 另走智能光标候选入口（`FillPotentialTargetTiles`），右键与智能光标共用它的判定结果。
 * `Slope`：返回 false 就是"保持原样"，游戏不写 slope 字节。
 * `TileFrame`：`resetFrame`／`noBreak` 都是可写引用；返回 false 让游戏整格跳过重算。
 

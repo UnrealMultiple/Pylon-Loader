@@ -127,7 +127,7 @@ internal static class NpcHitHooks
             foreach (var mod in Players.ModsOf(player))
             {
                 if (!mod.HookEnabled(HookId.CanHitNPC)) continue;
-                try { allowed &= mod.CanHitNPC(player, npc); }
+                try { allowed &= mod.CanHitNPC(npc); }
                 catch (Exception e) { Fail(mod, HookId.CanHitNPC, e); }
             }
             if (!allowed) return false;
@@ -140,7 +140,7 @@ internal static class NpcHitHooks
             if (!mod.HookEnabled(hook)) continue;
             try
             {
-                var next = collision ? mod.CanMeleeAttackCollideWithNPC(player, item, rect, npc) : mod.CanHitNPCWithItem(player, item, npc);
+                var next = collision ? mod.CanMeleeAttackCollideWithNPC(item, rect, npc) : mod.CanHitNPCWithItem(item, npc);
                 if (next == false) return false;
                 result ??= next;
             }
@@ -168,7 +168,7 @@ internal static class NpcHitHooks
         {
             try
             {
-                var next = collision ? own.CanMeleeAttackCollideWithNPC(item, rect, player, npc) : own.CanHitNPC(item, player, npc);
+                var next = collision ? own.CanMeleeAttackCollideWithNPC(rect, player, npc) : own.CanHitNPC(player, npc);
                 if (next == false) return false;
                 result ??= next;
             }
@@ -196,7 +196,7 @@ internal static class NpcHitHooks
         {
             try
             {
-                var next = collision ? own.CanCollideWithPlayerMeleeAttack(npc, player, item, rect) : own.CanBeHitByItem(npc, player, item);
+                var next = collision ? own.CanCollideWithPlayerMeleeAttack(player, item, rect) : own.CanBeHitByItem(player, item);
                 if (next == false) return false;
                 result ??= next;
             }
@@ -232,7 +232,6 @@ internal static class NpcHitHooks
             attack!.Struck = true;
             if (attack.RestoreFriendly) { self.friendly = attack.Friendly; attack.RestoreFriendly = false; }
         }
-        // 修饰中主动造成另一击时不继承外层武器，嵌套原版入口结束后恢复原上下文。
         var outer = _attack;
         var outerSource = _source;
         var outerExecuting = _executingSource;
@@ -286,7 +285,6 @@ internal static class NpcHitHooks
             source.After(npc, hit, actual);
             return source.ClampReturnToLife ? actual : done;
         }
-        // 没有显式来源时保留原版返回值，不按当前生命截断。
         return done;
     }
 
@@ -298,8 +296,8 @@ internal static class NpcHitHooks
             var previous = modifiers;
             try
             {
-                if (hook == HookId.ModifyIncomingHit) own.ModifyIncomingHit(npc, ref modifiers);
-                else own.ModifyHitByItem(npc, attack!.Player, attack.Item, ref modifiers);
+                if (hook == HookId.ModifyIncomingHit) own.ModifyIncomingHit(ref modifiers);
+                else own.ModifyHitByItem(attack!.Player, attack.Item, ref modifiers);
                 if (modifiers is null) throw new InvalidOperationException("命中修改器不能为 null");
             }
             catch (Exception e) { modifiers ??= previous; Fail(own, hook, e); }
@@ -323,7 +321,7 @@ internal static class NpcHitHooks
         if (own is not null && own.Plan.Has(HookId.ModifyHitNPC))
         {
             var previous = modifiers;
-            try { own.ModifyHitNPC(attack.Item, attack.Player, attack.Target, ref modifiers); Validate(modifiers); }
+            try { own.ModifyHitNPC(attack.Player, attack.Target, ref modifiers); Validate(modifiers); }
             catch (Exception e) { modifiers ??= previous; Fail(own, HookId.ModifyHitNPC, e); }
         }
         foreach (var global in GlobalItemRegistry.For(attack.Item, HookId.ModifyHitNPC))
@@ -342,8 +340,8 @@ internal static class NpcHitHooks
                 var previous = modifiers;
                 try
                 {
-                    if (hook == HookId.ModifyHitNPC) mod.ModifyHitNPC(attack.Player, attack.Target, ref modifiers);
-                    else mod.ModifyHitNPCWithItem(attack.Player, attack.Item, attack.Target, ref modifiers);
+                    if (hook == HookId.ModifyHitNPC) mod.ModifyHitNPC(attack.Target, ref modifiers);
+                    else mod.ModifyHitNPCWithItem(attack.Item, attack.Target, ref modifiers);
                     Validate(modifiers);
                 }
                 catch (Exception e) { modifiers ??= previous; Fail(mod, hook, e); }
@@ -361,7 +359,7 @@ internal static class NpcHitHooks
         var own = ItemOf(attack.Item);
         if (own is not null && own.Plan.Has(HookId.OnHitNPC))
         {
-            try { own.OnHitNPC(attack.Item, attack.Player, attack.Target, hit, done); }
+            try { own.OnHitNPC(attack.Player, attack.Target, hit, done); }
             catch (Exception e) { Fail(own, HookId.OnHitNPC, e); }
         }
         foreach (var global in GlobalItemRegistry.For(attack.Item, HookId.OnHitNPC))
@@ -372,7 +370,7 @@ internal static class NpcHitHooks
         var npc = NpcOf(attack.Target);
         if (npc is not null && npc.HookEnabled(HookId.OnHitByItem))
         {
-            try { npc.OnHitByItem(attack.Target, attack.Player, attack.Item, hit, done); }
+            try { npc.OnHitByItem(attack.Player, attack.Item, hit, done); }
             catch (Exception e) { Fail(npc, HookId.OnHitByItem, e); }
         }
         foreach (var global in GlobalNpcRegistry.For(attack.Target, HookId.OnHitByItem))
@@ -388,8 +386,8 @@ internal static class NpcHitHooks
                 if (!mod.HookEnabled(hook)) continue;
                 try
                 {
-                    if (hook == HookId.OnHitNPC) mod.OnHitNPC(attack.Player, attack.Target, hit, done);
-                    else mod.OnHitNPCWithItem(attack.Player, attack.Item, attack.Target, hit, done);
+                    if (hook == HookId.OnHitNPC) mod.OnHitNPC(attack.Target, hit, done);
+                    else mod.OnHitNPCWithItem(attack.Item, attack.Target, hit, done);
                 }
                 catch (Exception e) { Fail(mod, hook, e); }
             }
@@ -404,7 +402,6 @@ internal static class NpcHitHooks
         var raw = Integer(Math.Ceiling(hit.Damage / (hit.Crit ? 2d : 1d) + npc.defense / 2d - 1e-9));
         if (!hit.Crit || Integer(2d * Math.Max(1d, raw - npc.defense * 0.5d)) == hit.Damage)
             return new(raw, hit.Knockback, hit.Crit, false);
-        // 暴击整数倍率无法表达奇数伤害时，原版用普通伤害执行，表现仍保留暴击颜色与击退。
         var criticalKnockback = (float)Math.Clamp(hit.Knockback * 1.4d, 0d, float.MaxValue);
         return new(Integer(Math.Ceiling(hit.Damage + npc.defense / 2d - 1e-9)), criticalKnockback, false, true);
     }

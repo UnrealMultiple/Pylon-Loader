@@ -114,7 +114,6 @@ internal static class InstallSteps
             try
             {
                 type.SetStaticDefaults();
-                type.PostStaticDefaults();
                 Safe.Run(type.Name + ".ModifyNPCLoot", () => type.ModifyNPCLoot(new NPCLoot(type.Type)));
                 count++;
             }
@@ -134,9 +133,6 @@ internal static class InstallSteps
             try
             {
                 type.SetStaticDefaults();
-                type.PostStaticDefaults();
-                type.ModifyDisplayName();
-                type.ModifyDescription();
                 count++;
             }
             catch (Exception e)
@@ -178,8 +174,7 @@ internal static class InstallSteps
                 if (creditById is not null) creditById[type.Type] = persistentId;
                 if (sorting is not null) sorting[type.Type] = type.Type;
 
-                var stars = type.BestiaryRarityStars;
-                if (stars <= 0) stars = Math.Clamp(1 + sample.lifeMax / 250, 1, 5);
+                var stars = Math.Clamp(1 + sample.lifeMax / 250, 1, 5);
                 if (rarity is not null) rarity[type.Type] = stars;
 
                 ApplyNpcName(type);
@@ -231,16 +226,13 @@ internal static class InstallSteps
 
     private static void ApplyItemTooltip(ModItem item)
     {
-        item.TooltipLines.Clear();
-        if (!string.IsNullOrEmpty(item.Tooltip)) item.TooltipLines.AddRange(item.Tooltip.Split('\n'));
-        Safe.Run(item.Name + ".ModifyTooltipLines", item.ModifyTooltipLines);
-        if (item.TooltipLines.Count == 0) return;
+        if (string.IsNullOrEmpty(item.Tooltip)) return;
 
         var cache = Lang._itemTooltipCache;
         if (cache is null || item.Type < 0 || item.Type >= cache.Length) return;
 
         var key = "Pylon.ItemTooltip." + (item.Mod is null ? "Mod" : item.Mod.Name) + "." + item.Name;
-        LocalizationKeys.Register(key, new Terraria.Localization.LocalizedText(key, string.Join("\n", item.TooltipLines)));
+        LocalizationKeys.Register(key, new Terraria.Localization.LocalizedText(key, item.Tooltip));
 
         try
         {
@@ -248,9 +240,7 @@ internal static class InstallSteps
         }
         catch
         {
-            var lines = new string[item.TooltipLines.Count];
-            for (var i = 0; i < lines.Length; i++) lines[i] = item.TooltipLines[i];
-            cache[item.Type] = Terraria.UI.ItemTooltip.FromHardcodedText(lines);
+            cache[item.Type] = Terraria.UI.ItemTooltip.FromHardcodedText(item.Tooltip.Split('\n'));
         }
     }
 

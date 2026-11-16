@@ -79,7 +79,7 @@ internal static class ItemAmmoHooks
         var own = Own(weapon);
         if (Has(own, HookId.NeedsAmmo))
         {
-            try { if (!own!.NeedsAmmo(weapon, player)) return false; }
+            try { if (!own!.NeedsAmmo(player)) return false; }
             catch (Exception e) { Report(own!, HookId.NeedsAmmo, e); }
         }
         foreach (var global in GlobalItemRegistry.For(weapon, HookId.NeedsAmmo))
@@ -118,7 +118,7 @@ internal static class ItemAmmoHooks
         {
             try
             {
-                var value = weaponMod!.CanChooseAmmo(weapon, ammo, player);
+                var value = weaponMod!.CanChooseAmmo(ammo, player);
                 if (value == false) return false;
                 verdict ??= value;
             }
@@ -129,7 +129,7 @@ internal static class ItemAmmoHooks
         {
             try
             {
-                var value = ammoMod!.CanBeChosenAsAmmo(ammo, weapon, player);
+                var value = ammoMod!.CanBeChosenAsAmmo(weapon, player);
                 if (value == false) return false;
                 verdict ??= value;
             }
@@ -155,7 +155,6 @@ internal static class ItemAmmoHooks
                 if (!cycling) return candidate;
                 (eligible ??= []).Add(candidate);
             }
-            // 转 long 再取绝对值，避免 cyclingOffset 为 int.MinValue 时溢出。
             return eligible is { Count: > 0 } ? eligible[(int)(Math.Abs((long)self.ammoCyclingOffset) % eligible.Count)] : null!;
         }
         catch (Exception e)
@@ -245,7 +244,7 @@ internal static class ItemAmmoHooks
             foreach (var mod in PlayerPipeline.Instance.ModsOf(player))
             {
                 if (!mod.HookEnabled(HookId.CanConsumeAmmo)) continue;
-                try { allowed &= mod.CanConsumeAmmo(player, weapon, ammo); }
+                try { allowed &= mod.CanConsumeAmmo(weapon, ammo); }
                 catch (Exception e) { ReportPlayer(mod, HookId.CanConsumeAmmo, e); }
             }
             if (!allowed) return false;
@@ -263,13 +262,13 @@ internal static class ItemAmmoHooks
         var own = Own(weapon);
         if (Has(own, HookId.CanConsumeAmmo))
         {
-            try { if (!own!.CanConsumeAmmo(weapon, ammo, player)) return false; }
+            try { if (!own!.CanConsumeAmmo(ammo, player)) return false; }
             catch (Exception e) { Report(own!, HookId.CanConsumeAmmo, e); }
         }
         own = Own(ammo);
         if (Has(own, HookId.CanBeConsumedAsAmmo))
         {
-            try { if (!own!.CanBeConsumedAsAmmo(ammo, weapon, player)) return false; }
+            try { if (!own!.CanBeConsumedAsAmmo(weapon, player)) return false; }
             catch (Exception e) { Report(own!, HookId.CanBeConsumedAsAmmo, e); }
         }
         return true;
@@ -285,7 +284,7 @@ internal static class ItemAmmoHooks
         var own = Own(ammo);
         if (Has(own, HookId.PickAmmo))
         {
-            try { own!.PickAmmo(ammo, scope.Weapon, scope.Player, ref type, ref speed, ref modifier, ref knockback); }
+            try { own!.PickAmmo(scope.Weapon, scope.Player, ref type, ref speed, ref modifier, ref knockback); }
             catch (Exception e) { Report(own!, HookId.PickAmmo, e); }
         }
         foreach (var global in GlobalItemRegistry.For(ammo, HookId.PickAmmo))
@@ -312,20 +311,20 @@ internal static class ItemAmmoHooks
             foreach (var mod in PlayerPipeline.Instance.ModsOf(player))
             {
                 if (!mod.HookEnabled(HookId.OnConsumeAmmo)) continue;
-                try { mod.OnConsumeAmmo(player, weapon, ammo); }
+                try { mod.OnConsumeAmmo(weapon, ammo); }
                 catch (Exception e) { ReportPlayer(mod, HookId.OnConsumeAmmo, e); }
             }
         }
         var own = Own(weapon);
         if (Has(own, HookId.OnConsumeAmmo))
         {
-            try { own!.OnConsumeAmmo(weapon, ammo, player); }
+            try { own!.OnConsumeAmmo(ammo, player); }
             catch (Exception e) { Report(own!, HookId.OnConsumeAmmo, e); }
         }
         own = Own(ammo);
         if (Has(own, HookId.OnConsumedAsAmmo))
         {
-            try { own!.OnConsumedAsAmmo(ammo, weapon, player); }
+            try { own!.OnConsumedAsAmmo(weapon, player); }
             catch (Exception e) { Report(own!, HookId.OnConsumedAsAmmo, e); }
         }
         foreach (var global in GlobalItemRegistry.For(weapon, HookId.OnConsumeAmmo))

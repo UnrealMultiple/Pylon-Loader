@@ -4,10 +4,7 @@ using Pylon.ModLoader.Textures;
 
 namespace Pylon.ModLoader;
 
-/// <summary>
-/// 安装计划：唯一的"装什么、按什么顺序装"的事实来源。
-/// 步骤按阶段线性排列；要增删内容装配，只改这里。
-/// </summary>
+/// <summary>安装计划：唯一的"装什么、按什么顺序装"的事实来源。</summary>
 internal static class InstallPlan
 {
     public static IInstallStep[] Build(LoaderHost host)
@@ -47,6 +44,7 @@ internal static class InstallPlan
             new Step("弹幕模板", InstallStage.Samples, InstallSteps.ProjectileTemplates),
             new Step("NPC 静态默认值", InstallStage.Samples, InstallSteps.NpcStaticDefaults),
             new Step("NPC 样例", InstallStage.Samples, InstallSteps.RegisterNpcSamples),
+            new Step("城镇 NPC 档案", InstallStage.Samples, NpcProfilePipeline.Build),
             new Step("NPC 头像", InstallStage.Samples, NpcHeadHooks.Build),
             new Step("城镇 NPC 商店", InstallStage.Samples, () => NpcPipeline.Instance.SetupShops(host.Log)),
             new Step("旗帜安装", InstallStage.Samples, () => BannerPipeline.Instance.Build()),
@@ -57,11 +55,13 @@ internal static class InstallPlan
             new Step("晶塔安装", InstallStage.Static, () => PylonPipeline.Instance.Build()),
             new Step("商店安装", InstallStage.Static, () => ShopPipeline.Instance.Build()),
             new Step("掉落安装", InstallStage.Mods, () => LootPipeline.Instance.Build()),
+            new Step("NPC 图鉴", InstallStage.Mods, NpcBestiaryPipeline.Build),
             new Step("命令安装", InstallStage.Static, () => CommandPipeline.Instance.Build()),
             new Step("菜单主题安装", InstallStage.Static, () => MenuPipeline.Instance.Build()),
             new Step("资源覆盖层安装", InstallStage.Static, () => ResourceOverlayPipeline.Instance.Build()),
             new Step("玩家绘制层安装", InstallStage.Static, () => PlayerDrawLayerPipeline.Instance.Build()),
             new Step("背景安装", InstallStage.Static, () => BackgroundPipeline.Instance.Build()),
+            new Step("额外跳跃安装", InstallStage.Static, () => ExtraJumpTable.Build(host.Log)),
             new Step("系统阶段", InstallStage.Static, () => SystemStages.Build(host.Log)),
 
             new HookStep("ResizeArrays", InstallStage.Mods, HookId.ResizeArrays, static mod => mod.ResizeArrays()),
@@ -69,13 +69,12 @@ internal static class InstallPlan
             new HookStep("Mod.AddRecipeGroups", InstallStage.Mods, HookId.AddRecipeGroups, static mod => mod.AddRecipeGroups()),
             new Step("GlobalNPC 配方组", InstallStage.Mods, GlobalRecipeGroups),
             new HookStep("Mod.PostSetupContent", InstallStage.Mods, HookId.PostSetupContent, static mod => mod.PostSetupContent()),
-            new Step("内容 PostSetupContent", InstallStage.Mods, () => PostSetupContent()),
             new Step("渔夫任务鱼", InstallStage.Mods, ItemAnglerQuest.Build),
             new Step("本地化加载完成", InstallStage.Mods, ModEnvironmentHooks.LocalizationsLoaded),
             new Step("提示重建开关", InstallStage.Mods, () => TooltipPipeline.Instance.Build()),
             new Step("GlobalNPC 静态与配方", InstallStage.Mods, GlobalNpcTasks),
 
-            new HookStep("Mod.AddRecipes", InstallStage.Recipes, HookId.AddRecipes, static mod => mod.AddRecipes()),
+            new Step("配方注册", InstallStage.Recipes, RecipesRegister),
             new HookStep("Mod.PostAddRecipes", InstallStage.Recipes, HookId.PostAddRecipes, static mod => mod.PostAddRecipes()),
             new Step("配方收尾", InstallStage.Recipes, () => RecipeTable.Finish(LoaderHost.Current.Log)),
             new HookStep("Mod.PostSetupRecipes", InstallStage.Recipes, HookId.PostSetupRecipes, static mod => mod.PostSetupRecipes()),
@@ -86,23 +85,20 @@ internal static class InstallPlan
 
     private static void GrowBuffImmune() => BuffPipeline.Instance.GrowImmuneArrays();
 
-    private static void PostSetupContent()
+    private static void RecipesRegister()
     {
-        foreach (var content in ModContent.GetContent<ModType>())
+        foreach (var mod in LoaderHost.Current.Mods.Mods)
         {
-            switch (content)
+            Safe.Run(mod.Name + ".AddRecipes", mod.AddRecipes);
+            foreach (var item in ModContent.GetContent<ModItem>())
             {
-                case ModItem item: Safe.Run(item.Name + ".PostSetupContent", item.PostSetupContent); break;
-                case ModNpc npc: Safe.Run(npc.Name + ".PostSetupContent", npc.PostSetupContent); break;
-                case ModBuff buff: Safe.Run(buff.Name + ".PostSetupContent", buff.PostSetupContent); break;
-                case ModProjectile projectile: Safe.Run(projectile.Name + ".PostSetupContent", projectile.PostSetupContent); break;
-                case ModTile tile: Safe.Run(tile.Name + ".PostSetupContent", tile.PostSetupContent); break;
-                case ModWall wall: Safe.Run(wall.Name + ".PostSetupContent", wall.PostSetupContent); break;
-                case GlobalBuff global: Safe.Run(global.Name + ".PostSetupContent", global.PostSetupContent); break;
-                case GlobalNpc global: Safe.Run(global.Name + ".PostSetupContent", global.PostSetupContent); break;
-                case GlobalTile global: Safe.Run(global.Name + ".PostSetupContent", global.PostSetupContent); break;
-                case GlobalRecipe global: Safe.Run(global.Name + ".PostSetupContent", global.PostSetupContent); break;
-                case GlobalBossBar global: Safe.Run(global.Name + ".PostSetupContent", global.PostSetupContent); break;
+                if (item.Mod != mod) continue;
+                Safe.Run($"{mod.Name}/{item.Name}.AddRecipes", item.AddRecipes);
+            }
+            foreach (var global in ModContent.GetContent<GlobalItem>())
+            {
+                if (global.Mod != mod) continue;
+                Safe.Run($"{mod.Name}/{global.Name}.AddRecipes", global.AddRecipes);
             }
         }
     }
@@ -118,11 +114,9 @@ internal static class InstallPlan
         {
             Safe.Run(global.Name + ".SetStaticDefaults", global.SetStaticDefaults);
             Safe.Run(global.Name + ".AddRecipes", global.AddRecipes);
-            Safe.Run(global.Name + ".PostSetupContent", global.PostSetupContent);
         }
     }
 
-    /// <summary>对一个钩子的全部订阅者依次调用；空通道直接返回。</summary>
     private sealed class HookStep(string name, InstallStage stage, HookId hook, Action<Mod> invoke) : IInstallStep
     {
         public string Name { get; } = name;
@@ -145,10 +139,7 @@ internal static class InstallPlan
         private void RunOne(Mod mod) => Safe.Run(mod.Name + "." + hook, () => invoke(mod));
     }
 
-    /// <summary>
-    /// 扩"内容装配之前必须扩好"的表（物品 / 弹幕 / NPC / Buff / 方块 / 墙壁）：
-    /// 谁用到谁在模块的 <c>Tables</c> 里声明，这里只负责催框架一次扩完；表还没建就等下一帧。
-    /// </summary>
+    /// <summary>扩"内容装配之前必须扩好"的表；谁用到谁声明，框架统一执行。</summary>
     private sealed class GrowTablesStep(LoaderHost host) : IInstallStep
     {
         public string Name => "扩表";

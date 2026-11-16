@@ -23,11 +23,11 @@
 | `Projectile.FishingCheck_ProbeForQuestFish` / `FishingCheck_RollItemDrop` | `ModifyFishingAttempt` 前置修改条件，保留掷骰结果；`CatchFish` 后置回写结果 |
 | `Projectile.AI_061_FishingBobber_GiveItemToPlayer` → `Player.QuickSpawnItem` 的两个 Item 重载 | `ModifyCaughtFish` 在原版交付前修改同一物品，仅消费一次 |
 | `Main.DrawProj_FishingLine` / `TryApplyingPlayerStringColor` | 弹幕 → 手持物品 `ModifyFishingLine`，回写竿端偏移及染色前颜色 |
-| `Player.NaturalLifeRegen` 之外的自然再生链 | 未接（见第 2 节） |
+| `Player.NaturalLifeRegen` 的再生数值 | 中体桥（UpdateLifeRegen+0x828，见下方"自然生命再生"） |
 
 **已接（移到玩家绘制管线）**：`DrawEffects` / `ModifyDrawInfo` / `TransformDrawData` / `DrawPlayer`（见 content-playerdrawlayer.md）与 `HideDrawLayers`（`VanillaDrawLayer` 逐层点名，54 层）
 
-**不接**（本版手机端没有可挂的入口，或入口签名与作者 API 对不上）：`PreUpdateBuffs/PostUpdateBuffs`、`PostUpdateMiscEffects`、`PostUpdateRunSpeeds`、`PreUpdateMovement`、`UpdateAutopause`、`FrameEffects`、`NaturalLifeRegen`、`PreModifyLuck/ModifyLuck`、尚未接入的捕鱼与奖励回调、商店四个钩子、护士三个钩子、`HoverSlot/ShiftClickSlot`、`ProcessTriggers`、`CanCatchNPC/OnCatchNPC`、存档与同步那一族。
+**不接**：`HoverSlot/ShiftClickSlot`（声明在、分派未接——物品槽位 UI 入口归物品/界面管线后续批次核对）；`CanCatchNPC/OnCatchNPC`（基线有、本版未声明，见 API 复检清单）。其余历史上列在这里的钩子（buff 更新前后、杂项后置/跑速/移动前、暂停更新、FrameEffects、幸运、捕鱼与奖励、商店四钩子、护士三钩子、ProcessTriggers、存档与同步族）都已接线——接线批次见 audit 台账 §7 与 §8 表，别再按这份旧清单理解。
 
 理由统一为一句话：**入口不存在就不假装接上**。旧实现把它们都声明成 `virtual` 却从不分派，作者写了也静默失效——那比不提供更糟。API 上仍然保留这些 `virtual`（删掉会破坏已有 Mod 编译），但文档与启动日志都明说"本版不分派"。
 
@@ -108,3 +108,26 @@ Pipelines/Player/
 * **物品管线**：物品的使用链归物品管线；本管线只在 `Player.CanUseItem`/`ItemCheck` 这两个玩家入口上分派。
 * **坐骑管线**：骑乘与坐骑绘制归坐骑管线。
 * **触屏按钮 / 键位管线**：输入读取归它们；本管线不接 `ProcessTriggers`（本版无入口）。
+
+## 2026-11-17 批：玩家侧接线
+
+- OnHitAnything（On.Player.OnHit 后通知）。
+- ApplyPotionDelay 重排为基线链：作用域记进前值 → AddBuff(PotionSickness) 里 ModifyPotionDelay（ModItem → GlobalItem）→ Clamp → ApplyPotionDelay 全员（ModPlayer → ModItem → GlobalItem）→ 否决/≤0 不进药水病。
+- 开局背包：SetupStartingItems 后 + DropItems(mediumcore) 后 Starting(byMod 摊平回前 50 格)；AddMaterialsForCrafting blocked（缺原生分配工具）。
+- 生命周期钩子（PostStaticDefaults/PostSetDefaults/PostSetupContent）、UpdateManaRegen、ModPlayer.AddDrawData、NPCHeadSlot、ApplyBuffImmunity 已删。
+
+## 额外跳跃（ExtraJump）
+
+一个内容类 + 一张状态表 + 六个游戏入口：
+
+* **内容类** `Content/ExtraJump.cs`：作者派生 `ExtraJump`，声明 `GetDefaultPosition()`（After/Before 某个原版跳跃）与 `GetDurationMultiplier`；可选 `GetModdedConstraints`（同类排序约束，成环报错）、`ShowVisuals`、`CanStart`、`OnStarted`（可压音效）、`OnEnded`、`UpdateHorizontalSpeeds`、`OnRefreshed`。`Content/VanillaExtraJumps.cs` 是 10 个内置跳跃（五挂载 + 五瓶，先占号 0..9；Flipper 走 wet 特判没有 Player 字段）。
+* **状态表** `Pipelines/ExtraJump/ExtraJumpTable.cs`：按玩家指针保管 `ExtraJumpState`（Enabled/Available/Active）。原版跳跃的状态在 Player 字段与状态表之间**双向镜像**（Push/Pull）：作者改状态表、游戏读自己的字段，游戏改字段作者也看得到。作者 API（`GetJumpState`/`ExtraJumpStates`/`AnyExtraJumpUsable`/`StopExtraJumpInProgress`/`ConsumeAllExtraJumps`/`Get/SetBlockExtraJumps`）落在这个静态类上——基线的 `Player.GetJumpState` 部分类在互操作侧加不上去。
+* **入口** `Pipelines/ExtraJump/PlayerJumpHooks.cs`：`ResetEffects`（重置启用标志）、`UpdateJumpHeight`（禁跳/离地清理）、`RefreshDoubleJumps`（落地回充）、`JumpMovement`（选跳与起跳）、`CancelAllJumpVisualEffects`、`DoubleJumpVisuals`，外加 `SoundEngine.PlaySound` 两重载（压原版起跳音效）。直接安装，热路径靠 `Wanted` 门（有 mod 跳跃或八钩子有人覆写才进，等价按需安装）；mod 跳跃的水平速度修正挂在 `HorizontalMovement` 入口最前。
+* **ModPlayer 八钩子**：`ModifyExtraJumpDurationMultiplier/CanStartExtraJump/OnExtraJumpStarted/OnExtraJumpEnded/OnExtraJumpRefreshed/ExtraJumpVisuals/CanShowExtraJumpVisuals/OnExtraJumpCleared`——对原版跳跃同样生效（起跳播报、回充、视觉、清空都发链）。
+
+### 自然生命再生（NaturalLifeRegen，中体桥）
+
+游戏算自然再生没有可挂的 On 入口——数值是 `Player.UpdateLifeRegen()` 方法体中部的局部量。
+SystemStages 的第 10 座桥在 +0x828 打点（4 条指令指纹校验，指纹按本构建重提取）：桥读 v9
+（算到此点的再生值）与 x19（玩家），逐作者 `NaturalLifeRegen(ref regen)`，改后且 finite
+才写回 v9，抛错/不写回就用原版的数。安装门是 ModPlayer 位集（没人覆写就不装桥）。

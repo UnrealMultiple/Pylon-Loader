@@ -8,9 +8,6 @@ public abstract class GlobalRecipe : ModType
     /// <summary>只放共享数值，不要碰游戏对象。</summary>
     public override void SetStaticDefaults() { }
 
-    /// <summary>所有内容安装完成之后一次（跨 Mod 引用放这里）。</summary>
-    public virtual void PostSetupContent() { }
-
     /// <summary>false：配方从制作菜单里消失（向导那里还是显示）。</summary>
     public virtual bool RecipeAvailable(Recipe recipe) => true;
 

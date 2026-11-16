@@ -27,14 +27,13 @@ public sealed class TestPlayerLifecycle : ModPlayer
     public static int CtKill;
     public static int CtOnRespawn;
     public static int CtUpdateDead;
-    public static int CtUpdateManaRegen;
 
     public static void Reset()
     {
         Counting = false;
         CtResetEffects = CtPreUpdate = CtPostUpdate = CtUpdateEquips = CtPostUpdateEquips = 0;
         CtUpdateLifeRegen = CtUpdateBadLifeRegen = CtModifyMaxStats = CtProcessTriggers = 0;
-        CtFrameEffects = CtKill = CtOnRespawn = CtUpdateDead = CtUpdateManaRegen = 0;
+        CtFrameEffects = CtKill = CtOnRespawn = CtUpdateDead = 0;
     }
 
     private static void Bump(ref int counter)
@@ -42,28 +41,32 @@ public sealed class TestPlayerLifecycle : ModPlayer
         if (Counting) counter++;
     }
 
-    public override void ResetEffects(Player player) => Bump(ref CtResetEffects);
-    public override void PreUpdate(Player player) => Bump(ref CtPreUpdate);
-    public override void PostUpdate(Player player) => Bump(ref CtPostUpdate);
-    public override void UpdateEquips(Player player) => Bump(ref CtUpdateEquips);
-    public override void PostUpdateEquips(Player player) => Bump(ref CtPostUpdateEquips);
-    public override void UpdateLifeRegen(Player player) => Bump(ref CtUpdateLifeRegen);
-    public override void UpdateBadLifeRegen(Player player) => Bump(ref CtUpdateBadLifeRegen);
-    public override void UpdateManaRegen(Player player) => Bump(ref CtUpdateManaRegen);
-    public override void ModifyMaxStats(Player player) => Bump(ref CtModifyMaxStats);
-    public override void ProcessTriggers(Player player, TriggersSet triggersSet) => Bump(ref CtProcessTriggers);
-    public override void FrameEffects(Player player) => Bump(ref CtFrameEffects);
-    public override void UpdateDead(Player player) => Bump(ref CtUpdateDead);
+    public override void ResetEffects() => Bump(ref CtResetEffects);
+    public override void PreUpdate() => Bump(ref CtPreUpdate);
+    public override void PostUpdate() => Bump(ref CtPostUpdate);
+    public override void UpdateEquips() => Bump(ref CtUpdateEquips);
+    public override void PostUpdateEquips() => Bump(ref CtPostUpdateEquips);
+    public override void UpdateLifeRegen() => Bump(ref CtUpdateLifeRegen);
+    public override void UpdateBadLifeRegen() => Bump(ref CtUpdateBadLifeRegen);
+    public override void ModifyMaxStats(out StatModifier health, out StatModifier mana)
+    {
+        Bump(ref CtModifyMaxStats);
+        health = StatModifier.Default;
+        mana = StatModifier.Default;
+    }
+    public override void ProcessTriggers(TriggersSet triggersSet) => Bump(ref CtProcessTriggers);
+    public override void FrameEffects() => Bump(ref CtFrameEffects);
+    public override void UpdateDead() => Bump(ref CtUpdateDead);
 
-    public override void Kill(Player player, PlayerDeathReason damageSource, double damage, int hitDirection, bool pvp)
+    public override void Kill(double damage, int hitDirection, bool pvp, PlayerDeathReason damageSource)
     {
         Bump(ref CtKill);
         PT.Info($"Kill 触发：伤害={damage} pvp={pvp}");
     }
 
-    public override void OnRespawn(Player player)
+    public override void OnRespawn()
     {
         Bump(ref CtOnRespawn);
-        PT.Info($"OnRespawn 触发：位置=({player.position.X:F0},{player.position.Y:F0})");
+        PT.Info($"OnRespawn 触发：位置=({Player.position.X:F0},{Player.position.Y:F0})");
     }
 }

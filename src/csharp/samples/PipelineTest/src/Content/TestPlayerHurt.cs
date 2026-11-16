@@ -17,10 +17,10 @@ internal static class PlayerHurtProbe
 
 public sealed class TestPlayerHurt : ModPlayer
 {
-    public override bool ImmuneTo(Player player, PlayerDeathReason source, int cooldown, bool dodgeable) =>
+    public override bool ImmuneTo(PlayerDeathReason source, int cooldown, bool dodgeable) =>
         PlayerHurtProbe.Active && PlayerHurtProbe.Immune;
 
-    public override void ModifyHurt(Player player, ref HurtModifiers modifiers)
+    public override void ModifyHurt(ref HurtModifiers modifiers)
     {
         if (!PlayerHurtProbe.Active) return;
         PlayerHurtProbe.ModifyCalls++;
@@ -28,16 +28,16 @@ public sealed class TestPlayerHurt : ModPlayer
         else modifiers.SetMaxDamage(1);
     }
 
-    public override bool FreeDodge(Player player, HurtInfo info) => PlayerHurtProbe.Active && PlayerHurtProbe.Dodge;
+    public override bool FreeDodge(HurtInfo info) => PlayerHurtProbe.Active && PlayerHurtProbe.Dodge;
 
-    public override void OnHurt(Player player, HurtInfo info)
+    public override void OnHurt(HurtInfo info)
     {
         if (!PlayerHurtProbe.Active) return;
         PlayerHurtProbe.OnCalls++;
         PlayerHurtProbe.SeenDamage = info.Damage;
     }
 
-    public override void PostHurt(Player player, HurtInfo info)
+    public override void PostHurt(HurtInfo info)
     {
         if (PlayerHurtProbe.Active) PlayerHurtProbe.PostCalls++;
     }

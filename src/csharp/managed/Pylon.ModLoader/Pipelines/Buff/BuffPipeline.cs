@@ -8,10 +8,7 @@ using Terraria.GameContent;
 
 namespace Pylon.ModLoader;
 
-/// <summary>
-/// 增益管线：效果 / 施加 / 续时 / 文字 / 图标 / 取消。
-/// buff 没有实体（一个 buff = 类型 + 剩余时间），所以没有默认值接管，也没有实体绑定。
-/// </summary>
+/// <summary>增益管线：效果 / 施加 / 续时 / 文字 / 图标 / 取消。</summary>
 internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
 {
     public static BuffPipeline Instance { get; } = new();
@@ -31,7 +28,6 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.Player.UpdateBuffs += UpdatePlayerBuffs;
         On.Terraria.NPC.UpdateNPC_BuffSetFlags += UpdateNpcBuffs;
 
-        On.Terraria.Player.AddBuff_ActuallyTryToAddTheBuff += AppliedPlayer;
         On.Terraria.Player.AddBuff_TryUpdatingExistingBuffTime += ReApplyPlayer;
         On.Terraria.NPC.AddBuff += AppliedNpc;
 
@@ -41,20 +37,17 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.Main.DrawBuffIcon += DrawIcon;
         On.GUIBuffs.ItemDraw += DrawGuiIcon;
         On.GUIBuffs.RemoveBuff_int += RemoveGuiBuff;
-        On.Terraria.Player.DelBuff += DelBuff;
         BuffIconCapture.Install();
 
         var count = Prime();
         PatchCompiledLimits();
 
-        Log.Info($"[buff] 已挂（效果 / 施加 / 续时 / 文字 / 图标 / 取消），模板 {count}");
+        Log.Info($"[buff] 已挂（效果 / 续时 / 文字 / 图标 / 取消），模板 {count}");
         return true;
     }
 
-    /// <summary>位集按 typeof(ModBuff) 算一次挂在模板上：buff 效果每帧每格都会走门控。</summary>
     public void Refresh() => Prime();
 
-    /// <summary>buffImmune 的槽位要盖住所有已注册的 buff；新生成的实例由这里再补一次。</summary>
     internal void GrowImmuneArrays()
     {
         var need = LoaderHost.Current.Content.NextType(ContentKind.Buff);
@@ -90,7 +83,6 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         var times = self.buffTime;
         if (types is null || times is null) return;
 
-        // 只处理游戏这次问到的槽位：遍历整张表会让同一 buff 一帧被跑 N 次。
         if (i < 0 || i >= types.Length || i >= times.Length) return;
         if (times[i] <= 0 || types[i] <= 0) return;
 
@@ -106,7 +98,6 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         var times = self.buffTime;
         if (types is null || times is null) return;
 
-        // 游戏在方法内部自己循环，没有槽位参数：这次调用每帧每 NPC 只有一次。
         for (var i = 0; i < types.Length && i < times.Length; i++)
         {
             if (times[i] <= 0 || types[i] <= 0) continue;
@@ -123,27 +114,24 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         if (type < VanillaCounts.Buff) return;
 
         var mod = Of(type);
-        if (mod is null) return;
-
-        var hook = player is not null ? HookId.UpdatePlayer : HookId.UpdateNPC;
-        if (!mod.HookEnabled(hook)) return;
+        if (mod is null || !mod.HookEnabled(HookId.Update)) return;
 
         try
         {
-            if (player is not null) mod.UpdatePlayer(player, index);
-            else mod.UpdateNPC(npc!, index);
+            var slot = index;
+            if (player is not null) mod.Update(player, ref slot);
+            else mod.Update(npc!, ref slot);
         }
         catch (Exception e)
         {
-            Fail(mod.Name, hook, e);
+            Fail(mod.Name, HookId.Update, e);
         }
     }
 
     private void UpdateGlobalBuff(Il2CppStructArray<int> types, Il2CppStructArray<int> times, int index,
                                   Player? player, NPC? npc)
     {
-        var hook = player is not null ? HookId.UpdatePlayer : HookId.UpdateNPC;
-        var globals = GlobalBuffRegistry.For(hook);
+        var globals = GlobalBuffRegistry.For(HookId.Update);
         if (globals.Count == 0) return;
 
         var type = types[index];
@@ -153,12 +141,12 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         {
             try
             {
-                if (player is not null) global.UpdatePlayer(type, player, ref slot);
-                else global.UpdateNPC(type, npc!, ref slot);
+                if (player is not null) global.Update(type, player, ref slot);
+                else global.Update(type, npc!, ref slot);
             }
             catch (Exception e)
             {
-                Fail(global.Name, hook, e);
+                Fail(global.Name, HookId.Update, e);
             }
         }
     }
@@ -167,28 +155,6 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
 
     #region 施加与续时
 
-    private bool AppliedPlayer(On.Terraria.Player.orig_AddBuff_ActuallyTryToAddTheBuff orig, Player self, int type,
-                               int time)
-    {
-        var result = orig(self, type, time);
-
-        if (!result) return false;
-
-        var mod = Of(type);
-        if (mod is null || !mod.HookEnabled(HookId.ApplyPlayer)) return true;
-
-        try
-        {
-            mod.ApplyPlayer(self, time);
-        }
-        catch (Exception e)
-        {
-            Fail(mod.Name, HookId.ApplyPlayer, e);
-        }
-
-        return true;
-    }
-
     private bool ReApplyPlayer(On.Terraria.Player.orig_AddBuff_TryUpdatingExistingBuffTime orig, Player self,
                                int type, int time)
     {
@@ -196,20 +162,18 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         {
             var index = self.FindBuffIndex(type);
 
-            // 续不续是全局策略：任一 Global 说要停就停。
             if (index >= 0)
             {
                 var stop = false;
-                foreach (var global in GlobalBuffRegistry.For(HookId.ReApplyPlayer))
+                foreach (var global in GlobalBuffRegistry.For(HookId.ReApply))
                 {
-                    var slot = index;
                     try
                     {
-                        if (global.ReApplyPlayer(type, self, time, ref slot)) stop = true;
+                        if (global.ReApply(type, self, time, index)) stop = true;
                     }
                     catch (Exception e)
                     {
-                        Fail(global.Name, HookId.ReApplyPlayer, e);
+                        Fail(global.Name, HookId.ReApply, e);
                     }
                 }
 
@@ -219,12 +183,12 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
             var mod = Of(type);
             if (mod is null) return orig(self, type, time);
 
-            var renew = index < 0 || !mod.HookEnabled(HookId.ReApplyPlayer) || mod.ReApplyPlayer(self, time, index);
+            var renew = index < 0 || !mod.HookEnabled(HookId.ReApply) || !mod.ReApply(self, time, index);
             return renew ? orig(self, type, time) : true;
         }
         catch (Exception e)
         {
-            Fail("buff", HookId.ReApplyPlayer, e);
+            Fail("buff", HookId.ReApply, e);
             return orig(self, type, time);
         }
     }
@@ -234,35 +198,34 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         var existed = self.FindBuffIndex(type) >= 0;
 
         var mod = Of(type);
-        var globals = GlobalBuffRegistry.For(HookId.ReApplyNPC);
+        var globals = GlobalBuffRegistry.For(HookId.ReApply);
 
-        if (existed && (mod is not null && mod.HookEnabled(HookId.ReApplyNPC) || globals.Count > 0))
+        if (existed && (mod is not null && mod.HookEnabled(HookId.ReApply) || globals.Count > 0))
         {
             var index = self.FindBuffIndex(type);
             var renew = true;
 
             foreach (var global in globals)
             {
-                var slot = index;
                 try
                 {
-                    if (global.ReApplyNPC(type, self, time, ref slot)) renew = false;
+                    if (global.ReApply(type, self, time, index)) renew = false;
                 }
                 catch (Exception e)
                 {
-                    Fail(global.Name, HookId.ReApplyNPC, e);
+                    Fail(global.Name, HookId.ReApply, e);
                 }
             }
 
-            if (mod is not null && mod.HookEnabled(HookId.ReApplyNPC))
+            if (mod is not null && mod.HookEnabled(HookId.ReApply))
             {
                 try
                 {
-                    if (!mod.ReApplyNPC(self, time, index)) renew = false;
+                    if (mod.ReApply(self, time, index)) renew = false;
                 }
                 catch (Exception e)
                 {
-                    Fail(mod.Name, HookId.ReApplyNPC, e);
+                    Fail(mod.Name, HookId.ReApply, e);
                 }
             }
 
@@ -270,19 +233,6 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         }
 
         orig(self, type, time, quiet);
-
-        // AddBuff 返回 void：只有"之前没有、之后有了"才算这次真的加上，否则续时间会把 ApplyNPC 重跑一遍。
-        if (existed || mod is null || !mod.HookEnabled(HookId.ApplyNPC)) return;
-        if (self.FindBuffIndex(type) < 0) return;
-
-        try
-        {
-            mod.ApplyNPC(self, time);
-        }
-        catch (Exception e)
-        {
-            Fail(mod.Name, HookId.ApplyNPC, e);
-        }
     }
 
     #endregion
@@ -370,11 +320,6 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
     #region 图标与取消
 
 
-    /// <summary>
-    /// 游戏在 <c>GUIBuffs.Draw</c> 里编译死了 <c>1 &lt;= 类型 &lt;= 400</c>，
-    /// 类型 &gt;= 401 会被直接清零（mod buff 从此消失）；护士/对话/网络移除也各有一处 400 上限。
-    /// 把这几处 cmp 立即数改成"原版数 + mod 数"。
-    /// </summary>
     private void PatchCompiledLimits()
     {
         var total = (uint)(VanillaCounts.Buff + ModContent.GetContent<ModBuff>().Count);
@@ -491,7 +436,7 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         {
             try
             {
-                if (!global.PreDraw(spriteBatch, type, buffSlotOnPlayer, parameters)) draw = false;
+                if (!global.PreDraw(spriteBatch, type, buffSlotOnPlayer, ref parameters)) draw = false;
             }
             catch (Exception e)
             {
@@ -503,7 +448,7 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         {
             try
             {
-                draw = mod!.PreDraw(spriteBatch, buffSlotOnPlayer, parameters);
+                draw = mod!.PreDraw(spriteBatch, buffSlotOnPlayer, ref parameters);
             }
             catch (Exception e)
             {
@@ -563,58 +508,6 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         orig(self, slot);
     }
 
-    private void DelBuff(On.Terraria.Player.orig_DelBuff orig, Player self, int b)
-    {
-        var types = self.buffType;
-        var times = self.buffTime;
-        if (types is null || times is null || b < 0 || b >= types.Length || b >= times.Length)
-        {
-            orig(self, b);
-            return;
-        }
-
-        var type = types[b];
-        var removedTime = times[b];
-        var mod = Of(type);
-        var modRemoves = mod is not null && mod.HookEnabled(HookId.CanRemove);
-
-        if (!modRemoves && (mod is null || !mod.HookEnabled(HookId.OnRemove)))
-        {
-            orig(self, b);
-            return;
-        }
-
-        bool? verdict = null;
-        if (modRemoves)
-        {
-            try
-            {
-                var debuffs = Main.debuff;
-                var debuff = debuffs is not null && (uint)type < (uint)debuffs.Length && debuffs[type];
-                verdict = mod!.CanRemove(self, removedTime, b, debuff);
-            }
-            catch (Exception e)
-            {
-                Fail(mod!.Name, HookId.CanRemove, e);
-            }
-        }
-
-        if (verdict == false) return;
-
-        orig(self, b);
-
-        if (mod is null || !mod.HookEnabled(HookId.OnRemove)) return;
-        try
-        {
-            mod.OnRemove(self, removedTime, b);
-        }
-        catch (Exception e)
-        {
-            Fail(mod.Name, HookId.OnRemove, e);
-        }
-    }
-
-    /// <summary>构建作者参数基线；实际贴图变换在原版绘制窗口中按差值应用。</summary>
     private static BuffDrawParams? BuildDrawParams(int type, int slot, int x, int y)
     {
         var assets = TextureAssets.Buff;
@@ -686,8 +579,6 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    // 先完成托管副本再发布，避免游戏观察到只填了一部分的免疫表。
-    // int 长度曾误选 IntPtr 包装构造；运行时已补 int 重载，逐项写本身不需要绕过。
     private static bool[] Grow(Il2CppStructArray<bool>? old, int need)
     {
         var grown = new bool[need];
@@ -699,7 +590,6 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         return grown;
     }
 
-    /// <summary>同一 (名字, 钩子) 只记一条：buff 效果是每帧路径。</summary>
     private void Fail(string name, HookId hook, Exception exception)
     {
         if (!_reported.Add(HashCode.Combine(name.GetHashCode(), hook))) return;

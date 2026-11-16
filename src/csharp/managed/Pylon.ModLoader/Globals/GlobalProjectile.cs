@@ -62,14 +62,14 @@ public abstract class GlobalProjectile : ModType
     /// <summary>原版实际造成正伤害后的来源通知。</summary>
     public virtual void OnHitPlayer(Projectile proj, Player target, HurtInfo hurtInfo) { }
 
-    /// <summary>画之前；lightColor 是可写引用，false 不画游戏的那张精灵（游戏画的附加部分留下）。</summary>
-    public virtual bool PreDraw(Projectile proj, ref Color lightColor) => true;
+    /// <summary>画之前；player 是弹幕所有者，lightColor 是可写引用，false 不画游戏的那张精灵（游戏画的附加部分留下）。</summary>
+    public virtual bool PreDraw(Projectile proj, Player player, ref Color lightColor) => true;
 
     /// <summary>画游戏那部分"附加物"（鱼线、钩爪链条、链锤铁链、悠悠球绳）之前；false 连附加物一起不画。</summary>
-    public virtual bool PreDrawExtras(Projectile proj) => true;
+    public virtual bool PreDrawExtras(Projectile proj, Player player) => true;
 
     /// <summary>画之后，PreDraw 否决了也跑；lightColor 是直接的颜色，不是引用。</summary>
-    public virtual void PostDraw(Projectile proj, Color lightColor) { }
+    public virtual void PostDraw(Projectile proj, Player player, Color lightColor) { }
 
     /// <summary>第一个返回颜色的 Global 说了算；null = 问本地方法和游戏。</summary>
     public virtual Color? GetAlpha(Projectile proj, Color lightColor) => null;
@@ -105,8 +105,8 @@ public abstract class GlobalProjectile : ModType
     /// <summary>在模板上、本地方法之后：type 是可写引用，要换发射的弹幕类型就改它。</summary>
     public virtual void UseGrapple(Player player, ref int type) { }
 
-    /// <summary>false 否决挂到这个方块上，true 允许；null = 保持本地或原生的判断（收到的是方块的实体）。</summary>
-    public virtual bool? GrappleCanLatchOnTo(Projectile proj, Player player, Tile tile) => null;
+    /// <summary>false 否决挂到 (x, y) 这格上，true 允许；null = 保持本地或原生的判断。</summary>
+    public virtual bool? GrappleCanLatchOnTo(Projectile proj, Player player, int x, int y) => null;
 
     /// <summary>false = 游戏不把速度加到位置上（位置由 AI 自己写），在本地方法之后，一个 false 就够。</summary>
     public virtual bool ShouldUpdatePosition(Projectile proj) => true;

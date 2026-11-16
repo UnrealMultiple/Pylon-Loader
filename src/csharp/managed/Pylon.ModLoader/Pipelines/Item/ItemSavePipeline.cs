@@ -5,28 +5,18 @@ using Terraria;
 
 namespace Pylon.ModLoader;
 
-/// <summary>
-/// mod 物品持久化：原版 .plr 只认原版类型号，mod 物品（含"？"占位）读档即丢。
-/// 侧车 <c>&lt;玩家文件&gt;.pl.json</c> 的 "items" 段（与发型管线共文件，各写各的键）：
-/// 行 = 容器 + 槽位 + 数量 + 前缀（mod 前缀按名存、原版前缀存号 pv）+ 收藏 + FullKey + 作者数据；
-/// 原版物品被上了 mod 前缀的，单独存行（c=真实容器、t=原版类型号；.plr 里前缀字节装不下 mod 前缀号）。
-/// 读档：键 → 注册表查真类型，查不到走？池占位；槽上已是同物品 / 占位 / 过期 mod 号就原位恢复，
-/// 否则找背包空格；mod 缺席的行进等待名单，下次保存原样回写。
-/// 前缀的 mod 缺席时键进 pendingPrefix 记账（按容器#槽+类型），下次保存回填进行里继续等。
-/// </summary>
+/// <summary>mod 物品持久化：.plr 只认原版类型号，mod 物品与 mod 前缀走侧车 &lt;玩家文件&gt;.pl.json 的 items 段按容器+槽位存取，读档时恢复或进？池占位。</summary>
 internal sealed class ItemSavePipeline
 {
     public static ItemSavePipeline Instance { get; } = new();
 
     private const string SaveSection = "items";
 
-    /// <summary>存档期占位物品的原始行（含前缀 / 作者数据），键 = "容器#槽"。</summary>
     private readonly Dictionary<string, TagCompound> _pending = new(StringComparer.Ordinal);
 
-    /// <summary>mod 物品的前缀 mod 缺席时暂存的前缀键，键 = "容器#槽"，值 = (前缀 FullKey, 物品类型)。</summary>
     private readonly Dictionary<string, (string Key, int Type)> _pendingPrefix = new(StringComparer.Ordinal);
 
-    private readonly List<TagCompound>?[] _kept = new List<TagCompound>[2]; // 0 = 物品行，1 = 前缀行
+    private readonly List<TagCompound>?[] _kept = new List<TagCompound>[2];
 
     private ItemSavePipeline() { }
 
@@ -35,8 +25,6 @@ internal sealed class ItemSavePipeline
         On.Terraria.Player.InternalSavePlayerFile += SavePlayerFile;
         On.Terraria.Player.LoadPlayer += LoadPlayerFile;
     }
-
-    // ===================== 保存 =====================
 
     private void SavePlayerFile(On.Terraria.Player.orig_InternalSavePlayerFile orig, Terraria.IO.PlayerFileData playerFile)
     {
@@ -57,7 +45,6 @@ internal sealed class ItemSavePipeline
                 }
             }
 
-            // 等待行回写：前缀行要求槽上还是同类且前缀仍为 0，否则作废。
             rows.AddRange(CarryKept(player));
 
             var root = TagJson.Read(file);
@@ -73,7 +60,6 @@ internal sealed class ItemSavePipeline
         }
     }
 
-    /// <summary>一个槽位一条行；空槽返回 null。</summary>
     private TagCompound? RowOf(string container, int slot, Item? item)
     {
         if (item is null || item.stack <= 0 || item.type <= 0) return null;
@@ -85,7 +71,6 @@ internal sealed class ItemSavePipeline
             return ModRow(container, slot, item);
         }
 
-        // ？占位：优先原样带回顾存期间的前缀与作者数据。
         var key = UnloadedItems.KeyFor(type);
         if (key is not null)
         {
@@ -93,7 +78,6 @@ internal sealed class ItemSavePipeline
             return new TagCompound { ["c"] = container, ["s"] = slot, ["n"] = item.stack, ["k"] = key };
         }
 
-        // 原版物品只在前缀有主（mod 前缀）时才需要补一行：.plr 装不下 mod 前缀号。
         if (PrefixTable.Of(item.prefix) is not { } prefix) return null;
         return new TagCompound
         {
@@ -122,13 +106,11 @@ internal sealed class ItemSavePipeline
         }
         else if (item.prefix > 0)
         {
-            // 原版前缀号稳定，存号；SetDefaults 会抹掉前缀，读档时按号重上。
             row["pv"] = item.prefix;
             _pendingPrefix.Remove(slotKey);
         }
         else if (_pendingPrefix.TryGetValue(slotKey, out var pending) && pending.Type == item.type)
         {
-            // 前缀的 mod 还没回来：把暂存的键写进行里继续等。
             row["p"] = pending.Key;
         }
 
@@ -140,7 +122,7 @@ internal sealed class ItemSavePipeline
             var data = new TagCompound();
             try
             {
-                mod.SaveData(item, data);
+                mod.SaveData(data);
             }
             catch (Exception e)
             {
@@ -153,8 +135,6 @@ internal sealed class ItemSavePipeline
         return row;
     }
 
-    /// <summary>mod 缺席期间留在内存的行随保存回写；前缀行验证槽位仍然匹配。
-    /// 行常驻（不清空，同会话第二次保存不能把已落盘的行抹掉），只在读档时重置。</summary>
     private List<TagCompound> CarryKept(Player player)
     {
         var result = new List<TagCompound>();
@@ -180,8 +160,6 @@ internal sealed class ItemSavePipeline
         return result;
     }
 
-    // ===================== 读取 =====================
-
     private Terraria.IO.PlayerFileData LoadPlayerFile(On.Terraria.Player.orig_LoadPlayer orig,
                                                       string playerPath, bool cloudSave)
     {
@@ -189,7 +167,6 @@ internal sealed class ItemSavePipeline
 
         try
         {
-            // 每个存档的键集独立；重置要在恢复行之前。
             UnloadedItems.ResetSlots();
             _pending.Clear();
             _pendingPrefix.Clear();
@@ -223,7 +200,6 @@ internal sealed class ItemSavePipeline
         return data!;
     }
 
-    /// <summary>原版物品的 mod 前缀：槽上还是同类且前缀为 0 才补，否则留到下次保存。</summary>
     private void ApplyVanillaPrefix(Player player, TagCompound row)
     {
         var container = row.GetString("c");
@@ -241,7 +217,6 @@ internal sealed class ItemSavePipeline
         item.Prefix(prefix.Type);
     }
 
-    /// <summary>mod 行恢复：槽位选择 → SetDefaults → 数量 / 前缀 / 收藏 / 作者数据。</summary>
     private void Restore(Player player, TagCompound row)
     {
         var container = row.GetString("c");
@@ -262,11 +237,9 @@ internal sealed class ItemSavePipeline
             return;
         }
 
-        // 实际落位可能与原行不同（原槽被占挪进背包），占位期记账要跟着落位走。
         var placedContainer = container;
         var placedSlot = slot;
 
-        // 原位恢复：空槽、同类型、"？"占位、过期 mod 号（注册表重建后号变了）。
         var current = items[slot];
         var replace = current is null || current.stack <= 0 || current.type <= 0 ||
                       current.type == type ||
@@ -275,7 +248,6 @@ internal sealed class ItemSavePipeline
 
         if (!replace)
         {
-            // 主背包（0..49）找空格，不动钱币 / 弹药 / 光标。
             for (var i = 0; i < 50; i++)
             {
                 if (player.inventory is not { } inventory || i >= inventory.Length) break;
@@ -297,7 +269,6 @@ internal sealed class ItemSavePipeline
 
         if (UnloadedItems.IsUnloadedType(items[placedSlot].type))
         {
-            // mod 还没回来：按实际落位记住原始行，下次保存原样带走（前缀与作者数据都在里面）。
             _pending[$"{placedContainer}#{placedSlot}"] = row;
         }
     }
@@ -307,7 +278,7 @@ internal sealed class ItemSavePipeline
         if (item is null) return false;
 
         item.SetDefaults(type, null);
-        if (item.type != type) return false;   // 落回原版分支被归零 = 类型不可用
+        if (item.type != type) return false;
 
         item.stack = Math.Max(1, row.GetInt("n"));
 
@@ -322,7 +293,6 @@ internal sealed class ItemSavePipeline
         }
         else if (!string.IsNullOrEmpty(prefixKey))
         {
-            // 前缀的 mod 缺席：键暂存（按落位记账），下次保存回填进行里继续等。
             _pendingPrefix[slotKey] = (prefixKey, type);
         }
 
@@ -334,7 +304,7 @@ internal sealed class ItemSavePipeline
         {
             try
             {
-                mod.LoadData(item, data);
+                mod.LoadData(data);
             }
             catch (Exception e)
             {
@@ -345,15 +315,12 @@ internal sealed class ItemSavePipeline
         return true;
     }
 
-    // ===================== 公共件 =====================
-
     private void Keep(TagCompound row, int index)
     {
         _kept[index] ??= [];
         _kept[index]!.Add(row);
     }
 
-    /// <summary>键 → 类型：先查注册表（mod 在），查不到给？池占位号（mod 不在），再不行 -1。</summary>
     private static int TypeForKey(string key) =>
         ModContent.TryFind<ModItem>(key, out var item) ? item.Type : UnloadedItems.TypeFor(key);
 
@@ -370,7 +337,6 @@ internal sealed class ItemSavePipeline
         return null;
     }
 
-    /// <summary>容器名 → 数组。bank 系列是 InventoryStorage.item；loadout 按展开名寻址。</summary>
     private static Item[]? ContainerOf(Player player, string name)
     {
         if (player.Loadouts is { } loadouts)
@@ -399,7 +365,6 @@ internal sealed class ItemSavePipeline
         };
     }
 
-    /// <summary>存档期容器清单：背包 / 装备 / 染料 / 杂项与染料 / 四个仓库 / 每套装扮槽。</summary>
     private static IEnumerable<(string Name, Item[] Items)> ContainersOf(Player player)
     {
         if (player.inventory is { } inventory) yield return ("inventory", inventory);

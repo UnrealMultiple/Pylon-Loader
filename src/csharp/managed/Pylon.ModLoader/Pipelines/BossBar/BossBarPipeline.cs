@@ -7,11 +7,7 @@ using Terraria.GameContent.UI.BigProgressBar;
 
 namespace Pylon.ModLoader;
 
-/// <summary>
-/// Boss 血条管线：拦在 <c>BigProgressBarSystem</c> 上——
-/// <c>Update</c> 之后读 <c>_info.npcIndexToAimAt</c>（精确的目标 NPC 序号），
-/// <c>Draw</c> 里换成作者的条。见 docs/pipeline/content-bossbar.md。
-/// </summary>
+/// <summary>Boss 血条管线：拦在 BigProgressBarSystem 上抓目标与换条，GUI 层接管条身皮肤。</summary>
 internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
 {
     public static BossBarPipeline Instance { get; } = new();
@@ -20,13 +16,10 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    /// <summary>当前这条 mod 血条（null = 这一帧画原版）。</summary>
     private static ModBossBar? Bar;
 
-    /// <summary>当前这条血条指向的 NPC 序号（-1 = 没有）。</summary>
     private static int Index = -1;
 
-    /// <summary>原版没血条时，隔多少帧扫一次附近的 mod Boss。</summary>
     private const int ScanEvery = 30;
 
     private static int Tracked = -1;
@@ -37,11 +30,7 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.GameContent.UI.BigProgressBar.BigProgressBarSystem.Update += Update;
         On.Terraria.GameContent.UI.BigProgressBar.BigProgressBarSystem.Draw += DrawSystem;
 
-        // 原版条不经过 DrawBar；GlobalBossBar 要在 GUIBossBar.Draw 这一层也跑一遍。
         On.GUIBossBar.Draw += GuiDraw;
-
-        // 条身皮肤：条身的底色/贴图与生命文字都走下面这一族 GUI 绘制，接管它们才能让
-        // BossBarDrawParams 的 BarTexture / BarColor / ShowText 真的生效（见 §2.4 的修正）。
         On.GUIPanel.DrawBacking += Backing;
         On.GUIPanel.Region += CapturedRegion;
         On.GUIString.Draw_String_Layout_string += Text;
@@ -59,17 +48,10 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
 
     public void Refresh() => BossBarTable.Rebuild();
 
-    /// <summary>安装期一次：血条的静态默认值。</summary>
-    /// <summary>横切血条（游戏条 + mod 条都走）。安装期快照，分派时不再分配。</summary>
     private static GlobalBossBar[] _globals = [];
 
-    /// <summary>正在画 mod 条：此时 GUIBossBar.Draw 里不再重复分派 GlobalBossBar。</summary>
     private static bool _inModBarDraw;
 
-    /// <summary>
-    ///    正在画的这条 mod 条的作者参数（null = 没在画 mod 条）。
-    ///    条身贴图/底色/生命文字的接管都只在这期间生效，原版条一个像素都不动。
-    /// </summary>
     private static BossBarDrawParams? _skin;
 
     internal void Build()
@@ -86,8 +68,6 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         if (BossBarTable.Count > 0) Log.Info($"[bossbar] 安装：{BossBarTable.Count} 条血条");
     }
 
-    // ===================== 抓目标 =====================
-
     private static void Update(On.Terraria.GameContent.UI.BigProgressBar.BigProgressBarSystem.orig_Update orig,
                                BigProgressBarSystem self)
     {
@@ -103,7 +83,6 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
             var current = self._currentBar;
             if (current is not null)
             {
-                // 原版已经盯上了一个：看它的 _info 里是哪个 NPC。这就是精确序号。
                 Tracked = -1;
 
                 var at = self._info.npcIndexToAimAt;
@@ -136,7 +115,6 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    /// <summary>第 <paramref name="at"/> 号 NPC 是不是 mod Boss 且声明了血条。</summary>
     private static ModBossBar? Of(int at)
     {
         if ((uint)at >= 200u) return null;
@@ -151,18 +129,15 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         return modNpc.BossBar;
     }
 
-    /// <summary>作者点头就用这条；返回 false = 这个目标不画。</summary>
     private static bool Collect(ModBossBar candidate, int at)
     {
         var info = new BossBarInfo { npcIndexToAimAt = at };
 
-        // 合同里没有单独的 Validate：ModifyInfo 返回 false 就是不画。
         Bar = candidate;
         Index = at;
         return true;
     }
 
-    /// <summary>原版没在盯任何 Boss 时，就近找一个声明了血条的 mod NPC。</summary>
     private static int Find()
     {
         var npcs = Main.npc;
@@ -205,8 +180,6 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         return best;
     }
 
-    // ===================== 画 =====================
-
     private static void DrawSystem(On.Terraria.GameContent.UI.BigProgressBar.BigProgressBarSystem.orig_Draw orig,
                                    BigProgressBarSystem self, SpriteBatch spriteBatch)
     {
@@ -243,7 +216,6 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         var shield = bar.Shield;
         var shieldMax = bar.ShieldMax;
 
-        // 先把这一帧的生命收进作者对象：GetIconTexture / ModifyInfo 读到的才是当前帧。
         try
         {
             bar.Collected(npc.life, npc.lifeMax, shield, shieldMax);
@@ -300,13 +272,12 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
             TextOffset = Vector2.Zero,
         };
 
-        // 横切类先跑（ModBossBar 的 PreDraw 在它们之后）；任何一个返回 false 都跳过条身。
         var keep = true;
         foreach (var global in _globals)
         {
             try
             {
-                if (!global.PreDraw(spriteBatch, npc, draw)) keep = false;
+                if (!global.PreDraw(spriteBatch, npc, ref draw)) keep = false;
             }
             catch (Exception e)
             {
@@ -318,7 +289,7 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         {
             try
             {
-                keep = bar.PreDraw(spriteBatch, npc, draw);
+                keep = bar.PreDraw(spriteBatch, npc, ref draw);
             }
             catch (Exception e)
             {
@@ -359,10 +330,6 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    /// <summary>
-    /// 原版条也过一遍 <see cref="GlobalBossBar"/>：<c>GUIBossBar.Draw</c> 是两种条共用的最后一步。
-    /// mod 条在 <see cref="DrawBar"/> 里已经分派过，用 <c>_inModBarDraw</c> 防止重复。
-    /// </summary>
     private static void GuiDraw(On.GUIBossBar.orig_Draw orig, GUIBossBar self, float life, float lifeMax,
                                 Texture2D icon, Rectangle frame, float shield, float shieldMax)
     {
@@ -378,7 +345,7 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
             var system = Main.BigBossProgressBar;
             if (system is not null) at = system._info.npcIndexToAimAt;
         }
-        catch { /* 读不到就按原版画 */ }
+        catch { }
 
         if ((uint)at >= 200u || Main.npc is null || at >= Main.npc.Length)
         {
@@ -415,7 +382,7 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         {
             try
             {
-                if (!global.PreDraw(Main.spriteBatch, npc, draw)) keep = false;
+                if (!global.PreDraw(Main.spriteBatch, npc, ref draw)) keep = false;
             }
             catch (Exception e)
             {
@@ -437,13 +404,6 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    // ===================== 条身皮肤 =====================
-
-    /// <summary>
-    ///     条身底色与贴图。<c>GUIBossBar.Draw</c> 内部的条身是 <c>GUIPanel.DrawBacking</c> 画的，
-    ///     所以接管这一笔就能让 <see cref="BossBarDrawParams.BarTexture"/> / <see cref="BossBarDrawParams.BarColor"/> 生效。
-    ///     只在画 mod 条期间动手，作者不设（Texture 为 null、Color 为白）就一个像素都不改。
-    /// </summary>
     private static void Backing(On.GUIPanel.orig_DrawBacking orig, Vector2 position, Vector2 size,
                                 Texture2D texture, Color color, Il2CppSystem.Nullable<Rectangle> frame)
     {
@@ -473,14 +433,12 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static Panel_Layout? _panel;
 
-    /// <summary>画 mod 条期间记下条身面板布局:Center() 才能给出真实中心。</summary>
     private static Rectangle CapturedRegion(On.GUIPanel.orig_Region orig, Panel_Layout layout)
     {
         if (_skin is not null && _panel is null) _panel = layout;
         return orig(layout);
     }
 
-    /// <summary>画 mod 条期间作者要求不显文字：这一族 GUI 文字全部跳过。</summary>
     private static bool NoText => _skin is { ShowText: false };
 
     private static void Text(On.GUIString.orig_Draw_String_Layout_string orig, String_Layout layout, string text)

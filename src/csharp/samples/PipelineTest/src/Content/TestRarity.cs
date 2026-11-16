@@ -30,12 +30,12 @@ public sealed class TestRarityItem : ModItem
 {
     public override string DisplayName => "稀有度测试物品";
 
-    public override void SetDefaults(Item item)
+    public override void SetDefaults()
     {
-        item.width = 20;
-        item.height = 20;
-        item.maxStack = 1;
-        item.rare = ModContent.RarityType<TestRarity>();
-        item.value = 5000;
+        Item.width = 20;
+        Item.height = 20;
+        Item.maxStack = 1;
+        Item.rare = ModContent.RarityType<TestRarity>();
+        Item.value = 5000;
     }
 }

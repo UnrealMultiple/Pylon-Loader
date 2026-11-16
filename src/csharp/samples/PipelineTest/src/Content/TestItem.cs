@@ -12,26 +12,26 @@ public sealed class TestItem : ModItem
     public override string DisplayName => "测试物品";
     public override string Tooltip => "这是一行测试介绍";
 
-    public override void SetDefaults(Item item)
+    public override void SetDefaults()
     {
-        item.width = 20;
-        item.height = 20;
-        item.maxStack = ModItem.CommonMaxStack;
-        item.value = 100;
-        item.rare = 1;
+        Item.width = 20;
+        Item.height = 20;
+        Item.maxStack = 9999;
+        Item.value = 100;
+        Item.rare = 1;
 
         // 近战武器：能挥舞，命中判定尺寸
-        item.damage = 15;
-        item.melee = true;
-        item.useTime = 20;
-        item.useAnimation = 20;
-        item.useStyle = (byte)Terraria.ID.ItemUseStyleID.Swing;
-        item.knockBack = 4f;
-        item.autoReuse = true;
+        Item.damage = 15;
+        Item.melee = true;
+        Item.useTime = 20;
+        Item.useAnimation = 20;
+        Item.useStyle = (byte)Terraria.ID.ItemUseStyleID.Swing;
+        Item.knockBack = 4f;
+        Item.autoReuse = true;
 
         // 挥舞时发射弹幕（ Shoot 钩子链路）
-        item.shoot = Terraria.ID.ProjectileID.WoodenArrowFriendly;
-        item.shootSpeed = 8f;
+        Item.shoot = Terraria.ID.ProjectileID.WoodenArrowFriendly;
+        Item.shootSpeed = 8f;
     }
 
     // ---- tooltip 探针（TooltipTests 用）：开关默认全关，避免污染其它组 ----
@@ -90,13 +90,8 @@ public sealed class TestItem : ModItem
 
     public override void PostDrawTooltipLine(DrawableTooltipLine line) => CtPostDrawTooltipLine++;
 
-    public override void ModifyTooltipLines()
-    {
-        // TooltipLines 管线功能验证：额外加一行
-        TooltipLines.Add("[TestItem] ModifyTooltipLines 加的行");
-    }
-
-    public override bool Shoot(Item item, Player player, Vector2 position, Vector2 velocity, int type, int damage, float knockBack)
+    public override bool Shoot(Player player, Terraria.DataStructures.EntitySource_ItemUse_WithAmmo? source,
+                               Vector2 position, Vector2 velocity, int type, int damage, float knockBack)
     {
         Tests.ItemTests2.ShootCalled = true;
         // 发射自定义测试弹幕（Projectile 管线肉眼验证）：贴图为 assets/projectiles/TestProjectile.png

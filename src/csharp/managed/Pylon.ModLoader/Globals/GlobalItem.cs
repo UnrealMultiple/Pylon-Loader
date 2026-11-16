@@ -29,14 +29,14 @@ public abstract class GlobalItem : ModType
     /// <summary>false：这一次用不了这个物品。</summary>
     public virtual bool CanUseItem(Item item, Player player) => true;
 
-    /// <summary>使用开始时；true = 物品算用过了（消耗品会被吃掉）。</summary>
-    public virtual bool UseItem(Item item, Player player) => false;
+    /// <summary>使用开始时；true = 物品算用过了（消耗品会被吃掉），false 显式不算，null = 交给游戏。</summary>
+    public virtual bool? UseItem(Item item, Player player) => null;
 
     /// <summary>使用时的样子；游戏自己的样式和 ModItem 的之后跑。</summary>
-    public virtual void UseStyle(Item item, Player player, float mountOffset, Rectangle heldItemFrame) { }
+    public virtual void UseStyle(Item item, Player player, Rectangle heldItemFrame) { }
 
     /// <summary>握着时的样子；游戏自己的样式和 ModItem 的之后跑。</summary>
-    public virtual void HoldStyle(Item item, Player player, float mountOffset, Rectangle heldItemFrame) { }
+    public virtual void HoldStyle(Item item, Player player, Rectangle heldItemFrame) { }
 
     /// <summary>false:该类型不能成为当前的渔夫任务;按类型调用模板,不绑定物品实体。</summary>
     public virtual bool IsAnglerQuestAvailable(int type) => true;
@@ -47,8 +47,44 @@ public abstract class GlobalItem : ModType
     /// <summary>手里拿着时每帧一次。</summary>
     public virtual void HoldItem(Item item, Player player) { }
 
-    /// <summary>武器的伤害修正（可写引用）。</summary>
-    public virtual void ModifyWeaponDamage(Item item, Player player, ref int damage) { }
+    /// <summary>武器的伤害修正（同 TML：<see cref="StatModifier"/> 链）。</summary>
+    public virtual void ModifyWeaponDamage(Item item, Player player, ref StatModifier damage) { }
+
+    /// <summary>武器的暴击修正（同 TML：百分点）。</summary>
+    public virtual void ModifyWeaponCrit(Item item, Player player, ref float crit) { }
+
+    /// <summary>武器的击退修正（同 TML：<see cref="StatModifier"/> 链）。</summary>
+    public virtual void ModifyWeaponKnockback(Item item, Player player, ref StatModifier knockback) { }
+
+    /// <summary>物品画出来的体积（同 TML）。</summary>
+    public virtual void ModifyItemScale(Item item, Player player, ref float scale) { }
+
+    /// <summary>null = 交给游戏（原版连发判定）；true/false 强制开或关自动连发。</summary>
+    public virtual bool? CanAutoReuseItem(Item item, Player player) => null;
+
+    /// <summary>本次使用的用时倍率（乘区）。</summary>
+    public virtual float UseTimeMultiplier(Item item, Player player) => 1f;
+
+    /// <summary>本次使用的动画倍率（乘区）。</summary>
+    public virtual float UseAnimationMultiplier(Item item, Player player) => 1f;
+
+    /// <summary>整体使用速度倍率（乘区）。</summary>
+    public virtual float UseSpeedMultiplier(Item item, Player player) => 1f;
+
+    /// <summary>改这次使用的魔力开销：reduce 是减量、mult 是倍率（可写引用）。</summary>
+    public virtual void ModifyManaCost(Item item, Player player, ref float reduce, ref float mult) { }
+
+    /// <summary>魔力不够放不出来时。</summary>
+    public virtual void OnMissingMana(Item item, Player player, int neededMana) { }
+
+    /// <summary>实际消耗魔力之后。</summary>
+    public virtual void OnConsumeMana(Item item, Player player, int manaConsumed) { }
+
+    /// <summary>true：右键也算主用途（AltFunctionUse 路径）。</summary>
+    public virtual bool AltFunctionUse(Item item, Player player) => false;
+
+    /// <summary>这次挥击的碰撞盒（可写引用）；noHitbox = true 关掉伤害。</summary>
+    public virtual void UseItemHitbox(Item item, Player player, ref Rectangle hitbox, ref bool noHitbox) { }
 
     /// <summary>近战挥击的特效；hitbox 是这次挥击的矩形。</summary>
     public virtual void MeleeEffects(Item item, Player player, Rectangle hitbox) { }
@@ -74,14 +110,14 @@ public abstract class GlobalItem : ModType
     /// <summary>原版实际造成 PvP 伤害之后通知全局物品实例。</summary>
     public virtual void OnHitPvp(Item item, Player player, Player target, HurtInfo info) { }
 
-    /// <summary>使用动画的长度（可写引用）。</summary>
-    public virtual void UseAnimation(Item item, Player player, ref int useAnimation) { }
+    /// <summary>使用动画应用时（每帧使用）。</summary>
+    public virtual void UseAnimation(Item item, Player player) { }
 
-    /// <summary>使用时画哪一帧（可写引用）。</summary>
-    public virtual void UseItemFrame(Item item, Player player, ref int frame) { }
+    /// <summary>使用时画哪一帧。</summary>
+    public virtual void UseItemFrame(Item item, Player player) { }
 
-    /// <summary>握着时画哪一帧（可写引用）。</summary>
-    public virtual void HoldItemFrame(Item item, Player player, ref int frame) { }
+    /// <summary>握着时画哪一帧。</summary>
+    public virtual void HoldItemFrame(Item item, Player player) { }
 
     /// <summary>回的血量（可写引用），基准是正的回血量。</summary>
     public virtual void GetHealLife(Item item, Player player, bool quickHeal, ref int healValue) { }
@@ -120,15 +156,22 @@ public abstract class GlobalItem : ModType
     public virtual void OnConsumedAsAmmo(Item ammo, Item weapon, Player player) { }
 
     /// <summary>弹药选中后修改最终弹幕参数；damage 修饰基于原版计算结果。</summary>
+    /// <summary>配方注册阶段（Mod.AddRecipes 之后逐个跑）。</summary>
+    public virtual void AddRecipes() { }
+
+    /// <summary>持枪偏移（按物品类型问）；原点在持手，游戏会按朝向/重力/持枪旋转换算。null = 不动。</summary>
+    public virtual Vector2? HoldoutOffset(int type) => null;
+
     public virtual void PickAmmo(Item weapon, Item ammo, Player player, ref int type, ref float speed,
                                  ref StatModifier damage, ref float knockback) { }
 
-    /// <summary>每个弹幕之前：改 stats 的位置、速度、类型、伤害、击退。</summary>
-    public virtual void ModifyShootStats(Item item, Player player, ModItem.ShootStats stats) { }
+    /// <summary>每个弹幕之前：位置/速度/类型/伤害/击退都是可写引用。</summary>
+    public virtual void ModifyShootStats(Item item, Player player, ref Vector2 position, ref Vector2 velocity,
+                                         ref int type, ref int damage, ref float knockback) { }
 
-    /// <summary>false：游戏不发射自己的弹幕（在这里造自己的）；source 是这一发的来源。</summary>
-    public virtual bool Shoot(Item item, Player player, Vector2 position, Vector2 velocity, int type, int damage,
-                              float knockBack, IEntitySource source) => true;
+    /// <summary>false：游戏不发射自己的弹幕（在这里造自己的）；source 是这一发的来源，可能是 null 包装。</summary>
+    public virtual bool Shoot(Item item, Player player, EntitySource_ItemUse_WithAmmo? source, Vector2 position,
+                              Vector2 velocity, int type, int damage, float knockBack) => true;
 
     /// <summary>这件物品要跟着原版物品包一起过网的那部分状态（按注册顺序编号发送）。</summary>
     public virtual void NetSend(Item item, NetWriter writer) { }
@@ -142,8 +185,8 @@ public abstract class GlobalItem : ModType
     /// <summary>装备着时每帧一次（盔甲或饰品）。</summary>
     public virtual void UpdateEquip(Item item, Player player) { }
 
-    /// <summary>饰品装备着时每帧一次；vanity = 在时装栏，hideVisual = 关了显示。</summary>
-    public virtual void UpdateAccessory(Item item, Player player, bool vanity, bool hideVisual) { }
+    /// <summary>饰品装备着时每帧一次；hideVisual = 关了显示。</summary>
+    public virtual void UpdateAccessory(Item item, Player player, bool hideVisual) { }
 
     /// <summary>地上物品的更新之前；false = 这一帧跳过游戏的更新（Post 照跑）。</summary>
     public virtual bool PreUpdateInWorld(Item item, WorldItem worldItem) => true;
@@ -151,23 +194,29 @@ public abstract class GlobalItem : ModType
     /// <summary>地上物品的更新之后。</summary>
     public virtual void PostUpdateInWorld(Item item, WorldItem worldItem) { }
 
-    /// <summary>false：玩家既不捡也不吸这个物品。</summary>
-    public virtual bool CanPickup(WorldItem worldItem, Player player) => true;
+    /// <summary>false：玩家既不捡也不吸这个物品（同 TML）。</summary>
+    public virtual bool CanPickup(Item item, Player player) => true;
 
     /// <summary>被捡起时；false = 物品直接消失，不进背包（红心、经验珠）。</summary>
-    public virtual bool OnPickup(WorldItem worldItem, Player player) => true;
+    public virtual bool OnPickup(Item item, Player player) => true;
 
     /// <summary>true：背包满了也能捡（配 OnPickup 消耗掉）。</summary>
     public virtual bool ItemSpace(Item item, Player player) => false;
 
     /// <summary>吸取范围，像素（可写引用，在游戏的范围上加）。</summary>
-    public virtual void GrabRange(WorldItem worldItem, Player player, ref int grabRange) { }
+    public virtual void GrabRange(Item item, Player player, ref int grabRange) { }
 
-    /// <summary>true：由 mod 自己把物品移过去（改 worldItem.velocity），游戏不吸。</summary>
-    public virtual bool GrabStyle(WorldItem worldItem, Player player) => false;
+    /// <summary>true：由 mod 自己把物品移过去（改 velocity），游戏不吸。</summary>
+    public virtual bool GrabStyle(Item item, Player player) => false;
 
-    /// <summary>在制作菜单做出这个物品时；item 是玩家将拿到的那份，还能改。</summary>
-    public virtual void OnCraft(Item item, Player player, Recipe recipe) { }
+    /// <summary>false：这次右键不消耗该物品（同 TML）。</summary>
+    public virtual bool ConsumeItem(Item item, Player player) => true;
+
+    /// <summary>物品被创建时（同 TML）。</summary>
+    public virtual void OnCreated(Item item, ItemCreationContext context) { }
+
+    /// <summary>画这个物品用的颜色；返 null = 用原色（同 TML）。</summary>
+    public virtual Color? GetAlpha(Item item, Color lightColor) => null;
 
     /// <summary>地上画它之前；rotation 和 scale 是可写引用，false = 不画。</summary>
     public virtual bool PreDrawInWorld(Item item, SpriteBatch spriteBatch, Color lightColor, Color alphaColor,
@@ -209,8 +258,15 @@ public abstract class GlobalItem : ModType
     /// <summary>false：这个前缀不在候选里。</summary>
     public virtual bool AllowPrefix(Item item, int pre) => true;
 
-    /// <summary>前缀的数值之后跑。</summary>
-    public virtual void ApplyPrefix(Item item, int pre) { }
+    /// <summary>画盔甲部件时的颜色（type 是部位、slot 是盔甲槽；可写引用）。</summary>
+    public virtual void DrawArmorColor(EquipType type, int slot, Player drawPlayer, float shadow, ref Color color,
+                                       ref int glowMask, ref Color glowMaskColor) { }
+
+    /// <summary>画手臂盔甲的辉光（slot 是身体槽）。</summary>
+    public virtual void ArmorArmGlowMask(int slot, Player drawPlayer, float shadow, ref int glowMask, ref Color color) { }
+
+    /// <summary>false：这个饰品槽装不上。</summary>
+    public virtual bool CanEquipAccessory(Item item, Player player, int slot, bool modded) => true;
 
     /// <summary>false：这对饰品不能同时装（拖进槽和点着换都问）。</summary>
     public virtual bool CanAccessoryBeEquippedWith(Item equippedItem, Item incomingItem, Player player) => true;
@@ -257,5 +313,4 @@ public abstract class GlobalItem : ModType
         table[slot > 0 && slot < table.Length ? slot : 0];
 }
 
-// 未移植（等伤害/命中管线定形）：武器暴击/击退/体积、UseItemHitbox、弹药整块、命中整块——
-// 这些签名要的 StatModifier / HitModifiers / HitInfo 在本版游戏元数据里没有对应原生类型。
+// 分派未接的声明钩子见各方法注释；接分派时同步 HookId（追加区）与调用点。

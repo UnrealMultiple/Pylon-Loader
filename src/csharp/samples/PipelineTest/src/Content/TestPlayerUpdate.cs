@@ -12,7 +12,7 @@ internal static class PlayerUpdateProbe
 
 public sealed class TestPlayerUpdate : ModPlayer
 {
-    public override bool PreModifyLuck(Player player, ref float luck)
+    public override bool PreModifyLuck(ref float luck)
     {
         if (!PlayerUpdateProbe.Active) return true;
         PlayerUpdateProbe.PreLuck++;
@@ -20,24 +20,24 @@ public sealed class TestPlayerUpdate : ModPlayer
         return !PlayerUpdateProbe.Veto;
     }
 
-    public override void ModifyLuck(Player player, ref float luck)
+    public override void ModifyLuck(ref float luck)
     {
         if (!PlayerUpdateProbe.Active) return;
         PlayerUpdateProbe.PostLuck++;
         luck += 0.5f;
     }
 
-    public override void PostUpdateMiscEffects(Player player)
+    public override void PostUpdateMiscEffects()
     {
         if (PlayerUpdateProbe.Active) PlayerUpdateProbe.Misc++;
     }
 
-    public override void PostUpdateRunSpeeds(Player player)
+    public override void PostUpdateRunSpeeds()
     {
         if (PlayerUpdateProbe.Active) PlayerUpdateProbe.Speeds++;
     }
 
-    public override void PreUpdateMovement(Player player)
+    public override void PreUpdateMovement()
     {
         if (PlayerUpdateProbe.Active) PlayerUpdateProbe.Movement++;
     }

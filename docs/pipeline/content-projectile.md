@@ -117,3 +117,7 @@ Pipelines/Projectile/
 * **NPC 管线**：弹幕打 NPC 的伤害流程在 `Projectile.Damage_PVE` 里，NPC 侧的承受逻辑归 NPC 管线；本管线只提供 `CanDamage` / `Colliding` 这种"打不打"的表态。
 * **网络管线**：弹幕同步包与 `SendExtraAI` / `ReceiveExtraAI` 归网络管线；本管线不碰 `NetWriter`。
 * **安装管线**：模板初始化与贴图槽写入归安装管线，本管线只被它调用一次。
+
+## 2026-11-17 批：OnSpawn 真 source
+
+- 两个 NewProjectile 重载生成时分派 OnSpawn 时把 spawnSource 直接传给作者（此前给 null 包装）；走不到这两条路的（其余重载/直造实例）才在首帧兜底给 null。

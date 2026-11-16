@@ -5,14 +5,7 @@ using Terraria;
 
 namespace Pylon.ModLoader;
 
-/// <summary>
-/// 城镇 NPC 与房间存档：原版 .wld 只认它自己的类型号，mod 城镇 NPC 与房间一读档就消失。
-/// 存：SaveNPCs 窗口内摘 mod NPC 的 townNPC、InternalSaveWorld 前把 mod 房间从 TownManager 摘掉
-///（.wld 里不出现 mod 类型号，避免读档双份/孤儿条目），
-/// 后写 <c>&lt;world&gt;.wld.npcs.json</c>（NPC 行 + 房间行 + mod 缺席的等待行）。
-/// 读：LoadNPCs 后缀按 FullKey 复活 NPC，LoadTownManager 后缀把房间行还给 TownManager（它先清空自己）。
-/// mod 缺席的行进等待名单，随下次保存原样回写，mod 回来后下次读档恢复。
-/// </summary>
+/// <summary>城镇 NPC 与房间存档：.wld 不写 mod 类型号，NPC 行与房间行走侧车 &lt;world&gt;.wld.npcs.json，读档按 FullKey 复活，mod 缺席的行进等待名单。</summary>
 internal sealed class NpcSavePipeline
 {
     private const string NpcSection = "npcs";
@@ -31,11 +24,8 @@ internal sealed class NpcSavePipeline
         On.Terraria.IO.WorldFile.LoadTownManager += LoadRooms;
     }
 
-    // ===================== 保存 =====================
-
     private void SaveWorld(On.Terraria.IO.WorldFile.orig_InternalSaveWorld orig, bool useCloudSaving, bool resetTime)
     {
-        // 云存档不做房间摘除：侧车没有落点，摘了就没有恢复时机。
         var rooms = useCloudSaving ? null : CollectRooms();
 
         try
@@ -51,11 +41,6 @@ internal sealed class NpcSavePipeline
         WriteFile(rooms);
     }
 
-    /// <summary>
-    /// 存档窗口内把 mod 城镇 NPC 的 townNPC 摘掉：原版 SaveNPCs 按 townNPC 把 NPC 行写进 .wld，
-    /// mod 类型号进档 = 装着 mod 读档双份（侧车还会再复活一份）、卸 mod 留孤儿行。窗口就是 SaveNPCs 本身。
-    /// 云存档不摘：侧车没有落点，摘了就没有恢复时机。
-    /// </summary>
     private int SaveNpcs(On.Terraria.IO.WorldFile.orig_SaveNPCs orig, Il2CppSystem.IO.BinaryWriter writer)
     {
         var worldData = Main.ActiveWorldFileData;
@@ -85,7 +70,6 @@ internal sealed class NpcSavePipeline
         }
     }
 
-    /// <summary>mod 城镇 NPC 的房间摘出来进侧车；没有房间的 mod NPC 自然不产生房间行。</summary>
     private List<TagCompound> CollectRooms()
     {
         var result = new List<TagCompound>();
@@ -153,6 +137,9 @@ internal sealed class NpcSavePipeline
             var given = npc.GivenName;
             if (!string.IsNullOrEmpty(given)) row["n"] = given;
 
+            var data = SaveData(npc);
+            if (data is not null && data.Count > 0) row["d"] = data;
+
             npcs.Add(row);
         }
 
@@ -160,7 +147,6 @@ internal sealed class NpcSavePipeline
         if (rooms is not null) roomRows.AddRange(rooms);
         if (_keptRooms is not null) roomRows.AddRange(_keptRooms);
 
-        // mod 缺席的等待行原样回写（mod 回来后下次读档恢复）。
         if (_keptNpcs is not null) npcs.AddRange(_keptNpcs);
         if (npcs.Count > 0) root.Set(NpcSection, npcs);
         if (roomRows.Count > 0) root.Set(RoomSection, roomRows);
@@ -174,17 +160,12 @@ internal sealed class NpcSavePipeline
         {
             Safe.Report("npc 存档", e);
         }
-
-        // 等待行常驻内存（每次保存只读合并，同会话二次保存不丢），只在读档时重建。
     }
-
-    // ===================== 读取 =====================
 
     private void LoadNpcs(On.Terraria.IO.WorldFile.orig_LoadNPCs orig, Il2CppSystem.IO.BinaryReader reader)
     {
         orig(reader);
 
-        // 等待名单按次读档重建：跨世界不带走（行本体在各自世界的侧车里）。
         _keptNpcs = null;
         _keptRooms = null;
         _pendingRooms = [];
@@ -209,7 +190,6 @@ internal sealed class NpcSavePipeline
         }
     }
 
-    /// <summary>LoadTownManager 会清空自己的房间表：房间行等它读完再还回去。</summary>
     private void LoadRooms(On.Terraria.IO.WorldFile.orig_LoadTownManager orig, Il2CppSystem.IO.BinaryReader reader)
     {
         orig(reader);
@@ -241,7 +221,6 @@ internal sealed class NpcSavePipeline
         }
     }
 
-    /// <summary>找一个空闲 NPC 槽恢复；mod 缺席返回 false（行进等待名单）。</summary>
     private bool Restore(TagCompound row)
     {
         var type = TypeOf(row.GetString("k"));
@@ -266,6 +245,8 @@ internal sealed class NpcSavePipeline
 
             var name = row.GetString("n");
             if (!string.IsNullOrEmpty(name)) npc.GivenName = name;
+
+            if (row.ContainsKey("d")) LoadData(npc, row.GetCompound("d"));
             return true;
         }
         catch (Exception e)
@@ -275,7 +256,86 @@ internal sealed class NpcSavePipeline
         }
     }
 
-    // ===================== 公共件 =====================
+    private static bool NeedSaving(NPC npc)
+    {
+        if (NpcPipeline.Instance.InstanceOf(npc) is { } mod && mod.HookEnabled(HookId.NeedSaving))
+        {
+            try
+            {
+                if (mod.NeedSaving()) return true;
+            }
+            catch (Exception e) { Safe.Report(mod.FullKey + ".NeedSaving", e); }
+        }
+
+        foreach (var global in GlobalNpcRegistry.For(npc, HookId.NeedSaving))
+        {
+            try
+            {
+                if (global.NeedSaving(npc)) return true;
+            }
+            catch (Exception e) { Safe.Report(global.FullKey + ".NeedSaving", e); }
+        }
+
+        return false;
+    }
+
+    private static TagCompound? SaveData(NPC npc)
+    {
+        if (!NeedSaving(npc)) return null;
+
+        var saved = new TagCompound();
+        var mod = NpcPipeline.Instance.InstanceOf(npc);
+
+        if (mod is { } own && own.HookEnabled(HookId.SaveData))
+        {
+            var tag = new TagCompound();
+            try { own.SaveData(tag); }
+            catch (Exception e) { Safe.Report(own.FullKey + ".SaveData", e); }
+            if (tag.Count > 0) saved["data"] = tag;
+        }
+
+        var globals = new List<object?>();
+        foreach (var global in GlobalNpcRegistry.For(npc, HookId.SaveData))
+        {
+            var tag = new TagCompound();
+            try { global.SaveData(npc, tag); }
+            catch (Exception e) { Safe.Report(global.FullKey + ".SaveData", e); }
+            if (tag.Count == 0) continue;
+            globals.Add(new TagCompound { ["m"] = global.Mod?.Name ?? "", ["n"] = global.Name, ["d"] = tag });
+        }
+
+        if (globals.Count > 0) saved["g"] = globals;
+        return saved.Count == 0 ? null : saved;
+    }
+
+    private static void LoadData(NPC npc, TagCompound saved)
+    {
+        var mod = NpcPipeline.Instance.InstanceOf(npc);
+
+        if (mod is { } own && own.HookEnabled(HookId.LoadData) && saved.ContainsKey("data"))
+        {
+            try { own.LoadData(saved.GetCompound("data")); }
+            catch (Exception e) { Safe.Report(own.FullKey + ".LoadData", e); }
+        }
+
+        if (!saved.ContainsKey("g")) return;
+        var globals = saved.GetList("g");
+
+        foreach (var entry in globals)
+        {
+            if (entry is not TagCompound tag || !tag.ContainsKey("d")) continue;
+            var key = tag.GetString("m") + "/" + tag.GetString("n");
+            var globalData = tag.GetCompound("d");
+
+            foreach (var global in GlobalNpcRegistry.For(npc, HookId.LoadData))
+            {
+                if (global.FullKey != key) continue;
+
+                try { global.LoadData(npc, globalData); }
+                catch (Exception e) { Safe.Report(global.FullKey + ".LoadData", e); }
+            }
+        }
+    }
 
     private void ClearWorld(On.Terraria.WorldGen.orig_clearWorld orig)
     {
@@ -288,7 +348,6 @@ internal sealed class NpcSavePipeline
     private static NPC? FreeNpc()
     {
         var npcs = Main.npc;
-        // 最后一位是游戏的保留槽，不占。
         for (var i = 0; i < npcs.Length - 1; i++)
         {
             var npc = npcs[i];
@@ -304,7 +363,6 @@ internal sealed class NpcSavePipeline
     private static int TypeOf(string key) =>
         string.IsNullOrEmpty(key) || !ModContent.TryFind<ModNpc>(key, out var npc) ? 0 : npc.Type;
 
-    /// <summary>NPC 侧车路径：与方块实体侧车同款命名（手机版 worldPathName 自带 .wld 后缀要剥掉）。</summary>
     private static string? DataFile()
     {
         var path = Main.worldPathName;

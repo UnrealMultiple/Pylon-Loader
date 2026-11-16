@@ -6,10 +6,7 @@ using Terraria.DataStructures;
 
 namespace Pylon.ModLoader;
 
-/// <summary>
-/// 坐骑管线：骑上 / 下来 / 每帧 / 跳 / 能力 / 绘制。
-/// 坐骑是"玩家身上一个 Mount 对象"，所以除了类型表还要按玩家记一份作者数据。
-/// </summary>
+/// <summary>坐骑管线：骑上 / 下来 / 每帧 / 跳 / 能力 / 绘制；坐骑是玩家身上的 Mount 对象，除类型表外还按玩家记一份作者数据。</summary>
 internal sealed class MountPipeline : ILoaderModule
 {
     public static MountPipeline Instance { get; } = new();
@@ -44,7 +41,6 @@ internal sealed class MountPipeline : ILoaderModule
 
     #region 作者数据
 
-    /// <summary>这个玩家骑在这匹上时的额外数据；没设过是 null。</summary>
     internal object SpecificData(Player player) =>
         player is not null && _specific.TryGetValue(player.whoAmI, out var value) ? value : null!;
 
@@ -75,14 +71,12 @@ internal sealed class MountPipeline : ILoaderModule
         var mod = MountTable.Of(m);
         if (mod is not null && self._type != m)
         {
-            // 换了一匹：旧数据与这匹无关了。
             _specific.Remove(mountedPlayer.whoAmI);
             _setting = new MountCall { Mod = mod };
         }
 
         orig(self, m, mountedPlayer, ignoreEffect);
 
-        // 作者的 SetMount 本该在尘土里跑；原版这次没撒尘土，就在这里补一次。
         var setting = _setting;
         _setting = null;
         if (setting is null || setting.Called || self._type != m) return;
@@ -99,10 +93,6 @@ internal sealed class MountPipeline : ILoaderModule
         }
     }
 
-    /// <summary>
-    /// 尘土：骑上时作者的 SetMount 在这里跑（这时 _type 已换成 m，比 SetMount 里可靠）；
-    /// 下来时作者要求跳过就跳过。不能按 _type 过滤——SetMount 期间 _type 还没换。
-    /// </summary>
     private void SpawnDust(On.Terraria.Mount.orig_DoSpawnDust orig, Mount self, Player mountedPlayer,
                            bool isDismounting)
     {
@@ -179,7 +169,6 @@ internal sealed class MountPipeline : ILoaderModule
         orig(self, mountedPlayer);
     }
 
-    /// <summary>只有明确返回 false 才跳过游戏动画；抛异常照跑原版。</summary>
     private void UpdateFrame(On.Terraria.Mount.orig_UpdateFrame orig, Mount self, Player mountedPlayer, int state,
                              Vector2 velocity)
     {
@@ -199,7 +188,6 @@ internal sealed class MountPipeline : ILoaderModule
         orig(self, mountedPlayer, state, velocity);
     }
 
-    /// <summary>手机版跳高没有 Player 参数：按 Mount 对象地址反查骑它的玩家。</summary>
     private int JumpHeight(On.Terraria.Mount.orig_JumpHeight orig, Mount self, float xVelocity)
     {
         var result = orig(self, xVelocity);
@@ -262,7 +250,6 @@ internal sealed class MountPipeline : ILoaderModule
         }
     }
 
-    /// <summary>瞄准在原版判定之前跑（作者要能拦住这次的瞄准）。</summary>
     private bool AimAbility(On.Terraria.Mount.orig_AimAbility orig, Mount self, Player mountedPlayer,
                             Vector2 mousePosition)
     {
@@ -313,7 +300,6 @@ internal sealed class MountPipeline : ILoaderModule
         orig(self, playerDrawData, drawType, drawPlayer, position, drawColor, playerEffect, shadow);
     }
 
-    /// <summary>返回 true = 这层已经处理完（画过了或不画），不再走原版。</summary>
     private static bool DrawLayer(ModMount mod, Mount mount, PlayerDrawSet set, int drawType, Player player,
                                   Vector2 position, Color drawColor, SpriteEffects effect, float shadow)
     {
@@ -360,7 +346,6 @@ internal sealed class MountPipeline : ILoaderModule
         var after = new DrawState(drawTexture, glow, drawPosition, frame, color, glowDrawColor, rotation, spriteEffects,
             drawOrigin, drawScale);
 
-        // 一个值都没改：交回原版，让原版的特例（染色、速度拖影等）继续生效。
         if (after.Equals(before)) return false;
 
         if (drawTexture is not null) Push(set, drawTexture, drawPosition, frame, color, rotation, drawOrigin, drawScale, spriteEffects);
@@ -375,7 +360,6 @@ internal sealed class MountPipeline : ILoaderModule
         return true;
     }
 
-    /// <summary>drawType → 这层的两张贴图（0 Back、1 BackExtra、2 Front、3 FrontExtra）。</summary>
     private static (Asset<Texture2D>? Texture, Asset<Texture2D>? Glow) LayerOf(Mount.MountData data, int drawType) =>
         drawType switch
         {
@@ -389,9 +373,15 @@ internal sealed class MountPipeline : ILoaderModule
     private static void Push(PlayerDrawSet set, Texture2D texture, Vector2 position, Rectangle source, Color color,
                              float rotation, Vector2 origin, float scale, SpriteEffects effect)
     {
-        var data = ModMount.NewDrawData(texture, position, source, color, rotation, origin, scale, effect);
+        var data = new DrawData(texture, position, source, color, rotation, origin, scale, effect, 0);
         data.shader = Mount.currentShader;
-        ModMount.AddDrawData(set, data);
+
+        var cache = set.DrawDataCache;
+        var count = set.DrawDataCacheCount;
+        if (cache is null || count < 0 || count >= cache.Length) return;
+
+        cache[count] = data;
+        set.DrawDataCacheCount = count + 1;
     }
 
     #endregion
@@ -402,7 +392,6 @@ internal sealed class MountPipeline : ILoaderModule
         MountTable.Reapply();
     }
 
-    /// <summary>按 Mount 对象地址反查骑它的玩家：本地玩家先试，其余扫数组（多出的槽位没人骑，等价于写死上限）。</summary>
     private static Player? OwnerOf(Mount mount)
     {
         var address = Address(mount);
@@ -424,7 +413,6 @@ internal sealed class MountPipeline : ILoaderModule
     private static long Address(Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase? obj) =>
         obj is null ? 0 : (long)obj.Pointer;
 
-    /// <summary>同一 (名字, 钩子) 只记一条：每帧路径出错会刷屏。</summary>
     private void Fail(string name, HookId hook, Exception exception)
     {
         if (!_reported.Add(HashCode.Combine(name.GetHashCode(), hook))) return;

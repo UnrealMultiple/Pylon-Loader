@@ -10,51 +10,81 @@ public sealed class TestTownNpc : ModNpc
 {
     public override string DisplayName => "测试商人";
 
-    public override void SetDefaults(NPC npc)
+    public override void SetDefaults()
     {
-        npc.width = 18;
-        npc.height = 40;
-        npc.aiStyle = 7;          // 城镇 NPC 的站立 AI
-        npc.townNPC = true;
-        npc.friendly = true;
-        npc.lifeMax = 250;
-        npc.life = 250;
-        npc.damage = 0;
-        npc.defense = 15;
-        npc.knockBackResist = 0.5f;
-        npc.HitSound = SoundID.NPCHit1;
-        npc.DeathSound = SoundID.NPCDeath1;
+        NPC.width = 18;
+        NPC.height = 40;
+        NPC.aiStyle = 7;          // 城镇 NPC 的站立 AI
+        NPC.townNPC = true;
+        NPC.friendly = true;
+        NPC.lifeMax = 250;
+        NPC.life = 250;
+        NPC.damage = 0;
+        NPC.defense = 15;
+        NPC.knockBackResist = 0.5f;
+        NPC.HitSound = SoundID.NPCHit1;
+        NPC.DeathSound = SoundID.NPCDeath1;
     }
 
     public override bool CanTownNPCSpawn(int numTownNPCs) => true;
 
-    public override string[] SetNPCNameList() => ["小明"];
+    public override List<string> SetNPCNameList() => ["小明"];
 
-    public override string GetChat(NPC npc)
+    /// <summary>档案：借原版向导的贴图路径注册（验证注册链；真外观素材路径作者自备）。</summary>
+    public override Terraria.GameContent.ITownNPCProfile? TownNPCProfile() =>
+        Terraria.GameContent.TownNPCProfiles.LegacyWithSimpleShimmer("Guide", 6, 6, true, true);
+
+    public override string GetChat()
     {
-        PT.Info($"GetChat 被调用（npc.type={npc.type}）");
+        PT.Info($"GetChat 被调用（npc.type={NPC.type}）");
         return "我是测试商人，点下面的按钮看看商店。";
     }
 
-    public override void SetChatButtons(NPC npc, ChatButtons buttons)
+    public override void SetChatButtons(ref string button, ref string button2)
     {
         PT.Info("SetChatButtons 被调用");
-        buttons.Button = "商店";
+        button = "商店";
     }
 
-    public override string OnChatButtonClicked(NPC npc, bool firstButton)
+    public override void OnChatButtonClicked(bool firstButton, ref string shopName)
     {
         PT.Info($"OnChatButtonClicked(first={firstButton})");
-        return firstButton ? "TestShop" : null!;
+        if (firstButton) shopName = "TestShop";
     }
 
-    public override void AddShops(List<NpcShop> shops)
+    public override void AddShops()
     {
         var shop = new NpcShop(Type, "TestShop");
         shop.Add(ModContent.TypeOf<TestItem>(), null, 50);
         shop.Add(ItemID.Gel, null, 5);
         shop.Register();
+    }
 
-        shops.Add(shop);
+    // ===================== 城镇攻击（投掷样式；有敌人靠近时 AI_007 会进攻击状态） =====================
+
+    public override void TownNPCAttackStrength(ref int damage, ref float knockback)
+    {
+        PT.Info($"TownNPCAttackStrength(damage={damage}, knockback={knockback})");
+        damage = 15;
+        knockback = 4f;
+    }
+
+    public override void TownNPCAttackCooldown(ref int cooldown, ref int randExtraCooldown)
+    {
+        cooldown = 30;
+        randExtraCooldown = 30;
+    }
+
+    public override void TownNPCAttackProj(ref int projType, ref int attackDelay)
+    {
+        projType = ProjectileID.MagicDagger;
+        attackDelay = 1;
+    }
+
+    public override void TownNPCAttackProjSpeed(ref float multiplier, ref float gravityCorrection, ref float randomOffset)
+    {
+        multiplier = 12f;
+        gravityCorrection = 0f;
+        randomOffset = 2f;
     }
 }

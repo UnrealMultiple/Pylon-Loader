@@ -15,56 +15,29 @@ public abstract class ModBuff : ModType
     /// <summary>说明文字。</summary>
     public virtual string Description { get; set; } = "";
 
-    /// <summary>从 Mod 菜单里藏起来。</summary>
-    public virtual bool HideFromModMenu { get; set; } = false;
-
     /// <summary>只放共享数值（Main.debuff[Type]、buffNoSave、BuffID.Sets 等）。</summary>
     public override void SetStaticDefaults() { }
 
-    /// <summary>SetStaticDefaults 之后一次。</summary>
-    public virtual void PostStaticDefaults() { }
+    /// <summary>每帧，buff 在玩家身上时；把 buffIndex 往回拨一格 = 这一帧少跑一个后续槽位，清零槽位 = 摘掉。</summary>
+    public virtual void Update(Player player, ref int buffIndex) { }
 
-    /// <summary>所有内容装完之后一次。</summary>
-    public virtual void PostSetupContent() { }
+    /// <summary>每帧，buff 在 NPC 身上时；buffIndex 用法同玩家侧。</summary>
+    public virtual void Update(NPC npc, ref int buffIndex) { }
 
-    /// <summary>每种语言一次：改 DisplayName。</summary>
-    public virtual void ModifyDisplayName() { }
+    /// <summary>已经有时再加一次；true = 这一次不续时间（保持剩余时间）。</summary>
+    public virtual bool ReApply(Player player, int time, int buffIndex) => false;
 
-    /// <summary>每种语言一次：改 Description。</summary>
-    public virtual void ModifyDescription() { }
-
-    /// <summary>每帧，buff 在玩家身上时。</summary>
-    public virtual void UpdatePlayer(Player player, int buffIndex) { }
-
-    /// <summary>每帧，buff 在 NPC 身上时。</summary>
-    public virtual void UpdateNPC(NPC npc, int buffIndex) { }
-
-    /// <summary>buff 加到玩家身上时。</summary>
-    public virtual void ApplyPlayer(Player player, int buffTime) { }
-
-    /// <summary>buff 加到 NPC 身上时。</summary>
-    public virtual void ApplyNPC(NPC npc, int buffTime) { }
-
-    /// <summary>已经有时再加一次；false = 不续时间。</summary>
-    public virtual bool ReApplyPlayer(Player player, int buffTime, int buffIndex) => true;
-
-    /// <summary>已经有时再加一次；false = 不续时间。</summary>
-    public virtual bool ReApplyNPC(NPC npc, int buffTime, int buffIndex) => true;
-
-    /// <summary>点图标取消时；true/false 定，null = 交给游戏（debuff 不掉）。</summary>
-    public virtual bool? CanRemove(Player player, int buffTime, int buffIndex, bool debuff) => null;
+    /// <summary>已经有时再加一次；true = 这一次不续时间（保持剩余时间）。</summary>
+    public virtual bool ReApply(NPC npc, int time, int buffIndex) => false;
 
     /// <summary>手动点图标取消时调用；false 否决，不影响到期或游戏逻辑删除。</summary>
     public virtual bool RightClick(int buffIndex) => true;
 
-    /// <summary>点图标取消之后。</summary>
-    public virtual void OnRemove(Player player, int buffTime, int buffIndex) { }
-
     /// <summary>条上的名字和说明（三个都是可写的引用）。</summary>
     public virtual void ModifyBuffText(ref string buffName, ref string tip, ref int rare) { }
 
-    /// <summary>条上这个图标；false 仅取消原版图标，时间文字、输入与 PostDraw 仍运行。</summary>
-    public virtual bool PreDraw(SpriteBatch spriteBatch, int buffIndex, BuffDrawParams drawParams) => true;
+    /// <summary>条上这个图标；drawParams 可写（可换贴图/颜色/位置），false 仅取消原版图标，时间文字、输入与 PostDraw 仍运行。</summary>
+    public virtual bool PreDraw(SpriteBatch spriteBatch, int buffIndex, ref BuffDrawParams drawParams) => true;
 
     /// <summary>条上这个图标；false 仅取消原版图标，时间文字、输入与 PostDraw 仍运行。</summary>
     public virtual void PostDraw(SpriteBatch spriteBatch, int buffIndex, BuffDrawParams drawParams) { }
@@ -74,10 +47,4 @@ public abstract class ModBuff : ModType
 
     /// <summary>这个钩子要不要分派给本实例。</summary>
     internal bool HookEnabled(HookId hook) => Hooks.Has(hook);
-
-    /// <summary>这个类型是不是 mod buff。</summary>
-    public static bool IsModType(int type) => ModContent.IsCustom(ContentKind.Buff, type);
-
-    /// <summary>这个类型的 ModBuff 实例；不是 mod buff 就是 null。</summary>
-    public static ModBuff GetModBuff(int type) => (ModContent.Find(ContentKind.Buff, type) as ModBuff)!;
 }

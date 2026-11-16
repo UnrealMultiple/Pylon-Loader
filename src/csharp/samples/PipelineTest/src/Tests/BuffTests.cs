@@ -5,11 +5,7 @@ using Terraria.ID;
 
 namespace PipelineTest.Tests;
 
-/// <summary>
-/// 管线 09：Buff —— 注册面 + 功能面。
-/// Ready：发号 / 图标进 TextureAssets.Buff。
-/// World：给玩家挂 60 秒测试增益，图标应出现在左上角；每帧 UpdatePlayer 生效（回血）。
-/// </summary>
+/// <summary>管线 09：Buff —— 注册面（Ready：发号 / 图标进 TextureAssets.Buff）+ 功能面（World：挂 60 秒测试增益，图标出现且每帧 UpdatePlayer 生效）。</summary>
 internal static class BuffTests
 {
     public static void Register()
@@ -49,13 +45,10 @@ internal static class BuffTests
 
         PT.Case("BUFF-W1", c =>
         {
-            var beforeApply = Content.TestBuff.ApplyCount;
             player.AddBuff(type, 3600, true);
 
             var index = player.FindBuffIndex(type);
             c.True(index >= 0, $"FindBuffIndex={index}（应 >= 0）");
-            c.True(Content.TestBuff.ApplyCount > beforeApply,
-                $"ApplyPlayer 未触发（{beforeApply} -> {Content.TestBuff.ApplyCount}）");
             c.True(index >= 0, $"buff 槽位={index}");
             PT.Info($"测试增益已挂上：type={type} 槽位={index} 剩余时间={(index >= 0 ? player.buffTime[index] : -1)} 秒牌");
         });

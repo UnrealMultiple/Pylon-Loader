@@ -7,13 +7,9 @@ using OnMain = On.Terraria.Main;
 
 namespace Pylon.ModLoader;
 
-/// <summary>
-///     物品提示管线：把游戏算出来的行变成 List&lt;TooltipLine&gt;，让作者改，再按原顺序写回游戏的数组；
-///     绘制期包住原版，让 Pre/PostDrawTooltip* 能生效。
-/// </summary>
+/// <summary>物品提示管线：把游戏算出来的行变成 List&lt;TooltipLine&gt; 让作者改再按原顺序写回游戏的数组；绘制期包住原版，让 Pre/PostDrawTooltip* 能生效。</summary>
 internal sealed class TooltipPipeline : ILoaderModule
 {
-    /// <summary>行级钩子对某一行的改动：下一帧取行时套上（游戏已排版，本帧改不回去）。</summary>
     private sealed class Override
     {
         public bool Hidden;
@@ -25,7 +21,6 @@ internal sealed class TooltipPipeline : ILoaderModule
 
     private List<TooltipLine> _lines = [];
 
-    /// <summary>有 GlobalItem 接了改行钩子（对所有物品生效）；ModItem 没有钩子掩码，按类型单独查。</summary>
     private bool _anyGlobalTooltip;
 
 
@@ -43,7 +38,6 @@ internal sealed class TooltipPipeline : ILoaderModule
         return true;
     }
 
-    /// <summary>安装期一次（内容装载完）。</summary>
     internal void Build()
     {
         _anyGlobalTooltip = GlobalItemRegistry.AnyWith(HookId.ModifyTooltips);
@@ -57,15 +51,12 @@ internal sealed class TooltipPipeline : ILoaderModule
                               Il2CppStructArray<bool> preFixLine, Il2CppStructArray<bool> badPreFixLine,
                               ref int setBonusLine, ref Color setBonusColour, ref int sharedLine)
     {
-        // 调用前的 numLines 决定第 0 行是不是游戏自己放进去的名字：
-        // 手机版会带着 numLines = 1、第 0 行是物品名进来；从 0 开始时名字要自己补，且不写回。
         var first = numLines;
 
 
         orig(item, ref yoyoLogo, ref researchLine, ref materialsLine, oldKB, ref numLines, toolTipLine, preFixLine,
             badPreFixLine, ref setBonusLine, ref setBonusColour, ref sharedLine);
 
-        // 原版物品一个字节都不动：只有 mod 物品，或有 GlobalItem 声明了改行时才介入。
         if (item is null || item.type <= 0) return;
         if (!_anyGlobalTooltip && ItemOf(item) is null) return;
 
@@ -121,8 +112,6 @@ internal sealed class TooltipPipeline : ILoaderModule
         var names = new TooltipNames(item);
         var lines = new List<TooltipLine>(count + 4);
 
-        // 第 0 行永远是名字。游戏自己放进去的（named）沿用它并参与写回；
-        // 从 0 开始时用 HoverName 补一行合成的，Role = "name" 表示不写回。
         var name = named && count > 0 ? texts[0] ?? "" : HoverName(item);
         lines.Add(new TooltipLine("Terraria", "ItemName", name) { Role = named ? "" : "name" });
 
@@ -152,6 +141,8 @@ internal sealed class TooltipPipeline : ILoaderModule
             });
         }
 
+        InsertPrefixLines(item, lines);
+
         Modify(item, lines);
         ApplyOverrides(lines);
 
@@ -161,6 +152,28 @@ internal sealed class TooltipPipeline : ILoaderModule
         }
 
         return lines;
+    }
+
+    private static void InsertPrefixLines(Item item, List<TooltipLine> lines)
+    {
+        if (item is null || item.prefix <= 0) return;
+        if (PrefixTable.Of(item.prefix) is not { } prefix || !prefix.HookEnabled(HookId.GetTooltipLines)) return;
+
+        List<TooltipLine>? extra;
+        try
+        {
+            extra = prefix.GetTooltipLines(item)?.Where(l => l is not null).ToList();
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report("[tooltip] " + prefix.Name + ".GetTooltipLines：" + Safe.Describe(e));
+            return;
+        }
+
+        if (extra is not { Count: > 0 }) return;
+
+        var at = lines.FindLastIndex(l => l.IsModifier || l.IsModifierBad);
+        lines.InsertRange(at < 0 ? lines.Count : at + 1, extra);
     }
 
     private static string HoverName(Item item)
@@ -176,7 +189,6 @@ internal sealed class TooltipPipeline : ILoaderModule
         }
     }
 
-    /// <summary>行级钩子在上一帧写下的改动（文字/颜色/隐藏）。</summary>
     private void ApplyOverrides(List<TooltipLine> lines)
     {
         if (_overrides.Count == 0) return;
@@ -197,7 +209,6 @@ internal sealed class TooltipPipeline : ILoaderModule
         }
     }
 
-    /// <summary>Mod 物品与所有 GlobalItem 的改行；顺序固定（Mod 物品在前）。</summary>
     private void Modify(Item item, List<TooltipLine> lines)
     {
         if (ItemOf(item) is { } modItem)
@@ -249,7 +260,6 @@ internal sealed class TooltipPipeline : ILoaderModule
         {
             var line = lines[n];
 
-            // 合成名字只给作者看，不写回：游戏数组里那个位置是它自己的第一行。
             if (line.Role == "name") continue;
             if (written >= capacity) break;
 
@@ -280,7 +290,6 @@ internal sealed class TooltipPipeline : ILoaderModule
         numLines = written;
     }
 
-    /// <summary>整行颜色转成游戏认得的 [c/RRGGBB:…] 标签。</summary>
     private static string Tagged(TooltipLine line)
     {
         var text = line.Text ?? "";
@@ -291,10 +300,6 @@ internal sealed class TooltipPipeline : ILoaderModule
 
     #region 绘制期
 
-    /// <summary>
-    ///     包住原版绘制。契约只有一条：**除非作者明确要求不画，否则一定调用 orig**——
-    ///     管线里任何失败都不能让游戏自己的 tooltip 消失。
-    /// </summary>
     private void DrawTooltip(OnMain.orig_MouseText_DrawItemTooltip orig, Main self, Main.MouseTextCache info,
                              int rare, byte diff, int x, int y)
     {
@@ -309,7 +314,6 @@ internal sealed class TooltipPipeline : ILoaderModule
             item = Main.HoverItem;
             var candidate = _lines;
 
-            // Wanted 门：原版物品不让任何作者回调介入。
             if (candidate.Count > 0 && item is not null && item.type > 0
                 && (_anyGlobalTooltip || ItemOf(item) is not null))
             {
@@ -383,7 +387,6 @@ internal sealed class TooltipPipeline : ILoaderModule
         return true;
     }
 
-    /// <summary>行级钩子：改的 Text/Color/隐藏记下来，下一帧取行时套上。</summary>
     private int LineHook(Item item, DrawableTooltipLine line)
     {
         var yOffset = 0;

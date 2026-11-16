@@ -345,4 +345,116 @@ internal enum HookId
 
     ShouldUpdatePosition,
     NumGrappleHooks,
+
+    ModifyWeaponDamage,
+    ModifyWeaponCrit,
+    ModifyWeaponKnockback,
+    ModifyItemScale,
+    OnCreated,
+
+    CanPickup,
+    ItemSpace,
+    GrabRange,
+    GrabStyle,
+
+    HasSmartInteract,
+
+    SetBestiary,
+
+    CanConsumeBait,
+
+    ReApply,
+
+    UseTimeMultiplier,
+    UseAnimationMultiplier,
+    UseSpeedMultiplier,
+    UseAnimation,
+    CanAutoReuseItem,
+    AltFunctionUse,
+    UseItemFrame,
+    HoldItemFrame,
+
+    ModifyManaCost,
+    OnMissingMana,
+    OnConsumeMana,
+
+    UseItemHitbox,
+    MeleeEffects,
+    OnHitAnything,
+
+    ModifyPotionDelay,
+
+    GetFishingLevel,
+    AnglerQuestReward,
+
+    CanEquipAccessory,
+    DrawArmorColor,
+    ArmorArmGlowMask,
+
+    AddStartingItems,
+    ModifyStartingInventory,
+
+    SpecialOnKill,
+    ModifyTypeName,
+    CanGoToStatue,
+    OnGoToStatue,
+    CanBeCaughtBy,
+    OnCaughtBy,
+    CanFallThroughPlatforms,
+    UsesPartyHat,
+
+    DrawHealthBar,
+    ModifyHoverBoundingBox,
+    PreHoverInteract,
+
+    ModifyActiveShop,
+
+    NeedSaving,
+
+    GetTooltipLines,
+
+    TownNPCAttackStrength,
+    TownNPCAttackCooldown,
+    TownNPCAttackProj,
+    TownNPCAttackProjSpeed,
+    TownNPCAttackShoot,
+    TownNPCAttackMagic,
+    TownNPCAttackSwing,
+    DrawTownAttackGun,
+    DrawTownAttackSwing,
+    BuffTownNPC,
+
+    ModifyDeathMessage,
+
+    MidUpdate,
+
+    ModifyNurseHeal,
+    ModifyNursePrice,
+    PostNurseHeal,
+    CanBuyItem,
+    PostBuyItem,
+    CanSellItem,
+    PostSellItem,
+
+    UpdateVisibleAccessories,
+    UpdateVisibleVanityAccessories,
+    UpdateDyes,
+
+    HoldoutOffset,
+
+    AddMaterialsForCrafting,
+
+    ModifyExtraJumpDurationMultiplier,
+    CanStartExtraJump,
+    OnExtraJumpStarted,
+    OnExtraJumpEnded,
+    OnExtraJumpRefreshed,
+    ExtraJumpVisuals,
+    CanShowExtraJumpVisuals,
+    OnExtraJumpCleared,
+
+    NaturalLifeRegen,
+
+    TownNPCProfile,
+    ModifyTownNPCProfile,
 }

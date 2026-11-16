@@ -21,6 +21,17 @@ public sealed class TestPlayer : ModPlayer
     private int _shopTimer;
     private bool _shopRound;
 
+    /// <summary>自然再生桥探针：PLAYER-U3 用例开着才计数（桥装上了才会进）。</summary>
+    internal static bool RegenProbeActive;
+    internal static int RegenHits;
+
+    public override void NaturalLifeRegen(ref float regen)
+    {
+        if (!RegenProbeActive) return;
+        RegenHits++;
+        regen += 3f;
+    }
+
     /// <summary>shop 组：附近没有测试商人就补一只（5 秒检查一次）。</summary>
     private void EnsureMerchant(Player player)
     {
@@ -87,7 +98,7 @@ public sealed class TestPlayer : ModPlayer
         var size = tex is null ? "null" : $"{tex.Width}x{tex.Height}";
 
         PT.Info($"测试增益状态：type={type} {text} 图标={size} " +
-                $"UpdatePlayer 累计={TestBuff.UpdateCount} Apply={TestBuff.ApplyCount} 生命={player.statLife}/{player.statLifeMax2}");
+                $"UpdatePlayer 累计={TestBuff.UpdateCount} 生命={player.statLife}/{player.statLifeMax2}");
     }
 
     /// <summary>附近 800 像素内没有测试史莱姆时，在玩家两侧各补一只（带音效、会跳）。</summary>
@@ -147,8 +158,9 @@ public sealed class TestPlayer : ModPlayer
         if (seen == 0) PT.Info($"测试史莱姆(2s)：一只都不在了；player={player.statLife}/{player.statLifeMax2}");
     }
 
-    public override void PostUpdate(Player player)
+    public override void PostUpdate()
     {
+        var player = Player;
         if (player is null || !player.active) return;
 
         if (_given)

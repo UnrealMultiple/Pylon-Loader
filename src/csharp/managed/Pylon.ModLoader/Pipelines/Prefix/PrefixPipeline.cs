@@ -5,10 +5,7 @@ using Terraria.Utilities;
 
 namespace Pylon.ModLoader;
 
-/// <summary>
-/// 前缀管线：可滚列表 / 能否滚 / 滚哪个 / 数值倍率 / 应用 / 饰品效果 / 名字表。
-/// 前缀是物品上的一个 byte，没有实体也没有每帧路径，所以没有默认值接管和绑定表。
-/// </summary>
+/// <summary>前缀管线：可滚列表 / 能否滚 / 滚哪个 / 数值倍率 / 应用 / 饰品效果 / 名字表；前缀只是物品上的 byte，没有默认值接管和绑定表。</summary>
 internal sealed class PrefixPipeline : ILoaderModule
 {
     public static PrefixPipeline Instance { get; } = new();
@@ -35,7 +32,6 @@ internal sealed class PrefixPipeline : ILoaderModule
 
     #region 可滚列表
 
-    /// <summary>合并而非替换：原版列表是基底，mod 物品再补上原版分类表里的前缀。</summary>
     private Il2CppStructArray<int> Rollable(On.Terraria.Item.orig_GetRollablePrefixes orig, Item self)
     {
         var vanilla = orig(self);
@@ -55,7 +51,6 @@ internal sealed class PrefixPipeline : ILoaderModule
         var filterModItem = modItem is not null && PrefixTable.HasHook(modItem, HookId.AllowPrefix);
         var anyGlobal = GlobalItemRegistry.AnyWith(HookId.AllowPrefix);
 
-        // 原版物品没有任何 mod 前缀、也没人过滤时，原样返回：这条路径每件物品都会被问到。
         if (!filterModItem && !anyGlobal && extra.Count == 0 && categories.Length == 0) return vanilla;
 
         var result = new List<int>();
@@ -73,7 +68,6 @@ internal sealed class PrefixPipeline : ILoaderModule
             for (var i = 0; i < vanilla.Length; i++) Add(vanilla[i]);
         }
 
-        // 原版只给原版类型填了列表：mod 物品要自己补上所属分类的原版前缀。
         if (modItem is not null)
         {
             foreach (var category in categories)
@@ -84,7 +78,6 @@ internal sealed class PrefixPipeline : ILoaderModule
 
         foreach (var id in extra) Add(id);
 
-        // 没有任何可选项时把原版结果原样交回去（可能本来就是空数组）。
         if (result.Count == 0) return vanilla is null ? new Il2CppStructArray<int>(0) : vanilla;
 
         int[] merged = [.. result];
@@ -127,7 +120,7 @@ internal sealed class PrefixPipeline : ILoaderModule
 
         try
         {
-            return allowed & modItem.AllowPrefix(item, prefix);
+            return allowed & modItem.AllowPrefix(prefix);
         }
         catch (Exception e)
         {
@@ -140,7 +133,6 @@ internal sealed class PrefixPipeline : ILoaderModule
 
     #region 掷前缀
 
-    /// <summary>游戏自己不认识 Custom 分类的 mod 前缀：这里替它答。</summary>
     private static bool CanRoll(On.Terraria.Item.orig_CanRollPrefix orig, Item self, int prefix)
     {
         var mod = PrefixTable.Of(prefix);
@@ -149,7 +141,6 @@ internal sealed class PrefixPipeline : ILoaderModule
         return Allowed(self, prefix) && CanRollOn(mod, self);
     }
 
-    /// <summary>强制指定优先；列表里只要出现过 mod 前缀就整轮自己掷（权重 = RollChance）。</summary>
     private bool Roll(On.Terraria.Item.orig_RollAPrefix orig, Item self, UnifiedRandom random, ref int rolledPrefix)
     {
         try
@@ -221,7 +212,6 @@ internal sealed class PrefixPipeline : ILoaderModule
         }
     }
 
-    /// <summary>作者点名的前缀：Global 先问，ModItem 后问，第一个正数生效。</summary>
     private static int Choose(Item item, UnifiedRandom random)
     {
         var modItem = Of(item);
@@ -244,7 +234,7 @@ internal sealed class PrefixPipeline : ILoaderModule
 
         try
         {
-            return modItem.ChoosePrefix(item, random);
+            return modItem.ChoosePrefix(random);
         }
         catch (Exception e)
         {
@@ -257,7 +247,6 @@ internal sealed class PrefixPipeline : ILoaderModule
 
     #region 数值
 
-    /// <summary>mod 前缀不调原版：先把 out 复位成"无变化"，再交给作者写。</summary>
     private bool Stats(On.Terraria.Item.orig_TryGetPrefixStatMultipliersForItem orig, Item self, int rolledPrefix,
                        out float dmg, out float kb, out float spd, out float size, out float shtspd, out float mcst,
                        out int crt, out int tagdmg, out int arpen, out float value)
@@ -286,7 +275,6 @@ internal sealed class PrefixPipeline : ILoaderModule
             prefix.SetStats(ref damage, ref knockback, ref useTime, ref scale, ref shootSpeed, ref mana, ref crit, ref tag,
                 ref pierce);
 
-            // 价格倍率必须与六个倍率一致，否则会出现"很弱的词条卖很贵"。
             var multiplier = damage * (2f - useTime) * (2f - mana) * scale * knockback * shootSpeed * (1f + crit * 0.02f);
             if (prefix.HookEnabled(HookId.ModifyValue)) prefix.ModifyValue(ref multiplier);
 
@@ -301,7 +289,6 @@ internal sealed class PrefixPipeline : ILoaderModule
             arpen = pierce;
             value = multiplier;
 
-            // 倍率被取整吃掉时这个前缀等于没效果：不该让它装上。
             return (damage == 1f || Math.Round(self.damage * damage) != self.damage) &&
                    (useTime == 1f || Math.Round(self.useAnimation * useTime) != self.useAnimation) &&
                    (mana == 1f || Math.Round(self.mana * mana) != self.mana) &&
@@ -325,7 +312,6 @@ internal sealed class PrefixPipeline : ILoaderModule
 
         try
         {
-            // -1 / -2 是"随便给一个"：作者能不能否决、能不能强行要顶级，都在这两个上。
             if (prefixWeWant < 0 && prefixWeWant > -3)
             {
                 var chance = PrefixChance(self, prefixWeWant, Main.rand);
@@ -354,35 +340,9 @@ internal sealed class PrefixPipeline : ILoaderModule
             }
         }
 
-        var modItem = Of(self);
-        if (modItem is not null && PrefixTable.HasHook(modItem, HookId.ApplyPrefix))
-        {
-            try
-            {
-                modItem.ApplyPrefix(self, self.prefix);
-            }
-            catch (Exception e)
-            {
-                Fail(modItem.Name, HookId.ApplyPrefix, e);
-            }
-        }
-
-        foreach (var global in GlobalItemRegistry.For(self, HookId.ApplyPrefix))
-        {
-            try
-            {
-                global.ApplyPrefix(self, self.prefix);
-            }
-            catch (Exception e)
-            {
-                Fail(global.Name, HookId.ApplyPrefix, e);
-            }
-        }
-
         return applied;
     }
 
-    /// <summary>null = 没人表态；false = 这次不给前缀；true = 要给（-1 时升级成 -2，即必出顶级）。</summary>
     private static bool? PrefixChance(Item item, int prefix, UnifiedRandom random)
     {
         bool? verdict = null;
@@ -409,7 +369,7 @@ internal sealed class PrefixPipeline : ILoaderModule
 
         try
         {
-            Take(modItem.PrefixChance(item, prefix, random));
+            Take(modItem.PrefixChance(prefix, random));
         }
         catch (Exception e)
         {
@@ -446,14 +406,12 @@ internal sealed class PrefixPipeline : ILoaderModule
 
     private static ModItem? Of(Item item) => ModContent.Find(ContentKind.Item, item.type) as ModItem;
 
-    /// <summary>同一 (名字, 钩子) 只记一条：前缀判定在重铸面板上会被连续调用。</summary>
     private void Fail(string name, HookId hook, Exception exception)
     {
         if (!_reported.Add(HashCode.Combine(name.GetHashCode(), hook))) return;
         ContentErrors.Report($"[prefix] {hook} 异常：{Safe.Describe(exception)}");
     }
 
-    /// <summary>管线自己这一层的失败（没有对应的作者钩子可归）。</summary>
     private void Fail(string key, Exception exception)
     {
         if (!_reported.Add(key.GetHashCode())) return;

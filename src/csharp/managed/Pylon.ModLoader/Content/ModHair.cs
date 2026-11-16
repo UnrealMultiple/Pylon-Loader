@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Pylon.ModLoader;
 
 /// <summary>自定义发型；一个类型一个实例（创建角色与理发师里选，类型在游戏 228 个之后）。</summary>
@@ -15,18 +17,7 @@ public abstract class ModHair : ModType
     /// <summary>只放共享数值，不要碰游戏对象。</summary>
     public override void SetStaticDefaults() { }
 
-    public virtual List<Condition> GetUnlockConditions() => [];
-
-    /// <summary>创建角色时看 AvailableDuringCharacterCreation；理发师处看 GetUnlockConditions 是否全满足。Mod 可以直接改写这个方法，自己定一切。</summary>
-    public virtual bool IsUnlocked(bool isAtCharacterCreation, bool isAtStylist)
-    {
-        if (isAtCharacterCreation) return AvailableDuringCharacterCreation;
-        foreach (var condition in GetUnlockConditions() ?? [])
-        {
-            if (!condition.IsMet()) return false;
-        }
-        return true;
-    }
+    public virtual IEnumerable<Condition> GetUnlockConditions() => [];
 }
 
 // 未移植 register：占号、装 PlayerHair/PlayerHairAlt 贴图、调 SetStaticDefaults、存档/net 那套都是管线的事。

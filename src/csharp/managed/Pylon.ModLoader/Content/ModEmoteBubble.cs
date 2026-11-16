@@ -45,6 +45,9 @@ public abstract class ModEmoteBubble : ModType
     /// <summary>菜单里取哪一块（frame 是菜单的两个帧之一，frameCounter 是菜单的帧计数）；null = 贴图的一半。</summary>
     public virtual Rectangle? GetFrameInEmoteMenu(int frame, int frameCounter) => null;
 
+    /// <summary>菜单里的帧推进；基线同款声明、但基线自身也没有调用点（reference-dead），保留不接。</summary>
+    public virtual bool UpdateFrameInEmoteMenu(ref int frameCounter) => true;
+
     /// <summary>画这个泡泡之前；false = 不画（PostDraw 照跑）。</summary>
     public virtual bool PreDraw(SpriteBatch spriteBatch, Texture2D texture, Vector2 position, Rectangle frame,
         Vector2 origin, SpriteEffects spriteEffects) => true;

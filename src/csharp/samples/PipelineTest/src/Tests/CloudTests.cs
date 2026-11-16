@@ -5,10 +5,7 @@ using Terraria;
 
 namespace PipelineTest.Tests;
 
-/// <summary>
-/// 管线 7：Cloud —— 功能验证。发号在扩表期（Base 运行期捕获），抽签走 Cloud.addCloud/RollRareCloud 钩子。
-/// 真实云生成在菜单/世界背景帧驱动；这里验证注册面 + 贴图进表 + 抽签权重函数。
-/// </summary>
+/// <summary>管线 7：Cloud —— 功能验证：发号在扩表期（Base 运行期捕获），抽签走 Cloud.addCloud/RollRareCloud 钩子；验证注册面 + 贴图进表 + 抽签权重函数。</summary>
 internal static class CloudTests
 {
     public static void Register()
@@ -17,8 +14,6 @@ internal static class CloudTests
         PT.Group("cloud-w", Phase.World, RunWorld);
         InstallProbe();
     }
-
-    // ===== 绘制探针（不改绘制，只统计游戏真的画了什么） =====
 
     private static int _draws;
     private static int _totalDraws;
@@ -61,14 +56,8 @@ internal static class CloudTests
         orig(self, globalCloudAlpha, cloud, cloudPass, cY);
     }
 
-    /// <summary>
-    /// 肉眼验证：把天上现有的云全部换成 mod 云（高级云贴图，186x65，比原版云大一圈），
-    /// 换法：type + width/height = 贴图尺寸 × cloud.scale。
-    /// 再由绘制探针确认游戏画的就是这张 186x65 的图。
-    /// </summary>
     private static void RunWorld()
     {
-        // 用稀有云（ExampleAdvancedCloud 186x65）：尺寸大、形状明显，肉眼能直接分辨。
         var cloud = ModContent.GetInstance<Content.TestRareCloud>();
 
         PT.Case("CLOUD-W1", c =>
@@ -126,7 +115,6 @@ internal static class CloudTests
             c.True(cloud.Type != rare.Type, "两朵云不同号");
         });
 
-        // T1：贴图进 TextureAssets.Cloud（LoadTextures + CloudPipeline.Build 扩表写槽）
         PT.Case("CLOUD-T1", c =>
         {
             var table = Terraria.GameContent.TextureAssets.Cloud;
@@ -139,23 +127,11 @@ internal static class CloudTests
             }
         });
 
-        // H1：抽签权重函数直接验证（SpawnChance=3 参与，返回 mod 号或 0）
         PT.Case("CLOUD-H1", c =>
         {
             c.Eq(cloud.SpawnChance(), 3, "SpawnChance 声明值");
             c.True(!cloud.RareCloud, "TestCloud.RareCloud=false");
             c.True(rare.RareCloud, "TestRareCloud.RareCloud=true");
-        });
-
-        // E1：CloudColor 钩子不崩（直接调作者回调）
-        PT.Case("CLOUD-E1", c =>
-        {
-            c.NoThrow(() =>
-            {
-                var vanilla = new Il2CppMicrosoft.Xna.Framework.Graphics.Color(200, 200, 255, 255);
-                var dyed = cloud.CloudColor(null!, vanilla);
-                c.True(dyed.R == 255 && dyed.G == 100, $"CloudColor 染色 {dyed}（期望 R=255 G=100）");
-            }, "CloudColor 调用");
         });
     }
 }

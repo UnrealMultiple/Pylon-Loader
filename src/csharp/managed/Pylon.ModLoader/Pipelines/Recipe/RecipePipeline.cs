@@ -2,10 +2,7 @@ using Terraria;
 
 namespace Pylon.ModLoader;
 
-/// <summary>
-/// 配方管线：条件过滤 / 向导过滤 / 配方组名 / 材料折扣 / 制作回调。
-/// 侧表在 RecipeTable（密集 struct 数组，判定路径取 ref）。
-/// </summary>
+/// <summary>配方管线：条件过滤 / 向导过滤 / 配方组名 / 材料折扣 / 制作回调；侧表在 RecipeTable（密集 struct 数组，判定路径取 ref）。</summary>
 internal sealed class RecipePipeline : ILoaderModule
 {
     public static RecipePipeline Instance { get; } = new();
@@ -30,7 +27,6 @@ internal sealed class RecipePipeline : ILoaderModule
 
     #region 过滤
 
-    /// <summary>原位压缩：满足的往前挪，最后改计数并让游戏按原来那条重新聚焦。</summary>
     private void FindRecipes(On.Terraria.Recipe.orig_FindRecipes orig, bool canDelayCheck)
     {
         orig(canDelayCheck);
@@ -41,7 +37,6 @@ internal sealed class RecipePipeline : ILoaderModule
         var count = Main.numAvailableRecipes;
         if (count <= 0 || count > available.Length) return;
 
-        // 先记下玩家正在看的那条，压缩之后要按它重新聚焦。
         var focus = Main.focusRecipe;
         var focused = focus >= 0 && focus < count ? available[focus] : -1;
 
@@ -65,7 +60,6 @@ internal sealed class RecipePipeline : ILoaderModule
 
         Main.numAvailableRecipes = kept;
 
-        // 不重新聚焦的话，玩家会看到光标跳到另一条配方上。
         if (focused < 0) return;
 
         for (var i = 0; i < kept; i++)
@@ -79,7 +73,6 @@ internal sealed class RecipePipeline : ILoaderModule
         Main.focusRecipe = 0;
     }
 
-    /// <summary>向导对话只滤全局否决：条件在向导里藏掉会让玩家查不到这条配方。</summary>
     private void GuideRecipes(On.GUICraftGuidePopup.orig_FindRecipes orig, GUICraftGuidePopup self)
     {
         orig(self);
@@ -88,7 +81,6 @@ internal sealed class RecipePipeline : ILoaderModule
         var count = Main.numAvailableRecipes;
         if (available is null || count <= 0 || count > available.Length) return;
 
-        // 压缩会改变下标，正在看的那条要重新定位。
         var focus = Main.focusRecipe;
         var focused = focus >= 0 && focus < count ? available[focus] : -1;
 
@@ -144,7 +136,6 @@ internal sealed class RecipePipeline : ILoaderModule
 
     #region 消耗与制作
 
-    /// <summary>原版折扣之后让作者继续改，最后夹回 [0, 手上有的数量]：不夹会出现负数消耗或超量消耗。</summary>
     private int Discount(On.Terraria.Recipe.orig_GetIngredientCraftingDiscount orig, Recipe self, Player player,
                          Recipe.RequiredItemEntry req)
     {
@@ -155,8 +146,6 @@ internal sealed class RecipePipeline : ILoaderModule
         var globals = GlobalRecipeRegistry.For(HookId.ConsumeItem);
         if (!owned && globals.Count == 0) return amount;
 
-        // 语义：回调里的 amount 是"实际消耗多少"；这个方法游戏拿返回值当"折扣量"（从消耗里减）。
-        // 所以先算当前消耗（需要量 - 原版折扣），让作者改，最后换算回折扣量返回。
         var type = req.itemIdOrRecipeGroup;
         var result = req.stack - amount;
 
@@ -194,17 +183,16 @@ internal sealed class RecipePipeline : ILoaderModule
         return req.stack - consumed;
     }
 
-    /// <summary>先回调、再发物品：作者要在物品进背包之前改它。</summary>
     private void Crafted(On.Terraria.Main.orig_CraftItem_GrantItem orig, Recipe recipe, Item result, bool quickCraft)
     {
         if (recipe is not null && result is not null)
         {
             ref var entry = ref RecipeTable.EntryOf(recipe, out var owned);
             var craft = entry.Craft;
+            var consumed = new List<Item>();
 
             if (craft is not null)
             {
-                var consumed = new List<Item>();
                 for (var i = 0; i < craft.Count; i++)
                 {
                     try
@@ -215,6 +203,36 @@ internal sealed class RecipePipeline : ILoaderModule
                     {
                         Fail("recipe.craft", HookId.OnCraft, e);
                     }
+                }
+            }
+
+            var context = new RecipeItemCreationContext(recipe, consumed, result);
+
+            if (ModContent.IsCustom(ContentKind.Item, result.type))
+            {
+                var mod = ItemPipeline.Instance.InstanceOf(result);
+                if (mod is not null && mod.Plan.Has(HookId.OnCreated))
+                {
+                    try
+                    {
+                        mod.OnCreated(context);
+                    }
+                    catch (Exception e)
+                    {
+                        Fail(mod.FullKey, HookId.OnCreated, e);
+                    }
+                }
+            }
+
+            foreach (var global in GlobalItemRegistry.For(result, HookId.OnCreated))
+            {
+                try
+                {
+                    global.OnCreated(result, context);
+                }
+                catch (Exception e)
+                {
+                    Fail(global.FullKey, HookId.OnCreated, e);
                 }
             }
 
@@ -240,7 +258,6 @@ internal sealed class RecipePipeline : ILoaderModule
 
     #endregion
 
-    /// <summary>同一 (名字, 钩子) 只记一条：制作界面会连着问很多次。</summary>
     private void Fail(string name, HookId hook, Exception exception)
     {
         if (!_reported.Add(HashCode.Combine(name.GetHashCode(), hook))) return;

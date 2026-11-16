@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using Pylon.ModLoader;
 using Pylon.ModLoader.Textures;
 using Terraria;
@@ -30,13 +31,13 @@ internal static class HairTests
             c.True(hair.Type != locked.Type, "两个发型不同号");
         });
 
-        // H1：菜单两段式 —— 建号菜单看 AvailableDuringCharacterCreation，理发师看条件
+        // H1：菜单两段式 —— 建号菜单看 AvailableDuringCharacterCreation，理发师看 GetUnlockConditions 是否全满足
         PT.Case("HAIR-H1", c =>
         {
-            c.True(hair.IsUnlocked(true, false), "TestHair 建号菜单可选");
-            c.True(hair.IsUnlocked(false, true), "TestHair 理发师可选（无条件）");
-            c.True(!locked.IsUnlocked(true, false), "TestLockedHair 建号菜单不可选");
-            c.True(!locked.IsUnlocked(false, true), "TestLockedHair 理发师不可选（条件永假）");
+            c.True(hair.AvailableDuringCharacterCreation, "TestHair 建号菜单可选");
+            c.True(hair.GetUnlockConditions().All(x => x.IsMet()), "TestHair 理发师可选（无条件）");
+            c.True(!locked.AvailableDuringCharacterCreation, "TestLockedHair 建号菜单不可选");
+            c.True(!locked.GetUnlockConditions().All(x => x.IsMet()), "TestLockedHair 理发师不可选（条件永假）");
         });
 
         // T1：主贴图进表，尺寸必须是真发型图 40x784（14 帧 × 40x56）

@@ -16,40 +16,40 @@ namespace RegressionTest.Content
 
         public override string DisplayName => "回归商人";
 
-        public override void SetDefaults(NPC npc)
+        public override void SetDefaults()
         {
-            npc.width = 18;
-            npc.height = 40;
-            npc.aiStyle = 7;
-            npc.townNPC = true;
-            npc.friendly = true;
-            npc.lifeMax = 250;
-            npc.life = 250;
-            npc.damage = 0;
-            npc.defense = 15;
-            npc.knockBackResist = 0.5f;
-            npc.HitSound = SoundID.NPCHit1;
-            npc.DeathSound = SoundID.NPCDeath1;
+            NPC.width = 18;
+            NPC.height = 40;
+            NPC.aiStyle = 7;
+            NPC.townNPC = true;
+            NPC.friendly = true;
+            NPC.lifeMax = 250;
+            NPC.life = 250;
+            NPC.damage = 0;
+            NPC.defense = 15;
+            NPC.knockBackResist = 0.5f;
+            NPC.HitSound = SoundID.NPCHit1;
+            NPC.DeathSound = SoundID.NPCDeath1;
         }
 
         public override bool CanTownNPCSpawn(int numTownNPCs) => true;
 
-        public override string[] SetNPCNameList() => ["回归掌柜"];
+        public override List<string> SetNPCNameList() => ["回归掌柜"];
 
-        public override string GetChat(NPC npc)
+        public override string GetChat()
         {
-            if (npc.homeTileX > 0) WasHome = true;
+            if (NPC.homeTileX > 0) WasHome = true;
             return "回归测试商人在岗。";
         }
 
         /// <summary>P2-9（审计后入口）：UpdateLifeRegen 里写的值要当帧生效。</summary>
-        public override void UpdateLifeRegen(NPC npc, ref int regen)
+        public override void UpdateLifeRegen(ref int regen)
         {
             if (RegressionTestMod.MerchantVampire)
             {
                 regen += 6;
                 if (Main.GameUpdateCount % 120 == 0)
-                    RegressionTestMod.Log?.Info($"[rt] 商人 UpdateLifeRegen regen={regen} life={npc.life}/{npc.lifeMax}");
+                    RegressionTestMod.Log?.Info($"[rt] 商人 UpdateLifeRegen regen={regen} life={NPC.life}/{NPC.lifeMax}");
             }
         }
     }
@@ -63,38 +63,33 @@ namespace RegressionTest.Content
 
         public override string DisplayName => "回归掉血 Boss";
 
-        public override void SetDefaults(NPC npc)
+        public override void SetDefaults()
         {
-            npc.width = 60;
-            npc.height = 44;
-            npc.aiStyle = 1; // 史莱姆 AI
-            npc.damage = 15;
-            npc.defense = 10;
-            npc.lifeMax = 500;
-            npc.life = 500;
-            npc.knockBackResist = 0f;
-            npc.value = 10000f;
-            npc.boss = true;
-            npc.HitSound = SoundID.NPCHit1;
-            npc.DeathSound = SoundID.NPCDeath1;
+            NPC.width = 60;
+            NPC.height = 44;
+            NPC.aiStyle = 1; // 史莱姆 AI
+            NPC.damage = 15;
+            NPC.defense = 10;
+            NPC.lifeMax = 500;
+            NPC.life = 500;
+            NPC.knockBackResist = 0f;
+            NPC.value = 10000f;
+            NPC.boss = true;
+            NPC.HitSound = SoundID.NPCHit1;
+            NPC.DeathSound = SoundID.NPCDeath1;
         }
 
-        public override void UpdateLifeRegen(NPC npc, ref int regen)
+        public override void UpdateLifeRegen(ref int regen)
         {
             if (RegressionTestMod.BossDrain && regen >= 0)
             {
                 regen = -10;
-                if (npc.life != _lastLife)
+                if (NPC.life != _lastLife)
                 {
-                    _lastLife = npc.life;
-                    RegressionTestMod.Log?.Info($"[rt] Boss UpdateLifeRegen regen={regen} life={npc.life}/{npc.lifeMax}");
+                    _lastLife = NPC.life;
+                    RegressionTestMod.Log?.Info($"[rt] Boss UpdateLifeRegen regen={regen} life={NPC.life}/{NPC.lifeMax}");
                 }
             }
-        }
-
-        public override void PostSetupContent()
-        {
-            _lastLife = -1;
         }
     }
 }

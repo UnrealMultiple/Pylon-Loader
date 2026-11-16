@@ -4,10 +4,7 @@ using Terraria.ID;
 
 namespace Pylon.ModLoader;
 
-/// <summary>
-/// 城镇 NPC：搬进空房、名字表、房间条件、聊天按钮与商店。
-/// 与敌对 NPC 共享内容基类，但游戏时机完全不重叠（一天一次入住 / 一次点击），所以单独成文件。
-/// </summary>
+/// <summary>城镇 NPC：搬进空房、名字表、房间条件、聊天按钮与商店；与敌对 NPC 共享基类但游戏时机不重叠。</summary>
 internal sealed class NpcTown
 {
     private const int Merchant = 17;
@@ -25,17 +22,15 @@ internal sealed class NpcTown
         On.GUINPCDialogue.Option2Clicked += Option2;
     }
 
-    /// <summary>安装期一次：作者的 AddShops 写进 NpcShop 的静态表。</summary>
     public void SetupShops(IModLog log)
     {
         foreach (var npc in ModContent.GetContent<ModNpc>())
         {
             if (!npc.HookEnabled(HookId.AddShops)) continue;
 
-            var shops = new List<NpcShop>();
             try
             {
-                npc.AddShops(shops);
+                npc.AddShops();
             }
             catch (Exception e)
             {
@@ -50,7 +45,6 @@ internal sealed class NpcTown
     {
         orig();
 
-        // 世界加载后 NPCID.Sets 的字典会重建：每次刷怪检查时补齐（已存在就跳过）。
         NpcPipeline.EnsureNpcTypeTables();
 
         if (Main.netMode == 1 || Main.checkForSpawns != 0) return;
@@ -120,9 +114,9 @@ internal sealed class NpcTown
         try
         {
             var names = npc.SetNPCNameList();
-            if (names is null || names.Length == 0) return orig(npcType);
+            if (names is null || names.Count == 0) return orig(npcType);
 
-            return names[Main.rand.Next(names.Length)];
+            return names[Main.rand.Next(names.Count)];
         }
         catch (Exception e)
         {
@@ -147,7 +141,6 @@ internal sealed class NpcTown
         return ModContent.Find(ContentKind.Npc, npc.type) is ModNpc ? npc : null;
     }
 
-    /// <summary>按钮文字在 orig 之后覆盖；游戏按类型 switch 选按钮图，所以先按商人跑一遍拿图。</summary>
     private void Buttons(On.GUINPCDialogue.orig_SetupButtonText orig, GUINPCDialogue self,
                          ref string focusText, ref Texture2D option1Tex, ref string focusText3,
                          ref Texture2D option2Tex, ref int cost, ref bool showHappiness)
@@ -172,10 +165,11 @@ internal sealed class NpcTown
         if (ModContent.Find(ContentKind.Npc, npc.type) is not ModNpc modNpc || !modNpc.HookEnabled(HookId.SetChatButtons))
             return;
 
-        var buttons = new ModNpc.ChatButtons();
+        var button = "";
+        var button2 = "";
         try
         {
-            modNpc.SetChatButtons(npc, buttons);
+            modNpc.SetChatButtons(ref button, ref button2);
         }
         catch (Exception e)
         {
@@ -183,13 +177,11 @@ internal sealed class NpcTown
         }
 
         var icon = option1Tex;
-        focusText = buttons.Button ?? "";
-        focusText3 = buttons.Button2 ?? "";
-        // 空按钮要显式传 null 让游戏不画图标：签名不可为 null，但游戏本身接受 null。
-        // CS8601 在这里是误报（ref 参数的可空标注），按项目"警告即错误"策略就地抑制。
+        focusText = button ?? "";
+        focusText3 = button2 ?? "";
 #pragma warning disable CS8601
-        option1Tex = string.IsNullOrEmpty(buttons.Button) ? Nothing : icon;
-        option2Tex = string.IsNullOrEmpty(buttons.Button2) ? Nothing : icon;
+        option1Tex = string.IsNullOrEmpty(button) ? Nothing : icon;
+        option2Tex = string.IsNullOrEmpty(button2) ? Nothing : icon;
 #pragma warning restore CS8601
         cost = 0;
     }
@@ -204,10 +196,8 @@ internal sealed class NpcTown
         if (!Clicked(false)) orig(self);
     }
 
-    /// <summary>签名不可为 null，但游戏本身接受 null；用属性绕开 CS8601（警告即错误）。</summary>
     private static Texture2D Nothing => null!;
 
-    /// <summary>返回 true = 这次点击被 mod 接走（不再走原版）。</summary>
     private static bool Clicked(bool first)
     {
         var npc = TalkingTo();
@@ -216,10 +206,10 @@ internal sealed class NpcTown
         if (ModContent.Find(ContentKind.Npc, npc.type) is not ModNpc modNpc) return false;
         if (!modNpc.HookEnabled(HookId.OnChatButtonClicked)) return false;
 
-        string shopName;
+        string shopName = null!;
         try
         {
-            shopName = modNpc.OnChatButtonClicked(npc, first);
+            modNpc.OnChatButtonClicked(first, ref shopName);
         }
         catch (Exception e)
         {

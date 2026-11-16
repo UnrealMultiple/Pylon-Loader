@@ -94,8 +94,6 @@ internal static class BuffInteractionTests
                 player.DelBuff(0);
                 c.Eq(BuffInteractionProbe.GlobalClicks, 0, "逻辑删除不调用RightClick");
                 c.Eq(BuffInteractionProbe.ModClicks, 0, "逻辑删除不调用Mod RightClick");
-                c.Eq(BuffInteractionProbe.RemovedTime, 777, "OnRemove收到删除前time");
-                c.Eq(BuffInteractionProbe.RemovedCount, 1, "OnRemove只调用一次");
             });
             PT.Case("BUFF-I2", c =>
             {
@@ -115,16 +113,10 @@ internal static class BuffInteractionTests
             PT.Case("BUFF-I3", c =>
             {
                 Prepare();
-                BuffInteractionProbe.VetoRemove = true;
-                player.DelBuff(0);
-                c.Eq(player.buffType[0], type, "既有CanRemove仍可否决逻辑删除");
-                c.Eq(BuffInteractionProbe.RemovedCount, 0, "否决不发OnRemove");
-                Prepare();
                 gui.RemoveBuff(0);
                 c.Eq(BuffInteractionProbe.GlobalClicks, 1, "正常手动Global一次");
                 c.Eq(BuffInteractionProbe.ModClicks, 1, "正常手动Mod一次");
                 c.True(player.buffType[0] != type, "正常手动取消完成");
-                c.Eq(BuffInteractionProbe.RemovedTime, 777, "手动取消保留移槽前time");
             });
         }
         finally

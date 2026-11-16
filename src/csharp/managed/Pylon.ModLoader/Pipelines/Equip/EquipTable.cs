@@ -38,7 +38,6 @@ internal static class EquipTable
 
     internal static int Vanilla(EquipType part) => EquipTables.Vanilla((int)part, Table(part));
 
-    /// <summary>这个部位要随内容变长的原生贴图表。</summary>
     internal static TableSet Set(EquipType part) => part switch
     {
         EquipType.Head => EquipTables.Head,
@@ -58,7 +57,6 @@ internal static class EquipTable
         _ => EquipTables.Beard,
     };
 
-    /// <summary>这个部位扩表要的目标长度（没有内容就是 0 = 不用扩）。</summary>
     internal static int Target(EquipType part)
     {
         var count = Of(part).Count;
@@ -84,7 +82,6 @@ internal static class EquipTable
         _ => TextureTable.AccBeard,
     };
 
-    /// <summary>这个部位还要写哪张平行表（复合层 / 手臂层）；没有就是空。</summary>
     internal static TextureTable[] Companions(EquipType part) => part switch
     {
         EquipType.Body => [TextureTable.ArmorBodyComposite, TextureTable.ArmorArm, TextureTable.FemaleBody],
@@ -101,7 +98,6 @@ internal static class EquipTable
         _ => [],
     };
 
-    /// <summary>让每个物品的 <c>Load</c> 跑一次并收表；幂等（同一个物品只跑一次）。</summary>
     internal static void Collect()
     {
         for (var index = 0; index < ByPart.Length; index++) ByPart[index].Clear();
@@ -139,7 +135,6 @@ internal static class EquipTable
         }
     }
 
-    /// <summary>发号：槽位接在该部位原版表长之后。</summary>
     internal static void Assign()
     {
         for (var part = 0; part < Parts.Length; part++)
@@ -160,17 +155,14 @@ internal static class EquipTable
 
     private static readonly Dictionary<EquipType, Dictionary<int, EquipTexture>> BySlot = [];
 
-    /// <summary>物品编号 → （部位, 槽位）；从各部位的槽位表反查得到。</summary>
     private static readonly Dictionary<int, List<(EquipType Part, int Slot)>> ByItem = [];
 
-    /// <summary>这件物品带着哪些 mod 装备槽（没带就是 null）。</summary>
     internal static List<(EquipType Part, int Slot)>? SlotsOfItem(int itemType)
     {
         RebuildItemMap();
         return ByItem.TryGetValue(itemType, out var slots) ? slots : null;
     }
 
-    /// <summary>按注册名查槽位（名字是 AddEquipTexture 传的那个）；没有就是 -1。</summary>
     internal static int SlotOf(EquipType part, string? name)
     {
         if (string.IsNullOrEmpty(name)) return -1;
@@ -210,7 +202,6 @@ internal static class EquipTable
         }
     }
 
-    /// <summary>每个部位在 Item 上对应的槽位字段名（供物品声明时写入）。</summary>
     internal static readonly Dictionary<EquipType, string> ItemSlotField = new()
     {
         [EquipType.Head] = "headSlot",

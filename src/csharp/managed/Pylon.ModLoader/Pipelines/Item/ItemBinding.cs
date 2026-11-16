@@ -15,21 +15,13 @@ internal sealed class ItemBinding
         var current = _binding.Get(entity);
         if (current is not null && current.Type == entity.type) return current;
 
-        var instance = Clone(template);
-        instance.Item = entity;
-        return _binding.Bind(entity, instance);
-    }
-
-    /// <summary>按模板复制一份实例（不绑定实体）。</summary>
-    public static ModItem Clone(ModItem template)
-    {
-        var instance = (ModItem)Activator.CreateInstance(template.GetType())!;
+        var instance = template.NewInstance(entity);
         instance.Type = template.Type;
         instance.Registered = template.Registered;
-        instance.Mod = template.Mod;
         instance.Plan = template.Plan;
         instance.Texture = template.Texture;
-        return instance;
+        instance.Item = entity;
+        return _binding.Bind(entity, instance);
     }
 
     public static long AddressOf(Item? entity) => EntityBinding<Item, ModItem>.Address(entity);

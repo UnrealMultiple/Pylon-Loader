@@ -2,10 +2,7 @@ using Pylon.ModLoader.Tables;
 using Pylon.ModLoader.Textures;
 namespace Pylon.ModLoader;
 
-/// <summary>
-/// 模块表：数组位置就是安装顺序，读代码即可看到依赖关系。
-/// 顺序约束：SetDefaults 补丁先于按类型分派的模块；物品与弹幕先于 NPC（NPC 会查它们的表）。
-/// </summary>
+/// <summary>模块表：数组位置就是安装顺序，读代码即可看到依赖关系。</summary>
 internal static class LoaderRegistry
 {
     private static readonly ILoaderModule[] Modules =
@@ -46,6 +43,7 @@ internal static class LoaderRegistry
         TreePipeline.Instance,
         DamageClassPipeline.Instance,
         PlayerPipeline.Instance,
+        PlayerSavePipeline.Instance,
         PlayerNetPipeline.Instance,
         NetPipeline.Instance,
         BannerNetPipeline.Instance,
@@ -63,7 +61,6 @@ internal static class LoaderRegistry
 
     private static List<TableRequest>? _tables;
 
-    /// <summary>全部模块声明的扩表请求（谁用到谁声明，框架统一执行）。表集合本身不变，取到就缓存。</summary>
     public static IReadOnlyList<TableRequest> Tables
     {
         get
@@ -78,7 +75,6 @@ internal static class LoaderRegistry
 
     private static int _installed;
 
-    /// <summary>按顺序安装；遇到未就绪的模块就停下，下次注册再继续。</summary>
     public static void InstallAll()
     {
         if (_installed >= Modules.Length) return;

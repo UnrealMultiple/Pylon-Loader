@@ -8,9 +8,9 @@
 | `Cloud.RollRareCloud` | 稀有云（`RareCloud => true`）的抽签，区间同构 |
 | 安装期（`Static`） | `ModCloud.SetStaticDefaults` |
 | 安装期（`Surface`） | 扩 `TextureAssets.Cloud` 并把作者贴图写进对应槽 |
-| 绘制 | 不挂钩子：游戏自己按 `cloud.type` 取 `TextureAssets.Cloud[type]` 画 |
+| `NextHorizonRenderer.DrawCloud` | `ModCloud.Draw`（覆写它的云逐云接管；其余云原版自己画） |
 
-**不接**：绘制期的逐云回调、多人同步、云的生命周期（位置/速度/淡出）——那些仍然由游戏跑。**逐云着色已接**（见 2.4）。
+**不接**：多人同步、云的生命周期（位置/速度/淡出）——那些仍然由游戏跑。
 
 ## 2. 我们的设计
 
@@ -34,22 +34,25 @@
 
 `roll` 的取值区间是 `[0, 权重 + 原版云数)`：把"每朵原版云"当成权重 1 的参与者，`SpawnChance` 的语义就是"我这朵顶得上几朵原版云"。这样 `SpawnChance() => 1` 的 mod 云不会因为"mod 云数量少"而几乎不出现，作者调的数直接对应"相对一朵普通云的出现率"。
 
-### 2.4 逐云着色
+### 2.4 逐云绘制（`ModCloud.Draw`）
 
-游戏画每朵云之前会问这朵云"在今天的天色下该是什么颜色"——`Cloud.cloudColor(Cloud self, Color color)` 是**逐云实例**的方法，返回值就是最终颜色。管线挂这个入口，对 mod 云问一次作者的 `CloudColor`：
+默认绘制靠扩表就能接上（见 2.5 的历史取舍），但作者要"这张云画成别的形状/加特效"时需要逐云入口。挂的是 `On.Terraria.GameContent.Drawing.NextHorizonRenderer.DrawCloud(self, globalCloudAlpha, cloud, cloudPass, cY)`（接口实现的非虚方法，HookGen 全量生成后可用）：
 
-```csharp
-public override Color CloudColor(Cloud cloud, Color color) => Color.Lerp(color, Color.Pink, 0.5f);
+```
+某朵云的 ModCloud 覆写了 Draw（HookId.Draw 位集门控）
+  → 按原版公式算 drawData：TextureAssets.Cloud[type]、cloudColor(Main.ColorOfTheSkies)
+    （cloudPass==1 时 R×scale×0.8、G×(scale+1)/2×0.9）、Main.atmo<1 再乘、最后乘 globalCloudAlpha
+  → 交给作者 Draw(cache, cloud, IndexOf(cloud), ref drawData)
+  → cache 里每条无条件 Blit（Main.cloudBatch.Draw）
+  → 返回 false = 原版不画；drawData 与原版一致 = 交给原版；改了 = 只 Blit 改后那张
+作者异常 → 按原版画兜底（记一次）。
 ```
 
-* 只在 mod 云的编号上问，原版云直接放行；
-* 入参是游戏算好的原色（已含天色、高度、雾化），作者在它上面乘或插值，不用自己算光照；
-* 每帧每朵一次，作者要"彩虹"这类效果就按 `cloud.position` 或 `Main.GlobalTimeWrappedHourly` 算；
-* 抛异常按"不改色"处理。
+注意 `DrawData` 在互操作层是装箱包装类：`drawData` 给作者的是**新建的一份**（不能与"原版那份"共享实例，否则改了也比对不出差异）。
 
-### 2.5 为什么不挂逐云绘制钩子
+### 2.5 没覆写 Draw 的云走什么
 
-游戏画云时读的是 `TextureAssets.Cloud[cloud.type]`，而这张表我们已经扩长并把作者贴图写进去了；`cloud.width` / `cloud.height` 也只被 `addCloud` 用来定尺寸，换编号时一起改掉即可。于是"mod 云怎么画"这件事不需要我们插手——**少一个每帧钩子，也少一处和原版绘制细节的耦合**。
+游戏画云时读的是 `TextureAssets.Cloud[cloud.type]`，而这张表我们已经扩长并把作者贴图写进去了；`cloud.width` / `cloud.height` 也只被 `addCloud` 用来定尺寸，换编号时一起改掉即可。所以**没覆写 Draw 的云零分派开销**（位集门控直通原版），绘制细节也不和原版耦合。
 
 ### 2.6 稀有云（稀有一签）
 
@@ -67,7 +70,7 @@ RollRareCloud：先让游戏抽（拿到原版结果）→ 再按稀有云的权
 
 * **为什么在 `addCloud` 之后换编号，而不是从零自己生成一朵云？** 位置、视差高度、缩放、淡出速度、`active`、`spriteDir` 这些字段全是游戏按图层/视差算出来的；自己拼一朵要么漏字段（云不动/不淡出），要么就得把 `addCloud` 整段抄一遍。
 * **为什么权重按"原版云数"归一？** 见 2.3；如果我们用"mod 云权重之和"归一，那么加第二个 mod 云会让第一个的出现率直接减半，作者写的数字就没有稳定含义了。
-* **为什么绘制不挂钩子、着色却挂钩子？** 绘制靠扩表就能接到原版三条绘制路径，是数据；着色是每朵云不同的取值，没有表可写，只能挂逐云入口。
+* **为什么绘制默认不挂钩子、只对覆写了 Draw 的云接管？** 绘制靠扩表就能接到原版三条绘制路径，是数据；逐云回调只服务"要改画法"的作者，位集门控保证其余云零开销。
 * **为什么稀有云"先跑原版再换"？** 稀有云在游戏里还牵着手势/彩蛋逻辑（十周年世界等），先让原版抽完保证状态一致，再把编号换成 mod 的；直接跳过原版会漏掉那些副作用。
 * **为什么扩表而不是自绘？** 扩表之后原版的所有云绘制路径（近/中/远三层、视差、雾化）自动对 mod 云生效；自绘等于把这三层重写。
 
@@ -95,9 +98,8 @@ RollRareCloud：先让游戏抽（拿到原版结果）→ 再按稀有云的权
 
 ### 这一版没接
 
-1. **稀有云出现时的彩虹着色**：稀有一签已接（见 2.6）；彩虹效果现在可以用 `CloudColor` 自己写（见 2.4），管线不替作者决定配色。
-2. **逐云绘制回调**：不挂钩子（见 2.5）。
-3. **多人同步**：云本来就是本地生成的表现，mod 云也不会同步。
+1. **稀有云出现时的彩虹着色**：稀有一签已接（见 2.6）；原版对着色还有 `cloudPass==1` 的近层乘色，作者要"彩虹"这类效果可在 `Draw` 里自己算色（见 2.4），管线不替作者决定配色。
+2. **多人同步**：云本来就是本地生成的表现，mod 云也不会同步。
 4. **云的消失/淡出时机**：仍由游戏跑，本管线不参与。
 5. **`Cloud.resetClouds` 时的清理**：不挂；重置后 `addCloud` 会重新抽签，mod 云自然重新出现。
 

@@ -1,8 +1,12 @@
+using System.Collections.Generic;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Terraria;
 using Terraria.DataStructures;
+using Terraria.GameContent;
+using Terraria.GameContent.Bestiary;
 using Terraria.GameContent.ItemDropRules;
+using Terraria.GameContent.UI;
 
 namespace Pylon.ModLoader;
 
@@ -29,9 +33,6 @@ public abstract class GlobalNpc : ModType
 
     /// <summary>全部内容装完之后一次。</summary>
     public virtual void AddRecipes() { }
-
-    /// <summary>全部内容装完之后一次。</summary>
-    public virtual void PostSetupContent() { }
 
     /// <summary>这个类型的 NPC 生成时（客户端收到同步数据、重建时也会）。</summary>
     public virtual void SetDefaults(NPC npc) { }
@@ -176,11 +177,107 @@ public abstract class GlobalNpc : ModType
     /// <summary>一次：对每个 NPC 都成立的掉落规则。</summary>
     public virtual void ModifyGlobalLoot(ItemDropDatabase globalLoot) { }
 
+    /// <summary>图鉴条目注册前：给这个 NPC 的条目补生物群系/文本等。</summary>
+    public virtual void SetBestiary(NPC npc, BestiaryDatabase database, BestiaryEntry bestiaryEntry) { }
+
     /// <summary>原生 NPC 同步包发出后，把全局附加数据写进去。</summary>
     public virtual void NetSend(NPC npc, NetWriter writer) { }
 
     /// <summary>收到全局附加数据。</summary>
     public virtual void NetReceive(NPC npc, NetReader reader) { }
+
+    // ===================== NPC 事件/存取补全（部分接、部分见铁律注记） =====================
+
+    /// <summary>null 交给游戏，false 不穿微光平台。</summary>
+    public virtual bool? CanFallThroughPlatforms(NPC npc) => null;
+
+    /// <summary>true = 这个 NPC 死掉时走特殊掉落逻辑。</summary>
+    public virtual bool SpecialOnKill(NPC npc) => false;
+
+    /// <summary>改死亡消息正文与颜色；返回 false = 这条消息整条吞掉（作者已自行处理）。</summary>
+    public virtual bool ModifyDeathMessage(NPC npc, ref Terraria.Localization.NetworkText customText, ref Color color) => true;
+
+    /// <summary>改显示名（图鉴/入侵进度条）。</summary>
+    public virtual void ModifyTypeName(NPC npc, ref string typeName) { }
+
+    /// <summary>能不能被国王/王后雕像传走；null 交给游戏。</summary>
+    public virtual bool? CanGoToStatue(NPC npc, bool toKingStatue) => null;
+
+    /// <summary>被雕像传走之后。</summary>
+    public virtual void OnGoToStatue(NPC npc, bool toKingStatue) { }
+
+    /// <summary>null 交给游戏；true/false 决定能不能被这个物品捕捉。</summary>
+    public virtual bool? CanBeCaughtBy(NPC npc, Item item, Player player) => null;
+
+    /// <summary>被捕捉之后（failed = true 是想抓岩浆小动物挨了一下）。</summary>
+    public virtual void OnCaughtBy(NPC npc, Player player, Item item, bool failed) { }
+
+    /// <summary>城镇 NPC 攻击伤害与防御的全局加成（可写引用；AI_007 后缀派发，伤害乘数同时作用于攻击参数）。</summary>
+    public virtual void BuffTownNPC(NPC npc, ref float damageMult, ref int defense) { }
+
+    // ===================== 城镇攻击（全局形态带 npc 首参） =====================
+
+    /// <summary>城镇 NPC 攻击伤害与击退（可写引用）。</summary>
+    public virtual void TownNPCAttackStrength(NPC npc, ref int damage, ref float knockback) { }
+
+    /// <summary>城镇 NPC 攻击冷却（可写引用）。</summary>
+    public virtual void TownNPCAttackCooldown(NPC npc, ref int cooldown, ref int randExtraCooldown) { }
+
+    /// <summary>城镇 NPC 攻击发射的弹幕与攻击间隔（可写引用）。</summary>
+    public virtual void TownNPCAttackProj(NPC npc, ref int projType, ref int attackDelay) { }
+
+    /// <summary>城镇 NPC 弹幕速度参数（可写引用）。</summary>
+    public virtual void TownNPCAttackProjSpeed(NPC npc, ref float multiplier, ref float gravityCorrection, ref float randomOffset) { }
+
+    /// <summary>城镇 NPC 连发节奏（可写引用）。</summary>
+    public virtual void TownNPCAttackShoot(NPC npc, ref bool inBetweenShots) { }
+
+    /// <summary>城镇 NPC 魔法攻击的光环亮度（可写引用）。</summary>
+    public virtual void TownNPCAttackMagic(NPC npc, ref float auraLightMultiplier) { }
+
+    /// <summary>城镇 NPC 挥舞尺寸（可写引用）。</summary>
+    public virtual void TownNPCAttackSwing(NPC npc, ref int itemWidth, ref int itemHeight) { }
+
+    /// <summary>城镇 NPC 开枪的持枪绘制（可写引用）。</summary>
+    public virtual void DrawTownAttackGun(NPC npc, ref Texture2D item, ref Rectangle itemFrame, ref float scale,
+                                          ref int horizontalHoldoutOffset) { }
+
+    /// <summary>城镇 NPC 挥舞的绘制（可写引用）。</summary>
+    public virtual void DrawTownAttackSwing(NPC npc, ref Texture2D item, ref Rectangle itemFrame, ref int itemSize,
+                                            ref float scale, ref Vector2 offset) { }
+
+    /// <summary>血条：null 用游戏的，false 不画，true 接管 scale/position。</summary>
+    public virtual bool? DrawHealthBar(NPC npc, byte hbPosition, ref float scale, ref Vector2 position) => null;
+
+    /// <summary>开派对时派对帽摆哪儿（可写引用）。</summary>
+    public virtual void PartyHatPosition(NPC npc, ref Vector2 position, ref SpriteEffects spriteEffects) { }
+
+    /// <summary>聊天气泡摆哪儿（可写引用）。</summary>
+    public virtual void ChatBubblePosition(NPC npc, ref Vector2 position, ref SpriteEffects spriteEffects) { }
+
+    /// <summary>悬停时的高亮框（可写引用）。</summary>
+    public virtual void ModifyHoverBoundingBox(NPC npc, ref Rectangle boundingBox) { }
+
+    /// <summary>鼠标悬停交互；false = 这次不响应。</summary>
+    public virtual bool PreHoverInteract(NPC npc, bool mouseIntersects) => true;
+
+    /// <summary>城镇/有主 NPC 要不要随世界存档保存。</summary>
+    public virtual bool NeedSaving(NPC npc) => false;
+
+    /// <summary>替换这个 NPC 的外形变体档案；null = 保持前一个（原版/mod 自己的）。注册期在 ModNpc 之后调。</summary>
+    public virtual ITownNPCProfile? ModifyTownNPCProfile(NPC npc) => null;
+
+    /// <summary>随世界存档保存的自定义数据。</summary>
+    public virtual void SaveData(NPC npc, TagCompound tag) { }
+
+    /// <summary>读档后恢复（与 SaveData 配对）。</summary>
+    public virtual void LoadData(NPC npc, TagCompound tag) { }
+
+    /// <summary>被表情气泡点名时返回要回应的表情号（null = 随机挑）；在 ModNpc 之后跑，非 null 直接换掉结果。</summary>
+    public virtual int? PickEmote(NPC npc, Player closestPlayer, List<int> emoteList, WorldUIAnchor otherAnchor) => null;
+
+    /// <summary>表情气泡摆哪儿（可写引用）；在 ModNpc 之后跑。</summary>
+    public virtual void EmoteBubblePosition(NPC npc, ref Vector2 position, ref SpriteEffects spriteEffects) { }
 }
 
 // 未移植：命中套（14 个，缺 HitModifiers/HurtModifiers/HitInfo/HurtInfo——NPC.StrikeNPC 与 Player.Hurt 仍是

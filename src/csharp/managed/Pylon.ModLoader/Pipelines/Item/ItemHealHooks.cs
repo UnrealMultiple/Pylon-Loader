@@ -31,8 +31,8 @@ internal static class ItemHealHooks
         {
             try
             {
-                if (hook == HookId.GetHealLife) own.GetHealLife(item, player, quick, ref value);
-                else own.GetHealMana(item, player, quick, ref value);
+                if (hook == HookId.GetHealLife) own.GetHealLife(player, quick, ref value);
+                else own.GetHealMana(player, quick, ref value);
             }
             catch (Exception e) { Fail(own, hook, e); }
         }
@@ -52,8 +52,8 @@ internal static class ItemHealHooks
                 if (!mod.HookEnabled(hook)) continue;
                 try
                 {
-                    if (hook == HookId.GetHealLife) mod.GetHealLife(player, item, quick, ref value);
-                    else mod.GetHealMana(player, item, quick, ref value);
+                    if (hook == HookId.GetHealLife) mod.GetHealLife(item, quick, ref value);
+                    else mod.GetHealMana(item, quick, ref value);
                 }
                 catch (Exception e) { Fail(mod, hook, e); }
             }
@@ -95,7 +95,6 @@ internal static class ItemHealHooks
         }
         finally
         {
-            // 同一物品可能在下一帧用于提示或比较，临时治疗值不能永久污染模板。
             item.healLife = life;
             item.healMana = mana;
         }

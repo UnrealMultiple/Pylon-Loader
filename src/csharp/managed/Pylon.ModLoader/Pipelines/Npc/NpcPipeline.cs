@@ -11,10 +11,7 @@ using Terraria.Graphics.Light;
 
 namespace Pylon.ModLoader;
 
-/// <summary>
-/// NPC 管线：AI / 事件 / 绘制 / 首领头像。分派方向与弹幕相反——Global 先、本 NPC 后（AI 与 PostAI 除外）。
-/// 每个游戏钩子入口只解析一次"实例 + Global 表"，跨钩子上下文用管线实例上的定长结构体栈。
-/// </summary>
+/// <summary>NPC 管线：AI/事件/绘制/首领头像；分派为 Global 先、本 NPC 后（AI 与 PostAI 除外），跨钩子上下文用定长结构体栈。</summary>
 internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
 {
     public static NpcPipeline Instance { get; } = new();
@@ -28,7 +25,6 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
     private readonly NpcSavePipeline _save = new();
     private readonly NpcDrawFrame[] _draws = new NpcDrawFrame[FrameDepth];
     private readonly HashSet<int> _reported = [];
-    private readonly HashSet<int> _cloning = [];
     private readonly Dictionary<int, int> _borrowedAnimation = [];
     private readonly HashSet<int> _behind = [];
     private readonly List<int> _behindScratch = [];
@@ -64,6 +60,8 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         _defaults.Install();
         _town.Install();
         _save.Install();
+        NpcTownAttackHooks.Install();
+        NpcDeathMessageHooks.Install();
         NpcHeadHooks.Install();
         NpcSpawn.Install();
         NpcHitHooks.Install();
@@ -77,7 +75,15 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.NPC.CheckActive += CheckActive;
         On.Terraria.NPC.FindFrame += FindFrame;
         On.Terraria.NPC.NPCLoot += Loot;
+        On.Terraria.NPC.DropEoWLoot += DropEoWLoot;
         On.Terraria.NPC.HitEffect += HitEffect;
+        On.Terraria.NPC.Collision_DecideFallThroughPlatforms += FallThroughPlatforms;
+        On.Terraria.NPC.get_TypeName += TypeName;
+        On.Terraria.NPC.UsesPartyHat += PartyHat;
+        On.Terraria.Player.ItemCheck_CatchCritters += CatchCritters;
+        On.Terraria.Main.DrawInterface_14_EntityHealthBars += HealthBarsStart;
+        On.Terraria.Main.DrawHealthBar += HealthBar;
+        On.Terraria.Main.HoverOverNPCs += Hover;
         On.Terraria.NPC.ScaleStats_ByPlayerCount += Scaling;
         On.Terraria.NPC.UpdateNPC_BuffApplyDOTs += LifeRegen;
         On.Terraria.NPC.GetChat += GetChat;
@@ -95,20 +101,15 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         return true;
     }
 
-    public void Refresh() => _binding.Prime();
+    public void Refresh()
+    {
+        _binding.Prime();
+        NpcTownAttackHooks.RebuildWanted();
+    }
 
 #region 外部入口（作者 API 需要）
 
     internal ModNpc? InstanceOf(NPC? npc) => _binding.InstanceOf(npc);
-
-    internal bool StartClone(int type) => _cloning.Add(type);
-
-    internal void EndClone(NPC npc, ModNpc instance, int clonedType)
-    {
-        _binding.RebindTo(npc, instance);
-        GlobalNpcRegistry.Attach(npc, true);
-        _cloning.Remove(clonedType);
-    }
 
     internal void SetupShops(IModLog log)
     {
@@ -169,7 +170,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         {
             try
             {
-                go = mod.PreAI(self);
+                go = mod.PreAI();
             }
             catch (Exception e)
             {
@@ -201,7 +202,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
             {
                 try
                 {
-                    mod.AI(self);
+                    mod.AI();
                 }
                 catch (Exception e)
                 {
@@ -229,7 +230,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         {
             try
             {
-                mod.PostAI(self);
+                mod.PostAI();
             }
             catch (Exception e)
             {
@@ -269,7 +270,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
             {
                 try
                 {
-                    mod.OnSpawn(npc, source);
+                    mod.OnSpawn(source);
                 }
                 catch (Exception e)
                 {
@@ -311,7 +312,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
             {
                 try
                 {
-                    mod.ResetEffects(self);
+                    mod.ResetEffects();
                 }
                 catch (Exception e)
                 {
@@ -368,7 +369,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
 
             try
             {
-                mod.DrawBehind(npc, index);
+                mod.DrawBehind(index);
             }
             catch (Exception e)
             {
@@ -404,7 +405,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         {
             try
             {
-                if (!mod.CheckDead(self)) alive = false;
+                if (!mod.CheckDead()) alive = false;
             }
             catch (Exception e)
             {
@@ -429,6 +430,8 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private void Loot(On.Terraria.NPC.orig_NPCLoot orig, NPC self)
     {
+        if (SpecialOnKillChain(self)) return;
+
         var mod = _binding.InstanceOf(self);
         var preKill = GlobalNpcRegistry.For(self, HookId.PreKill);
         var onKill = GlobalNpcRegistry.For(self, HookId.OnKill);
@@ -465,7 +468,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         {
             try
             {
-                allowed = mod!.PreKill(self);
+                allowed = mod!.PreKill();
             }
             catch (Exception e)
             {
@@ -481,7 +484,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         {
             try
             {
-                mod!.OnKill(self);
+                mod!.OnKill();
             }
             catch (Exception e)
             {
@@ -502,6 +505,366 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
+    #region 事件补全（SpecialOnKill / 名称 / 平台 / 捕捉 / 派对帽）
+
+    private bool SpecialOnKillChain(NPC self)
+    {
+        if (!GlobalNpcRegistry.AnyWith(HookId.SpecialOnKill) &&
+            (_binding.InstanceOf(self) is not { } probe || !probe.HookEnabled(HookId.SpecialOnKill)))
+            return false;
+
+        foreach (var global in GlobalNpcRegistry.For(self, HookId.SpecialOnKill))
+        {
+            try
+            {
+                if (global.SpecialOnKill(self)) return true;
+            }
+            catch (Exception e)
+            {
+                Fail(global, HookId.SpecialOnKill, e);
+            }
+        }
+
+        if (_binding.InstanceOf(self) is not { } mod || !mod.HookEnabled(HookId.SpecialOnKill)) return false;
+
+        try
+        {
+            return mod.SpecialOnKill();
+        }
+        catch (Exception e)
+        {
+            Fail(mod, HookId.SpecialOnKill, e);
+            return false;
+        }
+    }
+
+    private void DropEoWLoot(On.Terraria.NPC.orig_DropEoWLoot orig, NPC self, bool fromCheckDead)
+    {
+        if (SpecialOnKillChain(self)) return;
+
+        orig(self, fromCheckDead);
+    }
+
+    private bool FallThroughPlatforms(On.Terraria.NPC.orig_Collision_DecideFallThroughPlatforms orig, NPC self)
+    {
+        bool? decision = null;
+
+        if (_binding.InstanceOf(self) is { } mod && mod.HookEnabled(HookId.CanFallThroughPlatforms))
+        {
+            try
+            {
+                var value = mod.CanFallThroughPlatforms();
+                if (value == false) return false;
+                if (value == true) decision = true;
+            }
+            catch (Exception e)
+            {
+                Fail(mod, HookId.CanFallThroughPlatforms, e);
+            }
+        }
+
+        foreach (var global in GlobalNpcRegistry.For(self, HookId.CanFallThroughPlatforms))
+        {
+            try
+            {
+                var value = global.CanFallThroughPlatforms(self);
+                if (value == false) return false;
+                if (value == true) decision = true;
+            }
+            catch (Exception e)
+            {
+                Fail(global, HookId.CanFallThroughPlatforms, e);
+            }
+        }
+
+        return decision is bool result ? result : orig(self);
+    }
+
+    private string TypeName(On.Terraria.NPC.orig_get_TypeName orig, NPC self)
+    {
+        var typeName = orig(self);
+
+        if (_binding.InstanceOf(self) is { } mod && mod.HookEnabled(HookId.ModifyTypeName))
+        {
+            try { mod.ModifyTypeName(ref typeName); }
+            catch (Exception e) { Fail(mod, HookId.ModifyTypeName, e); }
+        }
+
+        foreach (var global in GlobalNpcRegistry.For(self, HookId.ModifyTypeName))
+        {
+            try { global.ModifyTypeName(self, ref typeName); }
+            catch (Exception e) { Fail(global, HookId.ModifyTypeName, e); }
+        }
+
+        return typeName;
+    }
+
+    private bool PartyHat(On.Terraria.NPC.orig_UsesPartyHat orig, NPC self)
+    {
+        if (_binding.InstanceOf(self) is { } mod && mod.HookEnabled(HookId.UsesPartyHat))
+        {
+            try
+            {
+                if (!mod.UsesPartyHat()) return false;
+            }
+            catch (Exception e)
+            {
+                Fail(mod, HookId.UsesPartyHat, e);
+            }
+        }
+
+        return orig(self);
+    }
+
+    private void CatchCritters(On.Terraria.Player.orig_ItemCheck_CatchCritters orig, Player self, Item sItem, Rectangle itemRectangle)
+    {
+        var lavaProof = sItem.type == 3183 || sItem.type == 4821;
+
+        for (var n = 0; n < 200; n++)
+        {
+            var npc = Main.npc[n];
+            if (npc is null || !npc.active ||
+                !itemRectangle.Intersects(new Rectangle((int)npc.position.X, (int)npc.position.Y, npc.width, npc.height)))
+                continue;
+
+            bool? decision = null;
+            var hooked = false;
+
+            foreach (var global in GlobalNpcRegistry.For(npc, HookId.CanBeCaughtBy))
+            {
+                hooked = true;
+                try
+                {
+                    var value = global.CanBeCaughtBy(npc, sItem, self);
+                    if (value == false) { decision = false; break; }
+                    if (value == true) decision = true;
+                }
+                catch (Exception e) { Fail(global, HookId.CanBeCaughtBy, e); }
+            }
+
+            if (_binding.InstanceOf(npc) is { } mod && mod.HookEnabled(HookId.CanBeCaughtBy))
+            {
+                hooked = true;
+                try
+                {
+                    var value = mod.CanBeCaughtBy(sItem, self);
+                    if (value == false) decision = false;
+                    if (value == true) decision = true;
+                }
+                catch (Exception e) { Fail(mod, HookId.CanBeCaughtBy, e); }
+            }
+
+            if (decision == false) continue;
+
+            if (decision == true)
+            {
+                NPC.CatchNPC(n, self.whoAmI);
+                if (hooked) CaughtBy(npc, self, sItem, failed: false);
+                continue;
+            }
+
+            if (npc.catchItem <= 0) continue;
+
+            if (!lavaProof && Terraria.ID.ItemID.Sets.IsLavaBait[npc.catchItem])
+            {
+                if (Main.myPlayer == self.whoAmI &&
+                    self.Hurt(Terraria.DataStructures.PlayerDeathReason.ByNPC(n), 1, npc.Center.X < self.Center.X ? 1 : -1,
+                        cooldownCounter: Terraria.ID.ImmunityCooldownID.WrongBugNet) > 0.0 && !self.dead)
+                    self.AddBuff(24, 300);
+
+                if (hooked) CaughtBy(npc, self, sItem, failed: true);
+                continue;
+            }
+
+            if ((npc.type == 583 || npc.type == 584 || npc.type == 585) && npc.ai[2] > 1f) continue;
+
+            NPC.CatchNPC(n, self.whoAmI);
+            if (hooked) CaughtBy(npc, self, sItem, failed: false);
+        }
+    }
+
+    private void CaughtBy(NPC npc, Player player, Item item, bool failed)
+    {
+        if (_binding.InstanceOf(npc) is { } mod && mod.HookEnabled(HookId.OnCaughtBy))
+        {
+            try { mod.OnCaughtBy(player, item, failed); }
+            catch (Exception e) { Fail(mod, HookId.OnCaughtBy, e); }
+        }
+
+        foreach (var global in GlobalNpcRegistry.For(npc, HookId.OnCaughtBy))
+        {
+            try { global.OnCaughtBy(npc, player, item, failed); }
+            catch (Exception e) { Fail(global, HookId.OnCaughtBy, e); }
+        }
+    }
+
+    [ThreadStatic] private static bool _drawingHealthBars;
+    private static int _healthBarCursor;
+
+    private void HealthBarsStart(On.Terraria.Main.orig_DrawInterface_14_EntityHealthBars orig, Main self)
+    {
+        var outer = _drawingHealthBars;
+        _drawingHealthBars = true;
+        _healthBarCursor = 0;
+        try { orig(self); }
+        finally { _drawingHealthBars = outer; }
+    }
+
+    private void HealthBar(On.Terraria.Main.orig_DrawHealthBar orig, Main self, float x, float y, int health, int maxHealth,
+                           float alpha, float scale, bool noFlip, bool inUISpace)
+    {
+        var npc = _drawingHealthBars ? FindHealthBarOwner(x, health, maxHealth) : null;
+        if (npc is null || !NpcOverrides(npc, HookId.DrawHealthBar))
+        {
+            orig(self, x, y, health, maxHealth, alpha, scale, noFlip, inUISpace);
+            return;
+        }
+
+        var position = new Vector2(x, y);
+        var drawScale = scale;
+        bool? result = null;
+
+        foreach (var global in GlobalNpcRegistry.For(npc, HookId.DrawHealthBar))
+        {
+            try
+            {
+                if (global.DrawHealthBar(npc, Main.HealthBarDrawSettings, ref drawScale, ref position) is bool value) result = value;
+            }
+            catch (Exception e) { Fail(global, HookId.DrawHealthBar, e); }
+        }
+
+        if (_binding.InstanceOf(npc) is { } mod && mod.HookEnabled(HookId.DrawHealthBar))
+        {
+            try
+            {
+                if (mod.DrawHealthBar(Main.HealthBarDrawSettings, ref drawScale, ref position) is bool value) result = value;
+            }
+            catch (Exception e) { Fail(mod, HookId.DrawHealthBar, e); }
+        }
+
+        switch (result)
+        {
+            case false: return;
+            case true: orig(self, position.X, position.Y, health, maxHealth, alpha, drawScale, noFlip, inUISpace); return;
+            default: orig(self, x, y, health, maxHealth, alpha, scale, noFlip, inUISpace); return;
+        }
+    }
+
+    private static NPC? FindHealthBarOwner(float x, int life, int lifeMax)
+    {
+        var npcs = Main.npc;
+        if (npcs is null) return null;
+
+        for (var k = 0; k < 200; k++)
+        {
+            var n = (_healthBarCursor + k) % 200;
+            var npc = npcs[n];
+            if (npc is null || !npc.active || npc.lifeMax != lifeMax || Math.Abs(npc.position.X + npc.width / 2 - x) > 1f) continue;
+            if (npc.life != life && !((uint)npc.realLife < 200u && npcs[npc.realLife]?.life == life)) continue;
+            _healthBarCursor = n + 1;
+            return npc;
+        }
+
+        return null;
+    }
+
+    private bool NpcOverrides(NPC npc, HookId hook) =>
+        (_binding.InstanceOf(npc) is { } mod && mod.HookEnabled(hook)) || GlobalNpcRegistry.AnyWith(hook);
+
+    private void Hover(On.Terraria.Main.orig_HoverOverNPCs orig, Main self, Rectangle mouseRectangle)
+    {
+        List<(NPC Npc, Vector2 Position, Rectangle Frame)>? hidden = null;
+
+        try
+        {
+            for (var n = 0; n < 200; n++)
+            {
+                var npc = Main.npc[n];
+                if (npc is null || !npc.active || !NpcOverrides(npc, HookId.ModifyHoverBoundingBox) && !NpcOverrides(npc, HookId.PreHoverInteract))
+                    continue;
+
+                var bottom = npc.position + npc.netOffset + new Vector2(npc.width / 2f, npc.height);
+                var frame = npc.frame;
+                var vanilla = new Rectangle((int)bottom.X - frame.Width / 2, (int)bottom.Y - frame.Height, frame.Width, frame.Height);
+                var box = vanilla;
+
+                var special = npc.type is >= 87 and <= 92 or 677 or 695 or 696;
+                if (!special)
+                {
+                    foreach (var global in GlobalNpcRegistry.For(npc, HookId.ModifyHoverBoundingBox))
+                    {
+                        try { global.ModifyHoverBoundingBox(npc, ref box); }
+                        catch (Exception e) { Fail(global, HookId.ModifyHoverBoundingBox, e); }
+                    }
+
+                    if (_binding.InstanceOf(npc) is { } mod && mod.HookEnabled(HookId.ModifyHoverBoundingBox))
+                    {
+                        try { mod.ModifyHoverBoundingBox(ref box); }
+                        catch (Exception e) { Fail(mod, HookId.ModifyHoverBoundingBox, e); }
+                    }
+                }
+
+                var intersects = mouseRectangle.Intersects(box);
+                var considered = intersects || (Main.SmartInteractShowingGenuine && Main.SmartInteractNPC == n);
+                var pass = true;
+
+                if (considered)
+                {
+                    foreach (var global in GlobalNpcRegistry.For(npc, HookId.PreHoverInteract))
+                    {
+                        try
+                        {
+                            if (!global.PreHoverInteract(npc, intersects)) pass = false;
+                        }
+                        catch (Exception e) { Fail(global, HookId.PreHoverInteract, e); }
+                    }
+
+                    if (pass && _binding.InstanceOf(npc) is { } owner && owner.HookEnabled(HookId.PreHoverInteract))
+                    {
+                        try { pass = owner.PreHoverInteract(intersects); }
+                        catch (Exception e) { Fail(owner, HookId.PreHoverInteract, e); }
+                    }
+                }
+
+                if (considered && !pass)
+                {
+                    (hidden ??= []).Add((npc, npc.position, npc.frame));
+                    npc.active = false;
+                    continue;
+                }
+
+                if (box.X == vanilla.X && box.Y == vanilla.Y && box.Width == vanilla.Width && box.Height == vanilla.Height) continue;
+
+                (hidden ??= []).Add((npc, npc.position, npc.frame));
+                npc.frame = new Rectangle(frame.X, frame.Y, box.Width, box.Height);
+                npc.position = new Vector2(box.X + box.Width / 2 - npc.width / 2f + 0.25f, box.Y + box.Height - npc.height + 0.25f) - npc.netOffset;
+            }
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report($"[npc] 悬浮交互异常：{Safe.Describe(e)}");
+        }
+
+        try
+        {
+            orig(self, mouseRectangle);
+        }
+        finally
+        {
+            if (hidden is not null)
+            {
+                foreach (var entry in hidden)
+                {
+                    entry.Npc.position = entry.Position;
+                    entry.Npc.frame = entry.Frame;
+                    entry.Npc.active = true;
+                }
+            }
+        }
+    }
+
+    #endregion
+
     private void HitEffect(On.Terraria.NPC.orig_HitEffect orig, NPC self, int hitDirection, double dmg)
     {
         orig(self, hitDirection, dmg);
@@ -514,7 +877,9 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         {
             try
             {
-                mod.HitEffect(self, hitDirection, (int)dmg);
+                var hit = new HitInfo(hitDirection: hitDirection, damage: Math.Max((int)dmg, 1),
+                                      sourceDamage: Math.Max((int)dmg, 1));
+                mod.HitEffect(hit);
             }
             catch (Exception e)
             {
@@ -547,7 +912,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         try
         {
             var regen = self.lifeRegen;
-            mod.UpdateLifeRegen(self, ref regen);
+            mod.UpdateLifeRegen(ref regen);
             self.lifeRegen = regen;
         }
         catch (Exception e)
@@ -576,7 +941,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
             {
                 try
                 {
-                    mod!.ApplyDifficultyAndPlayerScaling(self, numPlayers, balance, bossAdjustment);
+                    mod!.ApplyDifficultyAndPlayerScaling(numPlayers, balance, bossAdjustment);
                 }
                 catch (Exception e)
                 {
@@ -618,7 +983,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         {
             try
             {
-                if (!mod.CheckActive(self)) alive = false;
+                if (!mod.CheckActive()) alive = false;
             }
             catch (Exception e)
             {
@@ -678,21 +1043,27 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private bool ForceCanTalk(On.Terraria.NPC.orig_get_CanTalk orig, NPC self)
     {
-        var vanilla = orig(self);
-        if (vanilla) return true;
-
         var mod = _binding.InstanceOf(self);
-        if (mod is null) return false;
-
-        try
+        bool? result = null;
+        if (mod is not null && mod.HookEnabled(HookId.CanChat))
         {
-            return mod.CanChat(self) ?? true;
+            try { result = mod.CanChat(); }
+            catch (Exception e) { Fail(mod, HookId.CanChat, e); }
         }
-        catch (Exception e)
+        foreach (var global in GlobalNpcRegistry.For(self, HookId.CanChat))
         {
-            Fail(mod, HookId.GetChat, e);
-            return true;
+            try
+            {
+                var value = global.CanChat(self);
+                if (value == false) return false;
+                if (value == true) result = true;
+            }
+            catch (Exception e)
+            {
+                Fail(global, HookId.CanChat, e);
+            }
         }
+        return result ?? orig(self);
     }
 
     private string GetChat(On.Terraria.NPC.orig_GetChat orig, NPC self)
@@ -705,7 +1076,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
 
         try
         {
-            if (mod is not null && mod.HookEnabled(HookId.GetChat) && mod.GetChat(self) is { } chat) result = chat;
+            if (mod is not null && mod.HookEnabled(HookId.GetChat) && mod.GetChat() is { } chat) result = chat;
             foreach (var global in globals) global.GetChat(self, ref result);
         }
         catch (Exception e)
@@ -730,7 +1101,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
             var frameHeight = _defaults.PrepareFrame(self);
             try
             {
-                mod.FindFrame(self, frameHeight);
+                mod.FindFrame(frameHeight);
             }
             catch (Exception e)
             {
@@ -967,7 +1338,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         {
             try
             {
-                mod.DrawEffects(npc, ref light);
+                mod.DrawEffects(ref light);
             }
             catch (Exception e)
             {
@@ -1003,7 +1374,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         {
             try
             {
-                go = mod.PreDraw(npc, batch, screenPos, light);
+                go = mod.PreDraw(batch, screenPos, light);
             }
             catch (Exception e)
             {
@@ -1030,7 +1401,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         {
             try
             {
-                frame.Mod.PostDraw(npc, batch, screenPos, frame.Light);
+                frame.Mod.PostDraw(batch, screenPos, frame.Light);
             }
             catch (Exception e)
             {
@@ -1076,7 +1447,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
                 return verdict;
             }
 
-            if (mod is not null && mod.HookEnabled(HookId.GetAlpha) && mod.GetAlpha(self, newColor) is { } mine) return mine;
+            if (mod is not null && mod.HookEnabled(HookId.GetAlpha) && mod.GetAlpha(newColor) is { } mine) return mine;
         }
         catch (Exception e)
         {
@@ -1098,7 +1469,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
 
         if (mod is not null && mod.HookEnabled(HookId.BossHeadSlot))
         {
-            try { mod.BossHeadSlot(self, ref slot); }
+            try { mod.BossHeadSlot(ref slot); }
             catch (Exception e) { Fail(mod, HookId.BossHeadSlot, e); }
         }
         foreach (var global in globals)
@@ -1120,7 +1491,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
 
         try
         {
-            if (mod is not null && mod.HookEnabled(HookId.BossHeadRotation)) mod.BossHeadRotation(self, ref rotation);
+            if (mod is not null && mod.HookEnabled(HookId.BossHeadRotation)) mod.BossHeadRotation(ref rotation);
             foreach (var global in globals) global.BossHeadRotation(self, ref rotation);
         }
         catch (Exception e)
@@ -1142,7 +1513,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         try
         {
             if (mod is not null && mod.HookEnabled(HookId.BossHeadSpriteEffects))
-                mod.BossHeadSpriteEffects(self, ref effects);
+                mod.BossHeadSpriteEffects(ref effects);
             foreach (var global in globals) global.BossHeadSpriteEffects(self, ref effects);
         }
         catch (Exception e)

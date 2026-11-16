@@ -2,10 +2,7 @@ using Terraria;
 
 namespace Pylon.ModLoader;
 
-/// <summary>
-/// Item.SetDefaults 接管：自定义 type 不走原版分支（原版会把 type 归零），
-/// 改跑 ModItem 的默认值与 tooltip 重建。
-/// </summary>
+/// <summary>Item.SetDefaults 接管：自定义 type 不走原版分支，改跑 ModItem 的默认值与 tooltip 重建。</summary>
 internal sealed class ItemDefaults(ItemBinding binding)
 {
     public void Install() => On.Terraria.Item.SetDefaults += SetDefaults;
@@ -45,8 +42,7 @@ internal sealed class ItemDefaults(ItemBinding binding)
             var mod = binding.InstanceOf(item);
             if (mod is not null)
             {
-                mod.SetDefaults(item);
-                mod.PostSetDefaults(item);
+                mod.SetDefaults();
             }
 
             ApplyEquipSlots(item);

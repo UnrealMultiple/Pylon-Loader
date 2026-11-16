@@ -4,6 +4,7 @@ using ReLogic.Content;
 using Terraria;
 using Terraria.DataStructures;
 using Terraria.GameContent;
+using Terraria.GameContent.ObjectInteractions;
 using Terraria.ID;
 using Terraria.Localization;
 using Terraria.Map;
@@ -172,16 +173,6 @@ public abstract class ModPylon : ModTile
     }
 
     /// <summary>总是智能交互的目标（点它开地图）。</summary>
-    public override bool HasSmartInteract(int i, int j, object settings) => true;
+    public override bool HasSmartInteract(int i, int j, SmartInteractScanSettings settings) => true;
 
-    /// <summary>放下时建实体（左上角那一格）；返回实体 ID。</summary>
-    public override int Hook_AfterPlacement(int i, int j, int type, int style, int direction, int alternate)
-    {
-        var data = TileObjectData.GetTileData(type, style, alternate);
-        if (data is null) return -1;
-
-        var topLeftX = i - data.Origin.X;
-        var topLeftY = j - data.Origin.Y;
-        return PylonPipeline.PlaceEntity(topLeftX, topLeftY);
-    }
 }

@@ -29,7 +29,7 @@ public sealed class TestBossBar : ModBossBar
         return Hide ? false : null;
     }
 
-    public override bool PreDraw(SpriteBatch spriteBatch, NPC npc, BossBarDrawParams drawParams)
+    public override bool PreDraw(SpriteBatch spriteBatch, NPC npc, ref BossBarDrawParams drawParams)
     {
         PreCalls++;
         LastFrame = drawParams.IconFrame;

@@ -22,6 +22,6 @@ public sealed class TestDust : ModDust
         return true; // 走默认更新
     }
 
-    public override Il2CppMicrosoft.Xna.Framework.Graphics.Color GetAlpha(Il2CppMicrosoft.Xna.Framework.Graphics.Color lightColor) =>
+    public override Il2CppMicrosoft.Xna.Framework.Graphics.Color? GetAlpha(Terraria.Dust dust, Il2CppMicrosoft.Xna.Framework.Graphics.Color lightColor) =>
         new(255, 0, 200, 255);
 }

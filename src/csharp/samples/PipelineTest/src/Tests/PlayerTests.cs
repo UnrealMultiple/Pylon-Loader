@@ -53,7 +53,6 @@ internal static class PlayerTests
             c.True(TestPlayerLifecycle.CtModifyMaxStats > 0, $"ModifyMaxStats 每帧被调（{TestPlayerLifecycle.CtModifyMaxStats}）");
             c.True(TestPlayerLifecycle.CtProcessTriggers > 0, $"ProcessTriggers 每帧被调（{TestPlayerLifecycle.CtProcessTriggers}）");
             c.True(TestPlayerLifecycle.CtFrameEffects > 0, $"FrameEffects 每帧被调（{TestPlayerLifecycle.CtFrameEffects}）");
-            c.True(TestPlayerLifecycle.CtUpdateManaRegen > 0, $"UpdateManaRegen 每帧被调（{TestPlayerLifecycle.CtUpdateManaRegen}）");
         });
 
         // 放岩浆等玩家掉进去太不可控（位置/液体物理都不一定配合）。
