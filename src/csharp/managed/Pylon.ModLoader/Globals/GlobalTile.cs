@@ -1,3 +1,4 @@
+using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Terraria;
 using Terraria.Enums;
 
@@ -38,6 +39,36 @@ public abstract class GlobalTile : ModType
 
     /// <summary>这块在玩家附近（closer = 在屏幕上）。</summary>
     public virtual void NearbyEffects(int i, int j, int type, bool closer) { }
+
+    /// <summary>这块发的光（0..1；每格每次光照扫描）。</summary>
+    public virtual void ModifyLight(int i, int j, int type, ref float r, ref float g, ref float b) { }
+
+    /// <summary>镜像（1 = 水平翻转）。</summary>
+    public virtual void SetSpriteEffects(int i, int j, int type, ref SpriteEffects spriteEffects) { }
+
+    /// <summary>站上去/碰上去危不危险；null = 交给游戏。</summary>
+    public virtual bool? IsTileDangerous(int i, int j, int type, Player player) => null;
+
+    /// <summary>spelunker 高亮会不会标出来；null = 交给游戏。</summary>
+    public virtual bool? IsTileSpelunkable(int i, int j, int type) => null;
+
+    /// <summary>默认画法之前；false = 这一格不画。</summary>
+    public virtual bool PreDraw(int i, int j, int type, SpriteBatch spriteBatch) => true;
+
+    /// <summary>默认画法之后。</summary>
+    public virtual void PostDraw(int i, int j, int type, SpriteBatch spriteBatch) { }
+
+    /// <summary>顺手要一次 SpecialDraw。</summary>
+    public virtual void DrawEffects(int i, int j, int type, SpriteBatch spriteBatch, ref TileDrawData drawData) { }
+
+    /// <summary>上面要来的那次绘制。</summary>
+    public virtual void SpecialDraw(int i, int j, int type, SpriteBatch spriteBatch) { }
+
+    /// <summary>重算这格的边框；false = 游戏不重算。</summary>
+    public virtual bool TileFrame(int i, int j, int type, ref bool resetFrame, ref bool noBreak) => true;
+
+    /// <summary>能不能被另一种方块替换（在放置前问）。</summary>
+    public virtual bool CanReplace(int i, int j, int type, int tileTypeBeingPlaced) => true;
 
     /// <summary>投射物炸这一格；返回 false = 这格留着。</summary>
     public virtual bool CanExplode(int i, int j, int type) => true;

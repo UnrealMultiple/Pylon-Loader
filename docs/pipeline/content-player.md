@@ -27,7 +27,7 @@
 
 **已接（移到玩家绘制管线）**：`DrawEffects` / `ModifyDrawInfo` / `TransformDrawData` / `DrawPlayer`（见 content-playerdrawlayer.md）与 `HideDrawLayers`（`VanillaDrawLayer` 逐层点名，54 层）
 
-**不接**：`HoverSlot/ShiftClickSlot`（声明在、分派未接——物品槽位 UI 入口归物品/界面管线后续批次核对）；`CanCatchNPC/OnCatchNPC`（基线有、本版未声明，见 API 复检清单）。其余历史上列在这里的钩子（buff 更新前后、杂项后置/跑速/移动前、暂停更新、FrameEffects、幸运、捕鱼与奖励、商店四钩子、护士三钩子、ProcessTriggers、存档与同步族）都已接线——接线批次见 audit 台账 §7 与 §8 表，别再按这份旧清单理解。
+**已接（V1 复检补齐）**：`HoverSlot/ShiftClickSlot`（`ItemSlot.OverrideHover/OverrideLeftClick`，`Pipelines/Player/PlayerSlotHooks.cs`）；`CanCatchNPC/OnCatchNPC`（玩家链在 `NpcPipeline.CatchScan`，通知走 `On.NPC.CatchNPC` 与 `Player.Hurt` 的 `HurtWhileCatching`）。其余历史上列在这里的钩子（buff 更新前后、杂项后置/跑速/移动前、暂停更新、FrameEffects、幸运、捕鱼与奖励、商店四钩子、护士三钩子、ProcessTriggers、存档与同步族）都已接线——接线批次见 audit 台账 §7、§8 与 §9。
 
 理由统一为一句话：**入口不存在就不假装接上**。旧实现把它们都声明成 `virtual` 却从不分派，作者写了也静默失效——那比不提供更糟。API 上仍然保留这些 `virtual`（删掉会破坏已有 Mod 编译），但文档与启动日志都明说"本版不分派"。
 

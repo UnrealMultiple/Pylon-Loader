@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Terraria;
 using Terraria.Achievements;
 using Terraria.GameContent.Achievements;
@@ -126,6 +127,75 @@ public abstract class ModAchievement : ModType
     /// <summary>加一个"拆过这些方块"的条件；key 是该条件在成就里的名字。</summary>
     public AchievementCondition AddTileDestroyedCondition(string key, ushort[] tileIds) =>
         AddRaw(TileDestroyedCondition.Create(LocalUser.Active, tileIds), key);
+
+    /// <summary>一列"做过这些东西"条件（每个物品一个条件，做齐才算）。</summary>
+    public AchievementCondition[] AddManyItemCraftCondition(int[] itemIds)
+    {
+        var result = new AchievementCondition[itemIds.Length];
+        for (var i = 0; i < itemIds.Length; i++) result[i] = AddItemCraftCondition((short)itemIds[i]);
+        return result;
+    }
+
+    /// <summary>一列"拣过这些东西"条件（每个物品一个条件，拣齐才算）。</summary>
+    public AchievementCondition[] AddManyItemPickupCondition(int[] itemIds)
+    {
+        var result = new AchievementCondition[itemIds.Length];
+        for (var i = 0; i < itemIds.Length; i++) result[i] = AddItemPickupCondition((short)itemIds[i]);
+        return result;
+    }
+
+    /// <summary>一列"杀过这些东西"条件（每个 NPC 一个条件，杀齐才算）。</summary>
+    public AchievementCondition[] AddManyNPCKilledCondition(int[] npcIds)
+    {
+        var result = new AchievementCondition[npcIds.Length];
+        for (var i = 0; i < npcIds.Length; i++) result[i] = AddNPCKilledCondition((short)npcIds[i]);
+        return result;
+    }
+
+    /// <summary>在成就菜单里的排序锚点。</summary>
+    public abstract class Position { }
+
+    /// <summary>排在第一条原版成就之前。</summary>
+    public static Position BeforeFirstVanillaAchievement => new Before("TIMBER");
+
+    /// <summary>排在最后一条原版成就之后。</summary>
+    public static Position AfterLastVanillaAchievement => new Default();
+
+    /// <summary>排在该条成就之前。</summary>
+    public sealed class Before : Position
+    {
+        public Achievement Achievement { get; }
+
+        public Before(Achievement achievement) => Achievement = achievement;
+
+        public Before(ModAchievement modAchievement) => Achievement = modAchievement.Achievement;
+
+        public Before(string achievementIdentifier) => Achievement = Main.Achievements.GetAchievement(achievementIdentifier);
+    }
+
+    /// <summary>排在该条成就之后。</summary>
+    public sealed class After : Position
+    {
+        public Achievement Achievement { get; }
+
+        public After(Achievement achievement) => Achievement = achievement;
+
+        public After(ModAchievement modAchievement) => Achievement = modAchievement.Achievement;
+
+        public After(string achievementIdentifier) => Achievement = Main.Achievements.GetAchievement(achievementIdentifier);
+    }
+
+    /// <summary>默认位置（最后一条原版成就之后）。</summary>
+    public sealed class Default : Position { }
+
+    /// <summary>默认排序位置。</summary>
+    public virtual Position GetDefaultPosition() => AfterLastVanillaAchievement;
+
+    /// <summary>顾问栏的排序位置；null = 不进顾问栏。</summary>
+    public virtual Position? GetAdvisorPosition() => null;
+
+    /// <summary>和其它 mod 成就之间的相对顺序约束。</summary>
+    public virtual IEnumerable<Position>? GetModdedConstraints() => null;
 
     /// <summary>挂上成就、记进 Conditions、原样返回（泛型保住具体类型，好让 .Value 可用）。</summary>
     private T AddRaw<T>(T condition, string? key) where T : AchievementCondition

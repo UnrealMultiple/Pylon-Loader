@@ -31,6 +31,9 @@ public abstract class ModEmoteBubble : ModType
     /// <summary>悬停/菜单里显示的名字；默认类名，作者可覆盖。</summary>
     public virtual string DisplayName => Name;
 
+    /// <summary>聊天里触发这个表情的命令（不含斜杠）；默认类名小写。</summary>
+    public virtual string Command => Name.ToLower();
+
     public virtual bool IsUnlocked() => true;
 
     /// <summary>泡泡生出来时一次（EmoteBubble.NewBubble）。</summary>

@@ -11,6 +11,8 @@ internal static class InstallPlan
     {
         var steps = new List<IInstallStep>(24)
         {
+            new Step("内容发号", InstallStage.Layout, LoaderRegistry.RefreshAll),
+
             new GrowTablesStep(host),
 
             new Step("名字接管", InstallStage.Static, () => ItemNamePatch.Install(host.Log)),

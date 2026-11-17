@@ -246,7 +246,10 @@ internal static class ItemPickupHooks
         if (range < vanilla) return Meets(range);
         if (!Meets(range) || Meets(vanilla)) return true;
 
-        Pull(player, w, item);
+        var outer = _grabbing;
+        _grabbing = null;
+        try { Pull(player, w, item); }
+        finally { _grabbing = outer; }
         return true;
     }
 

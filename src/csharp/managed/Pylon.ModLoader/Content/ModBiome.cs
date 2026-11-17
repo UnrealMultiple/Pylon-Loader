@@ -7,6 +7,9 @@ namespace Pylon.ModLoader;
 /// <summary>自定义生物群落（场景效果的一种），像 tModLoader：IsBiomeActive 每帧说玩家在不在里面，进/出与在里面各有钩子，默认 BiomeLow 优先级与静音。</summary>
 public abstract class ModBiome : ModSceneEffect
 {
+    /// <summary>群落名（菜单/图鉴显示用）；默认类名，作者可覆盖。</summary>
+    public virtual string DisplayName => Name;
+
     /// <summary>每帧一次（游戏数完周围方块之后）；玩家在不在这个群落里，这一帧抛异常算 false。</summary>
     public virtual bool IsBiomeActive(Player player) => false;
 
@@ -50,5 +53,5 @@ public abstract class ModBiome : ModSceneEffect
     public override bool IsSceneEffectActive(Player player) => IsActive(player);
 }
 
-// 未移植 BestiaryIcon/BackgroundPath、DisplayName/TownNPCDialogueName：值由注册管线按类名贴图路径与本地化管线给，
-// Pylon 尚无取"类内容贴图路径"的设施；player.InModBiome(...) 用 ModBiome.IsActive(player) 代替。
+// 未移植 TownNPCDialogueName：Pylon 的对话按钮走 SetChatButtons 字符串形态。
+// player.InModBiome(...) 用 ModBiome.IsActive(player) 代替。

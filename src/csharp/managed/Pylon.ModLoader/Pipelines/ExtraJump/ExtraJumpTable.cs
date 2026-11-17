@@ -103,10 +103,11 @@ public static class ExtraJumpTable
     {
         lock (ExtraJumps)
         {
+            jump.Type = ExtraJumps.Count;
             ExtraJumps.Add(jump);
             _ordered = null;
         }
-        return ExtraJumps.Count - 1;
+        return jump.Type;
     }
 
     internal static void Build(IModLog log)

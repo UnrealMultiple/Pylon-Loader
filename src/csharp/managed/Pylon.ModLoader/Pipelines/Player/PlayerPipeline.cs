@@ -614,7 +614,7 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
     private void AddBuff(On.Terraria.Player.orig_AddBuff orig, Player self, int type, int time, bool quiet)
     {
         var scope = _potion;
-        if (scope is null || !ReferenceEquals(scope.Player, self) || type != Terraria.ID.BuffID.PotionSickness)
+        if (scope is null || scope.Player.Pointer != self.Pointer || type != Terraria.ID.BuffID.PotionSickness)
         {
             orig(self, type, time, quiet);
             return;
@@ -746,6 +746,7 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
     private void KeyDoubleTap(On.Terraria.Player.orig_KeyDoubleTap orig, Player self, int keyDir)
     {
         orig(self, keyDir);
+        if (keyDir != SetBonusKey) return;
 
         if (!_binding.Active(HookId.ArmorSetBonusActivated)) return;
 
@@ -767,6 +768,7 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
     private void KeyHoldDown(On.Terraria.Player.orig_KeyHoldDown orig, Player self, int keyDir, int holdTime)
     {
         orig(self, keyDir, holdTime);
+        if (keyDir != SetBonusKey) return;
 
         if (!_binding.Active(HookId.ArmorSetBonusHeld)) return;
 
@@ -868,6 +870,8 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
     };
 
     #endregion
+
+    private static int SetBonusKey => Main.ReversedUpDownArmorSetBonuses ? 1 : 0;
 
     private static Item? Held(Player player)
     {

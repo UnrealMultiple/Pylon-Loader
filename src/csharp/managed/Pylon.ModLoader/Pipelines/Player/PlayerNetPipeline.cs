@@ -8,8 +8,7 @@ internal sealed class PlayerNetPipeline : ILoaderModule
     public static PlayerNetPipeline Instance { get; } = new();
 
     private Player _baseline = null!;
-    private ModPlayer[] _baselineMods = [];
-    private bool _hasBaseline;
+    private nint _baselineSource;
 
     public string Name => "playernet";
 
@@ -74,65 +73,66 @@ internal sealed class PlayerNetPipeline : ILoaderModule
 
     private void UpdateClient(On.Terraria.Main.orig_UpdateClient orig)
     {
-        if (Main.gameMenu || Main.netMode != 1 || Main.player[Main.myPlayer] is not { } me)
+        if (Main.gameMenu || (Main.netMode & 1) == 0)
         {
-            _hasBaseline = false;
+            Forget();
             orig();
             return;
         }
 
-        var mods = PlayerPipeline.Instance.ModsOf(me);
-
-        if (_hasBaseline && ReferenceEquals(_baseline, me))
+        var me = Main.player[Main.myPlayer];
+        if (me is null)
         {
-            var count = Math.Min(_baselineMods.Length, mods.Length);
-            for (var i = 0; i < count; i++)
-            {
-                if (!mods[i].HookEnabled(HookId.SendClientChanges)) continue;
+            orig();
+            return;
+        }
 
-                try
-                {
-                    mods[i].SendClientChanges(_baselineMods[i]);
-                }
-                catch (Exception e)
-                {
-                    ContentErrors.Report($"[playernet] {mods[i].GetType().Name}.SendClientChanges 异常：{Safe.Describe(e)}");
-                }
-            }
-        }
-        else
-        {
-            _baselineMods = new ModPlayer[mods.Length];
-            for (var i = 0; i < mods.Length; i++) _baselineMods[i] = mods[i];
-        }
+        if (_baselineSource == me.Pointer && _baseline is not null && _baseline.Pointer != 0)
+            SendClientChanges(me, _baseline);
 
         orig();
 
-        if (!_hasBaseline || !ReferenceEquals(_baseline, me))
+        try
         {
-            _baseline = me;
-            _hasBaseline = true;
-        }
-
-        if (Wants(HookId.CopyClientState))
-        {
-            var snapshot = _baselineMods;
-            var current = PlayerPipeline.Instance.ModsOf(me);
-            var count = Math.Min(snapshot.Length, current.Length);
-            for (var i = 0; i < count; i++)
+            if (_baselineSource != me.Pointer || _baseline is null || _baseline.Pointer == 0)
             {
-                if (!current[i].HookEnabled(HookId.CopyClientState)) continue;
+                _baseline = me.clientClone();
+                _baselineSource = me.Pointer;
+            }
+            else me.clientClone(_baseline);
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report("[playernet] 客户端状态克隆异常：" + Safe.Describe(e));
+        }
+    }
 
-                try
-                {
-                    current[i].CopyClientState(snapshot[i]);
-                }
-                catch (Exception e)
-                {
-                    ContentErrors.Report($"[playernet] {current[i].GetType().Name}.CopyClientState 异常：{Safe.Describe(e)}");
-                }
+    private static void SendClientChanges(Player player, Player baseline)
+    {
+        if (!Wants(HookId.SendClientChanges)) return;
+
+        var current = PlayerPipeline.Instance.ModsOf(player);
+        var previous = PlayerPipeline.Instance.ModsOf(baseline);
+        var count = Math.Min(current.Length, previous.Length);
+        for (var i = 0; i < count; i++)
+        {
+            if (!current[i].HookEnabled(HookId.SendClientChanges)) continue;
+
+            try
+            {
+                current[i].SendClientChanges(previous[i]);
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[playernet] {current[i].GetType().Name}.SendClientChanges 异常：{Safe.Describe(e)}");
             }
         }
+    }
+
+    private void Forget()
+    {
+        _baseline = null!;
+        _baselineSource = 0;
     }
 
     private void SyncOnePlayer(On.Terraria.NetMessage.orig_SyncOnePlayer orig, int plr, int toWho, int fromWho)
@@ -212,7 +212,7 @@ internal sealed class PlayerNetPipeline : ILoaderModule
 
         orig(playerIndex);
 
-        if (playerIndex == Main.myPlayer) _hasBaseline = false;
+        if (playerIndex == Main.myPlayer) Forget();
     }
 
     private void EnteredWorld(On.Terraria.Player.Hooks.orig_EnterWorld orig, int playerIndex)
@@ -286,6 +286,6 @@ internal sealed class PlayerNetPipeline : ILoaderModule
 
         orig(plr);
 
-        if (plr == Main.myPlayer) _hasBaseline = false;
+        if (plr == Main.myPlayer) Forget();
     }
 }

@@ -119,6 +119,12 @@ public abstract class ModNpc : ModType
     /// <summary>死亡时，在 PreKill 与游戏掉落之后。</summary>
     public virtual void OnKill() { }
 
+    /// <summary>首领掉落里的药水类型（可写引用）。</summary>
+    public virtual void BossLoot(ref int potionType) { }
+
+    /// <summary>首领掉落的药水类型/堆叠与红心堆叠（三个都是可写引用）。</summary>
+    public virtual void BossLoot(ref int potionType, ref int potionStack, ref int heartStack) => BossLoot(ref potionType);
+
     /// <summary>null 保留原版命中规则，false 否决玩家的物品攻击。</summary>
     public virtual bool? CanBeHitByItem(Player player, Item item) => null;
 

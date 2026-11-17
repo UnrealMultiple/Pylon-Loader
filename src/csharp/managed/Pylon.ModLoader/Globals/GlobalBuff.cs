@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Terraria;
 
@@ -23,6 +25,12 @@ public abstract class GlobalBuff : ModType
 
     /// <summary>条上的名字与说明（三个都是可写的引用；rare 在手机版不改颜色）。</summary>
     public virtual void ModifyBuffText(int type, ref string buffName, ref string tip, ref int rare) { }
+
+    /// <summary>自定义 buff 说明的尺寸：每段文字往 sizes 里追加一块。</summary>
+    public virtual void CustomBuffTipSize(string buffTip, List<Vector2> sizes) { }
+
+    /// <summary>自己画自定义 buff 说明；originX/originY 是绘制原点。</summary>
+    public virtual void DrawCustomBuffTip(string buffTip, SpriteBatch spriteBatch, int originX, int originY) { }
 
     /// <summary>buff 条上这个图标；drawParams 可写，false = 不画（PostDraw 照旧跑）。</summary>
     public virtual bool PreDraw(SpriteBatch spriteBatch, int type, int buffIndex, ref BuffDrawParams drawParams) => true;

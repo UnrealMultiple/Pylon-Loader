@@ -141,6 +141,7 @@ internal static class PlayerJumpHooks
         if (!Wanted()) { orig(self); return; }
         var jumps = ExtraJumpTable.Of(self);
         ExtraJumpTable.Sync(self, jumps);
+        var outer = _depth;
         var scope = Enter(self, jumps);
         Span<bool> hidden = stackalloc bool[VanillaCount];
         hidden.Clear();
@@ -168,7 +169,6 @@ internal static class PlayerJumpHooks
                 self.releaseJump = false;
             }
         }
-        var outer = _depth;
         try { orig(self); }
         finally
         {

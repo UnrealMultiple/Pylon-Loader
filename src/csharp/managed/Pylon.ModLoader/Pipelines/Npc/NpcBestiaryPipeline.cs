@@ -121,7 +121,18 @@ internal static class NpcBestiaryPipeline
     private static bool HiddenByDrawOffset(int type)
     {
         var table = NPCID.Sets.NPCBestiaryDrawOffset;
-        return table is not null && table.TryGetValue(type, out var modifiers) && modifiers.Hide;
+        if (table is null || table.Pointer == 0) return false;
+
+        try
+        {
+            if (!table.ContainsKey(type)) return false;
+            return table[type].Hide;
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report($"[bestiary] NPCBestiaryDrawOffset[{type}] 异常：{Safe.Describe(e)}");
+            return false;
+        }
     }
 
     private static bool CountsAsCritter(int type)
@@ -133,7 +144,7 @@ internal static class NpcBestiaryPipeline
     private static NPC? Sample(int type)
     {
         var samples = ContentSamples.NpcsByNetId;
-        if (samples is null) return null;
+        if (samples is null || samples.Pointer == 0) return null;
         return samples.TryGetValue(type, out var sample) ? sample : null;
     }
 }

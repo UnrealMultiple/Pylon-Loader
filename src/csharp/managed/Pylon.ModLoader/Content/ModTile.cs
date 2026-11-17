@@ -119,6 +119,15 @@ public abstract class ModTile : ModType
     /// <summary>这块掉不掉东西。</summary>
     public virtual bool CanDrop(int i, int j) => true;
 
+    /// <summary>这块能不能放下（玩家放置前）。</summary>
+    public virtual bool CanPlace(int i, int j) => true;
+
+    /// <summary>爆炸能不能毁掉这块；false = 留着。</summary>
+    public virtual bool CanExplode(int i, int j) => true;
+
+    /// <summary>能不能被另一种方块替换（在放置前问）。</summary>
+    public virtual bool CanReplace(int i, int j, int tileTypeBeingPlaced) => true;
+
     /// <summary>掉哪些物品（类型）；返 null = 用默认的那个。</summary>
     public virtual int[] GetItemDrops(int i, int j) => null!;
 
@@ -164,6 +173,12 @@ public abstract class ModTile : ModType
 
     /// <summary>光标/手指离得远时也在这块上面。</summary>
     public virtual void MouseOverFar(int i, int j) { }
+
+    /// <summary>站上去/碰上去危不危险（火把、岩浆之类）。</summary>
+    public virtual bool IsTileDangerous(int i, int j, Player player) => false;
+
+    /// <summary>spelunker 高亮会不会标出来。</summary>
+    public virtual bool IsTileSpelunkable(int i, int j) => false;
 
     /// <summary>是不是智能交互的目标；默认跟着 <see cref="RightClick"/> 有没有被覆写。</summary>
     public virtual bool HasSmartInteract(int i, int j, SmartInteractScanSettings settings) =>

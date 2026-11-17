@@ -226,13 +226,13 @@ public abstract class GlobalItem : ModType
     public virtual void PostDrawInWorld(Item item, SpriteBatch spriteBatch, Color lightColor, Color alphaColor,
                                         float rotation, float scale, int whoAmI) { }
 
-    /// <summary>背包里画它之前（收的是游戏算好的帧和缩放）；false = 不画。</summary>
+    /// <summary>背包里画它之前（收的是游戏算好的帧、原点和缩放）；false = 不画。</summary>
     public virtual bool PreDrawInInventory(Item item, SpriteBatch spriteBatch, Vector2 position, Rectangle frame,
-                                           Color drawColor, Color itemColor, float scale) => true;
+                                           Color drawColor, Color itemColor, Vector2 origin, float scale) => true;
 
     /// <summary>背包里画它之后（否决了也跑）。</summary>
     public virtual void PostDrawInInventory(Item item, SpriteBatch spriteBatch, Vector2 position, Rectangle frame,
-                                            Color drawColor, Color itemColor, float scale) { }
+                                            Color drawColor, Color itemColor, Vector2 origin, float scale) { }
 
     /// <summary>每次 tooltip 显示时一次（合成指南弹窗里也会，不带颜色）；ModItem 的之后跑。</summary>
     public virtual void ModifyTooltips(Item item, List<TooltipLine> tooltips) { }

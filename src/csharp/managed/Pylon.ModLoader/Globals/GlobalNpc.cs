@@ -131,6 +131,21 @@ public abstract class GlobalNpc : ModType
     /// <summary>旅行商人的店（<c>Main.travelShop</c> 的类型表）；nextSlot 是指向第一个空位的可写引用。</summary>
     public virtual void SetupTravelShop(int[] shop, ref int nextSlot) { }
 
+    /// <summary>按网络类型号生成之后（变体默认值可以在这里改）。</summary>
+    public virtual void SetDefaultsFromNetId(NPC npc) { }
+
+    /// <summary>给这个 NPC 起名时：往 nameList 里增删候选（原版名字已在表里）。</summary>
+    public virtual void ModifyNPCNameList(NPC npc, List<string> nameList) { }
+
+    /// <summary>商店第一次摆货之前：直接改店的商品表。</summary>
+    public virtual void ModifyShop(NpcShop shop) { }
+
+    /// <summary>点了这个交互按钮之前；false = 这次点击不算（按钮留着）。</summary>
+    public virtual bool PreChatButtonClicked(NPC npc, NPCInteraction interaction) => true;
+
+    /// <summary>点了这个交互按钮之后。</summary>
+    public virtual void OnChatButtonClicked(NPC npc, NPCInteraction interaction) { }
+
     /// <summary>原版按玩家算完生成速率和上限之后修改;spawnRate 最终至少为 1。</summary>
     public virtual void EditSpawnRate(Player player, ref int spawnRate, ref int maxSpawns) { }
 

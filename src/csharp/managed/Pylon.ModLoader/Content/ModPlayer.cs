@@ -395,6 +395,12 @@ public abstract class ModPlayer
     /// <summary>false：物品从地上消失但不进背包（参数是世界实体 WorldItem）。</summary>
     public virtual bool OnPickup(WorldItem item) => true;
 
+    /// <summary>抓小动物之前；false 否决这次捕捉，true 直接捕捉（false 一旦出现后面改不回 true）。</summary>
+    public virtual bool? CanCatchNPC(NPC target, Item item) => null;
+
+    /// <summary>抓取之后（failed：抓取失败或被反击）。</summary>
+    public virtual void OnCatchNPC(NPC npc, Item item, bool failed) { }
+
     /// <summary>true：这次悬停由 mod 处理，跳过游戏自己的。</summary>
     public virtual bool HoverSlot(Item[] inventory, int context, int slot) => false;
 

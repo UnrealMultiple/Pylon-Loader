@@ -58,6 +58,42 @@ public abstract class Mod : IPylonMod
 
     public virtual int AddBossHeadTexture(string texture, int npcType = -1) => -1;
 
+    /// <summary>以这个编号为结果新开一份配方（链式填完 Register）。</summary>
+    public ModRecipe CreateRecipe(int result, int amount = 1) => new ModRecipe().SetResult(result, amount);
+
+    /// <summary>按名字找本 Mod 的内容实例；没有就抛。</summary>
+    public T Find<T>(string name) where T : ModType => ModContent.Find<T>(Name + "/" + name);
+
+    /// <summary>按名字找本 Mod 的内容实例；没有返回 false。</summary>
+    public bool TryFind<T>(string name, out T? value) where T : ModType =>
+        ModContent.TryFind(Name + "/" + name, out value);
+
+    /// <summary>本地化键：Mods.&lt;Mod&gt;.&lt;suffix&gt;。</summary>
+    public string GetLocalizationKey(string suffix) => $"Mods.{Name}.{suffix}";
+
+    /// <summary>Mod 目录下有没有这个文件。</summary>
+    public bool FileExists(string name) => File.Exists(Path.Combine(Directory, name.Replace('/', Path.DirectorySeparatorChar)));
+
+    /// <summary>读 Mod 目录下的文件字节。</summary>
+    public byte[] GetFileBytes(string name) => File.ReadAllBytes(Path.Combine(Directory, name.Replace('/', Path.DirectorySeparatorChar)));
+
+    /// <summary>打开 Mod 目录下的文件流。</summary>
+    public Stream GetFileStream(string name, bool newFileStream = false) =>
+        File.OpenRead(Path.Combine(Directory, name.Replace('/', Path.DirectorySeparatorChar)));
+
+    /// <summary>Mod 目录下全部文件（相对路径，'/' 分隔）。</summary>
+    public List<string> GetFileNames()
+    {
+        var result = new List<string>();
+        if (!System.IO.Directory.Exists(Directory)) return result;
+
+        foreach (var path in System.IO.Directory.EnumerateFiles(Directory, "*", SearchOption.AllDirectories))
+            result.Add(Path.GetRelativePath(Directory, path).Replace(Path.DirectorySeparatorChar, '/'));
+        return result;
+    }
+
+    public virtual void Unload() { }
+
     public virtual void Load() { }
 
     public virtual void OnModLoad() { }

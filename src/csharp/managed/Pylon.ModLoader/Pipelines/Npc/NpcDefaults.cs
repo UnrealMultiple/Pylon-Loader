@@ -11,7 +11,23 @@ internal sealed class NpcDefaults(NpcBinding binding)
 {
     private readonly Dictionary<int, FrameSize> _sizes = [];
 
-    public void Install() => On.Terraria.NPC.SetDefaults += SetDefaults;
+    public void Install()
+    {
+        On.Terraria.NPC.SetDefaults += SetDefaults;
+        On.Terraria.NPC.SetDefaultsFromNetId += FromNetId;
+    }
+
+    private void FromNetId(On.Terraria.NPC.orig_SetDefaultsFromNetId orig, NPC self, int type, NPCSpawnParams spawnParams)
+    {
+        orig(self, type, spawnParams);
+        if (self is null || !GlobalNpcRegistry.AnyWith(HookId.SetDefaultsFromNetId)) return;
+
+        foreach (var global in GlobalNpcRegistry.For(self, HookId.SetDefaultsFromNetId))
+        {
+            try { global.SetDefaultsFromNetId(self); }
+            catch (Exception e) { ContentErrors.Report($"{global.Name}.SetDefaultsFromNetId 异常：{Safe.Describe(e)}"); }
+        }
+    }
 
     private void SetDefaults(On.Terraria.NPC.orig_SetDefaults orig, NPC self, int type, NPCSpawnParams spawnParams)
     {

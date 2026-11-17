@@ -1,4 +1,5 @@
 using Terraria;
+using Terraria.ID;
 
 namespace Pylon.ModLoader;
 
@@ -6,6 +7,8 @@ namespace Pylon.ModLoader;
 internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
 {
     public static ShopPipeline Instance { get; } = new();
+
+    private static readonly HashSet<NpcShop> Modified = [];
 
     public string Name => "shop";
 
@@ -64,8 +67,26 @@ internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
             return;
         }
 
+        ModifyShop(shop);
         Fill(self, shop);
         ActiveShop(self, NpcOf(shop.NpcType), shop.Name);
+    }
+
+    private static void ModifyShop(NpcShop shop)
+    {
+        if (!Modified.Add(shop) || !GlobalNpcRegistry.AnyWith(HookId.ModifyShop)) return;
+
+        NPC? sample = null;
+        if (ContentSamples.NpcsByNetId is { } samples && samples.TryGetValue(shop.NpcType, out var found)) sample = found;
+
+        foreach (var global in GlobalNpcRegistry.All)
+        {
+            if (!global.Plan.Has(HookId.ModifyShop)) continue;
+            if (sample is not null && !global.AppliesToEntity(sample, false)) continue;
+
+            try { global.ModifyShop(shop); }
+            catch (Exception e) { ContentErrors.Report($"[shop] {global.Name}.ModifyShop 异常：{Safe.Describe(e)}"); }
+        }
     }
 
     private static void ActiveShop(InventoryStorage storage, NPC? npc, string shopName)
