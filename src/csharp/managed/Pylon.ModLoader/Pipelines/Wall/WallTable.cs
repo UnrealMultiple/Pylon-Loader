@@ -42,7 +42,8 @@ internal static class WallTable
             ref var meta = ref _meta[type];
             meta.Masks = HookScan.Of(wall.GetType(), typeof(ModWall));
             wall.Hooks = meta.Masks;
-            if (wall.ItemDrop > 0) meta.DropItem = wall.ItemDrop;
+            if (wall.RegisteredDrop > 0) meta.DropItem = wall.RegisteredDrop;
+            else if (wall.ItemDrop > 0) meta.DropItem = wall.ItemDrop;
         }
 
         // 反查：放置这面墙的物品就是默认掉落，先到先得（保证确定性）。

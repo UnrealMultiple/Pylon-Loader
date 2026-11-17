@@ -15,6 +15,7 @@ internal static class PlayerUpdateHooks
         _installed = true;
         PlayerFishingHooks.Install();
         PlayerNurseShopHooks.Install();
+        PlayerSlotHooks.Install();
         PlayerCraftingHooks.Install();
         PlayerJumpHooks.Install();
         On.Terraria.Player.UpdateDyes += Dyes;

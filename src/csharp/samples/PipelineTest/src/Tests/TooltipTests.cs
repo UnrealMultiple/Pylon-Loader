@@ -36,8 +36,22 @@ internal static class TooltipTests
         {
             var probe = new Item();
             probe.SetDefaults(ModContent.TypeOf<Content.TestItem>(), null);
-            probe.RebuildTooltip();
-            c.True(probe.ToolTip.Lines >= 2, $"RebuildTooltip 行数={probe.ToolTip.Lines}（声明 1 + 钩子加 1）");
+
+            var texts = new Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStringArray(64);
+            var modifiers = new Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<bool>(64);
+            var bad = new Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<bool>(64);
+            int yoyo = -1, research = -1, materials = -1, count = 0, setBonus = -1, shared = -1;
+            var color = new Il2CppMicrosoft.Xna.Framework.Graphics.Color(255, 255, 255, 255);
+
+            Content.TestItem.MutateTooltip = true;
+            try
+            {
+                Terraria.Main.MouseText_DrawItemTooltip_GetLinesInfo(probe, ref yoyo, ref research, ref materials,
+                    probe.knockBack, ref count, texts, modifiers, bad, ref setBonus, ref color, ref shared);
+            }
+            finally { Content.TestItem.MutateTooltip = false; }
+
+            c.True(count >= 2, $"GetLinesInfo 行数={count}（声明 1 + 钩子加 1）");
         });
     }
 

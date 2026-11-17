@@ -151,6 +151,9 @@ internal static class EquipTable
                 map[equip.Slot] = equip;
             }
         }
+
+        ByItem.Clear();
+        _itemMapBuilt = false;
     }
 
     private static readonly Dictionary<EquipType, Dictionary<int, EquipTexture>> BySlot = [];

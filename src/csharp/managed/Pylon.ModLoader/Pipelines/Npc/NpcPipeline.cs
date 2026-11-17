@@ -31,6 +31,14 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private int _drawDepth;
 
+    private sealed class CatchScope
+    {
+        public Player Player = null!;
+        public Item Item = null!;
+    }
+
+    [ThreadStatic] private static CatchScope? _catchScope;
+
     private bool _swapped;
     private NPC? _swapNpc;
     private int _swapOwn;
@@ -81,6 +89,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.NPC.get_TypeName += TypeName;
         On.Terraria.NPC.UsesPartyHat += PartyHat;
         On.Terraria.Player.ItemCheck_CatchCritters += CatchCritters;
+        On.Terraria.NPC.CatchNPC += Catch;
         On.Terraria.Main.DrawInterface_14_EntityHealthBars += HealthBarsStart;
         On.Terraria.Main.DrawHealthBar += HealthBar;
         On.Terraria.Main.HoverOverNPCs += Hover;
@@ -618,6 +627,14 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private void CatchCritters(On.Terraria.Player.orig_ItemCheck_CatchCritters orig, Player self, Item sItem, Rectangle itemRectangle)
     {
+        var outer = _catchScope;
+        _catchScope = new CatchScope { Player = self, Item = sItem };
+        try { CatchScan(self, sItem, itemRectangle); }
+        finally { _catchScope = outer; }
+    }
+
+    private void CatchScan(Player self, Item sItem, Rectangle itemRectangle)
+    {
         var lavaProof = sItem.type == 3183 || sItem.type == 4821;
 
         for (var n = 0; n < 200; n++)
@@ -626,6 +643,17 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
             if (npc is null || !npc.active ||
                 !itemRectangle.Intersects(new Rectangle((int)npc.position.X, (int)npc.position.Y, npc.width, npc.height)))
                 continue;
+
+            if (npc.catchItem > 0)
+            {
+                var playerDecision = Decision(self, npc, sItem);
+                if (playerDecision == false) continue;
+                if (playerDecision == true)
+                {
+                    NPC.CatchNPC(n, self.whoAmI);
+                    continue;
+                }
+            }
 
             bool? decision = null;
             var hooked = false;
@@ -697,6 +725,61 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
             catch (Exception e) { Fail(global, HookId.OnCaughtBy, e); }
         }
     }
+
+    private void Catch(On.Terraria.NPC.orig_CatchNPC orig, int i, int who)
+    {
+        var scope = _catchScope;
+        var owner = who >= 0 && who < 255 ? who : Main.myPlayer;
+        var player = scope?.Player ?? Main.player[owner];
+        var npc = Main.npc[i];
+        var item = scope is not null ? scope.Item : player.inventory[player.selectedItem];
+        if (scope is null && Decision(player, npc, item) == false) return;
+        orig(i, who);
+        Caught(player, npc, item, false);
+    }
+
+    private static bool? Decision(Player player, NPC npc, Item item)
+    {
+        if (!PlayerPipeline.Instance.ModsActive(HookId.CanCatchNPC)) return null;
+
+        bool? result = null;
+        foreach (var mod in PlayerPipeline.Instance.ModsOf(player))
+        {
+            if (!mod.HookEnabled(HookId.CanCatchNPC)) continue;
+            try
+            {
+                var value = mod.CanCatchNPC(npc, item);
+                if (value.HasValue && result != false) result = value.Value;
+            }
+            catch (Exception e) { FailPlayer(mod, HookId.CanCatchNPC, e); }
+        }
+        return result;
+    }
+
+    private static void Caught(Player player, NPC npc, Item item, bool failed)
+    {
+        if (!PlayerPipeline.Instance.ModsActive(HookId.OnCatchNPC)) return;
+
+        foreach (var mod in PlayerPipeline.Instance.ModsOf(player))
+        {
+            if (!mod.HookEnabled(HookId.OnCatchNPC)) continue;
+            try { mod.OnCatchNPC(npc, item, failed); }
+            catch (Exception e) { FailPlayer(mod, HookId.OnCatchNPC, e); }
+        }
+    }
+
+    internal static void HurtWhileCatching(Player player, PlayerDeathReason source)
+    {
+        var scope = _catchScope;
+        if (scope is null || source is null || scope.Player.Pointer != player.Pointer) return;
+
+        var index = source._sourceNPCIndex;
+        if ((uint)index >= 200u) return;
+        Caught(scope.Player, Main.npc[index], scope.Item, true);
+    }
+
+    private static void FailPlayer(ModPlayer mod, HookId hook, Exception e) =>
+        ContentErrors.Report($"[npc] {mod.GetType().Name}.{hook} 异常:{Safe.Describe(e)}");
 
     [ThreadStatic] private static bool _drawingHealthBars;
     private static int _healthBarCursor;

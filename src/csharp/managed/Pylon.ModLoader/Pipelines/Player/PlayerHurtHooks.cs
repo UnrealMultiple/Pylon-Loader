@@ -36,6 +36,7 @@ internal static class PlayerHurtHooks
                                int damage, int hitDirection, bool pvp, bool quiet, bool crit,
                                int cooldownCounter, bool dodgeable)
     {
+        NpcPipeline.HurtWhileCatching(self, damageSource);
         if (!Active()) return orig(self, damageSource, damage, hitDirection, pvp, quiet, crit, cooldownCounter, dodgeable);
 
         HurtModifiers modifiers;

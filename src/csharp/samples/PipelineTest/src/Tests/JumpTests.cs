@@ -125,6 +125,7 @@ internal static class JumpTests
                 "原版跳跃结束也发链");
 
             JumpProbe.VetoCloud = true;
+            p.canJumpAgain_Cloud = true;
             Press(p);
             p.JumpMovement();
             JumpProbe.VetoCloud = false;
@@ -168,7 +169,7 @@ internal static class JumpTests
         PT.Case("JUMP-5", c =>
         {
             NoVanilla(p);
-            var test = ExtraJumpTable.GetJumpState<TestJump>(p);
+            ref var test = ref ExtraJumpTable.GetJumpState<TestJump>(p);
             test.Enable();
             test.Available = true;
             p.hasJumpOption_Cloud = p.canJumpAgain_Cloud = true;

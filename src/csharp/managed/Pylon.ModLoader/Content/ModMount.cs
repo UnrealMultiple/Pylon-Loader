@@ -5,6 +5,19 @@ using Terraria.DataStructures;
 
 namespace Pylon.ModLoader;
 
+/// <summary>坐骑贴图的分层（Back* 画在玩家后面，Front* 画在前面）。</summary>
+public enum MountTextureType
+{
+    Back,
+    BackGlow,
+    BackExtra,
+    BackExtraGlow,
+    Front,
+    FrontGlow,
+    FrontExtra,
+    FrontExtraGlow,
+}
+
 /// <summary>自定义坐骑：一个类型一份实例；骑上/每帧/绘制等钩子由 Harmony 层按 `_type` 派发。</summary>
 public abstract class ModMount : ModType
 {
@@ -19,6 +32,9 @@ public abstract class ModMount : ModType
 
     /// <summary>贴图基础名（无扩展名）：存在的层是它加 _Back/_BackGlow/_BackExtra/_BackExtraGlow/_Front/_FrontGlow/_FrontExtra/_FrontExtraGlow。</summary>
     public override string TexturePath => $"assets/mounts/{Name}";
+
+    /// <summary>某一层贴图的路径（默认在基础名后加层名）。</summary>
+    protected virtual string GetExtraTexture(MountTextureType textureType) => TexturePath + "_" + textureType;
 
     /// <summary>占号之后、所有 MountData 都进 Mount.mounts 之后一次；只放共享数值（改 MountData 的字段、MountID.Sets 等）。</summary>
     public override void SetStaticDefaults() { }

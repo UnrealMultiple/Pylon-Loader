@@ -177,7 +177,7 @@ internal static class PrefixTable
         if (type > 0 && CategoriesByType.TryGetValue(type, out var cached)) return cached;
 
         var list = new List<int>(3);
-        var modItem = ModContent.Find(ContentKind.Item, type) as ModItem;
+        var modItem = ItemPipeline.Instance.InstanceOf(item);
         var weapon = modItem is not null && item.damage > 0 && item.ammo == 0 && !item.consumable;
 
         void Take(int category, bool legacy, Func<bool> ask)

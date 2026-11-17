@@ -457,4 +457,20 @@ internal enum HookId
 
     TownNPCProfile,
     ModifyTownNPCProfile,
+
+    CanCatchNPC,
+    OnCatchNPC,
+    HoverSlot,
+    ShiftClickSlot,
+
+    CanExplode,
+    CanReplace,
+    IsTileDangerous,
+    IsTileSpelunkable,
+    SetDefaultsFromNetId,
+    ModifyNPCNameList,
+    ModifyShop,
+    PreChatButtonClicked,
+    CustomBuffTipSize,
+    DrawCustomBuffTip,
 }

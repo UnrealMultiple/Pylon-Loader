@@ -108,21 +108,45 @@ internal sealed class NpcTown
 
     private string NewName(On.Terraria.NPC.orig_getNewNPCName orig, int npcType)
     {
-        if (ModContent.Find(ContentKind.Npc, npcType) is not ModNpc npc || !npc.HookEnabled(HookId.SetNPCNameList))
-            return orig(npcType);
+        var npc = ModContent.Find(ContentKind.Npc, npcType) as ModNpc;
+        var globalNames = GlobalNpcRegistry.AnyWith(HookId.ModifyNPCNameList);
+        if ((npc is null || !npc.HookEnabled(HookId.SetNPCNameList)) && !globalNames) return orig(npcType);
 
-        try
+        List<string> names = [];
+        if (npc is not null && npc.HookEnabled(HookId.SetNPCNameList))
         {
-            var names = npc.SetNPCNameList();
-            if (names is null || names.Count == 0) return orig(npcType);
+            try
+            {
+                names = npc.SetNPCNameList() ?? [];
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"{npc.Name}.SetNPCNameList 异常：{Safe.Describe(e)}");
+            }
+        }
 
-            return names[Main.rand.Next(names.Count)];
-        }
-        catch (Exception e)
+        var fallback = names.Count == 0 ? orig(npcType) : null;
+        if (fallback is not null) names.Add(fallback);
+
+        if (globalNames)
         {
-            ContentErrors.Report($"{npc.Name}.SetNPCNameList 异常：{Safe.Describe(e)}");
-            return orig(npcType);
+            NPC? sample = null;
+            if (ContentSamples.NpcsByNetId is { } samples && samples.TryGetValue(npcType, out var found)) sample = found;
+            if (sample is null)
+            {
+                sample = new NPC();
+                sample.SetDefaults(npcType, default);
+            }
+
+            foreach (var global in GlobalNpcRegistry.For(sample, HookId.ModifyNPCNameList))
+            {
+                try { global.ModifyNPCNameList(sample, names); }
+                catch (Exception e) { ContentErrors.Report($"{global.Name}.ModifyNPCNameList 异常：{Safe.Describe(e)}"); }
+            }
         }
+
+        names.RemoveAll(string.IsNullOrEmpty);
+        return names.Count == 0 ? fallback ?? orig(npcType) : names[Main.rand.Next(names.Count)];
     }
 
 #endregion

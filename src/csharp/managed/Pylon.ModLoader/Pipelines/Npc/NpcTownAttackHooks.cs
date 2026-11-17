@@ -74,19 +74,26 @@ internal static unsafe class NpcTownAttackHooks
 
     internal static void Install()
     {
-        RebuildWanted();
-
         _npcClass = MethodCode.KlassOf(typeof(NPC));
         var typeField = _npcClass != IntPtr.Zero ? IL2CPP.il2cpp_class_get_field_from_name(_npcClass, "type") : IntPtr.Zero;
         _npcTypeOffset = typeField != IntPtr.Zero ? checked((int)IL2CPP.il2cpp_field_get_offset(typeField)) : -1;
         if (_npcTypeOffset < 0)
             Log.Warn("[townattack] NPC.type 字段偏移没解析到；全部桥保持惰性（不分派）");
 
-        if (_attackGroupNeeded || _buffTownNeeded)
-        {
-            On.Terraria.NPC.AI_007_TownEntities += TownEntities;
-        }
+        RebuildWanted();
+    }
 
+    private static bool _subscribed;
+
+    private static void SubscribeAttack()
+    {
+        if (_subscribed || !(_attackGroupNeeded || _buffTownNeeded)) return;
+        On.Terraria.NPC.AI_007_TownEntities += TownEntities;
+        _subscribed = true;
+    }
+
+    private static void InstallSites()
+    {
         var installed = 0;
         foreach (var site in Sites)
         {
@@ -119,9 +126,14 @@ internal static unsafe class NpcTownAttackHooks
 
         if (installed > 0)
             Log.Info($"[townattack] 已挂（{installed} 桥：攻击={_attackGroupNeeded || _buffTownNeeded} 绘制={_drawGroupNeeded} 全局加成={_buffTownNeeded}）");
-        else if (_attackGroupNeeded || _drawGroupNeeded || _buffTownNeeded)
+        else if ((_attackGroupNeeded || _drawGroupNeeded || _buffTownNeeded) && !_warnedEmpty)
+        {
+            _warnedEmpty = true;
             Log.Warn("[townattack] 需要桥但一个都没装上（构建指纹不匹配？）");
+        }
     }
+
+    private static bool _warnedEmpty;
 
     internal static void RebuildWanted()
     {
@@ -155,6 +167,9 @@ internal static unsafe class NpcTownAttackHooks
         _drawGroupNeeded = draw;
         _buffTownNeeded = GlobalNpcRegistry.AnyWith(HookId.BuffTownNPC);
         _allAttack = _buffTownNeeded;
+
+        SubscribeAttack();
+        InstallSites();
     }
 
     private static bool Needed(int kind) => kind switch

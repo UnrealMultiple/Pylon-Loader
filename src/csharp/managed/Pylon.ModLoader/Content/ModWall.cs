@@ -25,6 +25,12 @@ public abstract class ModWall : ModType
     /// <summary>挖掉时掉的物品 ID（0 = 用放置这面墙的 ModItem）。</summary>
     public virtual int ItemDrop => 0;
 
+    /// <summary>显式登记的掉落（优先于 <see cref="ItemDrop"/> 与放置物品反查）。</summary>
+    internal int RegisteredDrop { get; private set; }
+
+    /// <summary>登记这面墙的掉落物品。</summary>
+    public void RegisterItemDrop(int itemType) => RegisteredDrop = itemType;
+
     /// <summary>改回原版墙的 ID（0 = 不改；Pylon 尚未实现，见 docs/mods/09-blocos.md）。</summary>
     public virtual int VanillaFallbackOnModDeletion => 0;
 

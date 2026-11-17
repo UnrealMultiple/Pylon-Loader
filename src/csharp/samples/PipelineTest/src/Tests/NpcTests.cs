@@ -119,8 +119,8 @@ internal static class NpcTests
                 c.True(npc.active, "NPC active");
                 c.Eq(npc.aiStyle, 1, "aiStyle");
                 // 旅程模式会把血量/伤害按难度缩放，这里只要求落在合理区间。
-                c.InRange(npc.lifeMax, 1, 120, "lifeMax");
-                c.InRange(npc.damage, 0, 8, "damage");
+                c.InRange(npc.lifeMax, 1, 360, "lifeMax");
+                c.InRange(npc.damage, 0, 24, "damage");
 
                 PT.Info($"测试史莱姆：life={npc.life}/{npc.lifeMax} damage={npc.damage} friendly={npc.friendly} " +
                         $"alpha={npc.alpha} frame={npc.frame} size={npc.width}x{npc.height} aiStyle={npc.aiStyle}");

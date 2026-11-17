@@ -137,6 +137,7 @@ internal static class EmoteBubbleTable
             emote.Type = Base + _next;
             emote.Registered = true;
             _bubbles[_next++] = emote;
+            _localized = false;
 
             ByKey[key] = emote;
             ByName[emote.Name] = ByName.ContainsKey(emote.Name) ? null : emote;

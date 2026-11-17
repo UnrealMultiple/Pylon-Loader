@@ -80,6 +80,9 @@ public abstract class ModItem : ModType
     /// <summary>配方注册期一次（AddRecipe 之类放这里）。</summary>
     public virtual void AddRecipes() { }
 
+    /// <summary>新开一份以本物品为结果的配方（链式填完 Register）。</summary>
+    public ModRecipe CreateRecipe(int amount = 1) => new ModRecipe().SetResult(Type, amount);
+
     /// <summary>每次 tooltip 显示时一次（合成指南弹窗里也会，不带颜色）；直接改 tooltips 列表。</summary>
     public virtual void ModifyTooltips(List<TooltipLine> tooltips) { }
 

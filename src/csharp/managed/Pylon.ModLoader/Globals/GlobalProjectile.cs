@@ -108,6 +108,18 @@ public abstract class GlobalProjectile : ModType
     /// <summary>false 否决挂到 (x, y) 这格上，true 允许；null = 保持本地或原生的判断。</summary>
     public virtual bool? GrappleCanLatchOnTo(Projectile proj, Player player, int x, int y) => null;
 
+    /// <summary>可用的钩爪数量（可写引用）。</summary>
+    public virtual void NumGrappleHooks(Projectile proj, Player player, ref int numHooks) { }
+
+    /// <summary>钩爪收回速度（可写引用）。</summary>
+    public virtual void GrappleRetreatSpeed(Projectile proj, Player player, ref float speed) { }
+
+    /// <summary>钩爪拉过去的速率（可写引用）。</summary>
+    public virtual void GrapplePullSpeed(Projectile proj, Player player, ref float speed) { }
+
+    /// <summary>钩尖要落在哪（两个可写引用，像素坐标）。</summary>
+    public virtual void GrappleTargetPoint(Projectile proj, Player player, ref float grappleX, ref float grappleY) { }
+
     /// <summary>false = 游戏不把速度加到位置上（位置由 AI 自己写），在本地方法之后，一个 false 就够。</summary>
     public virtual bool ShouldUpdatePosition(Projectile proj) => true;
 
