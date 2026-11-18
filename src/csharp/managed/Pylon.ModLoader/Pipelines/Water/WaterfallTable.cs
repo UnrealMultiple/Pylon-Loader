@@ -1,7 +1,6 @@
-using Pylon.ModLoader.Textures;
+using Pylon.ModLoader.Content;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 瀑布样式侧表：编号 = 原版表长 + 注册序。原版总数从 <c>WaterfallManager.waterfallTexture</c> 的表长捕获（无编译期常量）。
 /// </summary>

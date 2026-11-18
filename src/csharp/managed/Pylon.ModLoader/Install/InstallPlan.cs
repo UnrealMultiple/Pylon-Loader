@@ -1,9 +1,14 @@
 using System.Diagnostics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Globals;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Patch;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.Pipelines;
 using Pylon.ModLoader.Tables;
-using Pylon.ModLoader.Textures;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Install;
 /// <summary>安装计划：唯一的"装什么、按什么顺序装"的事实来源。</summary>
 internal static class InstallPlan
 {
@@ -67,9 +72,7 @@ internal static class InstallPlan
             new Step("系统阶段", InstallStage.Static, () => SystemStages.Build(host.Log)),
             new Step("系统地图时机", InstallStage.Static, SystemMapHooks.Install),
 
-            new HookStep("ResizeArrays", InstallStage.Mods, HookId.ResizeArrays, static mod => mod.ResizeArrays()),
             new Step("System.ResizeArrays", InstallStage.Mods, SystemLoader.ResizeArrays),
-            new HookStep("Mod.SetupContent", InstallStage.Mods, HookId.SetupContent, static mod => mod.SetupContent()),
             new Step("System.SetStaticDefaults", InstallStage.Mods, SystemStaticDefaults),
             new HookStep("Mod.AddRecipeGroups", InstallStage.Mods, HookId.AddRecipeGroups, static mod => mod.AddRecipeGroups()),
             new Step("System.AddRecipeGroups", InstallStage.Mods, SystemRecipeGroups),
@@ -85,7 +88,6 @@ internal static class InstallPlan
             new HookStep("Mod.PostAddRecipes", InstallStage.Recipes, HookId.PostAddRecipes, static mod => mod.PostAddRecipes()),
             new Step("System.PostAddRecipes", InstallStage.Recipes, SystemPostAddRecipes),
             new Step("配方收尾", InstallStage.Recipes, () => RecipeTable.Finish(LoaderHost.Current.Log)),
-            new HookStep("Mod.PostSetupRecipes", InstallStage.Recipes, HookId.PostSetupRecipes, static mod => mod.PostSetupRecipes()),
             new Step("System.PostSetupRecipes", InstallStage.Recipes, SystemLoader.PostSetupRecipes),
         };
 

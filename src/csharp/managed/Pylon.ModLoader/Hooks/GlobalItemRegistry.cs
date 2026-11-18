@@ -1,7 +1,9 @@
+using Pylon.ModLoader.Globals;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.Pipelines;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Hooks;
 /// <summary>GlobalItem 的注册表与分派。方法名 → 覆写了它的模板由注册期算好，分派时只查缓存。</summary>
 internal static class GlobalItemRegistry
 {

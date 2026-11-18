@@ -4,6 +4,9 @@ using System.Reflection;
 using Pylon.ModLoader;
 using Terraria;
 using Terraria.ID;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Pipelines;
 
 namespace PipelineTest.Tests;
 

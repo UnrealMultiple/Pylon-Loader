@@ -1,7 +1,7 @@
+using Pylon.ModLoader.Content;
 using Pylon.ModLoader.Textures;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 发型侧表：编号 = 原版表长 + 注册序。原版表长只能运行期读（没有编译期常量），
 /// 由 <see cref="HairTable.Base"/> 在扩表之前捕获一次。

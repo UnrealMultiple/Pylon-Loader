@@ -1,7 +1,7 @@
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>触屏按钮的公开门面：注册与按钮列表；状态与逻辑在 TouchButtonPipeline 里。</summary>
 public static class TouchButtonLoader
 {

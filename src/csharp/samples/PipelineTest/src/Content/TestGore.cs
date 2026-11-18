@@ -2,6 +2,7 @@ using System;
 using Pylon.ModLoader;
 using Terraria;
 using Terraria.DataStructures;
+using Pylon.ModLoader.Content;
 
 namespace PipelineTest.Content;
 

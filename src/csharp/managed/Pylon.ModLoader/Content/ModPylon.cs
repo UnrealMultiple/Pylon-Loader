@@ -1,5 +1,7 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Pipelines;
 using ReLogic.Content;
 using Terraria;
 using Terraria.DataStructures;
@@ -11,8 +13,7 @@ using Terraria.Map;
 using Terraria.ObjectData;
 using Terraria.UI;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>
 /// 自定义传送晶塔（ModPylon）：3x4 的 ModTile，游戏的地图/传送系统认它，一个类型在世界里只有一个。
 /// 类型号排在 TeleportPylonType.Count 之后（游戏自己的枚举到 Count 为止）；放进游戏晶塔列表由管线做；
@@ -48,7 +49,8 @@ public abstract class ModPylon : ModTile
 
     /// <summary>在地图上画这晶塔的图标、处理悬停和点击。</summary>
     public virtual void DrawMapIcon(ref MapOverlayDrawContext context, ref string mouseOverText, TeleportPylonInfo pylonInfo,
-                                    bool isNearPylon, Color drawColor, float deselectedScale, float selectedScale) { }
+                                    bool isNearPylon, Color drawColor, float deselectedScale, float selectedScale)
+    { }
 
     /// <summary>画一张图标贴图；返回 true = 手指在它上面。</summary>
     public virtual bool DefaultDrawMapIcon(ref MapOverlayDrawContext context, Asset<Texture2D> mapIcon, Vector2 drawCenter,

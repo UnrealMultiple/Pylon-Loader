@@ -1,8 +1,7 @@
+using Pylon.ModLoader.Logging;
 using Terraria;
-using GameTexture2D = Il2CppMicrosoft.Xna.Framework.Graphics.Texture2D;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>一个按钮的逐帧状态。按序号密集存放：每帧每按钮一次 ref 写入，公开对象保持只读。</summary>
 internal struct ButtonState
 {

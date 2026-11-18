@@ -1,10 +1,9 @@
-using System.IO;
 using System.Text.Json.Nodes;
+using Pylon.ModLoader.Logging;
 using Terraria;
 using ContolType = VirtualControlsHardwareConfigurationMapping_Layout.ContolType;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 触屏按钮的布局：玩家的按钮位置由游戏保存，但游戏不认识 mod 动作。
 /// 所以另存一份"哪个槽位放哪个按钮"，并在游戏加载布局之后把它套回去。

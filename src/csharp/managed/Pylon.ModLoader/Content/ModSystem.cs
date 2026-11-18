@@ -1,14 +1,12 @@
-using System;
-using System.Collections.Generic;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.SaveData;
 using Terraria.Graphics;
 using Terraria.IO;
 using Terraria.Localization;
 using Terraria.Map;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>
 /// 系统内容基类：一个 Mod 可以有多个实例，每个实例独立接收装载、世界、更新、绘制与网络钩子。
 /// 生命线：注册占位 → SetStaticDefaults（表定型后）→ OnWorldLoad / 每帧钩子 → OnWorldUnload；

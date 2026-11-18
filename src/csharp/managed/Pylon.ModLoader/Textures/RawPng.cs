@@ -1,5 +1,3 @@
-using System;
-using System.IO;
 using System.Text;
 
 namespace Pylon.ModLoader.Textures;
@@ -10,10 +8,8 @@ namespace Pylon.ModLoader.Textures;
 /// </summary>
 internal static class RawPng
 {
-    /// <summary>pixels 按 ABGR 打包（0xAABBGGRR），宽高必须匹配。</summary>
     public static byte[] Encode(int width, int height, uint[] pixels)
     {
-        // 每行一个过滤字节（0 = 无过滤）。
         var raw = new byte[height * (width * 4 + 1)];
         for (var y = 0; y < height; y++)
         {
@@ -47,12 +43,11 @@ internal static class RawPng
         header[5] = (byte)(height >> 16);
         header[6] = (byte)(height >> 8);
         header[7] = (byte)height;
-        header[8] = 8;   // 位深
-        header[9] = 6;   // 颜色类型 RGBA
+        header[8] = 8;
+        header[9] = 6;
         return header;
     }
 
-    /// <summary>zlib 容器 + deflate 存储块：不压缩，但解码端拿到的是合法流。</summary>
     private static byte[] ZlibStored(byte[] data)
     {
         const int blockMax = 0xFFFF;

@@ -1,5 +1,4 @@
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Contracts;
 // 顺序同 tModLoader：源伤害 → 加成 → 防御 → 暴击 → 最终，算完交给游戏 StrikeNPC。
 /// <summary>打在 NPC 身上的这一下（ModifyHit*、ModifyIncomingHit 收到的修改器）；改字段 = 改这次伤害。</summary>
 public class HitModifiers

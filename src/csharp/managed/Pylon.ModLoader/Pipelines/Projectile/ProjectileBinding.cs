@@ -1,7 +1,8 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// Projectile 实体 ↔ ModProjectile 实例。
 /// 槽位会被复用：SetDefaults 走 <see cref="Rebind"/> 强制换一份新实例，钩子走 <see cref="InstanceOf"/> 复用已有绑定。

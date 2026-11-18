@@ -1,5 +1,7 @@
-namespace Pylon.ModLoader;
+using Pylon.ModLoader.Globals;
+using Pylon.ModLoader.Pipeline;
 
+namespace Pylon.ModLoader.Hooks;
 /// <summary>GlobalTile 的注册表与分派：按"这个类相对 GlobalTile 覆写了哪些钩子"建索引。</summary>
 internal static class GlobalTileRegistry
 {

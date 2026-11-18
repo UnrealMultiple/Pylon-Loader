@@ -1,8 +1,7 @@
-using System.Collections.Generic;
+using Pylon.ModLoader.Pipelines;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>
 /// 额外跳跃内容类：一个实例 = 一种双跳（原版五挂载 + 五瓶先占号 0..9，mod 跳跃自动接在后面）。
 /// 生命线：注册占号（<see cref="ExtraJumpTable"/> 安装步）→ SetStaticDefaults。

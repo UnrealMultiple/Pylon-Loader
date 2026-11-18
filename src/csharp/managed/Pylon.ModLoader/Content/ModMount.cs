@@ -1,10 +1,10 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.DataStructures;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>坐骑贴图的分层（Back* 画在玩家后面，Front* 画在前面）。</summary>
 public enum MountTextureType
 {

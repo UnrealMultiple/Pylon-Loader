@@ -1,7 +1,6 @@
 using Terraria.GameContent.Personalities;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Contracts;
 /// <summary>城镇 NPC 的幸福度偏好（SetStaticDefaults 里 new 出来）：Set 的偏好当场写进游戏的人物偏好库，算心情和物价用。</summary>
 public class NPCHappiness
 {

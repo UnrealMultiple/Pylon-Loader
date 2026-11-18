@@ -1,12 +1,14 @@
-using System.Collections.Generic;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.GameContent;
 using Terraria.GameContent.UI;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>表情气泡管线：mod 编号的泡泡是真的游戏 EmoteBubble；只接管"怎么画"和"帧怎么取"。</summary>
 internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
 {

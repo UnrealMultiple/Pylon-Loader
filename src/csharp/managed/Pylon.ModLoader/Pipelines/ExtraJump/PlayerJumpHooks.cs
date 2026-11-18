@@ -1,12 +1,11 @@
-using System;
-using System.Collections.Generic;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Audio;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.Audio;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>额外跳跃的六个游戏入口 + 起跳音效门；热路径靠 Wanted 短路（等价基线的按需安装）。</summary>
 internal static class PlayerJumpHooks
 {

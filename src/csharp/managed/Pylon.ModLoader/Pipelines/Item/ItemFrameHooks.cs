@@ -1,7 +1,10 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>手持帧钩子：玩家帧算完后改手持动作帧——动画中走 UseItemFrame，否则能举时走 HoldItemFrame。</summary>
 internal static class ItemFrameHooks
 {

@@ -3,6 +3,7 @@ using Pylon.ModLoader;
 using Terraria;
 using Terraria.ID;
 using Terraria.ObjectData;
+using Pylon.ModLoader.Content;
 
 namespace PipelineTest.Tests;
 

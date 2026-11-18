@@ -1,12 +1,13 @@
-using System.Collections.Generic;
 using Il2CppMicrosoft.Xna.Framework;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.SaveData;
 using Terraria;
 using Terraria.DataStructures;
 using Terraria.GameInput;
 using Terraria.Graphics;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>挂在玩家身上的自定义数据与行为：每个玩家一份自己的实例（第一次被问到时建）。</summary>
 public abstract class ModPlayer
 {
@@ -279,7 +280,8 @@ public abstract class ModPlayer
 
     /// <summary>发射前的位置/弹幕类型/伤害/击退修改（可写引用）。</summary>
     public virtual void ModifyShootStats(Item item, ref Vector2 position, ref Vector2 velocity, ref int type,
-                                         ref int damage, ref float knockback) { }
+                                         ref int damage, ref float knockback)
+    { }
 
     /// <summary>亲手发射：false = 这发不出去（游戏给 1000 的无效编号）。</summary>
     public virtual bool Shoot(Item item, EntitySource_ItemUse_WithAmmo? source, Vector2 position, Vector2 velocity,
@@ -305,7 +307,8 @@ public abstract class ModPlayer
 
     /// <summary>掷骰之后：itemDrop/npcSpawn 是掷出的结果（可写引用）；sonar 是声纳弹窗（玩家喝着声纳药水才弹）。</summary>
     public virtual void CatchFish(FishingAttempt attempt, ref int itemDrop, ref int npcSpawn,
-                                  ref AdvancedPopupRequest sonar, ref Vector2 sonarPosition) { }
+                                  ref AdvancedPopupRequest sonar, ref Vector2 sonarPosition)
+    { }
 
     /// <summary>真正交到手上之前改这条鱼。</summary>
     public virtual void ModifyCaughtFish(Item fish) { }
@@ -350,7 +353,8 @@ public abstract class ModPlayer
 
     /// <summary>绘图准备之后：r/g/b/a 是四个颜色倍率（可写引用），fullBright 是那次的满亮开关。</summary>
     public virtual void DrawEffects(PlayerDrawSet drawInfo, ref float r, ref float g, ref float b,
-                                    ref float a, ref bool fullBright) { }
+                                    ref float a, ref bool fullBright)
+    { }
 
     /// <summary>各层建起来之前改 drawInfo（PlayerDrawSet）。</summary>
     public virtual void ModifyDrawInfo(ref PlayerDrawSet drawInfo) { }
@@ -452,6 +456,3 @@ public abstract class ModPlayer
     /// <summary>把断线的玩家移掉之前。</summary>
     public virtual void PlayerDisconnect() { }
 }
-
-// 未移植（基准有、这里还没有）：
-// - 分派未接的声明钩子见各方法注释；接分派时同步 HookId（追加区）与调用点。

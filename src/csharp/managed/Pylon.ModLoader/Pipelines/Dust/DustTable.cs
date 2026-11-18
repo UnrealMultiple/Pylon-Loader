@@ -1,5 +1,7 @@
-namespace Pylon.ModLoader;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Pipeline;
 
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>尘土表：mod 尘土自己发号（不进游戏的图集，所以号段和原版无关）。</summary>
 internal static class DustTable
 {

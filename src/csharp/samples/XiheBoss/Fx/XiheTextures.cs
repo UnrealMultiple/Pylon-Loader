@@ -11,6 +11,8 @@ using Texture2D = Il2CppMicrosoft.Xna.Framework.Graphics.Texture2D;
 using Pylon.ModLoader;
 using Pylon.ModLoader.Effects;
 using Pylon.ModLoader.Textures;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Logging;
 
 namespace XiheBoss
 {

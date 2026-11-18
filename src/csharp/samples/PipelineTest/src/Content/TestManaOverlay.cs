@@ -7,6 +7,8 @@ using System.Collections.Generic;
 using Terraria;
 using Terraria.GameContent;
 using Terraria.GameContent.UI.ResourceSets;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 
 namespace PipelineTest.Content;
 

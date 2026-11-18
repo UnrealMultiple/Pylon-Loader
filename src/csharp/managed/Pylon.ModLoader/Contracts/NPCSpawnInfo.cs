@@ -1,7 +1,7 @@
+using Pylon.ModLoader.Pipelines;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Contracts;
 /// <summary>刷怪信息：刷怪点、目标玩家，加上 NPC.Spawner 的全部字段（可读可写，EditSpawnInfo 改它）。</summary>
 public class NPCSpawnInfo
 {

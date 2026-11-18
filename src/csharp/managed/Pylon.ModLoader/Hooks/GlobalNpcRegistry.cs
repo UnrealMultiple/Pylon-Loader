@@ -1,7 +1,9 @@
+using Pylon.ModLoader.Globals;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.Pipelines;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Hooks;
 /// <summary>GlobalNpc 的注册表与分派。NPC 有"迟到实例化"：SetDefaults 之后类型才定，所以 Attach 每次重建实体级列表。</summary>
 internal static class GlobalNpcRegistry
 {

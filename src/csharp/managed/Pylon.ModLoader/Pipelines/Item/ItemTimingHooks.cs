@@ -1,8 +1,12 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Globals;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.ID;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>使用时长与攻速：ApplyItemTime/ApplyItemAnimation 之后按作者倍率缩放，倍率为 ModItem×GlobalItem×ModPlayer 乘积并除以 UseSpeedMultiplier；连发与右键也在此。</summary>
 internal static class ItemTimingHooks
 {

@@ -1,14 +1,13 @@
-using System;
-using Il2CppInterop.Runtime.InteropTypes.Arrays;
-using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Localization;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Pylon.ModLoader.Textures;
 using ReLogic.Content;
 using Terraria;
-using Terraria.GameContent;
 using GameTexture2D = Il2CppMicrosoft.Xna.Framework.Graphics.Texture2D;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// "？"未加载物品池：mod 卸载后读档，原版 SetDefaults 会把不认识的类型号归零，物品静默消失。
 /// 这里占住物品表开头的 64 个类型号（先于一切 mod 发号），读档遇到未知键时按键占一格，

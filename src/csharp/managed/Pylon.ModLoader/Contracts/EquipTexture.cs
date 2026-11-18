@@ -1,8 +1,8 @@
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Contracts;
 /// <summary>一张已注册的穿戴贴图（盔甲/翅膀/饰品）；每个钩子默认转给主人 ModItem，子类只改自己要的。</summary>
 public class EquipTexture
 {

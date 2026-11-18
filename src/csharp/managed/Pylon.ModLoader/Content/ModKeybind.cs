@@ -1,10 +1,9 @@
-using System.Collections.Generic;
 using System.Text.RegularExpressions;
+using Pylon.ModLoader.Pipelines;
 using Terraria.GameInput;
 using Terraria.Localization;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>
 /// 一个 mod 的键位；手机端按键就是触屏按钮，状态由 TouchButton 管线按帧驱动。
 /// Current 是按住，JustPressed/JustReleased 是本帧变化，Old 是上一帧按住；RetroCurrent 在聊天/对话/牌子打开时为 false。

@@ -1,7 +1,10 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>Item.SetDefaults 接管：自定义 type 不走原版分支，改跑 ModItem 的默认值与 tooltip 重建。</summary>
 internal sealed class ItemDefaults(ItemBinding binding)
 {

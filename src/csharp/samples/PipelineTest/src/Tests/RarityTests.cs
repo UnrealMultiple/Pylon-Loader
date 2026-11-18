@@ -1,6 +1,8 @@
 using Pylon.ModLoader;
 using Terraria;
 using Terraria.GameContent.UI;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Pipelines;
 
 namespace PipelineTest.Tests;
 

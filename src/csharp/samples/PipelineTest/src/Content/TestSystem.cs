@@ -4,12 +4,17 @@ using Il2CppMicrosoft.Xna.Framework;
 using Pylon.ModLoader;
 using Terraria;
 using Terraria.IO;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.SaveData;
+using PipelineTest.Tests;
 
 namespace PipelineTest.Content;
 
 /// <summary>
 /// 测试系统 A：装载/世界/更新面。计数每个钩子的调用，Recording 时把一帧内的钩子按序记进 Trace，
-/// ModifyTimeRate 按 TimeRate 放大时钟，SaveWorldData/SaveWorldHeader 写入可验证的标记值。
+/// ModifyTimeRate 按 TimeRate 放大时钟，SaveWorldData/SaveWorldHeader 写入可验证的标记值，
+/// 弹幕前探针与提示扫格驱动（原 Mod 虚方法迁移）。
 /// </summary>
 public sealed class TestSystem : ModSystem
 {
@@ -97,7 +102,11 @@ public sealed class TestSystem : ModSystem
 
     public override void PostUpdateGores() => Mark(nameof(PostUpdateGores));
 
-    public override void PreUpdateProjectiles() => Mark(nameof(PreUpdateProjectiles));
+    public override void PreUpdateProjectiles()
+    {
+        EnvironmentTests.Projectiles();
+        Mark(nameof(PreUpdateProjectiles));
+    }
 
     public override void PostUpdateProjectiles() => Mark(nameof(PostUpdateProjectiles));
 
@@ -121,7 +130,31 @@ public sealed class TestSystem : ModSystem
 
     public override void PostUpdateInvasions() => Mark(nameof(PostUpdateInvasions));
 
-    public override void PostUpdateEverything() => Mark(nameof(PostUpdateEverything));
+    public override void PostUpdateEverything()
+    {
+        if (TooltipSweep) SweepTick();
+        Mark(nameof(PostUpdateEverything));
+    }
+
+    public static bool TooltipSweep;
+
+    private const int SweepColumns = 16;
+    private const int SweepRows = 14;
+    private const float SweepWidthRatio = 0.45f;
+    private const float SweepTopRatio = 0.24f;
+    private const float SweepHeightRatio = 0.36f;
+    private static int _sweepFrame;
+
+    private static void SweepTick()
+    {
+        var width = Math.Max(Main.screenWidth, 1);
+        var height = Math.Max(Main.screenHeight, 1);
+        var column = _sweepFrame % SweepColumns;
+        var row = (_sweepFrame / SweepColumns) % SweepRows;
+        Main.mouseX = (int)(column * (width * SweepWidthRatio) / SweepColumns);
+        Main.mouseY = (int)((SweepTopRatio * height) + row * (height * SweepHeightRatio) / SweepRows);
+        _sweepFrame++;
+    }
 
     public override void PostUpdateInput() => Mark(nameof(PostUpdateInput));
 

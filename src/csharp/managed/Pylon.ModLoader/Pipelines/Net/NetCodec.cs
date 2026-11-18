@@ -1,9 +1,6 @@
-using System.IO;
 using Il2CppMicrosoft.Xna.Framework;
-using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// Mod 网络数据的值序列化。一侧写标记 + 值，另一侧按标记读；
 /// 未知标记读成 null，让上层按"缺值"处理，而不是让整包错位。

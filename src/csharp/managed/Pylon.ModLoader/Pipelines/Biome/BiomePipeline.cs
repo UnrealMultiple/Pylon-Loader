@@ -1,7 +1,9 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>生物群系管线：场景扫描后算"在不在每个群落里"，边沿触发进/出回调。</summary>
 internal sealed class BiomePipeline : ILoaderModule, ILoaderModuleRefresh
 {

@@ -1,8 +1,14 @@
 using Il2CppMicrosoft.Xna.Framework;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Globals;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>自然生成的选点上下文、权重池与生成通知;客户端不参与作者抽选。</summary>
 internal static class NpcSpawn
 {
@@ -21,9 +27,9 @@ internal static class NpcSpawn
         if (_globalCount == globals.Count && _npcCount == npcs.Count) return;
         _globalCount = globals.Count;
         _npcCount = npcs.Count;
-        _wantsRange = globals.Any(g => Hooks.Overrides(g.GetType(), typeof(GlobalNpc), nameof(GlobalNpc.EditSpawnRange)));
-        _wantsRate = globals.Any(g => Hooks.Overrides(g.GetType(), typeof(GlobalNpc), nameof(GlobalNpc.EditSpawnRate)));
-        _wantsPool = globals.Any(g => Hooks.Overrides(g.GetType(), typeof(GlobalNpc), nameof(GlobalNpc.EditSpawnPool))) ||
+        _wantsRange = globals.Any(g => HookGuard.Overrides(g.GetType(), typeof(GlobalNpc), nameof(GlobalNpc.EditSpawnRange)));
+        _wantsRate = globals.Any(g => HookGuard.Overrides(g.GetType(), typeof(GlobalNpc), nameof(GlobalNpc.EditSpawnRate)));
+        _wantsPool = globals.Any(g => HookGuard.Overrides(g.GetType(), typeof(GlobalNpc), nameof(GlobalNpc.EditSpawnPool))) ||
             npcs.Any(n => n.GetType().GetMethods().Any(m => m.Name == nameof(ModNpc.SpawnChance) && m.DeclaringType != typeof(ModNpc)));
     }
 

@@ -1,4 +1,6 @@
 using Pylon.ModLoader;
+using Pylon.ModLoader.Audio;
+using SoundStyle = Pylon.ModLoader.Audio.SoundStyle;
 
 namespace PipelineTest.Tests;
 

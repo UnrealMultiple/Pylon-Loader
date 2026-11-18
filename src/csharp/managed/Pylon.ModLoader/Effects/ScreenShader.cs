@@ -1,5 +1,3 @@
-using System.IO;
-using System.Text;
 using Pylon.NaviteAPI.Effects;
 
 namespace Pylon.ModLoader.Effects;
@@ -7,34 +5,25 @@ namespace Pylon.ModLoader.Effects;
 /// <summary>一个屏幕效果片元着色器。同名字同源码复用同一 id。</summary>
 public sealed class ScreenShader
 {
-    // 文件着色器要能被 Reload，不能被 GC 回收。
     private static readonly HashSet<ScreenShader> FileShaders = [];
 
     private string _source;
 
-    /// <summary>着色器名（也是日志里的名字）。</summary>
     public string Name { get; }
 
-    /// <summary>true = 硬件几何路径的片元着色器（配 mesh 顶点着色器，不读屏幕）。</summary>
     public bool Mesh { get; }
 
-    /// <summary>来源文件绝对路径；FromSource 创建时为 null。</summary>
     public string? Path { get; internal set; }
 
-    /// <summary>内核注册 id（提交效果时用）。</summary>
     public int Id { get; private set; }
 
-    /// <summary>'pending'（还没编译）/ 'ready' / 'failed'。</summary>
     public ScreenShaderStatus Status => (ScreenShaderStatus)ScreenEffectStatus.State(Id);
 
-    /// <summary>编译错误（带 Mod 文件行号），失败时才有内容。</summary>
     public string Error => ScreenEffectStatus.Error(Id);
 
-    /// <summary>GLSL 源码构造（name 只用于日志/去重）。</summary>
     public ScreenShader(string name, string source)
         : this(name, source, false) { }
 
-    /// <summary>GLSL 源码构造；mesh=true 时走硬件几何路径（不读屏幕、不做屏幕拷贝）。</summary>
     public ScreenShader(string name, string source, bool mesh)
     {
         if (string.IsNullOrEmpty(name)) throw new ArgumentException("着色器名不能为空", nameof(name));
@@ -47,16 +36,12 @@ public sealed class ScreenShader
                   : ScreenEffectsNative.ShaderRegister(Name, _source);
     }
 
-    /// <summary>直接给源码。</summary>
     public static ScreenShader FromSource(string name, string source) => new(name, source);
 
-    /// <summary>直接注册成硬件几何着色器。</summary>
     public static ScreenShader FromSourceMesh(string name, string source) => new(name, source, true);
 
-    /// <summary>从 Mod 资产读文件（相对路径按 Mod 目录解析，同 PylonTexture）。</summary>
     public static ScreenShader FromFile(Mod owner, string path) => FromFileImpl(owner, path, false);
 
-    /// <summary>从 Mod 资产读文件，注册成硬件几何着色器（mesh 顶点着色器；不读屏幕）。</summary>
     public static ScreenShader FromFileMesh(Mod owner, string path) => FromFileImpl(owner, path, true);
 
     private static ScreenShader FromFileImpl(Mod owner, string path, bool mesh)
@@ -74,7 +59,6 @@ public sealed class ScreenShader
         return shader;
     }
 
-    /// <summary>重读文件，变了就重新注册（效果下一帧切到新程序）。true = 变了。</summary>
     public bool Reload()
     {
         var path = Path;

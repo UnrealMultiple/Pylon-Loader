@@ -1,8 +1,8 @@
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>自定义增益/减益；一个类型一个实例（buff 是"编号 + 时间"，不是实体）。</summary>
 public abstract class ModBuff : ModType
 {

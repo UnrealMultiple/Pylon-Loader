@@ -2,14 +2,19 @@ using System.Reflection;
 using Il2CppInterop.Runtime.InteropTypes;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Il2CppMicrosoft.Xna.Framework;
+using Pylon.ModLoader.Audio;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Localization;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipelines;
 using Pylon.ModLoader.Textures;
 using Terraria;
 using Terraria.Localization;
 using GameTexture2D = Il2CppMicrosoft.Xna.Framework.Graphics.Texture2D;
-using SpriteFont = Il2CppMicrosoft.Xna.Framework.Graphics.SpriteFont;
 using NullableColor = Il2CppSystem.Nullable<Il2CppMicrosoft.Xna.Framework.Graphics.Color>;
 using NullableMatrix = Il2CppSystem.Nullable<Il2CppMicrosoft.Xna.Framework.Matrix>;
 using NullableRect = Il2CppSystem.Nullable<Il2CppMicrosoft.Xna.Framework.Rectangle>;
+using SpriteFont = Il2CppMicrosoft.Xna.Framework.Graphics.SpriteFont;
 
 namespace Pylon.ModLoader.UI;
 
@@ -136,7 +141,7 @@ public static partial class ModConfigMenu
             if (_where == Where.Pause)
             {
                 if (!Safe("ModConfigMenu.Draw", DrawScreen)) Close(false);
-                return;   // 我们自己画满了整个菜单，跳过原版
+                return;
             }
             orig(self);
         }
@@ -146,7 +151,6 @@ public static partial class ModConfigMenu
         }
     }
 
-    /// <summary>暂停菜单画 Backing 时补我们的按钮。</summary>
     private static void PanelDrawPostfix(On.GUIPanel.orig_Draw orig, Panel_Layout layout, bool cursorOver,
                                          NullableColor overloadBacking, NullableColor overloadBorder,
                                          NullableColor overloadHighlight)
@@ -177,7 +181,7 @@ public static partial class ModConfigMenu
         if (_where == Where.Menu)
         {
             if (!Safe("ModConfigMenu.Draw", DrawScreen)) Close(false);
-            return;   // 我们画满：跳过原版
+            return;
         }
         orig(self);
     }
@@ -327,7 +331,6 @@ public static partial class ModConfigMenu
             if (SameNative(x, ours)) return;
         }
         all.Add(ours);
-        // 用 T[] 构造一步建好原生数组（手动逐元素赋值会段错误，实测构造内部拷贝没问题）
         list._items = new Il2CppReferenceArray<TransactionButton_Layout>([.. all]);
         list.Activate();
     }
@@ -366,12 +369,11 @@ public static partial class ModConfigMenu
         {
             XNAUIInputLayer.Instance.CaptureUICrusorDrag(-1);
             Open(Where.Menu);
-            return;   // 不调 orig：这行是"Mod 设置"，打开我们自己的菜单
+            return;
         }
         orig(self);
     }
 
-    /// <summary>关屏：默认把草稿丢掉（Descartar / 安卓返回 / 出世界）。</summary>
     private static void Close(bool sound = true, bool apply = false)
     {
         if (!_open) return;
@@ -450,7 +452,6 @@ public static partial class ModConfigMenu
         catch (Exception) { return 32f; }
     }
 
-    /// <summary>每个标签只报一次，不重复刷屏。</summary>
     private static bool Safe(string label, Action action)
     {
         try
@@ -468,7 +469,6 @@ public static partial class ModConfigMenu
         }
     }
 
-    /// <summary>原生 Object 浅拷贝：属性逐个拷会漏掉未暴露的原生字段（画时读空字段段错误），直接调原生 MemberwiseClone。</summary>
     private static T Clone<T>(T source) where T : Il2CppObjectBase, new()
     {
         try
@@ -485,7 +485,6 @@ public static partial class ModConfigMenu
         return CopyFallback(source);
     }
 
-    /// <summary>原生 MemberwiseClone 不可用时的兜底。</summary>
     private static T CopyFallback<T>(T source) where T : Il2CppObjectBase, new()
     {
         var clone = new T();

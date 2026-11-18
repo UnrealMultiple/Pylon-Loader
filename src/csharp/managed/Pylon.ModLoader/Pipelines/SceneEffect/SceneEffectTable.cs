@@ -1,5 +1,6 @@
-namespace Pylon.ModLoader;
+using Pylon.ModLoader.Content;
 
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 场景效果的有序表（含群落）。不按 `Type` 索引：群落已经用了 `ModType.Type` 做自己的编号，
 /// 而普通场景效果不需要编号——每帧线性扫几十个比维护一套索引简单。

@@ -1,14 +1,13 @@
-using System;
-using System.Collections.Generic;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
-using Terraria.GameContent;
 using Terraria.Graphics.Effects;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 见 docs/pipeline/content-background.md。
 /// </summary>

@@ -1,5 +1,4 @@
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Core;
 /// <summary>原版数量 = 自定义 ID 起点（游戏里是编译期常量，只能写死；Terraria 1.4.5.8.6）。</summary>
 internal static class VanillaCounts
 {

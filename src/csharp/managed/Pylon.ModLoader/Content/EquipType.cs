@@ -1,5 +1,4 @@
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>装备贴图的部位（与游戏的 `TextureAssets` 表一一对应）。</summary>
 public enum EquipType
 {

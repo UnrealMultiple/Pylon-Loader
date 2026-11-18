@@ -1,7 +1,7 @@
-using Pylon.ModLoader.Textures;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Pipeline;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 血腥粒子侧表：类型号 = 原版表长 + 注册序；位集按类型号偏移密集索引。
 /// 起点只能运行期读（GoreID 没有编译期 Count），所以 Base 由 <see cref="GoreTables.Vanilla"/> 统一捕获。

@@ -6,6 +6,8 @@ using Terraria;
 using UVector2 = UnityEngine.Vector2;
 using XVector2 = Il2CppMicrosoft.Xna.Framework.Vector2;
 using UColor = UnityEngine.Color;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 
 namespace XiheMagic
 {

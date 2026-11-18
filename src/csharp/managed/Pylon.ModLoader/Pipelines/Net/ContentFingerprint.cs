@@ -1,7 +1,7 @@
 using System.Text;
+using Pylon.ModLoader.Pipeline;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 内容发号指纹：注册顺序决定 ID，两端 mod 集合或顺序不同就会错位。
 /// 指纹不参与游戏逻辑，只在启动与联机时给出一条"两端不一致"的证据。

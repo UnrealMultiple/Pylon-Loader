@@ -5,7 +5,9 @@ using Pylon.ModLoader;
 using Terraria;
 using Terraria.DataStructures;
 using Terraria.ID;
-using PlayerDrawLayers = Pylon.ModLoader.PlayerDrawLayers;
+using PlayerDrawLayers = Pylon.ModLoader.Content.PlayerDrawLayers;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 
 namespace PipelineTest.Content;
 

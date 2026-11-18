@@ -1,7 +1,9 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria.GameContent;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 晶塔类型表：类型号从 <see cref="TeleportPylonType.Count"/>（11）起，按注册序排列。
 /// `TeleportPylonType` 是 byte 底层枚举，所以 mod 晶塔最多到 255。

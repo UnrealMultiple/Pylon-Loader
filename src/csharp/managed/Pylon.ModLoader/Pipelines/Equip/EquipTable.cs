@@ -1,9 +1,12 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Pylon.ModLoader.Tables;
 using Pylon.ModLoader.Textures;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>装备贴图表：按部位各一条槽位序列（槽位 = 该部位原版表长 + 序）。</summary>
 internal static class EquipTable
 {

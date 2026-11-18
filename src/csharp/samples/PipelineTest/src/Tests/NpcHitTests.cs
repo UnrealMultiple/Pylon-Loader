@@ -1,6 +1,7 @@
 using Il2CppMicrosoft.Xna.Framework;
 using PipelineTest.Content;
 using Terraria;
+using Pylon.ModLoader.Core;
 
 namespace PipelineTest.Tests;
 

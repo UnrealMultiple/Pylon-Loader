@@ -1,10 +1,13 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.UI;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>饰品槽准入与盔甲绘制：四个 UI 入口的准入按 ModItem→GlobalItem 链全放行；盔甲颜色与手臂辉光在绘制集就绪后问作者。</summary>
 internal static class ItemEquipHooks
 {

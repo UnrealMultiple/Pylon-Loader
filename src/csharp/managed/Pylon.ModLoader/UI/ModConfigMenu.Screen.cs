@@ -1,6 +1,9 @@
-using System.IO;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Audio;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.Pipelines;
 using Pylon.ModLoader.Textures;
 using Terraria;
 using GameTexture2D = Il2CppMicrosoft.Xna.Framework.Graphics.Texture2D;
@@ -22,7 +25,7 @@ public static partial class ModConfigMenu
         GUIPanel.Draw(S.MenuDivider2, false, NoColor(), NoColor(), NoColor());
 
         List<Mod> mods = [];
-        foreach (var m in ModLoader.Mods)
+        foreach (var m in ModQuery.Mods)
         {
             foreach (var e in Entries(m))
             {

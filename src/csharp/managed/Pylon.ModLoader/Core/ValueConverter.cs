@@ -1,7 +1,6 @@
 using System.Globalization;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Core;
 /// <summary>配置值（object）到强类型的窄口转换。</summary>
 internal static class ValueConverter
 {

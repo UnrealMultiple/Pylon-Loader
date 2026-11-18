@@ -2,6 +2,8 @@ using Il2CppMicrosoft.Xna.Framework;
 using Pylon.Managed.Mods;
 using Terraria;
 using Terraria.GameContent;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 
 namespace Pylon.Managed.Hosting;
 

@@ -1,11 +1,10 @@
-using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.GameContent.ObjectInteractions;
 using Terraria.Localization;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>自定义方块/家具（一类型一实例）；多格家具的形状在 SetStaticDefaults 里用 TileObjectData。</summary>
 public abstract class ModTile : ModType
 {
@@ -152,7 +151,8 @@ public abstract class ModTile : ModType
 
     /// <summary>这一格画在哪、画哪块（宽/竖偏移/高/帧）。</summary>
     public virtual void SetDrawPositions(int i, int j, ref int width, ref int offsetY, ref int height,
-                                         ref int tileFrameX, ref int tileFrameY) { }
+                                         ref int tileFrameX, ref int tileFrameY)
+    { }
 
     /// <summary>镜像（1 = 水平翻转）。</summary>
     public virtual void SetSpriteEffects(int i, int j, ref SpriteEffects spriteEffects) { }

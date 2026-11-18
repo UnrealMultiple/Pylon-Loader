@@ -1,7 +1,7 @@
+using Pylon.ModLoader.Content;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Contracts;
 /// <summary>城镇商店的公共面：店名、条目集合与装货架的形状；普通店用 NpcShop（手机端注册只收它），条目的 Item 会被钉住防回收。</summary>
 public abstract class AbstractNpcShop
 {

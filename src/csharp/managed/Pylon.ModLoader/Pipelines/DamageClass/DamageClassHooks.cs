@@ -1,13 +1,13 @@
-using System;
-using System.Collections.Generic;
-using System.Threading;
 using Il2CppMicrosoft.Xna.Framework;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.DataStructures;
 using Terraria.ID;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 伤害职业的游戏入口：每帧重置（ResetEffects）、攻速折算（CapAttackSpeeds）、
 /// 武器伤害/暴击/击退/攻速（GetWeaponDamageMultiplier、GetWeaponCrit、GetWeaponKnockback、

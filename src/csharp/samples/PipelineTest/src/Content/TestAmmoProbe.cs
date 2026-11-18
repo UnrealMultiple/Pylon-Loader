@@ -1,6 +1,8 @@
 using Pylon.ModLoader;
 using Terraria;
 using Terraria.ID;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Globals;
 
 namespace PipelineTest.Content;
 

@@ -1,6 +1,6 @@
 using Terraria.UI;
 
-namespace Pylon.ModLoader;
+namespace Pylon.ModLoader.Content;
 
 public delegate bool GameInterfaceDrawMethod();
 

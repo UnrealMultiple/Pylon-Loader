@@ -2,8 +2,7 @@ using System.Collections;
 using System.Globalization;
 using Il2CppMicrosoft.Xna.Framework;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Contracts;
 /// <summary>Mod 侧网络读取器：构造时抓住接收到的值数组，按写入顺序读回（写侧是 NetWriter；读超界抛异常）。</summary>
 public class NetReader
 {

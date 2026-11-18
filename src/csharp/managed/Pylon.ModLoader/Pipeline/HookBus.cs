@@ -1,5 +1,4 @@
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipeline;
 /// <summary>钩子订阅表：每个钩子一条稠密数组，按 Mod 加载顺序排列；注册期构建，分派期只读。</summary>
 internal sealed class HookBus
 {

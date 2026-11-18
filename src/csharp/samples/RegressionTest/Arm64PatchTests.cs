@@ -1,4 +1,6 @@
 using Pylon.ModLoader;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Patching;
 
 namespace RegressionTest;
 

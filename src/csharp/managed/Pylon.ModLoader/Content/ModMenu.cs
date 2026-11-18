@@ -1,10 +1,9 @@
 using Il2CppMicrosoft.Xna.Framework;
-using System;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Pipelines;
 using ReLogic.Content;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>标题画面的主题：菜单里的 logo、太阳、月亮与背景。没有在设置里选过的主题时，生效的是最后加载的 mod 的主题。</summary>
 public abstract class ModMenu : ModType
 {
@@ -63,5 +62,3 @@ public abstract class ModMenu : ModType
     /// <summary>logo 画完之后，参数是它画的时候的值。</summary>
     public virtual void PostDrawLogo(SpriteBatch spriteBatch, Vector2 logoDrawCenter, float logoRotation, float logoScale, Color drawColor) { }
 }
-
-// 未移植 register：Pylon 的注册由 ModType 发现自动做，主题切换与 SetStaticDefaults 的调用在管线里。

@@ -1,5 +1,8 @@
-namespace Pylon.ModLoader;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>菜单主题表：按注册序排列；当前生效的那一个由管线写 <see cref="ModMenu.IsSelected"/>。</summary>
 internal static class MenuTable
 {

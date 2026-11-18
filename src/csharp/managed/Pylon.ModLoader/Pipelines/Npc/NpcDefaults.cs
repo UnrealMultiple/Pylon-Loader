@@ -1,11 +1,14 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Pylon.ModLoader.Textures;
 using Terraria;
 using Terraria.GameContent;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>NPC.SetDefaults 接管：原版先跑，再叠作者默认值并补上原版 type 超界提前 return 漏掉的收尾；同时缓存帧数与贴图尺寸。</summary>
 internal sealed class NpcDefaults(NpcBinding binding)
 {
@@ -142,7 +145,7 @@ internal sealed class NpcDefaults(NpcBinding binding)
         }
     }
 
-#region 帧数与贴图尺寸
+    #region 帧数与贴图尺寸
 
     public int FramesOf(int type)
     {
@@ -225,6 +228,6 @@ internal sealed class NpcDefaults(NpcBinding binding)
         public int Width;
         public int Height;
     }
-#endregion
+    #endregion
 
 }

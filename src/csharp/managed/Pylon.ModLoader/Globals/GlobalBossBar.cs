@@ -1,8 +1,8 @@
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Globals;
 /// <summary>作用于所有 Boss 血条（游戏的和 ModBossBar 的）的横切类；一个类一个实例，钩子收到 NPC 自己挑。</summary>
 public abstract class GlobalBossBar : ModType
 {
@@ -16,4 +16,3 @@ public abstract class GlobalBossBar : ModType
     public virtual void PostDraw(SpriteBatch spriteBatch, NPC npc, BossBarDrawParams drawParams) { }
 }
 
-// 未移植 register：注册与钩子挂接（globalBossBars.Register + BossBarLoader.WantGlobals）走 Pylon 的自动发现 + Harmony 层。

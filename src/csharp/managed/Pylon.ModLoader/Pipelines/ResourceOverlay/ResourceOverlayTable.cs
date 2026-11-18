@@ -1,5 +1,7 @@
-namespace Pylon.ModLoader;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Pipeline;
 
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>资源覆盖层的有序表：按注册序逐条分派；位集用来跳过"没覆写这一组钩子"的覆盖层。</summary>
 internal static class ResourceOverlayTable
 {

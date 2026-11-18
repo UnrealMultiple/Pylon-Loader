@@ -1,12 +1,14 @@
-using System.IO;
 using System.Text;
-using Il2CppMicrosoft.Xna.Framework;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.Localization;
 using Terraria.Net;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>Mod 数据通道：一个消息号 + 一个种类字节，含 Mod 包 / 世界 / NPC 附加 / 弹幕附加四种包；载荷序列化在 NetCodec。</summary>
 internal sealed class NetPipeline : ILoaderModule
 {
@@ -40,7 +42,7 @@ internal sealed class NetPipeline : ILoaderModule
 
     public bool Install()
     {
-        foreach (var mod in ModLoader.Mods)
+        foreach (var mod in ModQuery.Mods)
         {
             if (mod is not null && !_byName.ContainsKey(mod.Name)) _byName[mod.Name] = mod;
         }
@@ -295,17 +297,17 @@ internal sealed class NetPipeline : ILoaderModule
         switch (action)
         {
             case MetaFingerprint:
-            {
-                var remote = reader.ReadUInt64();
-                ContentFingerprint.Refresh();
-                JudgeFingerprint(remote, from);
-                break;
-            }
+                {
+                    var remote = reader.ReadUInt64();
+                    ContentFingerprint.Refresh();
+                    JudgeFingerprint(remote, from);
+                    break;
+                }
             case NetHandshake.MetaWelcome:
-            {
-                if (Main.netMode == 1) _handshake.ReceiveWelcome(reader.ReadByte());
-                break;
-            }
+                {
+                    if (Main.netMode == 1) _handshake.ReceiveWelcome(reader.ReadByte());
+                    break;
+                }
         }
     }
 
@@ -499,25 +501,7 @@ internal sealed class NetPipeline : ILoaderModule
         {
             var who = Main.netMode == 2 && remoteClient >= 0 ? remoteClient : 256;
 
-            foreach (var mod in ModLoader.Mods)
-            {
-                if (mod is null || !mod.Plan.Has(HookId.HijackSendData)) continue;
-
-                try
-                {
-                    if (!mod.HijackSendData(who, msgType, remoteClient, ignoreClient, text, number, number2,
-                            number3, number4, number5, number6, number7)) continue;
-
-                    hijacked = true;
-                    break;
-                }
-                catch (Exception e)
-                {
-                    Safe.Report(mod.Name + ".HijackSendData", e);
-                }
-            }
-
-            if (!hijacked && SystemLoader.With(HookId.HijackSendData).Length > 0)
+            if (SystemLoader.With(HookId.HijackSendData).Length > 0)
             {
                 try
                 {

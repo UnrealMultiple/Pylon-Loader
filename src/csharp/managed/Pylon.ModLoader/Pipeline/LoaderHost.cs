@@ -1,5 +1,10 @@
-namespace Pylon.ModLoader;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Install;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipelines;
 
+namespace Pylon.ModLoader.Pipeline;
 /// <summary>
 /// 管线宿主：内容表、钩子总线、安装管线、Mod 集合的唯一持有者。
 /// 静态类只是门面，状态都在这里；换进程、换游戏实例不需要清理任何静态字段。

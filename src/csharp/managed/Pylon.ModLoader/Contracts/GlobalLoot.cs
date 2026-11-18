@@ -1,8 +1,7 @@
 using Terraria;
 using Terraria.GameContent.ItemDropRules;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Contracts;
 /// <summary>对全部 NPC 生效的全局掉落表（游戏 ItemDropsDB 的 _globalEntries）；ModifyGlobalLoot 里 Add/Remove/RemoveWhere 改它。</summary>
 public readonly struct GlobalLoot : ILoot
 {

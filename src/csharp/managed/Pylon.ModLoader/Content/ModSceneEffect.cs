@@ -1,9 +1,7 @@
-using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>自定义场景效果，像 tModLoader：对玩家激活时，按 Priority + GetWeight 抢音乐、表层/地下背景、水和全屏地图背景。</summary>
 public abstract class ModSceneEffect : ModType
 {

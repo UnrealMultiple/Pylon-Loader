@@ -2,6 +2,9 @@ using PipelineTest.Content;
 using Pylon.ModLoader;
 using Terraria;
 using Terraria.GameContent.UI.ResourceSets;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Pipelines;
+using PlayerDrawLayers = Pylon.ModLoader.Content.PlayerDrawLayers;
 
 namespace PipelineTest.Tests;
 

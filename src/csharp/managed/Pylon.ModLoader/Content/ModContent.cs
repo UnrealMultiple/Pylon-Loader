@@ -1,10 +1,10 @@
 using System.Diagnostics.CodeAnalysis;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
-using Pylon.ModLoader.Textures;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.Pipelines;
 using ReLogic.Content;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>内容门面：Mod 侧唯一入口。所有状态都在 <see cref="LoaderHost"/>，这里只做转发。</summary>
 public static class ModContent
 {

@@ -1,8 +1,6 @@
-using System.Numerics;
 using System.Reflection;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipeline;
 /// <summary>把"这个类相对某个基类覆写了哪些方法"算成位集；按 (类型, 基类) 缓存。</summary>
 internal static class HookScan
 {

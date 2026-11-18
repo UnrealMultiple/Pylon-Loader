@@ -1,23 +1,17 @@
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
+using Pylon.ModLoader.Logging;
+using Pylon.NaviteAPI.Host;
 using ReLogic.Content;
 using UnityEngine;
 using GameTexture2D = Il2CppMicrosoft.Xna.Framework.Graphics.Texture2D;
 using UnityTexture2D = UnityEngine.Texture2D;
-using Pylon.NaviteAPI.Host;
 
 namespace Pylon.ModLoader.Textures;
 
-/// <summary>
-/// PNG/JPG → 游戏贴图。只能游戏线程调：别的线程上建 Unity 对象是 abort 进程。
-/// 真机上不要读游戏包装的 Texture2D.Width/Height（读会 NRE、setter 静默无效，source=null 时
-/// SpriteBatch 算不出源矩形就什么都画不出来）；尺寸一律走 <see cref="Size"/>（读 Unity 侧），
-/// 源矩形自己 new Rectangle(0, 0, w, h)。同一份贴图不要重复 LoadAsset——走 ModContent.Request 的单实例缓存。
-/// </summary>
 public static class PylonTexture
 {
     internal static ModLogger? Logger { get; set; }
 
-    /// <summary>当前线程是不是游戏线程；问不到内核时一律当作"不是"。</summary>
     public static bool IsGameThread
     {
         get
@@ -37,15 +31,13 @@ public static class PylonTexture
         return asset;
     }
 
-    /// <summary>字节 → 游戏 Texture2D：占位纹理 → Unity 解码 → 游戏层包装。</summary>
     public static GameTexture2D Decode(byte[]? data, string assetName)
     {
         if (data is null || data.Length == 0) throw new PylonTextureException($"'{assetName}' 的贴图数据为空");
         RequireGameThread($"上传贴图 '{assetName}'");
 
-        // 必须显式构造 IL2CPP 数组：传 C# byte[] 会被隐式转成空数组，表现是"不是能读的 PNG"。
         var bytes = new Il2CppStructArray<byte>(data);
-        var unity = new UnityTexture2D(2, 2);   // 占位尺寸，LoadImage 会改成真实尺寸
+        var unity = new UnityTexture2D(2, 2);
         bool decoded;
         try
         {
@@ -62,7 +54,7 @@ public static class PylonTexture
             throw new PylonTextureException($"'{assetName}' 不是 Unity 能解码的 PNG/JPG");
         }
 
-        unity.filterMode = FilterMode.Point;       // 像素画：最近邻，否则糊
+        unity.filterMode = FilterMode.Point;
         unity.wrapMode = TextureWrapMode.Clamp;
         var texture = new GameTexture2D(unity);
 
@@ -70,7 +62,6 @@ public static class PylonTexture
         return texture;
     }
 
-    /// <summary>贴图逻辑尺寸（读 Unity 侧；游戏包装的 Width/Height 不保证已填）。</summary>
     public static void Size(GameTexture2D? texture, out int width, out int height)
     {
         if (texture is null) throw new PylonTextureException("贴图为 null");
@@ -78,13 +69,8 @@ public static class PylonTexture
         height = texture.UnityTextureHeight;
     }
 
-    /// <summary>
-    /// Mod 目录下的相对文件在磁盘上不存在时的兜底回调（root, relativePath）。
-    /// 宿主用它给 .pmod 包做惰性解包：Mod 代码照旧按路径读文件，包内容按需落到缓存。
-    /// </summary>
     public static Action<string, string>? ContentResolver { get; set; }
 
-    /// <summary>绝对路径原样；相对路径按 Mod 目录解析，且不许跑出该目录。</summary>
     public static string Resolve(Mod? owner, string path)
     {
         if (string.IsNullOrEmpty(path)) throw new PylonTextureException("贴图路径为空");
@@ -103,7 +89,6 @@ public static class PylonTexture
     private static string NameOf(Mod? owner, string? path) =>
         $"{(owner is null ? "?" : owner.Name)}/{(path ?? "?").Replace('\\', '/')}";
 
-    // 拒绝是封闭的：只有确认在游戏线程上才放行。
     private static void RequireGameThread(string what)
     {
         if (IsGameThread) return;

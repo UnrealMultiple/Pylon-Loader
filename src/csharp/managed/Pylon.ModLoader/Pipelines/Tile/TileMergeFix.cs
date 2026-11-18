@@ -1,11 +1,12 @@
-using System;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Tables;
 using Terraria;
 using BoolRow = Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<bool>;
 using RowTable = Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<bool>>;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// Main.tileMerge 是 bool[754][754] 的锯齿表：默认扩表只扩外层，让所有 mod 行
 /// 指向同一条 754 长的原版短行，tileMerge[mod][mod] = true 直接写越界。

@@ -1,5 +1,7 @@
-namespace Pylon.ModLoader;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Pipeline;
 
+namespace Pylon.ModLoader.Hooks;
 /// <summary>
 /// 非实体 Global（GlobalBuff / GlobalTile）的注册表：模板按注册序排队，
 /// 钩子索引在注册期算好；分派时按 <see cref="HookId"/> 直接取数组。

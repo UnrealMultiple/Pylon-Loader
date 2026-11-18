@@ -1,13 +1,17 @@
-using Pylon.ModLoader.Tables;
-using Pylon.ModLoader.Textures;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Patching;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.Tables;
 using Terraria;
 using Terraria.GameContent;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>增益管线：效果 / 施加 / 续时 / 文字 / 图标 / 取消。</summary>
 internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
 {
@@ -446,8 +450,11 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
 
         var before = new BuffDrawParams
         {
-            Texture = parameters.Texture, Position = parameters.Position, TextPosition = parameters.TextPosition,
-            SourceRectangle = parameters.SourceRectangle, MouseRectangle = parameters.MouseRectangle,
+            Texture = parameters.Texture,
+            Position = parameters.Position,
+            TextPosition = parameters.TextPosition,
+            SourceRectangle = parameters.SourceRectangle,
+            MouseRectangle = parameters.MouseRectangle,
             DrawColor = parameters.DrawColor
         };
 

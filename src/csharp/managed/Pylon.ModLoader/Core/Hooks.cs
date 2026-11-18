@@ -1,9 +1,8 @@
 using System.Reflection;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Core;
 /// <summary>Hook 安装的幂等门，以及"这个类是否覆写了某个钩子"的注册期判定。</summary>
-internal static class Hooks
+internal static class HookGuard
 {
     private static readonly HashSet<string> Installed = new(StringComparer.Ordinal);
 

@@ -6,8 +6,11 @@ using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader;
 using Terraria;
 using Terraria.GameContent;
-using AuthorLayer = Pylon.ModLoader.GameInterfaceLayer;
-using AuthorLegacyLayer = Pylon.ModLoader.LegacyGameInterfaceLayer;
+using AuthorLayer = Pylon.ModLoader.Content.GameInterfaceLayer;
+using AuthorLegacyLayer = Pylon.ModLoader.Content.LegacyGameInterfaceLayer;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
+using GameInterfaceLayer = Pylon.ModLoader.Content.GameInterfaceLayer;
 
 namespace PipelineTest.Content;
 

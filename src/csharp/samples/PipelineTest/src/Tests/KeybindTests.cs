@@ -1,5 +1,8 @@
 using Il2CppMicrosoft.Xna.Framework.Input;
 using Pylon.ModLoader;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Pipelines;
 
 namespace PipelineTest.Tests;
 

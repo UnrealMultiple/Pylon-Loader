@@ -7,8 +7,7 @@ using NullableRect = Il2CppSystem.Nullable<Il2CppMicrosoft.Xna.Framework.Rectang
 namespace Pylon.ModLoader.UI;
 
 /// <summary>
-/// 面板：半透明背板 + 标题 + 文本行（+ 图片）。不建 UIPanel/UIText，每帧直接往 Main.spriteBatch 上画：
-/// 文字与背板同帧出现，字体没就绪就整块不画。
+/// 面板：半透明背板 + 标题 + 文本行（+ 图片）
 /// </summary>
 public sealed class ModPanel
 {
@@ -50,13 +49,10 @@ public sealed class ModPanel
         return this;
     }
 
-    /// <summary>每帧直绘。字体没就绪就整块不画——面板和文字一起出现。</summary>
     internal void Draw(SpriteBatch? batch)
     {
         var font = TryFont();
         if (font == null || batch == null) return;
-
-        // 背板：半透明深色（MagicPixel 铺一块）+ 顶边；资源没就绪时跳过背板，文字照画。
         try
         {
             var pixel = TextureAssets.MagicPixel.Value;

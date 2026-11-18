@@ -1,11 +1,14 @@
 using System.Reflection;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Localization;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.GameContent.Prefixes;
 using Terraria.ID;
 using Terraria.Localization;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>前缀表：类型 ↔ 实例、分类索引、名字表、原版表读取；安装期与运行时共用同一张表，不依赖管线实例。</summary>
 internal static class PrefixTable
 {

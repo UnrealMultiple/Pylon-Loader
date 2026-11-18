@@ -3,8 +3,7 @@ using Il2CppMicrosoft.Xna.Framework.Graphics;
 using ReLogic.Content;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>自定义 Boss 血条；NPC 在 SetDefaults 里用 ModContent.GetInstance 挂给 ModNpc.BossBar。</summary>
 public abstract class ModBossBar : ModType
 {
@@ -56,5 +55,3 @@ public abstract class ModBossBar : ModType
         return true;
     }
 }
-
-// 未移植 register 与 SetStaticDefaults 的调用：走 Pylon 自动发现 + Harmony 层，不照抄静态注册表。

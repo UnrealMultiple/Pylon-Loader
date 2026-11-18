@@ -1,7 +1,6 @@
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>自定义稀有度：类型在注册时排在游戏的 12 个之后，写进 item.rare。</summary>
 public abstract class ModRarity : ModType
 {

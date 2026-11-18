@@ -1,5 +1,4 @@
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Contracts;
 // 顺序：SourceDamage/IncomingDamageMultiplier 在防御前，ArmorPenetration 扣防御，FinalDamage/SetMaxDamage 在防御后；
 // 本版没有可变玩家击退，Knockback 只留读。
 /// <summary>打在玩家身上的这一下（ModifyHurt、ModifyHitByNPC、ModifyHitPlayer... 收到的修改器）；改字段 = 改这次伤害。</summary>

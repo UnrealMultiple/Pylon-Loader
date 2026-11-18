@@ -1,13 +1,18 @@
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using Il2CppInterop.Runtime;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Globals;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Patching;
+using Pylon.ModLoader.Pipeline;
 using Pylon.NaviteAPI.Host;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>城镇攻击八件套与全局攻防加成（BuffTownNPC）：入口钩够不到 AI_007 攻击段，全部走中体桥（指纹校验 + MidBodyIntercept）改参放行；桥只装给声明钩子的 mod 城镇 NPC，BuffTownNPC 全局时全体安装。</summary>
 internal static unsafe class NpcTownAttackHooks
 {

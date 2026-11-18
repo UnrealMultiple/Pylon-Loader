@@ -6,6 +6,9 @@ using Pylon.ModLoader;
 using Terraria;
 using Terraria.GameContent.UI;
 using Terraria.ID;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Globals;
 
 namespace PipelineTest.Content;
 

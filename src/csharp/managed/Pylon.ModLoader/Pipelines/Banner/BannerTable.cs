@@ -1,9 +1,10 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Terraria;
 using Terraria.GameContent;
 using Terraria.ID;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 旗帜侧表：三张映射 + 击杀侧表。
 /// mod 旗子的编号 = 代表 NPC 的类型号（都大于原版 NPC 数），所以游戏那三张原版长度的平行表

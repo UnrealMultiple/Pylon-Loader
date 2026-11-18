@@ -1,5 +1,7 @@
-namespace Pylon.ModLoader;
+using Pylon.ModLoader.Globals;
+using Pylon.ModLoader.Pipeline;
 
+namespace Pylon.ModLoader.Hooks;
 /// <summary>GlobalBuff 的注册表与分派：buff 没有实体，钩子自己按 type 挑。</summary>
 internal static class GlobalBuffRegistry
 {

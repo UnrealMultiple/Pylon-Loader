@@ -3,6 +3,8 @@ using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader;
 using ReLogic.Content;
 using Terraria;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 
 namespace PipelineTest.Content;
 

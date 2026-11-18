@@ -1,9 +1,13 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Globals;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
-using Terraria.GameContent.ItemDropRules;
 using Terraria.ID;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 掉落侧表：跑全局规则、预建物品规则、记数。规则本身存在游戏自己的 <c>ItemDropsDB</c> 里，
 /// 这里不复制一份（复制就会和游戏的表不一致）。

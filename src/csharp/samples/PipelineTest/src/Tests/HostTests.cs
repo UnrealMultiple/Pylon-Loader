@@ -1,6 +1,8 @@
 using System;
 using System.Linq;
 using Pylon.ModLoader;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Pipeline;
 
 namespace PipelineTest.Tests;
 
@@ -36,7 +38,7 @@ internal static class HostTests
         PT.Case("HOST-02", c =>
         {
             // BOOT 行已在 PT.Boot() 打过；这里验证内容发现按 FullKey 回查。
-            var found = ModContent.TryFind<Pylon.ModLoader.ModType>("PipelineTest/NotExist", out var _);
+            var found = ModContent.TryFind<Pylon.ModLoader.Content.ModType>("PipelineTest/NotExist", out var _);
             c.True(!found, "不存在的 FullKey 不应命中");
             c.True(PipelineTestMod.Instance.GetContent().Count() > 0,
                 $"内容发现 {PipelineTestMod.Instance.GetContent().Count()} 个");
@@ -45,7 +47,7 @@ internal static class HostTests
         PT.Case("HOST-03", c =>
         {
             // GetContent 收集 == 本 Mod 注册的内容数。
-            var mine = PipelineTestMod.Instance.GetContent<Pylon.ModLoader.ModType>().ToList();
+            var mine = PipelineTestMod.Instance.GetContent<Pylon.ModLoader.Content.ModType>().ToList();
             c.True(mine.Count > 0, $"本 Mod 内容 {mine.Count} 个");
             c.True(mine.All(instance => instance.Mod == PipelineTestMod.Instance), "全部属于本 Mod");
             c.Eq(PipelineTestMod.Instance.GetContent().Count(), mine.Count, "Mod.GetContent 数");
@@ -98,10 +100,10 @@ internal static class HostTests
         PT.Case("HOST-04", c =>
         {
             // 安装完成：GameContent.Installed 为真，且没有 UnavailableReason。
-            c.True(Pylon.ModLoader.GameContent.Installed,
-                $"GameContent.Installed={Pylon.ModLoader.GameContent.Installed}");
-            c.True(Pylon.ModLoader.GameContent.UnavailableReason is null,
-                "UnavailableReason=" + Pylon.ModLoader.GameContent.UnavailableReason);
+            c.True(Pylon.ModLoader.Content.GameContent.Installed,
+                $"GameContent.Installed={Pylon.ModLoader.Content.GameContent.Installed}");
+            c.True(Pylon.ModLoader.Content.GameContent.UnavailableReason is null,
+                "UnavailableReason=" + Pylon.ModLoader.Content.GameContent.UnavailableReason);
         });
     }
 }

@@ -4,6 +4,9 @@ using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Pylon.ModLoader;
 using Terraria;
 using Terraria.ID;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Core;
 
 namespace PipelineTest.Tests;
 

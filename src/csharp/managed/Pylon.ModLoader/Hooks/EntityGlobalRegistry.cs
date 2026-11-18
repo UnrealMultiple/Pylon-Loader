@@ -1,13 +1,24 @@
 using System.Runtime.CompilerServices;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Pipeline;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Hooks;
 /// <summary>
 /// Global*（作用于游戏实体的全局钩子）的注册表。
 /// 模板按注册序排队；钩子索引在注册期算好，分派时按 <see cref="HookId"/> 取数组。
 /// 只有声明了 InstancePerEntity 或 AppliesToEntity 时才为实体维护实例列表，否则直接用模板表（零分配）。
 /// </summary>
-internal sealed class EntityGlobalRegistry<TGlobal, TEntity>
+/// <param name="baseType">
+/// 非 null 时按这个基类精确判定覆写（如 typeof(GlobalNpc)）；
+/// null 表示沿用 ModType.Plan 的判定（GlobalItem / GlobalProjectile 当前行为）。
+/// </param>
+internal sealed class EntityGlobalRegistry<TGlobal, TEntity>(
+    Func<TGlobal, bool> isPerEntity,
+    Func<TGlobal, TEntity, bool, bool> appliesTo,
+    Func<TGlobal, TEntity, TGlobal> createInstance,
+    Func<TEntity?, long> address,
+    bool defaultLateInstantiation,
+    Type? baseType = null)
     where TGlobal : class
     where TEntity : class
 {
@@ -19,41 +30,21 @@ internal sealed class EntityGlobalRegistry<TGlobal, TEntity>
         public readonly HashSet<TGlobal> Set = [];
     }
 
-    private readonly Func<TGlobal, bool> _isPerEntity;
-    private readonly Func<TGlobal, TEntity, bool, bool> _appliesTo;
-    private readonly Func<TGlobal, TEntity, TGlobal> _createInstance;
-    private readonly Func<TEntity?, long> _address;
-    private readonly bool _defaultLateInstantiation;
+    private readonly Func<TGlobal, bool> _isPerEntity = isPerEntity;
+    private readonly Func<TGlobal, TEntity, bool, bool> _appliesTo = appliesTo;
+    private readonly Func<TGlobal, TEntity, TGlobal> _createInstance = createInstance;
+    private readonly Func<TEntity?, long> _address = address;
+    private readonly bool _defaultLateInstantiation = defaultLateInstantiation;
 
     private readonly List<TGlobal> _templates = [];
     private readonly List<TGlobal> _empty = [];
     private readonly Dictionary<long, List<TGlobal>> _attached = [];
-    private readonly Type? _baseType;
+    private readonly Type? _baseType = baseType;
 
     private ConditionalWeakTable<List<TGlobal>, Dictionary<int, List<TGlobal>>> _filtered = new();
 
     private HookEntry?[]? _byHook;
     private bool _needsPerEntity;
-
-    /// <param name="baseType">
-    /// 非 null 时按这个基类精确判定覆写（如 typeof(GlobalNpc)）；
-    /// null 表示沿用 ModType.Plan 的判定（GlobalItem / GlobalProjectile 当前行为）。
-    /// </param>
-    public EntityGlobalRegistry(
-        Func<TGlobal, bool> isPerEntity,
-        Func<TGlobal, TEntity, bool, bool> appliesTo,
-        Func<TGlobal, TEntity, TGlobal> createInstance,
-        Func<TEntity?, long> address,
-        bool defaultLateInstantiation,
-        Type? baseType = null)
-    {
-        _isPerEntity = isPerEntity;
-        _appliesTo = appliesTo;
-        _createInstance = createInstance;
-        _address = address;
-        _defaultLateInstantiation = defaultLateInstantiation;
-        _baseType = baseType;
-    }
 
     public IReadOnlyList<TGlobal> All => _templates;
 

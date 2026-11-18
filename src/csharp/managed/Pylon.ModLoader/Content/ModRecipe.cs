@@ -1,10 +1,13 @@
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Localization;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipelines;
 using Terraria;
 using Terraria.ID;
 using Terraria.Localization;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>一份配方（在 AddRecipes 里 new 出来）：链式填完再 Register 交给游戏。</summary>
 public class ModRecipe
 {

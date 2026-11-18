@@ -1,5 +1,6 @@
-namespace Pylon.ModLoader;
+using Pylon.ModLoader.Content;
 
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 血条侧表：只用来"知道有哪些血条、都叫啥"和在安装期统一调一次 <c>SetStaticDefaults</c>。
 /// 血条不需要编号——NPC 直接声明实例，分派时按 NPC 类型现查。

@@ -1,7 +1,6 @@
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>自定义表层背景风格：抢到场景时在游戏 16 个风格之后占一个编号，挑各层贴图、管透明度。</summary>
 public abstract class ModSurfaceBackgroundStyle : ModType
 {
@@ -33,5 +32,3 @@ public abstract class ModSurfaceBackgroundStyle : ModType
     /// <summary>只放共享数值，不要碰游戏对象。</summary>
     public override void SetStaticDefaults() { }
 }
-
-// 未移植 register：Pylon 的注册由 ModType 发现自动做，编号分配与 SetStaticDefaults 的调用在管线里。

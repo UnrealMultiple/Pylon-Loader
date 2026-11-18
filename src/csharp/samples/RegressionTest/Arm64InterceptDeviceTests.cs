@@ -11,6 +11,8 @@ using static AsmArm64.Arm64RegisterSP;
 using static AsmArm64.Arm64RegisterV;
 using static AsmArm64.Arm64RegisterX;
 using AsmInstruction = AsmArm64.Arm64Instruction;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Patching;
 
 namespace RegressionTest
 {

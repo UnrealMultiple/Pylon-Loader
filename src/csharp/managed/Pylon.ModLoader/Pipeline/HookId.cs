@@ -1,5 +1,4 @@
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipeline;
 /// <summary>钩子编号：分派只认编号，不认字符串。新增一律追加在末尾。</summary>
 internal enum HookId
 {

@@ -1,7 +1,6 @@
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>回给玩家的那句错（消息 + 颜色）；不填消息就回 Usage，颜色缺省是红。</summary>
 public class UsageException : Exception
 {

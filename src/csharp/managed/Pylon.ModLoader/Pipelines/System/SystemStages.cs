@@ -1,11 +1,14 @@
 using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Patching;
+using Pylon.ModLoader.Pipeline;
 using Pylon.NaviteAPI.Host;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>系统阶段（ModSystem 等价物的每帧面）：游戏的玩家/NPC/物品更新子阶段内联在 DoUpdateInWorld 方法体中部，九个中体桥把时机送到这里再扇出给 mod。</summary>
 internal static unsafe class SystemStages
 {
@@ -58,7 +61,7 @@ internal static unsafe class SystemStages
         new(typeof(Main), "ClockAdvance", "UpdateTime", 0, 0xb8c,
             [0x1e602960, 0xfd024500, 0x97efb520, 0xf94002e0], [HookId.ModifyTimeRate]),
         new(typeof(Player), "DyeReward", "GetDyeTraderReward", 1, 0xef0,
-            [0xb9401aa1, 0x9000fe16, 0xd000fd78, 0xf947d2d6], [HookId.GetDyeTraderReward]),
+            [0xb9401aa1, 0x9000fe16, 0xd000fd78, 0xf947d2d6], [], HookId.GetDyeTraderReward),
         new(typeof(Player), "NaturalRegen", "UpdateLifeRegen", 0, 0x828,
             [0xbd481e60, 0xd000b709, 0xf9400300, 0xd000b70a], [], HookId.NaturalLifeRegen),
     ];
@@ -73,26 +76,14 @@ internal static unsafe class SystemStages
         if (!hookAvailable)
             log.Info("[system] ShadowHook 不可用：入口钩与 UpdateTimeRate 跳过，中体桥照常安装");
 
-        var hooks = LoaderHost.Current.Hooks;
         var installed = 0;
         var names = new List<string>();
-
-        if (hooks.Channel(HookId.PreUpdateEntities).Length > 0 ||
-            hooks.Channel(HookId.PostUpdateEverything).Length > 0)
-        {
-            if (hookAvailable)
-            {
-                On.Terraria.Main.DoUpdateInWorld += DoUpdateInWorld;
-                names.Add("入口 PreUpdateEntities/PostUpdateEverything");
-            }
-            else log.Warn("[system] 入口 PreUpdateEntities/PostUpdateEverything 需要 ShadowHook，跳过");
-        }
 
         for (var i = 0; i < Stages.Length; i++)
         {
             var stage = Stages[i];
             if (stage.Installed) continue;
-            if (!Gated(hooks, stage)) continue;
+            if (!Gated(stage)) continue;
 
             try
             {
@@ -130,13 +121,13 @@ internal static unsafe class SystemStages
         }
     }
 
-    private static bool Gated(HookBus hooks, Stage stage)
+    private static bool Gated(Stage stage)
     {
         if (stage.PlayerHook is { } playerHook)
             return PlayerPipeline.Instance.ModsActive(playerHook);
         foreach (var id in stage.Hooks)
         {
-            if (hooks.Channel(id).Length > 0 || SystemLoader.With(id).Length > 0) return true;
+            if (SystemLoader.With(id).Length > 0) return true;
         }
         return false;
     }
@@ -269,31 +260,6 @@ internal static unsafe class SystemStages
 
     private static void Fan(HookId id)
     {
-        foreach (var mod in LoaderHost.Current.Hooks.Channel(id))
-        {
-            try
-            {
-                switch (id)
-                {
-                    case HookId.PreUpdatePlayers: mod.PreUpdatePlayers(); break;
-                    case HookId.PostUpdatePlayers: mod.PostUpdatePlayers(); break;
-                    case HookId.PreUpdateNPCs: mod.PreUpdateNPCs(); break;
-                    case HookId.PostUpdateNPCs: mod.PostUpdateNPCs(); break;
-                    case HookId.PreUpdateGores: mod.PreUpdateGores(); break;
-                    case HookId.PostUpdateGores: mod.PostUpdateGores(); break;
-                    case HookId.PostUpdateProjectiles: mod.PostUpdateProjectiles(); break;
-                    case HookId.PreUpdateItems: mod.PreUpdateItems(); break;
-                    case HookId.PostUpdateItems: mod.PostUpdateItems(); break;
-                    case HookId.PreUpdateEntities: mod.PreUpdateEntities(); break;
-                    case HookId.PostUpdateEverything: mod.PostUpdateEverything(); break;
-                }
-            }
-            catch (Exception e)
-            {
-                Safe.Report(mod.Name + "." + id, e);
-            }
-        }
-
         switch (id)
         {
             case HookId.PreUpdatePlayers: SystemLoader.PreUpdatePlayers(); break;
@@ -313,17 +279,6 @@ internal static unsafe class SystemStages
         if (Main.gameMenu) return;
 
         var transform = Main.GameViewMatrix;
-        foreach (var mod in LoaderHost.Current.Hooks.Channel(HookId.ModifyTransformMatrix))
-        {
-            try
-            {
-                mod.ModifyTransformMatrix(ref transform);
-            }
-            catch (Exception e)
-            {
-                Safe.Report(mod.Name + ".ModifyTransformMatrix", e);
-            }
-        }
         SystemLoader.ModifyTransformMatrix(ref transform);
         Main.GameViewMatrix = transform;
     }
@@ -392,18 +347,6 @@ internal static unsafe class SystemStages
                 }
             }
 
-            foreach (var mod in LoaderHost.Current.Hooks.Channel(HookId.GetDyeTraderReward))
-            {
-                try
-                {
-                    mod.GetDyeTraderReward(ref pool);
-                }
-                catch (Exception e)
-                {
-                    Safe.Report(mod.Name + ".GetDyeTraderReward", e);
-                }
-            }
-
             list.Clear();
             var added = 0;
             for (var i = 0; i < pool.Count && added < DyePoolCapacity; i++)
@@ -428,17 +371,6 @@ internal static unsafe class SystemStages
         double time = Main.dayRate, tiles = Main.desiredWorldTilesUpdateRate, events = Main.dayRate;
         double initialTime = time, initialTiles = tiles;
 
-        foreach (var mod in LoaderHost.Current.Hooks.Channel(HookId.ModifyTimeRate))
-        {
-            try
-            {
-                mod.ModifyTimeRate(ref time, ref tiles, ref events);
-            }
-            catch (Exception e)
-            {
-                Safe.Report(mod.Name + ".ModifyTimeRate", e);
-            }
-        }
         SystemLoader.ModifyTimeRate(ref time, ref tiles, ref events);
 
         _clockRate = Rate(time, initialTime);
@@ -452,11 +384,4 @@ internal static unsafe class SystemStages
 
     private static double Rate(double value, double fallback) =>
         double.IsFinite(value) && value >= 0 && value <= int.MaxValue ? value : fallback;
-
-    private static void DoUpdateInWorld(On.Terraria.Main.orig_DoUpdateInWorld orig, Main self)
-    {
-        Fan(HookId.PreUpdateEntities);
-        orig(self);
-        Fan(HookId.PostUpdateEverything);
-    }
 }

@@ -1,8 +1,12 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.SaveData;
 using Terraria;
-using Terraria.ObjectData;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>方块实体管线：每帧分派、放置 / 摘除、多人同步、侧车存档；类型表在 TileEntityTable，实例绑定在 TileEntityBinding。</summary>
 internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
 {

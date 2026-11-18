@@ -1,8 +1,6 @@
-using System.Collections.Generic;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>
 /// 内置跳跃基类：不参与 mod 跳跃的排序安插（位置固定在 0..9）。
 /// 三个状态字段镜像到 Player 自己的字段上；本构建这些字段经代理是属性、不可 ref，

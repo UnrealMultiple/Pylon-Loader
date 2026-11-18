@@ -1,5 +1,4 @@
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>自定义瀑布样式：类同名 PNG 做贴图；占游戏 28 个之后的一号，由 ModWaterStyle.ChooseWaterfallStyle 选中。</summary>
 public abstract class ModWaterfallStyle : ModType
 {
@@ -14,6 +13,3 @@ public abstract class ModWaterfallStyle : ModType
     /// <summary>只放共享数值，不要碰游戏对象。</summary>
     public override void SetStaticDefaults() { }
 }
-
-// 未移植 register：桥接入口（实例化 + WaterfallStyleLoader.Add + Safe.Run）；Pylon 的注册由 ModType 自动发现，
-// 编号分配在管线里。

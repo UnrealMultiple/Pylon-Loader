@@ -2,6 +2,7 @@
 using System.ComponentModel;
 using Pylon.ModLoader;
 using Terraria.Localization;
+using Pylon.ModLoader.Content;
 
 namespace PipelineTest.Content;
 

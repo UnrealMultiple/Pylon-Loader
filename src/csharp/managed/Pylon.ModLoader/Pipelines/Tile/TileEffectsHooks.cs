@@ -1,7 +1,9 @@
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>逐格周边效果：SceneMetrics.Scan 之后先扫 buff 区域（closer=false）再扫视觉区域（closer=true），逐格派发 ModTile → GlobalTile.NearbyEffects；只查 TileTable 密集数组，热路径不进字典。</summary>
 internal static class TileEffectsHooks
 {
@@ -61,41 +63,41 @@ internal static class TileEffectsHooks
         var hasGlobals = globals.Count > 0;
 
         for (var i = lx; i <= hx; i++)
-        for (var j = ly; j <= hy; j++)
-        {
-            var tile = Main.tile[i, j];
-            if (!tile.active()) continue;
-
-            var type = tile.type;
-            var mod = TileTable.Of(type);
-            var modHooked = mod is not null && mod.HookEnabled(HookId.NearbyEffects);
-
-            if (!modHooked && !hasGlobals) continue;
-
-            if (modHooked)
+            for (var j = ly; j <= hy; j++)
             {
-                try
+                var tile = Main.tile[i, j];
+                if (!tile.active()) continue;
+
+                var type = tile.type;
+                var mod = TileTable.Of(type);
+                var modHooked = mod is not null && mod.HookEnabled(HookId.NearbyEffects);
+
+                if (!modHooked && !hasGlobals) continue;
+
+                if (modHooked)
                 {
-                    mod!.NearbyEffects(i, j, closer);
+                    try
+                    {
+                        mod!.NearbyEffects(i, j, closer);
+                    }
+                    catch (Exception e)
+                    {
+                        ContentErrors.Report($"[tile] {mod!.Name}.NearbyEffects 异常：{Safe.Describe(e)}");
+                    }
                 }
-                catch (Exception e)
+
+                for (var k = 0; k < globals.Count; k++)
                 {
-                    ContentErrors.Report($"[tile] {mod!.Name}.NearbyEffects 异常：{Safe.Describe(e)}");
+                    var global = globals[k];
+                    try
+                    {
+                        global.NearbyEffects(i, j, type, closer);
+                    }
+                    catch (Exception e)
+                    {
+                        ContentErrors.Report($"[tile] {global.FullKey}.NearbyEffects 异常：{Safe.Describe(e)}");
+                    }
                 }
             }
-
-            for (var k = 0; k < globals.Count; k++)
-            {
-                var global = globals[k];
-                try
-                {
-                    global.NearbyEffects(i, j, type, closer);
-                }
-                catch (Exception e)
-                {
-                    ContentErrors.Report($"[tile] {global.FullKey}.NearbyEffects 异常：{Safe.Describe(e)}");
-                }
-            }
-        }
     }
 }

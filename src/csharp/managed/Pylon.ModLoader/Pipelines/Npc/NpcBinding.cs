@@ -1,7 +1,9 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// NPC 实体 ↔ ModNpc 实例，外加“每类型覆写位集”的缓存。
 /// 位集按 typeof(ModNpc) 算（不是 ModType）：否则 ModNpc 自己的空 virtual 会被算成覆写，门控等于没有。

@@ -4,6 +4,8 @@ using Terraria;
 using Terraria.Achievements;
 using Terraria.GameContent.Achievements;
 using Terraria.ID;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
 
 namespace PipelineTest.Content;
 

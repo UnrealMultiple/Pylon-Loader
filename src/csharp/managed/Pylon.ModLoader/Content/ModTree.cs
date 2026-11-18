@@ -3,8 +3,7 @@ using ReLogic.Content;
 using Terraria.Enums;
 using Terraria.ID;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>自定义树；游戏眼里它就是 tile 5 那种树，认谁的是看树干底下那块地（GrowsOnTileId）。</summary>
 public abstract class ModTree : ModType
 {

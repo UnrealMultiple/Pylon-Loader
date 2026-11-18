@@ -8,7 +8,6 @@ namespace Pylon.ModLoader.Textures;
 /// <summary>贴图表槽位的读写。</summary>
 public static class TextureSlots
 {
-    /// <summary>写槽位；表没建或越界返回 false。</summary>
     public static bool TryWrite(TextureTable table, int type, Asset<Texture2D>? asset)
     {
         if (asset is null) return false;
@@ -18,7 +17,6 @@ public static class TextureSlots
         return true;
     }
 
-    /// <summary>表长（-1 = 表还没建）；用来判断"该扩表了"。</summary>
     public static int Length(TextureTable table) => Table(table)?.Length ?? -1;
 
     private static Il2CppReferenceArray<Asset<Texture2D>>? Table(TextureTable table)
@@ -70,7 +68,7 @@ public static class TextureSlots
         }
         catch
         {
-            return null;   // 表还没建时这些静态属性可能抛 NRE
+            return null;
         }
     }
 }

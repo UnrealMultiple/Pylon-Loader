@@ -2,6 +2,8 @@ using System.Runtime.InteropServices;
 using Pylon.Managed.Interop;
 using Pylon.Managed.Mods;
 using Pylon.ModLoader;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Textures;
 
 namespace Pylon.Managed.Hosting;
 

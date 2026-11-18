@@ -1,17 +1,15 @@
 using System.Collections.Concurrent;
 using Il2CppInterop.Runtime;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
-using Il2CppInterop.Runtime.Runtime;
 using UnityEngine;
 using JArg = UnityEngine.jvalue;
 
-namespace Pylon.ModLoader;
+namespace Pylon.ModLoader.Jni;
 
 /// <summary>
-/// JNI 原语层：直接调 UnityEngine.AndroidJNI，中间不再有 C++ 桥。
-/// 约定：交出去的引用一律是全局引用（用完 Dispose）；失败原因见 <see cref="LastError"/>。
+/// JNI 原语层：直接调 UnityEngine.AndroidJNI
 /// </summary>
-internal static class Jni
+internal static class JniBridge
 {
     private static readonly ConcurrentDictionary<(IntPtr Class, string Name, string Sig, bool Static), IntPtr> MethodIds = new();
     private static readonly ConcurrentDictionary<(IntPtr Class, string Name, string Sig, bool Static), IntPtr> FieldIds = new();
@@ -36,9 +34,6 @@ internal static class Jni
     {
         if (handle == IntPtr.Zero) return;
 
-        // ART can reuse a deleted global-reference slot for a different Java class.
-        // Evict IDs before releasing that slot, so a later class cannot inherit its
-        // cached constructor/method/field IDs. Object refs have no matching keys.
         foreach (var key in MethodIds.Keys)
             if (key.Class == handle) MethodIds.TryRemove(key, out _);
         foreach (var key in FieldIds.Keys)
@@ -75,7 +70,6 @@ internal static class Jni
         AndroidJNI.AttachCurrentThread();
     }
 
-    // ---- 方法 / 字段 ID（会话内稳定，按类 + 名字 + 签名缓存） ----
 
     internal static IntPtr Method(IntPtr cls, string name, string sig, bool isStatic)
     {
@@ -115,7 +109,6 @@ internal static class Jni
         return id;
     }
 
-    // ---- 构造 / 调用 ----
 
     internal static IntPtr NewObject(IntPtr cls, IntPtr ctor, string op, JValue[] args) =>
         Track(op, AndroidJNI.NewObject(cls, ctor, Args(args)));
@@ -159,7 +152,6 @@ internal static class Jni
     internal static IntPtr CallStaticObject(IntPtr cls, IntPtr method, string op, JValue[] args) =>
         Track(op, AndroidJNI.CallStaticObjectMethod(cls, method, Args(args)));
 
-    // ---- 字段读写 ----
 
     internal static int GetIntField(IntPtr obj, IntPtr field, string op)
     {
@@ -186,7 +178,6 @@ internal static class Jni
     internal static IntPtr GetStaticObjectField(IntPtr cls, IntPtr field, string op) =>
         Track(op, AndroidJNI.GetStaticObjectField(cls, field));
 
-    // ---- 字符串 ----
 
     internal static JniObject NewString(string text) =>
         JniObject.Wrap(Track("NewStringUTF", AndroidJNI.NewStringUTF(text)));
@@ -200,9 +191,7 @@ internal static class Jni
         return text;
     }
 
-    // ---- 错误 ----
 
-    /// <summary>调用收口：有 pending 异常先清掉（不清的话下一次 JNI 调用会中止进程），再记 Java 侧文本。</summary>
     private static bool Check(string op)
     {
         var throwable = AndroidJNI.ExceptionOccurred();
@@ -231,9 +220,6 @@ internal static class Jni
         return message ?? "(Java 异常无法读取)";
     }
 
-    // ---- 参数数组 ----
-
-    /// <summary>jvalue 数组按长度在线程本地槽里复用；零参数也要给真数组，icall 会读数组头。</summary>
     private static Il2CppStructArray<JArg> Args(JValue[]? values)
     {
         values ??= None;
@@ -251,7 +237,6 @@ internal static class Jni
         return array;
     }
 
-    /// <summary>Il2CppStructArray 自带的分配走了 il2cpp_array_new，在这台 il2cpp 上会崩；改走 array_new_specific。</summary>
     private static Il2CppStructArray<JArg> NewArray(int length)
     {
         var arrayClass = IL2CPP.il2cpp_array_class_get(Il2CppClassPointerStore<JArg>.NativeClassPtr, 1);

@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.Globalization;
 using Il2CppInterop.Runtime;
 using Il2CppMicrosoft.Xna.Framework;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.ImGuiHost;
 
 namespace PerfTest;
 

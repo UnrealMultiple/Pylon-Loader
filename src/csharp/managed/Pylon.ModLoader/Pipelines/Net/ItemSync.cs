@@ -1,8 +1,13 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Globals;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.ID;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// mod 物品的实例状态跟着原版物品包走。
 /// 原版只同步"编号 / 堆叠 / 前缀"，作者在 <see cref="ModItem.NetSend"/> 里写的字段过不了网；

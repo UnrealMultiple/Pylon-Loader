@@ -1,8 +1,10 @@
-using System;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>魔力开销：进 orig 前把 player.manaCost 临时换成作者算出的值（reduce×mult），orig 后恢复；钩子链 ModItem→GlobalItem→ModPlayer。</summary>
 internal static class ItemManaHooks
 {

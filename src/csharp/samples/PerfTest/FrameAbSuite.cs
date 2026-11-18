@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Reflection;
 using Il2CppInterop.Runtime;
 using Il2CppMicrosoft.Xna.Framework;
+using Pylon.ModLoader.Core;
 
 namespace PerfTest;
 

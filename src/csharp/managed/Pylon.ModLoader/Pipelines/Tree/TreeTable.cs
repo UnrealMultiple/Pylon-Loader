@@ -1,7 +1,6 @@
-using Terraria.ID;
+using Pylon.ModLoader.Content;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>树表：mod 树的风格号从游戏的 32 起；地面方块 → 树 的映射按作者写的 GrowsOnTileId。</summary>
 internal static class TreeTable
 {

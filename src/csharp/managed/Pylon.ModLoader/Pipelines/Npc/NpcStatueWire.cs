@@ -1,8 +1,12 @@
 using Il2CppMicrosoft.Xna.Framework;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Globals;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>王座/后座雕像的电线信号：识别雕像格 → SkipWire → CheckMech 冷却 → 收集候选并随机传送到雕像脚下 → 派发 OnGoToStatue。</summary>
 internal static class NpcStatueWire
 {

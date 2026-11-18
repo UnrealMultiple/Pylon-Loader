@@ -1,11 +1,12 @@
-using Pylon.ModLoader.Tables;
 using System.Diagnostics;
-using Pylon.ModLoader.Textures;
 using Il2CppMicrosoft.Xna.Framework;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.Pipelines;
+using Pylon.ModLoader.Tables;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Install;
 /// <summary>
 /// 安装管线的执行器：等游戏表就绪，然后按预算逐步执行安装步骤；完成后转入表维护模式。
 /// 顺序由 <see cref="InstallPlan"/> 唯一决定，这里只管"什么时候、花多久"。

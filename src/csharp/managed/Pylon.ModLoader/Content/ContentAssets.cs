@@ -2,8 +2,7 @@ using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Textures;
 using ReLogic.Content;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>贴图请求缓存：同一个绝对路径只解码一次。仅游戏线程。</summary>
 internal static class ContentAssets
 {

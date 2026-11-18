@@ -1,10 +1,12 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using ContolType = VirtualControlsHardwareConfigurationMapping_Layout.ContolType;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 触屏按钮管线：注册发号、状态机、游戏侧接入（控制器数组、触点、编辑器、快捷栏、布局保存）。
 /// 按钮状态在 TouchButtonTable（密集 struct 数组），布局在 TouchButtonLayouts。

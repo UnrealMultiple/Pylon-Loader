@@ -1,8 +1,7 @@
 using Terraria;
 using Terraria.GameContent.ItemDropRules;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Contracts;
 /// <summary>一个 NPC 类型的掉落表（ModifyNPCLoot 里发进来）；Add/Remove 直接改游戏 ItemDropsDB 里那个类型的表，规则照用游戏的 IItemDropRule。</summary>
 public class NPCLoot : ILoot
 {

@@ -1,6 +1,9 @@
 using System.Globalization;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Audio;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Pipelines;
 using Terraria;
 using Terraria.GameContent;
 

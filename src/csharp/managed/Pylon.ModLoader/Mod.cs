@@ -1,15 +1,14 @@
-using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.Mod;
-using Pylon.ModLoader.Textures;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Localization;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.Pipelines;
 using ReLogic.Content;
-using Terraria.Graphics;
-using Terraria.IO;
 using Terraria.Localization;
-using Terraria.WorldBuilding;
 
 namespace Pylon.ModLoader;
-
 /// <summary>
 /// Mod 入口。宿主实例化后调用 <see cref="IPylonMod.Load"/>：注册内容、装配模块、再执行作者代码。
 /// 内容注入游戏由 <see cref="LoaderHost"/> 的安装管线统一推进。
@@ -63,12 +62,6 @@ public abstract class Mod : IPylonMod
     public ModPacket GetPacket(int capacity = 256) => new(this, capacity);
 
     public virtual void HandlePacket(System.IO.BinaryReader reader, int whoAmI) { }
-
-    public virtual bool HijackGetData(ref byte messageType, ref Il2CppSystem.IO.BinaryReader reader, int playerNumber) => false;
-
-    public virtual bool HijackSendData(int whoAmI, int msgType, int remoteClient, int ignoreClient, NetworkText text,
-                                       int number, float number2, float number3, float number4, int number5,
-                                       int number6, int number7) => false;
 
     public int AddBossHeadTexture(string texture, int npcType = -1) => NpcHeadHooks.AddBossHead(this, texture, npcType);
 
@@ -145,97 +138,13 @@ public abstract class Mod : IPylonMod
 
     public virtual void OnModUnload() { }
 
-    public virtual void OnLocalizationsLoaded() { }
-
-    public virtual void ResizeArrays() { }
-
-    public virtual void ModifyInterfaceLayers(List<GameInterfaceLayer> layers) { }
-
-    public virtual void PostDrawInterface(SpriteBatch spriteBatch) { }
-
-    public virtual void PostDrawTiles() { }
-
-    public virtual void SetupContent() { }
-
     public virtual void AddRecipeGroups() { }
 
     public virtual void AddRecipes() { }
 
     public virtual void PostAddRecipes() { }
 
-    public virtual void PostSetupRecipes() { }
-
     public virtual void PostSetupContent() { }
-
-    public virtual void OnWorldLoad() { }
-
-    public virtual void LoadWorldData(TagCompound tag) { }
-
-    public virtual void PostWorldLoad() { }
-
-    public virtual void SaveWorldData(TagCompound tag) { }
-
-    public virtual void SaveWorldHeader(TagCompound tag) { }
-
-    public virtual bool CanWorldBePlayed(PlayerFileData playerData, WorldFileData worldData) => true;
-
-    public virtual string WorldCanBePlayedRejectionMessage(PlayerFileData playerData, WorldFileData worldData) =>
-        "人物 " + playerData.Name + " 不能进入世界 " + worldData.Name + "。";
-
-    public virtual void PreWorldGen() { }
-
-    public virtual void ModifyWorldGenTasks(List<GenPass> tasks) { }
-
-    public virtual void PostWorldGen() { }
-
-    public virtual void ModifyHardmodeTasks(List<GenPass> tasks) { }
-
-    public virtual void ClearWorld() { }
-
-    public virtual void PreSaveAndQuit() { }
-
-    public virtual void OnWorldUnload() { }
-
-    public virtual void PreUpdateWorld() { }
-    public virtual void PostUpdateWorld() { }
-    public virtual void PreUpdateTime() { }
-    public virtual void PostUpdateTime() { }
-    public virtual void PostUpdateEverything() { }
-    public virtual void UpdateUI(GameTime gameTime) { }
-    public virtual void PostUpdateInput() { }
-    public virtual void PreUpdateEntities() { }
-    public virtual void PreUpdatePlayers() { }
-    public virtual void PostUpdatePlayers() { }
-    public virtual void PreUpdateNPCs() { }
-    public virtual void PostUpdateNPCs() { }
-    public virtual void PreUpdateGores() { }
-    public virtual void PostUpdateGores() { }
-    public virtual void PreUpdateProjectiles() { }
-    public virtual void PostUpdateProjectiles() { }
-    public virtual void PreUpdateItems() { }
-    public virtual void PostUpdateItems() { }
-    public virtual void PreUpdateDusts() { }
-    public virtual void PostUpdateDusts() { }
-    public virtual void PreUpdateInvasions() { }
-    public virtual void PostUpdateInvasions() { }
-
-    public virtual bool? ConsumeBait(ref int baitTypeUsed) => null;
-
-    public virtual void GetDyeTraderReward(ref List<int> pool) { }
-
-    public virtual void ModifyTimeRate(ref double timeRate, ref double tileUpdateRate, ref double eventUpdateRate) { }
-
-    public virtual void ModifySunLightColor(ref Color tileColor, ref Color backgroundColor) { }
-
-    public virtual void ModifyLightingBrightness(ref float scale) { }
-
-    public virtual void ModifyScreenPosition() { }
-
-    public virtual void ModifyTransformMatrix(ref SpriteViewMatrix transform) { }
-
-    public virtual void ResetNearbyTileEffects() { }
-
-    public virtual void TileCountsAvailable(Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<int> tileCounts) { }
 
     void IPylonMod.Load(IModContext context)
     {

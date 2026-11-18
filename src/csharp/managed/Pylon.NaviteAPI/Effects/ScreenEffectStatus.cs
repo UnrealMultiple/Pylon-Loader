@@ -11,14 +11,12 @@ internal static unsafe class ScreenEffectStatus
 {
     private const int ErrorCapacity = 2048;
 
-    /// <summary>内核 kPylonFxShader*（0 pending / 1 ready / 2 failed），原样返回。</summary>
     internal static int State(int shader)
     {
         ScreenEffectsNative.ShaderStatus(shader, out var state, null, 0);
         return state;
     }
 
-    /// <summary>编译错误文本；没有错误时为空串。</summary>
     internal static string Error(int shader)
     {
         var buffer = new byte[ErrorCapacity];

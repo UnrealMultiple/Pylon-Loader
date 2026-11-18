@@ -1,11 +1,13 @@
-using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.SaveData;
 using ReLogic.Content;
 using Terraria;
 using Terraria.GameContent;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 菜单主题管线：作者给的 logo / 太阳 / 月亮贴图在绘制入口每帧换入 <c>TextureAssets</c>、画完还原
 /// （不持久占用游戏的贴图槽）；主题选择落盘见 <c>PylonLoader.menu.json</c>。
@@ -234,9 +236,15 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
     {
         var backup = new TextureBackup
         {
-            Logo = TextureAssets.Logo, Logo2 = TextureAssets.Logo2, Logo3 = TextureAssets.Logo3,
-            Logo4 = TextureAssets.Logo4, Logo5 = TextureAssets.Logo5, Logo6 = TextureAssets.Logo6,
-            Sun = TextureAssets.Sun, Sun2 = TextureAssets.Sun2, Sun3 = TextureAssets.Sun3,
+            Logo = TextureAssets.Logo,
+            Logo2 = TextureAssets.Logo2,
+            Logo3 = TextureAssets.Logo3,
+            Logo4 = TextureAssets.Logo4,
+            Logo5 = TextureAssets.Logo5,
+            Logo6 = TextureAssets.Logo6,
+            Sun = TextureAssets.Sun,
+            Sun2 = TextureAssets.Sun2,
+            Sun3 = TextureAssets.Sun3,
         };
 
         var logo = ReadAsset(menu, () => menu.Logo, nameof(ModMenu.Logo));

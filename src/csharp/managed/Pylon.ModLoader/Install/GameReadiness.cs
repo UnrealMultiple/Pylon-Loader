@@ -1,9 +1,7 @@
-using Terraria;
-using Terraria.GameContent;
 using Pylon.ModLoader.Textures;
+using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Install;
 /// <summary>就绪判据：只在游戏表"建好且还是原版长度"时才允许安装，否则会被游戏重建覆盖。</summary>
 internal static class GameReadiness
 {

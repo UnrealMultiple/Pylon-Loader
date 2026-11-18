@@ -4,6 +4,8 @@ using Pylon.Mod;
 using Pylon.ModLoader;
 using Pylon.ModLoader.UI;
 using Terraria;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.ImGuiHost;
 
 namespace XiheMagic
 {

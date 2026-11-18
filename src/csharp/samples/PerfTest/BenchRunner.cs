@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using Pylon.ModLoader;
+using Pylon.ModLoader.Install;
 
 namespace PerfTest;
 

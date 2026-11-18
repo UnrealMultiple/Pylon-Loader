@@ -1,12 +1,12 @@
 using System.Diagnostics;
 using System.Globalization;
-using System.IO;
 using System.Text.Json;
 using Il2CppMicrosoft.Xna.Framework;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Logging;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipeline;
 /// <summary>
 /// Hook 耗时统计：per 钩子×Mod 的调用次数、累计与均值。开关落 .pylon/profile.json（照 NetPolicy 的
 /// .pylon/net.json 先例），周期汇总进日志 + 全量快照落 .pylon/profile.snapshot.json。

@@ -1,8 +1,8 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 弹幕绘制的"附加物 / 精灵"拆分，给 <see cref="ModProjectile.PreDrawExtras"/> 与 <see cref="ModProjectile.PreDraw"/>
 /// 的返回值真实语义。手机版把附加物（鱼线、钩爪链、链锤铁链、悠悠球绳）画在 <c>Main.DrawProjDirect</c> 内部，

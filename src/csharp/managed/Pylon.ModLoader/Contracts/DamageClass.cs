@@ -1,8 +1,8 @@
+using Pylon.ModLoader.Content;
 using Terraria;
 using Terraria.Localization;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Contracts;
 /// <summary>
 /// 伤害职业：决定继承谁的属性加成（GetModifierInheritance）、算作哪个职业（GetEffectInheritance）、
 /// 收哪些词缀（GetPrefixInheritance）、暴击与提示行的形状；SetDefaultStats 里写这个职业必有的加成。

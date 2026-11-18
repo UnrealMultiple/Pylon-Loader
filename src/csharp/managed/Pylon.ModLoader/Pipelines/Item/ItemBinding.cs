@@ -1,7 +1,8 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>Item 实体 ↔ ModItem 实例：实体换 type 或复制时重建，模板本身不挂状态。</summary>
 internal sealed class ItemBinding
 {

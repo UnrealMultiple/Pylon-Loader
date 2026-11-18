@@ -1,5 +1,4 @@
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipeline;
 /// <summary>已加载的 Mod 集合：顺序即加载顺序，位置即 ModIndex。</summary>
 internal sealed class ModSet
 {

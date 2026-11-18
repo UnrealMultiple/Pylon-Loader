@@ -1,10 +1,10 @@
-using System.Collections.Generic;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Logging;
 using Terraria;
-using Terraria.DataStructures;
 using Terraria.ID;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>NPCID.Sets 的负面效果免疫表：按类型/负面效果号汇总作者写入的值，SetDefaults 时落进 npc.buffImmune。</summary>
 internal static class NpcImmunity
 {

@@ -1,12 +1,14 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using ReLogic.Content;
 using Terraria;
 using Terraria.GameContent;
 using Terraria.GameContent.UI.ResourceSets;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 资源覆盖层管线：单颗心/星绘制前后给 <see cref="ResourceOverlayDrawContext"/>，整条生命/魔力条前后给快照。
 /// <c>HeartDraw</c>/<c>StarDraw</c>；<c>PreDrawResourceDisplay</c> 的 drawText 控制生命数值画不画。

@@ -1,10 +1,8 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
-using Terraria;
 using Terraria.GameContent.UI;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>自定义表情；一个类型一个实例（类型在游戏 151 个之后；贴图是并排两个 34×28 的图标，白泡泡来自游戏的表）。</summary>
 public abstract class ModEmoteBubble : ModType
 {
@@ -53,8 +51,6 @@ public abstract class ModEmoteBubble : ModType
 
     /// <summary>画完这个泡泡之后。</summary>
     public virtual void PostDraw(SpriteBatch spriteBatch, Texture2D texture, Vector2 position, Rectangle frame,
-        Vector2 origin, SpriteEffects spriteEffects) { }
+        Vector2 origin, SpriteEffects spriteEffects)
+    { }
 }
-
-// 未移植 static register：校验类、Templates.Adopt、ContentTexture、EmoteBubbleLoader.Add（占号 151+、
-// 挂绘制与菜单钩子）都是注册管线的事。

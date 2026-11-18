@@ -1,5 +1,7 @@
-namespace Pylon.ModLoader;
+using Pylon.ModLoader.Globals;
+using Pylon.ModLoader.Pipeline;
 
+namespace Pylon.ModLoader.Hooks;
 /// <summary>GlobalEmoteBubble 的注册表与分派：按基类精确判定覆写，没覆写的方法不进表。</summary>
 internal static class GlobalEmoteBubbleRegistry
 {

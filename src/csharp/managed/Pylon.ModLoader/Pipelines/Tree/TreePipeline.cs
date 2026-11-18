@@ -1,12 +1,14 @@
-using Pylon.ModLoader.Tables;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.Tables;
 using Pylon.ModLoader.Textures;
 using ReLogic.Content;
 using Terraria;
 using Terraria.Enums;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 树管线：发号（32 起）+ 扩 <c>TreeTop</c> / <c>TreeBranch</c> / <c>Wood</c> 三张表 + 写作者贴图，
 /// 并按 <c>GrowsOnTileId</c> 建"地面方块 → 树"的映射。世界生成时让 mod 树长大另说，见文档。

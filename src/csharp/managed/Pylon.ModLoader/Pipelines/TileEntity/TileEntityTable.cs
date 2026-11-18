@@ -1,5 +1,7 @@
-namespace Pylon.ModLoader;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Pipeline;
 
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>一个方块实体类型的数据。</summary>
 internal struct TileEntityMeta
 {

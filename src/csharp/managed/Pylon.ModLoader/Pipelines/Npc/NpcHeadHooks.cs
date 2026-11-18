@@ -1,11 +1,13 @@
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Textures;
 using ReLogic.Content;
 using Terraria;
 using Terraria.GameContent;
 
-namespace Pylon.ModLoader;
+namespace Pylon.ModLoader.Pipelines;
 
 internal static class NpcHeadHooks
 {

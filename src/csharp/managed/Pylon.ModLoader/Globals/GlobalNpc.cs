@@ -1,15 +1,17 @@
-using System.Collections.Generic;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Pipelines;
+using Pylon.ModLoader.SaveData;
 using Terraria;
 using Terraria.DataStructures;
 using Terraria.GameContent;
 using Terraria.GameContent.Bestiary;
-using Terraria.GameContent.ItemDropRules;
 using Terraria.GameContent.UI;
+using NPCInteraction = Pylon.ModLoader.Contracts.NPCInteraction;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Globals;
 /// <summary>全局 NPC：对游戏自己的 NPC（和 mod 的）也跑的一套钩子；一个类一份模板，AppliesToEntity 挑哪些 NPC。</summary>
 public abstract class GlobalNpc : ModType
 {
@@ -157,7 +159,8 @@ public abstract class GlobalNpc : ModType
 
     /// <summary>生成与安全矩形的半径(格);后续限制到世界边界。</summary>
     public virtual void EditSpawnRange(Player player, ref int spawnRangeX, ref int spawnRangeY,
-                                       ref int safeRangeX, ref int safeRangeY) { }
+                                       ref int safeRangeX, ref int safeRangeY)
+    { }
 
     /// <summary>原版玩家生成标记写完之后;尚未选择格子,直接改 spawner 会影响本次生成。</summary>
     public virtual void EditSpawnFlags(NPC.Spawner spawner) { }
@@ -266,11 +269,13 @@ public abstract class GlobalNpc : ModType
 
     /// <summary>城镇 NPC 开枪的持枪绘制（可写引用）。</summary>
     public virtual void DrawTownAttackGun(NPC npc, ref Texture2D item, ref Rectangle itemFrame, ref float scale,
-                                          ref int horizontalHoldoutOffset) { }
+                                          ref int horizontalHoldoutOffset)
+    { }
 
     /// <summary>城镇 NPC 挥舞的绘制（可写引用）。</summary>
     public virtual void DrawTownAttackSwing(NPC npc, ref Texture2D item, ref Rectangle itemFrame, ref int itemSize,
-                                            ref float scale, ref Vector2 offset) { }
+                                            ref float scale, ref Vector2 offset)
+    { }
 
     /// <summary>血条：null 用游戏的，false 不画，true 接管 scale/position。</summary>
     public virtual bool? DrawHealthBar(NPC npc, byte hbPosition, ref float scale, ref Vector2 position) => null;
@@ -305,7 +310,3 @@ public abstract class GlobalNpc : ModType
     /// <summary>表情气泡摆哪儿（可写引用）；在 ModNpc 之后跑。</summary>
     public virtual void EmoteBubblePosition(NPC npc, ref Vector2 position, ref SpriteEffects spriteEffects) { }
 }
-
-// 未移植：命中套（14 个，缺 HitModifiers/HurtModifiers/HitInfo/HurtInfo——NPC.StrikeNPC 与 Player.Hurt 仍是
-// int/float 参数）；幸福度（缺 ShopHelper/HelperInfo）；商店（参数是自造的 NPCShop 类，本版没有原生对应物）；
-// 生成那套 EditSpawn*/SpawnNPC（要自造的 NPCSpawnInfo/SpawnPool）；register（注册走 Pylon 的自动发现 + ModContent）。

@@ -1,10 +1,12 @@
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
-using Terraria.ID;
 using Terraria.Utilities;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>前缀管线：可滚列表 / 能否滚 / 滚哪个 / 数值倍率 / 应用 / 饰品效果 / 名字表；前缀只是物品上的 byte，没有默认值接管和绑定表。</summary>
 internal sealed class PrefixPipeline : ILoaderModule
 {

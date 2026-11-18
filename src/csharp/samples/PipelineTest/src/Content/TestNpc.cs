@@ -1,6 +1,8 @@
 using Pylon.ModLoader;
 using Terraria;
 using Terraria.DataStructures;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
 
 namespace PipelineTest.Content;
 

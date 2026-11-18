@@ -1,8 +1,8 @@
+using Pylon.ModLoader.Contracts;
 using Terraria;
 using Terraria.Localization;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>原版伤害职业的公共基类：名字取游戏提示文本表。</summary>
 public abstract class VanillaDamageClass : DamageClass
 {

@@ -1,9 +1,7 @@
-using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>自定义水样式：抢到玩家场景时出现；占游戏 15 个之后的一号。贴图：类同名 PNG（水面）、X_Block（方块）、X_Slope（斜坡，缺则用方块）。</summary>
 public abstract class ModWaterStyle : ModType
 {
@@ -47,6 +45,3 @@ public abstract class ModWaterStyle : ModType
     /// <summary>只放共享数值，不要碰游戏对象。</summary>
     public override void SetStaticDefaults() { }
 }
-
-// 未移植 register：桥接入口（实例化 + WaterStyleLoader.Add + Safe.Run(SetStaticDefaults)）；
-// Pylon 的注册由 ModType 自动发现，编号分配在管线里。

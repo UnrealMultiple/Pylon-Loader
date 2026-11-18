@@ -1,8 +1,8 @@
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Pipeline;
 using ReLogic.Content;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>
 /// 内容基类：一个实例 = 一个自定义内容。
 /// 生命线：注册占号 → SetStaticDefaults（表定型后）→ SetDefaults（每次实例化）。

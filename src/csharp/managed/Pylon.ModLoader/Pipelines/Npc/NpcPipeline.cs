@@ -1,16 +1,21 @@
-using Pylon.ModLoader.Tables;
-using Pylon.ModLoader.Textures;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Patching;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.Tables;
 using ReLogic.Content;
 using Terraria;
 using Terraria.DataStructures;
 using Terraria.GameContent;
-using Terraria.ID;
 using Terraria.Graphics.Light;
+using Terraria.ID;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>NPC 管线：AI/事件/绘制/首领头像；分派为 Global 先、本 NPC 后（AI 与 PostAI 除外），跨钩子上下文用定长结构体栈。</summary>
 internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
 {
@@ -120,7 +125,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         NpcTownAttackHooks.RebuildWanted();
     }
 
-#region 外部入口（作者 API 需要）
+    #region 外部入口（作者 API 需要）
 
     internal ModNpc? InstanceOf(NPC? npc) => _binding.InstanceOf(npc);
 
@@ -148,9 +153,9 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-#endregion
+    #endregion
 
-#region AI
+    #region AI
 
     private void Ai(On.Terraria.NPC.orig_AI orig, NPC self)
     {
@@ -317,9 +322,9 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         return index;
     }
 
-#endregion
+    #endregion
 
-#region ResetEffects / DrawBehind
+    #region ResetEffects / DrawBehind
 
     private void ResetEffects(On.Terraria.NPC.orig_UpdateNPC_BuffSetFlags orig, NPC self, bool lowerBuffTime)
     {
@@ -398,9 +403,9 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-#endregion
+    #endregion
 
-#region 死亡与伤害反馈
+    #region 死亡与伤害反馈
 
     private void CheckDead(On.Terraria.NPC.orig_checkDead orig, NPC self)
     {
@@ -1305,9 +1310,9 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         return result;
     }
 
-#endregion
+    #endregion
 
-#region 帧
+    #region 帧
 
     private void FindFrame(On.Terraria.NPC.orig_FindFrame orig, NPC self)
     {
@@ -1452,9 +1457,9 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-#endregion
+    #endregion
 
-#region 绘制
+    #region 绘制
 
     private void DrawNpcs(On.Terraria.Main.orig_DrawNPCs orig, Main self, bool behindTiles)
     {
@@ -1758,9 +1763,9 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-#endregion
+    #endregion
 
-#region 工具
+    #region 工具
 
     private void Fail(NPC npc, HookId hook, Exception exception) => FailCore(npc.type, hook, exception);
 
@@ -1780,7 +1785,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         public bool Tinted;
         public ModNpc? Mod;
     }
-#endregion
+    #endregion
 
 }
 

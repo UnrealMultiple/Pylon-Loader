@@ -1,4 +1,3 @@
-using System.IO;
 using System.IO.Compression;
 using System.Text;
 
@@ -13,18 +12,16 @@ internal static class PngEncoder
 {
     private static readonly uint[] CrcTable = BuildCrcTable();
 
-    /// <summary>RGBA（自上而下）→ PNG 字节。</summary>
     public static byte[] Encode(int width, int height, byte[] rgba)
     {
         if (width <= 0 || height <= 0 || rgba is null || rgba.Length != width * height * 4)
             throw new ArgumentException("PNG 输入尺寸与数据不符");
 
-        // 先独立压缩 IDAT 数据（zlib：头 + deflate + adler32）
         var row = width * 4;
         var raw = new byte[height * (row + 1)];
         for (var y = 0; y < height; y++)
         {
-            raw[y * (row + 1)] = 0;  // filter: None
+            raw[y * (row + 1)] = 0;
             Buffer.BlockCopy(rgba, y * row, raw, y * (row + 1) + 1, row);
         }
 
@@ -39,11 +36,11 @@ internal static class PngEncoder
         var ihdr = new byte[13];
         WriteBe32(ihdr, 0, (uint)width);
         WriteBe32(ihdr, 4, (uint)height);
-        ihdr[8] = 8;   // bit depth
-        ihdr[9] = 6;   // color type RGBA
-        ihdr[10] = 0;  // compression
-        ihdr[11] = 0;  // filter
-        ihdr[12] = 0;  // interlace
+        ihdr[8] = 8;
+        ihdr[9] = 6;
+        ihdr[10] = 0;
+        ihdr[11] = 0;
+        ihdr[12] = 0;
 
         using var ms = new MemoryStream();
         ms.Write(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }, 0, 8);
@@ -63,7 +60,6 @@ internal static class PngEncoder
         s.Write(typeBytes, 0, 4);
         s.Write(data, 0, data.Length);
 
-        // CRC32(type + data)：初始 0xFFFFFFFF，结束时取反
         var crc = 0xFFFFFFFFu;
         foreach (var b in typeBytes) crc = CrcTable[(crc ^ b) & 0xFF] ^ (crc >> 8);
         foreach (var b in data) crc = CrcTable[(crc ^ b) & 0xFF] ^ (crc >> 8);

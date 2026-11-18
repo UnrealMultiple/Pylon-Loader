@@ -1,15 +1,16 @@
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.Reflection;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Pipelines;
+using Pylon.ModLoader.SaveData;
 using Terraria;
 using Terraria.DataStructures;
 using Terraria.ID;
 using Terraria.Utilities;
+using ItemCreationContext = Pylon.ModLoader.Contracts.ItemCreationContext;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>自定义物品：一个类 = 一个物品类型，每个地上/背包里的实例对应一个本类实例；钩子里用 <see cref="Item"/> 拿实体。</summary>
 public abstract class ModItem : ModType
 {
@@ -189,7 +190,8 @@ public abstract class ModItem : ModType
 
     /// <summary>弹药被选中后修改最终弹幕参数（本类是弹药，weapon 是选它的武器）；damage 修饰应用在游戏已经计算的伤害上。</summary>
     public virtual void PickAmmo(Item weapon, Player player, ref int type, ref float speed,
-                                 ref StatModifier damage, ref float knockback) { }
+                                 ref StatModifier damage, ref float knockback)
+    { }
 
     /// <summary>null 按弹药类别匹配，true 允许额外类型，false 否决该候选（本类是武器）。</summary>
     public virtual bool? CanChooseAmmo(Item ammo, Player player) => null;
@@ -216,7 +218,8 @@ public abstract class ModItem : ModType
 
     /// <summary>每个弹幕之前：位置/速度/类型/伤害/击退都是可写引用。</summary>
     public virtual void ModifyShootStats(Player player, ref Vector2 position, ref Vector2 velocity, ref int type,
-                                         ref int damage, ref float knockback) { }
+                                         ref int damage, ref float knockback)
+    { }
 
     /// <summary>false：游戏不发射自己的弹幕（在这里用 source 造自己的）；source 可能是 null 包装。</summary>
     public virtual bool Shoot(Player player, EntitySource_ItemUse_WithAmmo? source, Vector2 position, Vector2 velocity,
@@ -293,7 +296,8 @@ public abstract class ModItem : ModType
 
     /// <summary>画盔甲时的颜色（可写引用）。经装备贴图分派；装备贴图注册入口删除后等基线装备 API 移植再接。</summary>
     public virtual void DrawArmorColor(Player drawPlayer, float shadow, ref Color color, ref int glowMask,
-                                       ref Color glowMaskColor) { }
+                                       ref Color glowMaskColor)
+    { }
 
     /// <summary>画手臂盔甲的辉光（可写引用）。经装备贴图分派；同 DrawArmorColor 待基线装备 API。</summary>
     public virtual void ArmorArmGlowMask(Player drawPlayer, float shadow, ref int glowMask, ref Color color) { }
@@ -301,7 +305,8 @@ public abstract class ModItem : ModType
     /// <summary>空中这对翅膀的五个可写引用。</summary>
     public virtual void VerticalWingSpeeds(Player player, ref float ascentWhenFalling, ref float ascentWhenRising,
                                            ref float maxCanAscendMultiplier, ref float maxAscentMultiplier,
-                                           ref float constantAscend) { }
+                                           ref float constantAscend)
+    { }
 
     /// <summary>空中平飞的加速度和速度（两个可写引用）。</summary>
     public virtual void HorizontalWingSpeeds(Player player, ref float speed, ref float acceleration) { }
@@ -397,7 +402,8 @@ public abstract class ModItem : ModType
 
     /// <summary>地上画它之后（否决了也跑）。</summary>
     public virtual void PostDrawInWorld(SpriteBatch spriteBatch, Color lightColor, Color alphaColor,
-                                        float rotation, float scale, int whoAmI) { }
+                                        float rotation, float scale, int whoAmI)
+    { }
 
     /// <summary>背包里画它之前（收的是游戏算好的帧、原点和缩放）；false = 不画。</summary>
     public virtual bool PreDrawInInventory(SpriteBatch spriteBatch, Vector2 position, Rectangle frame,
@@ -405,7 +411,8 @@ public abstract class ModItem : ModType
 
     /// <summary>背包里画它之后（否决了也跑）。</summary>
     public virtual void PostDrawInInventory(SpriteBatch spriteBatch, Vector2 position, Rectangle frame,
-                                            Color drawColor, Color itemColor, Vector2 origin, float scale) { }
+                                            Color drawColor, Color itemColor, Vector2 origin, float scale)
+    { }
 
     // ===================== 网络与存档 =====================
 
@@ -451,6 +458,3 @@ public abstract class ModItem : ModType
         throw new InvalidOperationException("找不到游戏自己的南瓜盔甲套装");
     }
 }
-
-// 分派未接的声明钩子见各方法注释；接分派时同步 HookId（追加区）与调用点。
-// NetSend/NetReceive 用 Pylon 的 NetWriter/NetReader（原生 writer 的安全封装），形状与基准的 BinaryWriter 等价。

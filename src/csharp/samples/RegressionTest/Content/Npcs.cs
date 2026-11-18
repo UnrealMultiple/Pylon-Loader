@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Pylon.ModLoader;
 using Terraria;
 using Terraria.ID;
+using Pylon.ModLoader.Content;
 
 namespace RegressionTest.Content
 {

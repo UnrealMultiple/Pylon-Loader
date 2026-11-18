@@ -1,4 +1,6 @@
 using Il2CppMicrosoft.Xna.Framework;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Pipelines;
 
 namespace Pylon.ModLoader.UI;
 

@@ -1,8 +1,7 @@
-using System;
+using Pylon.ModLoader.Pipelines;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>
 /// 触屏按钮：玩家在游戏自己的控制编辑里放置它，mod 像读 tModLoader 的 ModKeybind 一样读它。
 /// Icon/Label/Visible/Enabled/OnPress 可在注册后赋值，登记到按钮记录上。

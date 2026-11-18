@@ -1,8 +1,4 @@
-using System.Collections.Generic;
-using System.Linq;
-
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Contracts;
 /// <summary>一个城镇 NPC 的交互按钮表：作者注册的 <see cref="NPCInteraction"/> 按顺序排，前两个显示在对话框上。</summary>
 public class NPCInteractionList(int type)
 {

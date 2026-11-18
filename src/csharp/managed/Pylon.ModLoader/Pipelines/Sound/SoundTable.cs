@@ -1,7 +1,9 @@
 using System.Globalization;
+using Pylon.ModLoader.Audio;
+using Pylon.ModLoader.Logging;
+using SoundStyle = Pylon.ModLoader.Audio.SoundStyle;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>一个已注册音效的选项与活动流链表头。按注册下标密集存放，取用写 ref，不装箱。</summary>
 internal struct SoundEntry
 {

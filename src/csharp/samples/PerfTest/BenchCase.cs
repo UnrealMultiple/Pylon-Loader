@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
 using Il2CppInterop.Runtime;
+using Pylon.ModLoader.Core;
 
 namespace PerfTest;
 

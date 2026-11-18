@@ -1,8 +1,9 @@
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.GameContent.UI;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// mod 表情的多人同步：原版表情包只带原版编号，对端看不懂；这里带上"表情号 + 锚的序列化 + 时长"，
 /// 收到的人用同一个锚重建泡泡。锚的序列化用游戏自己的 <c>EmoteBubble.SerializeNetAnchor</c> /

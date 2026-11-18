@@ -1,16 +1,18 @@
-using System.Collections.Generic;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.Pipelines;
+using Pylon.ModLoader.SaveData;
 using Pylon.ModLoader.Textures;
 using Terraria;
 using Terraria.DataStructures;
 using Terraria.GameContent;
-using Terraria.GameContent.UI;
 using Terraria.GameContent.Bestiary;
-using Terraria.GameContent.ItemDropRules;
+using Terraria.GameContent.UI;
+using NPCInteraction = Pylon.ModLoader.Contracts.NPCInteraction;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>自定义 NPC（敌对/小动物/Boss）：一个类型一份模板，每个实体一份实例；钩子里用 <see cref="NPC"/> 拿实体。</summary>
 public abstract class ModNpc : ModType
 {
@@ -361,9 +363,11 @@ public abstract class ModNpc : ModType
 
     /// <summary>城镇 NPC 开枪的持枪绘制（可写引用）。</summary>
     public virtual void DrawTownAttackGun(ref Texture2D item, ref Rectangle itemFrame, ref float scale,
-                                          ref int horizontalHoldoutOffset) { }
+                                          ref int horizontalHoldoutOffset)
+    { }
 
     /// <summary>城镇 NPC 挥舞的绘制（可写引用）。</summary>
     public virtual void DrawTownAttackSwing(ref Texture2D item, ref Rectangle itemFrame, ref int itemSize,
-                                            ref float scale, ref Vector2 offset) { }
+                                            ref float scale, ref Vector2 offset)
+    { }
 }

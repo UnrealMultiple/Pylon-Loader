@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Runtime.Loader;
 using Pylon.Managed.Hosting;
 using Pylon.Managed.Interop;
+using Pylon.ModLoader;
 
 namespace Pylon.Managed.Mods;
 

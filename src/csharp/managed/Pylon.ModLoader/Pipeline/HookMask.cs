@@ -1,8 +1,7 @@
 using System.Numerics;
 using System.Runtime.CompilerServices;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipeline;
 /// <summary>覆写位集保持纯值类型，分派只做下标与位运算，不为扩容引入热路径分配。</summary>
 internal readonly struct HookMask
 {

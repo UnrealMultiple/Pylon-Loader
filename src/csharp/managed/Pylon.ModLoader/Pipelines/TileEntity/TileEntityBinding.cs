@@ -1,8 +1,8 @@
+using Pylon.ModLoader.Content;
 using Terraria;
 using Terraria.DataStructures;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>世界里的方块实体实例：ID / 位置 → 实例；ID 从 0x40000000 起，与游戏自己的 ID 空间不重叠。</summary>
 internal static class TileEntityBinding
 {

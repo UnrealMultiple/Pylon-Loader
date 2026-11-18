@@ -2,8 +2,7 @@ using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Terraria.GameContent;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 绘制期的一行：PreDrawTooltipLine 能改 Text / Color / Visible / Rotation / BaseScale / MaxWidth / Spread。
 /// 位置是管线按行序号估出来的（游戏真正的排版不公开），改 X/Y 只影响作者自己画的叠加层。

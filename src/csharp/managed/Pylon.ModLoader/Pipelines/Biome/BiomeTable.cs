@@ -1,5 +1,6 @@
-namespace Pylon.ModLoader;
+using Pylon.ModLoader.Content;
 
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 生物群系侧表：编号 = 注册序（0 基础）。`ModBiome` 与普通场景效果各用一套编号，
 /// 都写在 `ModType.Type` 上但互不混用——一个实例只会出现在其中一张表里。

@@ -1,7 +1,6 @@
 using Il2CppInterop.Runtime.InteropTypes;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Core;
 /// <summary>
 /// 实体地址 → 内容实例的绑定表。用地址而不是引用做键：游戏销毁实体后条目自然失联，
 /// 槽位复用时由重绑覆盖（见各 Loaders 的 Rebind 调用）。

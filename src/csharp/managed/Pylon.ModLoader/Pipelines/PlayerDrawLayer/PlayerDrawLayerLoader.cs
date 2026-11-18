@@ -1,8 +1,10 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria.DataStructures;
-using static Pylon.ModLoader.PlayerDrawLayer;
+using PlayerDrawLayers = Pylon.ModLoader.Content.PlayerDrawLayers;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 玩家绘制层排程：把原版层当锚点、作者的层按 <see cref="PlayerDrawLayer.GetDefaultPosition"/> 插进去，
 /// 最后落成"每个原版层之前/之后各一串"的槽位。原版层的调用顺序一个字节都不改，
@@ -103,18 +105,18 @@ public static class PlayerDrawLayerLoader
                     break;
 
                 case PlayerDrawLayer.Multiple multiple:
-                {
-                    var slot = 0;
-                    foreach (var entry in multiple.Positions)
                     {
-                        var wrapper = new PlayerDrawLayerSlot(pair.Key, entry.Item2, slot++);
-                        wrapper.AddChildAfter(pair.Key);
-                        extra.Add(wrapper);
-                        betweens[wrapper] = entry.Item1;
-                    }
+                        var slot = 0;
+                        foreach (var entry in multiple.Positions)
+                        {
+                            var wrapper = new PlayerDrawLayerSlot(pair.Key, entry.Item2, slot++);
+                            wrapper.AddChildAfter(pair.Key);
+                            extra.Add(wrapper);
+                            betweens[wrapper] = entry.Item1;
+                        }
 
-                    break;
-                }
+                        break;
+                    }
             }
         }
 

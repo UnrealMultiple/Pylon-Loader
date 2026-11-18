@@ -16,6 +16,9 @@ using ScreenShader = Pylon.ModLoader.Effects.ScreenShader;
 using Terraria;
 using Terraria.ID;
 using UVector2 = UnityEngine.Vector2;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Logging;
 
 namespace XiheBoss
 {

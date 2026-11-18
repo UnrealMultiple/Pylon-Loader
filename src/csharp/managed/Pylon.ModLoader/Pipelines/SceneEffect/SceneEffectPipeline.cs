@@ -1,10 +1,12 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using ReLogic.Content;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 场景效果管线：每帧把激活的效果按"权重(0..1)+优先级"排序，各槽（水/表层背景/地下背景/音乐/拍图配色/地图背景）
 /// 由排序里第一个声明它的效果占住；音乐的落点是 Main.newMusic（要过 BiomeLow 与原版档位两道门），水与背景的落点

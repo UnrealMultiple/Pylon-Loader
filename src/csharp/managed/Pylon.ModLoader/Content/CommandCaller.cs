@@ -3,8 +3,7 @@ using Terraria;
 using Terraria.Chat;
 using Terraria.Localization;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>命令的调用方：谁打的这条命令（来自哪儿），以及往哪儿回话。</summary>
 public interface CommandCaller
 {

@@ -1,8 +1,12 @@
 using Il2CppMicrosoft.Xna.Framework;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>在原版弹幕 PVE 窗口记录来源，受击计算统一交给 NPC 执行器。</summary>
 internal static class ProjectileHitHooks
 {

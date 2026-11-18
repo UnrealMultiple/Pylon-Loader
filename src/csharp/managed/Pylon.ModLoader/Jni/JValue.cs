@@ -1,17 +1,19 @@
 using System.Runtime.InteropServices;
 using JArg = UnityEngine.jvalue;
 
-namespace Pylon.ModLoader;
+namespace Pylon.ModLoader.Jni;
 
-/// <summary>JNI 的 jvalue 联合（8 字节），与 UnityEngine.jvalue 同布局。</summary>
+/// <summary>
+/// JNI 的 jvalue 联合
+/// </summary>
 [StructLayout(LayoutKind.Explicit, Size = 8)]
 internal struct JValue
 {
     [FieldOffset(0)] public int Int;
     [FieldOffset(0)] public float Float;
-    [FieldOffset(0)] public byte Byte; // jboolean
+    [FieldOffset(0)] public byte Byte;
     [FieldOffset(0)] public long Long;
-    [FieldOffset(0)] public IntPtr Obj; // jobject 全局引用
+    [FieldOffset(0)] public IntPtr Obj;
 
     public static JValue Of(int value) => new() { Int = value };
 
@@ -26,6 +28,5 @@ internal struct JValue
     public static implicit operator JValue(bool value) => Of(value);
     public static implicit operator JValue(IntPtr value) => Of(value);
 
-    /// <summary>按原始 8 字节转成 AndroidJNI 要的联合体。</summary>
     internal JArg ToArg() => new() { l = (IntPtr)Long };
 }

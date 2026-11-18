@@ -1,10 +1,11 @@
 using System;
 using Terraria;
+using Pylon.ModLoader.Content;
 
 namespace PipelineTest.Content;
 
 /// <summary>生物群系探针：开关由测试翻，记录进/在/出各被调了几次。</summary>
-public sealed class TestBiome : Pylon.ModLoader.ModBiome
+public sealed class TestBiome : Pylon.ModLoader.Content.ModBiome
 {
     /// <summary>本帧算不算"在群落里"。</summary>
     public static bool Active;
@@ -35,7 +36,7 @@ public sealed class TestBiome : Pylon.ModLoader.ModBiome
 }
 
 /// <summary>第二个群落：只用来确认各群落各算各的标记与回调。</summary>
-public sealed class TestBiomeOther : Pylon.ModLoader.ModBiome
+public sealed class TestBiomeOther : Pylon.ModLoader.Content.ModBiome
 {
     public static bool Active;
     public static int Enters, Leaves;

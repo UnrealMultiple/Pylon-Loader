@@ -5,6 +5,9 @@ using Terraria.DataStructures;
 using Terraria.GameContent;
 using Terraria.ID;
 using Terraria.ObjectData;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Pipelines;
 
 namespace PipelineTest.Tests;
 

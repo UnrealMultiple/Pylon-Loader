@@ -1,9 +1,8 @@
-using System.Collections.Generic;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.DataStructures;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>自定义云：一个类型一个实例；贴图由管线按 &lt;Name&gt; 找，SpawnChance 是它在云朵抽签里的权重。</summary>
 public abstract class ModCloud : ModType
 {

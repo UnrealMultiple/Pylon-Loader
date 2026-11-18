@@ -1,7 +1,9 @@
+using Pylon.ModLoader.Globals;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.Pipelines;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Hooks;
 /// <summary>GlobalProjectile 的注册表与分派。弹幕同样有"迟到实例化"，Attach 在每次 SetDefaults 时重建实体级列表。</summary>
 internal static class GlobalProjectileRegistry
 {

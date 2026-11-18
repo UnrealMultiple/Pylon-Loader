@@ -1,8 +1,11 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.ObjectData;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>一个方块类型的全部数据。按类型密集索引：判定路径上取 ref，不复制、不装箱。</summary>
 internal struct TileMeta
 {

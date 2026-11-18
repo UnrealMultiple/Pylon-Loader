@@ -1,5 +1,4 @@
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Contracts;
 /// <summary>可乘叠的浮点修饰量（命中盒/伤害倍率链用）；默认 1。</summary>
 public readonly struct MultipliableFloat
 {

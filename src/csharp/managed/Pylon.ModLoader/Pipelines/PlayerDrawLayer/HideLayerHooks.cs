@@ -1,7 +1,6 @@
 using Terraria.DataStructures;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 原版玩家绘制链的逐层入口：每一层调用前后各放一次作者层的槽位（见 <see cref="PlayerDrawLayerLoader"/>），
 /// 作者说要藏这一层就不调 orig。原版的调用顺序与条件判断一个字节不改。

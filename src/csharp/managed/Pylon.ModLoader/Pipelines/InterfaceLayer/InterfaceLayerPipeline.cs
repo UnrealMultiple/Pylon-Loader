@@ -1,12 +1,14 @@
 using Il2CppInterop.Runtime;
 using Il2CppMicrosoft.Xna.Framework;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
-using Terraria.UI;
+using GameInterfaceLayer = Pylon.ModLoader.Content.GameInterfaceLayer;
 using NativeLayer = Terraria.UI.GameInterfaceLayer;
 using NativeList = Il2CppSystem.Collections.Generic.List<Terraria.UI.GameInterfaceLayer>;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 界面层管线：游戏每帧按 <c>Main._gameInterfaceLayers</c> 里的顺序逐层画界面。
 /// 我们把这份列表抓下来、交给作者改（增删/换序/隐藏），再把结果写回去；
@@ -166,7 +168,7 @@ internal sealed class InterfaceLayerPipeline : ILoaderModule, ILoaderModuleRefre
 
         for (var i = 0; i < Internal.Count; i++) Layers.Add(Internal[i]);
 
-        SystemTable.ModifyInterfaceLayers(Layers);
+        SystemLoader.ModifyInterfaceLayers(Layers);
 
         var final = new List<IntPtr>(Layers.Count);
         var seen = new Dictionary<string, int>(StringComparer.Ordinal);

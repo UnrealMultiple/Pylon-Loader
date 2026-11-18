@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using Il2CppInterop.Runtime;
 using Xna = Il2CppMicrosoft.Xna.Framework;
+using Pylon.ModLoader.Core;
 
 namespace PerfTest;
 

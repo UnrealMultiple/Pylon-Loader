@@ -5,6 +5,11 @@ using PipelineTest.Content;
 using Pylon.ModLoader;
 using Terraria;
 using Terraria.ID;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Globals;
+using NPCInteraction = Pylon.ModLoader.Contracts.NPCInteraction;
 
 namespace PipelineTest.Tests;
 

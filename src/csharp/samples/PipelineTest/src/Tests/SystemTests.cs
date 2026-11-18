@@ -9,6 +9,8 @@ using Pylon.ModLoader;
 using Terraria;
 using Terraria.ID;
 using Terraria.IO;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 
 namespace PipelineTest.Tests;
 
@@ -236,7 +238,8 @@ internal static class SystemTests
         get
         {
             var path = Main.worldPathName ?? "";
-            return path.EndsWith(".wld", StringComparison.OrdinalIgnoreCase) ? path + ".wld.pl" : path + ".wld.pl";
+            if (path.EndsWith(".wld", StringComparison.OrdinalIgnoreCase)) path = path[..^4];
+            return path + ".wld.pl";
         }
     }
 
@@ -306,7 +309,7 @@ internal static class SystemTests
     /// <summary>反射走 SystemLoader 的 NetSystems/NetSend/NetReceive 内部门：验证"按键寻址的往返"而不只是作者方法本身。</summary>
     private static void NetRoundtrip()
     {
-        var loader = typeof(ModSystem).Assembly.GetType("Pylon.ModLoader.SystemLoader", true)!;
+        var loader = typeof(ModSystem).Assembly.GetType("Pylon.ModLoader.Content.SystemLoader", true)!;
         var netSystems = loader.GetMethod("NetSystems", BindingFlags.NonPublic | BindingFlags.Static)!;
         var netSend = loader.GetMethod("NetSend", BindingFlags.NonPublic | BindingFlags.Static)!;
         var netReceive = loader.GetMethod("NetReceive", BindingFlags.NonPublic | BindingFlags.Static)!;

@@ -1,10 +1,10 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Contracts;
 using Terraria;
 using Terraria.DataStructures;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>自定义弹幕（投射物）：一个实例 = 一个自定义弹幕，钩子由 Harmony 层按类型派发。</summary>
 public abstract class ModProjectile : ModType
 {

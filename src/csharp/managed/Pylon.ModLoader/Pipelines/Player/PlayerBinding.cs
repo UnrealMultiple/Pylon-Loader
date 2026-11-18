@@ -1,7 +1,9 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>玩家实例保管：模板表 + 每玩家一份实例数组；键是 Player 指针而不是 whoAmI（同一槽位会换人）。</summary>
 internal sealed class PlayerBinding
 {

@@ -1,4 +1,6 @@
-namespace Pylon.ModLoader;
+using Pylon.ModLoader.Content;
+
+namespace Pylon.ModLoader.Pipelines;
 
 internal static class BackgroundTable
 {

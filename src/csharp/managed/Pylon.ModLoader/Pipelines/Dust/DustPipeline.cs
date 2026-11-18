@@ -1,9 +1,11 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>尘土管线：mod 尘土不进游戏图集，由本管线自己更新、自己画。</summary>
 internal sealed class DustPipeline : ILoaderModule, ILoaderModuleRefresh
 {

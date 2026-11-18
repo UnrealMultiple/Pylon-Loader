@@ -1,8 +1,11 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.DataStructures;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>把受伤修饰换算回原版入参；实际扣血和原版冷却仍由游戏执行。</summary>
 internal static class PlayerHurtHooks
 {

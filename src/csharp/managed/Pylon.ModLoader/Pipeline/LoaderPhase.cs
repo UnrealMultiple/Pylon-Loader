@@ -1,5 +1,4 @@
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipeline;
 /// <summary>管线的整体阶段。只用于断言与日志，不参与分派。</summary>
 internal enum LoaderPhase
 {

@@ -1,10 +1,11 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.Chat;
-using Terraria.Chat.Commands;
 using Terraria.Localization;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 命令管线：聊天里以 <c>/</c> 开头且名字命中 mod 命令时由我们跑，命中即吃掉这条消息；
 /// 客户端发送链在联机时也拦一次；/help 把 mod 命令补在原版列表之后。表格与分派归 <see cref="CommandLoader"/>。

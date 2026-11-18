@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Pylon.ModLoader;
+using Pylon.ModLoader.Textures;
 
 namespace Pylon.Managed.Mods;
 

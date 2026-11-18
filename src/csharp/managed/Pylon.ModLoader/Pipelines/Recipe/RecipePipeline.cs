@@ -1,7 +1,11 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>配方管线：条件过滤 / 向导过滤 / 配方组名 / 材料折扣 / 制作回调；侧表在 RecipeTable（密集 struct 数组，判定路径取 ref）。</summary>
 internal sealed class RecipePipeline : ILoaderModule
 {

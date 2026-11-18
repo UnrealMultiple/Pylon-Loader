@@ -1,11 +1,14 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.GameContent.Generation;
-using Terraria.IO;
 using Terraria.ID;
+using Terraria.IO;
 using Terraria.WorldBuilding;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Hooks;
 /// <summary>把作者任务修改写回原生列表,托管步骤仍由游戏的执行器依次调用。</summary>
 internal static class ModWorldGenHooks
 {
@@ -24,41 +27,30 @@ internal static class ModWorldGenHooks
         On.Terraria.GameContent.Generation.PassLegacy.ApplyPass += ApplyPass;
     }
 
-    private static ModChannel Of(HookId hook) => LoaderHost.Current.Hooks.Channel(hook);
-
     private static bool Generate(On.Terraria.WorldBuilding.WorldGenerator.orig_GenerateWorld orig, WorldGenerator self)
     {
-        var pre = Of(HookId.PreWorldGen);
-        var edit = Of(HookId.ModifyWorldGenTasks);
-        var post = Of(HookId.PostWorldGen);
         var sysPre = SystemLoader.With(HookId.PreWorldGen);
         var sysEdit = SystemLoader.With(HookId.ModifyWorldGenTasks);
         var sysPost = SystemLoader.With(HookId.PostWorldGen);
         var protectChests = ModContent.GetContent<ModTile>().Count > 0;
-        if (pre.IsEmpty && edit.IsEmpty && post.IsEmpty && sysPre.Length == 0 && sysEdit.Length == 0 &&
-            sysPost.Length == 0 && !protectChests) return orig(self);
+        if (sysPre.Length == 0 && sysEdit.Length == 0 && sysPost.Length == 0 && !protectChests) return orig(self);
 
-        foreach (var mod in pre)
-        {
-            try { mod.PreWorldGen(); }
-            catch (Exception e) { Report(mod, nameof(Mod.PreWorldGen), e); }
-        }
         for (var i = 0; i < sysPre.Length; i++)
         {
             var system = sysPre[i];
             Safe.Run($"{system.FullKey}.PreWorldGen", system.PreWorldGen);
         }
-        if (edit.IsEmpty && sysEdit.Length == 0 && !protectChests)
+        if (sysEdit.Length == 0 && !protectChests)
         {
             var completed = orig(self);
-            if (completed) Post(post, sysPost);
+            if (completed) Post(sysPost);
             return completed;
         }
 
         var native = self._passes;
         var tasks = new List<GenPass>(native.Count);
         for (var i = 0; i < native.Count; i++) tasks.Add(WorldGenPass.Retain(native[i]));
-        Edit(tasks, edit, sysEdit, false);
+        Edit(tasks, sysEdit, false);
         if (protectChests) KeepModChests(tasks);
         var weight = WeightOf(tasks);
         native.Clear();
@@ -68,7 +60,7 @@ internal static class ModWorldGenHooks
         try
         {
             var completed = orig(self);
-            if (completed) Post(post, sysPost);
+            if (completed) Post(sysPost);
             return completed;
         }
         finally
@@ -127,13 +119,8 @@ internal static class ModWorldGenHooks
         tasks[index] = replacement;
     }
 
-    private static void Post(ModChannel mods, ModSystem[] systems)
+    private static void Post(ModSystem[] systems)
     {
-        foreach (var mod in mods)
-        {
-            try { mod.PostWorldGen(); }
-            catch (Exception e) { Report(mod, nameof(Mod.PostWorldGen), e); }
-        }
         for (var i = 0; i < systems.Length; i++)
         {
             var system = systems[i];
@@ -141,32 +128,8 @@ internal static class ModWorldGenHooks
         }
     }
 
-    private static void Edit(List<GenPass> tasks, ModChannel mods, ModSystem[] systems, bool hardmode)
+    private static void Edit(List<GenPass> tasks, ModSystem[] systems, bool hardmode)
     {
-        foreach (var mod in mods)
-        {
-            var previous = tasks.Select(static p => new PassState(p, p.Name, p.Weight, p.Enabled)).ToArray();
-            try
-            {
-                if (hardmode) mod.ModifyHardmodeTasks(tasks);
-                else mod.ModifyWorldGenTasks(tasks);
-                WeightOf(tasks);
-                for (var i = 0; i < tasks.Count; i++) tasks[i] = WorldGenPass.Retain(tasks[i]);
-            }
-            catch (Exception e)
-            {
-                tasks.Clear();
-                foreach (var state in previous)
-                {
-                    state.Pass.Name = state.Name;
-                    state.Pass.Weight = state.Weight;
-                    if (state.Enabled) state.Pass.Enable(); else state.Pass.Disable();
-                    tasks.Add(state.Pass);
-                }
-                Report(mod, hardmode ? nameof(Mod.ModifyHardmodeTasks) : nameof(Mod.ModifyWorldGenTasks), e);
-            }
-        }
-
         for (var s = 0; s < systems.Length; s++)
         {
             var system = systems[s];
@@ -228,12 +191,11 @@ internal static class ModWorldGenHooks
 
     private static void Hardmode(On.Terraria.WorldGen.orig_initializeHardMode orig)
     {
-        var mods = Of(HookId.ModifyHardmodeTasks);
         var systems = SystemLoader.With(HookId.ModifyHardmodeTasks);
-        if (mods.IsEmpty && systems.Length == 0) { orig(); return; }
+        if (systems.Length == 0) { orig(); return; }
         var conversion = WorldGenPass.Create("Hardmode Conversion", (_, _) => orig());
         var tasks = new List<GenPass> { conversion };
-        Edit(tasks, mods, systems, true);
+        Edit(tasks, systems, true);
         var progress = new GenerationProgress { TotalWeight = WeightOf(tasks) };
         try
         {
@@ -247,7 +209,4 @@ internal static class ModWorldGenHooks
         }
         finally { GC.KeepAlive(tasks); }
     }
-
-    private static void Report(Mod author, string hook, Exception e) =>
-        ContentErrors.Report($"[worldgen] {author.Name}.{hook} 异常:{Safe.Describe(e)}");
 }

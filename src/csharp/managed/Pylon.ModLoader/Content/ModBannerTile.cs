@@ -1,5 +1,5 @@
-using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Pipelines;
 using Terraria;
 using Terraria.DataStructures;
 using Terraria.Enums;
@@ -7,8 +7,7 @@ using Terraria.ID;
 using Terraria.Localization;
 using Terraria.ObjectData;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>敌人的旗子（1x3 的 ModTile）：样式指向放置它的物品，NPC 的 BannerItem 再从这个物品指到代表 NPC。</summary>
 public abstract class ModBannerTile : ModTile
 {

@@ -1,9 +1,10 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.Pipelines;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>
 /// 自定义尘土。mod 尘土由本管线自己更新、自己画（不进游戏的图集），所以不受原版尘土类型号限制：
 /// 用 <see cref="DustPipeline.Spawn"/> 生成，用 <see cref="Update"/> 控制寿命。

@@ -1,8 +1,6 @@
 using Pylon.ModLoader.Tables;
-using Pylon.ModLoader.Textures;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipeline;
 /// <summary>
 /// 一个内容模块的装配单元：把某类内容的游戏钩子挂上去。
 /// 顺序由 <see cref="LoaderRegistry"/> 的数组位置决定，不再有排序字段。

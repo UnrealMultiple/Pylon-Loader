@@ -1,10 +1,11 @@
 using System.Text;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.Localization;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 联机握手：客户端发"请求世界"(msg6) 前先报指纹（模块包），再借 msg68 发 hello——把 Main.clientUUID
 /// 临时换成 "pylon-cs:&lt;指纹&gt;"，发完还原；服务器在 ProcessData 认出 hello 即回 {welcome, rules}

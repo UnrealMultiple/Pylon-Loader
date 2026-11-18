@@ -3,6 +3,11 @@
 using System;
 using Il2CppMicrosoft.Xna.Framework;
 using Pylon.ModLoader;
+using Pylon.ModLoader.Audio;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipelines;
+using SoundStyle = Pylon.ModLoader.Audio.SoundStyle;
 
 namespace XiheMagic
 {

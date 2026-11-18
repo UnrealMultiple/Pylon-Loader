@@ -1,11 +1,13 @@
-using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Globals;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
-using Terraria.Chat;
 using Terraria.Localization;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>死亡消息五入口链：checkDead/CelebrateBossDeath 换入死亡状态，NewText×2/Broadcast 在城镇/首领死亡色上截获并走 GlobalNpc→ModNpc 的 ModifyDeathMessage 链。</summary>
 internal static class NpcDeathMessageHooks
 {

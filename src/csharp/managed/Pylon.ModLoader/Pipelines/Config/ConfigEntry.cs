@@ -1,5 +1,6 @@
-namespace Pylon.ModLoader;
+using Pylon.ModLoader.Content;
 
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>一份配置的注册记录：作者那份实例（真值）、选项列表、载荷期克隆、草稿、落盘路径。</summary>
 public sealed class ModConfigEntry
 {

@@ -1,5 +1,8 @@
-namespace Pylon.ModLoader;
+using Pylon.ModLoader.Audio;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
 
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>一首已登记的 Mod 曲：槽位、MediaPlayer 登记号与淡入淡出进度。按注册下标密集存放。</summary>
 internal struct MusicTrack
 {

@@ -1,4 +1,6 @@
 using Pylon.ModLoader;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Pipelines;
 
 namespace WaterProbe
 {

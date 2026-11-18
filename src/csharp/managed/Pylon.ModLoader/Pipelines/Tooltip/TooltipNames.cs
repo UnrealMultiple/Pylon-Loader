@@ -1,8 +1,8 @@
+using Pylon.ModLoader.Logging;
 using Terraria;
 using Terraria.Localization;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 行命名：先看角色（位置标记直接给出），再看词缀，再看物品自己的 ToolTip 顺序，最后按原版文本比对。
 /// 原版文本直接读游戏的语言数组（tip/inter/misc），没有静态的原版文本表——那样每跟一次游戏版本就要重对几百行。

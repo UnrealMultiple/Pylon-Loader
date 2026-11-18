@@ -1,10 +1,14 @@
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
-using Terraria.GameContent;
 using Terraria.ID;
+using NPCInteraction = Pylon.ModLoader.Contracts.NPCInteraction;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>城镇 NPC：搬进空房、名字表、房间条件、聊天按钮与商店；与敌对 NPC 共享基类但游戏时机不重叠。</summary>
 internal sealed class NpcTown
 {
@@ -41,7 +45,7 @@ internal sealed class NpcTown
         }
     }
 
-#region 入住
+    #region 入住
 
     private void Spawn(On.Terraria.Main.orig_UpdateTime_SpawnTownNPCs orig)
     {
@@ -151,9 +155,9 @@ internal sealed class NpcTown
         return names.Count == 0 ? fallback ?? orig(npcType) : names[Main.rand.Next(names.Count)];
     }
 
-#endregion
+    #endregion
 
-#region 聊天
+    #region 聊天
 
     private static NPC? TalkingTo()
     {
@@ -362,6 +366,6 @@ internal sealed class NpcTown
         OnChatButtonClicked(npc, interaction);
         return true;
     }
-#endregion
+    #endregion
 
 }

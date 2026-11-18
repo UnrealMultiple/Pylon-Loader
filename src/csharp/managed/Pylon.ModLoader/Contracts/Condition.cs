@@ -3,8 +3,7 @@ using Terraria;
 using Terraria.ID;
 using Terraria.Localization;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Contracts;
 /// <summary>一条配方条件：描述（文本键）+ 判定函数，像 tModLoader 的 Condition；recipe.AddCondition 用。</summary>
 public class Condition
 {

@@ -4,6 +4,9 @@ using Il2CppMicrosoft.Xna.Framework;
 using Pylon.ModLoader;
 using Terraria;
 using Terraria.GameContent.UI;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Core;
 
 namespace PipelineTest.Tests;
 

@@ -1,7 +1,11 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>玩家受伤的来源侧分派；实体实例与全局筛选沿用各内容管线的绑定。</summary>
 internal static class PlayerDamageSources
 {

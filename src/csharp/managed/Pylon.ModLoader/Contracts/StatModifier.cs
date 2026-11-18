@@ -1,5 +1,4 @@
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Contracts;
 /// <summary>一份伤害/击退修正（同 tModLoader）：最终值 = (原值 + Base) * Additive * Multiplicative + Flat；对象可变，直接改字段（damage.Additive += 0.1）。</summary>
 public class StatModifier
 {

@@ -1,9 +1,11 @@
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.GameContent;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>合成原料注入：AddMaterialsForCrafting 的列表按 200 一块装进自建 InventoryStorage 并追加到原版材料源；ConsumeItemsFrom 把消耗记回作者物品并派 ItemConsumedCallback。</summary>
 internal static class PlayerCraftingHooks
 {

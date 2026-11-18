@@ -1,9 +1,7 @@
 using Terraria;
 using Terraria.ID;
-using Terraria.ObjectData;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>多格家具的完整性检查与整件毁坏（挂在 TileFrameImportant 上：任一格被重框就查整件）。</summary>
 internal static class TileObjectCheck
 {

@@ -1,7 +1,6 @@
 using Il2CppMicrosoft.Xna.Framework;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Contracts;
 /// <summary>写值容器（ModPacket 的基类）：mod 侧按顺序塞值，Send 时整包序列化；读侧对应 NetReader。</summary>
 public class NetWriter
 {

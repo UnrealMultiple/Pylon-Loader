@@ -1,10 +1,8 @@
-using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Terraria;
 using Terraria.DataStructures;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>
 /// 自定义血腥粒子（gore）：一个类型一粒模板，类型号接在原版表后面。
 /// 贴图是单张 png（`assets/gores/&lt;类名&gt;.png`），由安装管线写进 TextureAssets.Gore。
@@ -29,5 +27,3 @@ public abstract class ModGore : ModType
     /// </summary>
     public virtual int UpdateType => 0;
 }
-
-// Gores/*.png 自动发现（只放图片不会产生类型）、网络同步（粒子是纯表现）。

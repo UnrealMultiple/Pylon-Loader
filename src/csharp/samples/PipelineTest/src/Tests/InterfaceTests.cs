@@ -3,15 +3,17 @@ using Pylon.ModLoader;
 using PipelineTest.Content;
 using Terraria;
 using Terraria.UI;
-using AuthorLayer = Pylon.ModLoader.GameInterfaceLayer;
-using AuthorLegacyLayer = Pylon.ModLoader.LegacyGameInterfaceLayer;
+using AuthorLayer = Pylon.ModLoader.Content.GameInterfaceLayer;
+using AuthorLegacyLayer = Pylon.ModLoader.Content.LegacyGameInterfaceLayer;
+using Pylon.ModLoader.Content;
+using GameInterfaceLayer = Pylon.ModLoader.Content.GameInterfaceLayer;
 
 namespace PipelineTest.Tests;
 
 /// <summary>
 /// 管线：InterfaceLayer + SystemDraw —— 真机验证。
-/// 钩子在 Mod 上（ModifyInterfaceLayers / PostDrawTiles / PostDrawInterface），
-/// 探针由 <see cref="PipelineTestMod"/> 的覆写路由到 <see cref="TestInterfaceProbe"/>。
+/// 钩子在 ModSystem 上（ModifyInterfaceLayers / PostDrawTiles / PostDrawInterface），
+/// 探针由 <see cref="TestDrawSystem"/> 路由到 <see cref="TestInterfaceProbe"/>。
 /// Ready：菜单首帧后 ModifyInterfaceLayers 就在跑、作者层对象可建。
 /// World：三个计数每帧增长；插入/换序/隐藏用层名序列作外部可见结果；异常被吞、下一帧恢复。
 /// </summary>

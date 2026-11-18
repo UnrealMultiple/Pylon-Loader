@@ -1,7 +1,11 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 一条配方的侧表项。默认值全是 null / 0：普通配方不分配任何东西。
 /// 用 struct + 密集数组（下标 = Main.recipe 的下标）而不是每条一个对象。

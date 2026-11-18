@@ -1,12 +1,14 @@
-using Pylon.ModLoader.Tables;
-using Pylon.ModLoader.Textures;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.Tables;
 using Terraria;
 using Terraria.DataStructures;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>物品管线：把 ModItem 接进"用/挥/装备/射"链；分派为本物品先、GlobalItem 后，射击上下文是实例字段。</summary>
 internal sealed class ItemPipeline : ILoaderModule
 {

@@ -1,8 +1,7 @@
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Contracts;
 /// <summary>城镇 NPC 对话里的一个交互按钮：作者在 RegisterChatButtons 里往列表加，前两个会显示。</summary>
 public abstract class NPCInteraction
 {

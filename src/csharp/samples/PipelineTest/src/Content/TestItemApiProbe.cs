@@ -2,6 +2,9 @@ using Pylon.ModLoader;
 using Terraria;
 using Terraria.GameContent.ItemDropRules;
 using Terraria.ID;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Globals;
 
 namespace PipelineTest.Content;
 

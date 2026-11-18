@@ -1,8 +1,10 @@
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>物品槽交互（悬停/Shift 点击）：作者拿到背包快照，可改写并决定是否吞掉这次交互。</summary>
 internal static class PlayerSlotHooks
 {

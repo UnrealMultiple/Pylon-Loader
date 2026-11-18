@@ -1,8 +1,11 @@
 using Il2CppMicrosoft.Xna.Framework;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>挥击碰撞盒与特效：原版算出挥击矩形后交作者改（UseItemHitbox），特效阶段再告知同一矩形（MeleeEffects）；ModItem 先、GlobalItem 后。</summary>
 internal static class ItemHitboxHooks
 {

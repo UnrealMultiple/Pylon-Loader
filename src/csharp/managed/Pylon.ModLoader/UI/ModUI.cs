@@ -2,6 +2,10 @@ using System.Text;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.Mod;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.ImGuiHost;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipelines;
 using Terraria;
 
 namespace Pylon.ModLoader.UI;
@@ -24,7 +28,6 @@ public static class ModUI
 
     internal static ModLogger? Logger => _logger;
 
-    /// <summary>晚阶段调用（游戏 UI 就绪后）。</summary>
     internal static void EnsureInitialized(ModLogger logger)
     {
         if (_hooked) return;
@@ -40,7 +43,6 @@ public static class ModUI
         if (!Panels.Contains(panel)) Panels.Add(panel);
     }
 
-    /// <summary>Mod 注册 ImGui 菜单 Tab（Mod.RegisterImGuiTab 转到这里，进全局注册表）。</summary>
     internal static void RegisterImGuiTab(IModImGuiTab tab) => ImGuiTabRegistry.Register(tab);
 
     internal static void Update(GameTime gameTime)
@@ -61,7 +63,6 @@ public static class ModUI
         On.Terraria.Main.UpdateUIStates += UpdateUIStatesHook;
         logger.Info("UI 驱动已挂：Main.UpdateUIStates(GameTime)");
 
-        // 绘制走界面层管线（和作者层同一条链，位置可调，不再占原版某个绘制点的钩子）。
         InterfaceLayerPipeline.RegisterInternal(
             new LegacyGameInterfaceLayer("Pylon: Loader UI", DrawLoaderUi, Terraria.UI.InterfaceScaleType.UI));
         logger.Info("UI 绘制层已登记：Pylon: Loader UI");
@@ -79,7 +80,6 @@ public static class ModUI
         Update(gameTime);
     }
 
-    /// <summary>把异常链压成一行：保留"谁抛的"，不刷堆栈。</summary>
     internal static string Flatten(Exception e)
     {
         var text = new StringBuilder();

@@ -1,5 +1,6 @@
-namespace Pylon.ModLoader;
+using Pylon.ModLoader.Content;
 
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>晶塔的模组侧入口（游戏自己的晶塔系统认识 mod 晶塔之后，才有东西可刷）。</summary>
 public static class PylonSupport
 {

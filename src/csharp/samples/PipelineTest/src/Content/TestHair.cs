@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using Pylon.ModLoader;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
 
 namespace PipelineTest.Content;
 

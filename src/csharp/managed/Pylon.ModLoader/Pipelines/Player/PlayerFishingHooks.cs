@@ -1,9 +1,10 @@
-using Il2CppMicrosoft.Xna.Framework;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.DataStructures;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>在原版选鱼前修改条件，在掷骰后回写物品和敌人结果。</summary>
 internal static class PlayerFishingHooks
 {
@@ -166,9 +167,8 @@ internal static class PlayerFishingHooks
     private static bool ConsumeBait(On.Terraria.Player.orig_ItemCheck_CheckFishingBobber_ConsumeBait orig,
                                     Player self, Projectile bobber, out int baitTypeUsed)
     {
-        var systemMods = LoaderHost.Current.Hooks.Channel(HookId.ConsumeBait);
         var wantPlayers = Players.ModsActive(HookId.CanConsumeBait);
-        if (systemMods.IsEmpty && !wantPlayers)
+        if (!wantPlayers)
             return orig(self, bobber, out baitTypeUsed);
 
         var inv = self.inventory;
@@ -180,7 +180,7 @@ internal static class PlayerFishingHooks
 
         bool? decision = null;
 
-        if (wantPlayers && caught && baitTypeUsed > 0)
+        if (caught && baitTypeUsed > 0)
         {
             var bait = FindBait(inv, baitTypeUsed);
             foreach (var mod in Players.ModsOf(self))
@@ -192,19 +192,6 @@ internal static class PlayerFishingHooks
                     if (d is not null && decision != false) decision = d;
                 }
                 catch (Exception e) { Fail(mod, HookId.CanConsumeBait, e); }
-            }
-        }
-
-        foreach (var mod in systemMods)
-        {
-            try
-            {
-                var d = mod.ConsumeBait(ref baitTypeUsed);
-                if (d is not null && decision != false) decision = d;
-            }
-            catch (Exception e)
-            {
-                Safe.Report(mod.Name + ".ConsumeBait", e);
             }
         }
 

@@ -1,8 +1,8 @@
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Pipeline;
 using Terraria.Localization;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>自定义墙（贴图是 468×180 的帧表）。</summary>
 public abstract class ModWall : ModType
 {

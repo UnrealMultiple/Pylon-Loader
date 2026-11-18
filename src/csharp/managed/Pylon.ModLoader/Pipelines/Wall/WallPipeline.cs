@@ -1,9 +1,11 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Pylon.ModLoader.Tables;
-using Pylon.ModLoader.Textures;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>墙壁管线：挖 / 尘土 / 声音 / 掉落 / 边框。每类型数据在 WallTable（密集 struct 数组）。</summary>
 internal sealed class WallPipeline : ILoaderModule
 {

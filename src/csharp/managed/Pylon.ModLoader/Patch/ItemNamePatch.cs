@@ -1,7 +1,10 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipelines;
 using Terraria;
 using Terraria.Localization;
 
-namespace Pylon.ModLoader;
+namespace Pylon.ModLoader.Patch;
 
 /// <summary>Lang.GetItemName / GetItemNameValue 的 mod 类型结果替换。</summary>
 internal static class ItemNamePatch

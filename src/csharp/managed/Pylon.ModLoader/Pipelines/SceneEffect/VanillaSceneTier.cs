@@ -1,8 +1,7 @@
 using Terraria;
 using Terraria.GameContent.Events;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 制作者名单 &gt; 火把神 &gt; NPC 群（入侵/首领）&gt; 事件（血月/南瓜/雪/史莱姆雨/闪光/城镇/沙尘暴/地狱）
 /// &gt; 环境群落（神庙/地牢/蘑菇/腐化/猩红）&gt; 次级群落。

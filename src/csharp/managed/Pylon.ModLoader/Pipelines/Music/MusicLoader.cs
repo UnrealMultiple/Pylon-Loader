@@ -1,5 +1,4 @@
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 公开的音乐入口：作者用 GetMusicSlot 拿槽位、AddMusicBox 登记音乐盒。
 /// 状态在 <see cref="MusicPipeline"/>；这里只转发，因为作者是按静态 API 编译的。

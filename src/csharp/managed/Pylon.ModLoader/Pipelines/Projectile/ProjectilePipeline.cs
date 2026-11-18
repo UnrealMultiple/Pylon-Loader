@@ -1,14 +1,16 @@
-using Pylon.ModLoader.Tables;
-using Pylon.ModLoader.Textures;
+using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
-using Il2CppInterop.Runtime.InteropTypes.Arrays;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.Tables;
 using Terraria;
 using Terraria.DataStructures;
 using Terraria.ID;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>弹幕管线：把 ModProjectile / GlobalProjectile 接进"生成 → AI → 移动 → 命中 → 死亡 → 绘制 → 钩爪"这条链；跨钩子上下文用定长结构体栈，避免每帧分配。</summary>
 internal sealed class ProjectilePipeline : ILoaderModule
 {
@@ -97,7 +99,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
         }
     }
 
-#region AI
+    #region AI
 
     private void Ai(On.Terraria.Projectile.orig_AI orig, Projectile self)
     {
@@ -366,9 +368,9 @@ internal sealed class ProjectilePipeline : ILoaderModule
         return result;
     }
 
-#endregion
+    #endregion
 
-#region 移动与撞块
+    #region 移动与撞块
 
     private void Movement(On.Terraria.Projectile.orig_HandleMovement orig, Projectile self, Vector2 wetVelocity)
     {
@@ -636,9 +638,9 @@ internal sealed class ProjectilePipeline : ILoaderModule
         return fall;
     }
 
-#endregion
+    #endregion
 
-#region 死亡
+    #region 死亡
 
     private void Kill(On.Terraria.Projectile.orig_Kill orig, Projectile self)
     {
@@ -699,9 +701,9 @@ internal sealed class ProjectilePipeline : ILoaderModule
         orig(self);
     }
 
-#endregion
+    #endregion
 
-#region 命中
+    #region 命中
 
     private void Damage(On.Terraria.Projectile.orig_Damage orig, Projectile self)
     {
@@ -848,9 +850,9 @@ internal sealed class ProjectilePipeline : ILoaderModule
         return box;
     }
 
-#endregion
+    #endregion
 
-#region 割草
+    #region 割草
 
     private bool CanCutTiles(On.Terraria.Projectile.orig_CanCutTiles orig, Projectile self)
     {
@@ -924,9 +926,9 @@ internal sealed class ProjectilePipeline : ILoaderModule
         }
     }
 
-#endregion
+    #endregion
 
-#region 绘制
+    #region 绘制
 
     private Color Alpha(On.Terraria.Projectile.orig_GetAlpha orig, Projectile self, Color newColor)
     {
@@ -1085,9 +1087,9 @@ internal sealed class ProjectilePipeline : ILoaderModule
         }
     }
 
-#endregion
+    #endregion
 
-#region 钩爪
+    #region 钩爪
 
     private void FireGrapple(On.Terraria.Player.orig_FireGrapple orig, Player self, Item grappleItem)
     {
@@ -1498,9 +1500,9 @@ internal sealed class ProjectilePipeline : ILoaderModule
         };
     }
 
-#endregion
+    #endregion
 
-#region 工具
+    #region 工具
 
     private static bool InRange(Il2CppArrayBase<bool>? array, int index) =>
         array is not null && index >= 0 && index < array.Length;
@@ -1534,7 +1536,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
         public long Address;
         public Color Light;
     }
-#endregion
+    #endregion
 
 }
 

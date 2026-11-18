@@ -1,7 +1,9 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>一面墙的数据。按类型密集索引：判定路径取 ref，不复制、不装箱。</summary>
 internal struct WallMeta
 {

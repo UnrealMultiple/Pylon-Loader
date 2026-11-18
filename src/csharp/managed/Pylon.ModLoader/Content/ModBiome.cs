@@ -1,9 +1,8 @@
-using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Pipelines;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>自定义生物群落（场景效果的一种），像 tModLoader：IsBiomeActive 每帧说玩家在不在里面，进/出与在里面各有钩子，默认 BiomeLow 优先级与静音。</summary>
 public abstract class ModBiome : ModSceneEffect
 {
@@ -54,6 +53,3 @@ public abstract class ModBiome : ModSceneEffect
     /// <summary>场景效果管线问的就是这句：群落标记本身就是"这个效果激不激活"。</summary>
     public override bool IsSceneEffectActive(Player player) => IsActive(player);
 }
-
-// 未移植 TownNPCDialogueName：Pylon 的对话按钮走 SetChatButtons 字符串形态。
-// player.InModBiome(...) 用 ModBiome.IsActive(player) 代替。

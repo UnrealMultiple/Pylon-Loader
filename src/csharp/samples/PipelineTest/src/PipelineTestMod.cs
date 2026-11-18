@@ -2,9 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using Pylon.ModLoader;
-using Terraria;
 using PipelineTest.Content;
-using AuthorLayer = Pylon.ModLoader.GameInterfaceLayer;
+using Pylon.ModLoader.Content;
 
 namespace PipelineTest;
 
@@ -19,25 +18,6 @@ public sealed class PipelineTestMod : Mod
     public static int BossHeadSlot { get; private set; } = -1;
 
     public PipelineTestMod() => Instance = this;
-
-    public override void ModifyInterfaceLayers(List<AuthorLayer> layers) =>
-        TestInterfaceProbe.OnModifyInterfaceLayers(layers);
-
-    public override void PostDrawTiles() => TestInterfaceProbe.OnPostDrawTiles();
-
-    public override void PostDrawInterface(Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch spriteBatch)
-    {
-        TestInterfaceProbe.OnPostDrawInterface(spriteBatch);
-        Tests.FishingTests.Draw();
-    }
-
-    public override void ModifySunLightColor(ref Il2CppMicrosoft.Xna.Framework.Graphics.Color tileColor,
-                                             ref Il2CppMicrosoft.Xna.Framework.Graphics.Color backgroundColor) =>
-        Tests.EnvironmentTests.Sky(ref tileColor, ref backgroundColor);
-
-    public override void ModifyLightingBrightness(ref float scale) => Tests.EnvironmentTests.Light(ref scale);
-
-    public override void PreUpdateProjectiles() => Tests.EnvironmentTests.Projectiles();
 
     public override void Load()
     {
@@ -137,30 +117,6 @@ public sealed class PipelineTestMod : Mod
     {
         PT.RunPhase(Phase.Ready);
         PT.End();
-    }
-
-    public static bool TooltipSweep;
-    private static int _sweepFrame;
-
-    private const int SweepColumns = 16;
-    private const int SweepRows = 14;
-    private const float SweepWidthRatio = 0.45f;
-    private const float SweepTopRatio = 0.24f;
-    private const float SweepHeightRatio = 0.36f;
-
-    public static int SweepFrames => SweepColumns * SweepRows;
-
-    public override void PostUpdateEverything()
-    {
-        if (!TooltipSweep) return;
-
-        var width = Math.Max(Main.screenWidth, 1);
-        var height = Math.Max(Main.screenHeight, 1);
-        var column = _sweepFrame % SweepColumns;
-        var row = (_sweepFrame / SweepColumns) % SweepRows;
-        Main.mouseX = (int)(column * (width * SweepWidthRatio) / SweepColumns);
-        Main.mouseY = (int)((SweepTopRatio * height) + row * (height * SweepHeightRatio) / SweepRows);
-        _sweepFrame++;
     }
 
     public override void AddRecipes()

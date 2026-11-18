@@ -1,17 +1,18 @@
-using System;
 using Il2CppMicrosoft.Xna.Framework;
+using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.DataStructures;
-using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Terraria.GameContent;
 using Terraria.GameContent.NetModules;
-using Terraria.Net;
-using Terraria.UI;
 using Terraria.Map;
+using Terraria.Net;
 using Terraria.ObjectData;
+using Terraria.UI;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>传送晶塔管线：把 mod 晶塔塞进游戏自己的晶塔列表，让传送、附近判定、地图图标全走原版逻辑；另管放置许可、NPC 数量检查转发、地图连线与点开地图。</summary>
 internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
 {

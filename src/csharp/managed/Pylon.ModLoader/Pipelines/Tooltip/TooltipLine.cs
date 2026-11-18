@@ -1,7 +1,6 @@
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// tooltip 的一行。游戏的行 Mod 是 "Terraria"，行名按 TooltipNames 定（ItemName / Damage / PrefixDamage / Tooltip3…）。
 /// 作者能改 Text、能 Hide()，也能指定整行颜色。

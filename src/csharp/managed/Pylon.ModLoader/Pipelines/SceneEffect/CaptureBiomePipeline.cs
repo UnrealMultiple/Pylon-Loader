@@ -1,8 +1,10 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.Graphics.Capture;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 截屏生物群系：游戏拍图 / 全屏地图问"这里是哪个生物群系"时，如果这一帧的场景赢家把水或表层背景
 /// 换成了 mod 槽位（原版编号表装不下），而原版自己没有给出群系，就自己造一份 CaptureBiome 回过去——

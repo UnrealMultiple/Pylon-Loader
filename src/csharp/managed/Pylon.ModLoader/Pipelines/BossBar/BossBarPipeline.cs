@@ -1,11 +1,14 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Globals;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.GameContent;
 using Terraria.GameContent.UI.BigProgressBar;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>Boss 血条管线：拦在 BigProgressBarSystem 上抓目标与换条（NPC 与血条的绑定在 NPC.BossBar 上），GUI 层接管条身皮肤。</summary>
 internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
 {

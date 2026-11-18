@@ -1,8 +1,6 @@
-using System.Collections.Generic;
 using Terraria.WorldBuilding;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>系统内容基类的世界生成面：PreWorldGen → ModifyWorldGenTasks → 生成 → PostWorldGen，困难模式另走 ModifyHardmodeTasks。</summary>
 public abstract partial class ModSystem
 {

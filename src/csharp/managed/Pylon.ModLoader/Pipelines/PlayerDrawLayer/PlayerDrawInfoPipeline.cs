@@ -1,11 +1,13 @@
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.DataStructures;
 using Terraria.Graphics;
 using Terraria.Graphics.Renderers;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 玩家绘制信息管线：把 <see cref="ModPlayer"/> 的五个绘制钩子接到 <c>PlayerDrawSet</c> 的真实构建链上。
 /// 之前只挂在 <c>LegacyPlayerRenderer.DrawPlayer</c> 的前后（见 PlayerDrawLayerPipeline 的两层），

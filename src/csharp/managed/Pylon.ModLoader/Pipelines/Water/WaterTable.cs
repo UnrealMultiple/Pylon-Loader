@@ -1,7 +1,6 @@
-using Pylon.ModLoader.Textures;
+using Pylon.ModLoader.Content;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 水样式侧表：编号 = 原版表长 + 注册序。原版总数只在运行期读（`WaterStyleID` 没有 Count），
 /// 由 <see cref="WaterTables.Vanilla"/> 在扩表之前捕获一次。

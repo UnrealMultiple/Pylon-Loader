@@ -1,8 +1,8 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>只在单个增益图标的原版绘制窗口内修改真实绘制参数，不接管布局或输入。</summary>
 internal static class BuffIconCapture
 {

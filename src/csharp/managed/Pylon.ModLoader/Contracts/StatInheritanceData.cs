@@ -1,5 +1,4 @@
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Contracts;
 /// <summary>
 /// 五个属性（伤害/暴击/攻速/破防/击退）从别的职业继承的比例：1 = 全继承、0 = 不继承；
 /// <see cref="Full"/> 全继承、<see cref="None"/> 全不继承。

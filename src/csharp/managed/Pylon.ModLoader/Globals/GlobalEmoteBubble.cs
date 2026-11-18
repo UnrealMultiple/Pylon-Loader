@@ -1,9 +1,9 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
 using Terraria.GameContent.UI;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Globals;
 /// <summary>
 /// 作用于所有表情气泡（游戏的与 mod 的）的横切类：一个类一个实例，钩子自己按气泡挑。
 /// 与 <see cref="GlobalBuff"/> 同一套形状——注册表按覆写的方法建位集，没覆写的不进分派。
@@ -25,7 +25,8 @@ public abstract class GlobalEmoteBubble : ModType
 
     /// <summary>画完之后（只对 mod 表情生效，见文档）。</summary>
     public virtual void PostDraw(EmoteBubble bubble, SpriteBatch spriteBatch, Texture2D texture, Vector2 position,
-                                 Rectangle frame, Vector2 origin, SpriteEffects spriteEffects) { }
+                                 Rectangle frame, Vector2 origin, SpriteEffects spriteEffects)
+    { }
 
     /// <summary>表情菜单里的取帧（游戏的与 mod 的表情都会问）；null = 不问。</summary>
     public virtual Rectangle? GetFrameInEmoteMenu(int emoteType, int frame, int frameCounter) => null;

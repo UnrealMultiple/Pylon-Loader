@@ -1,8 +1,9 @@
-using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>系统绘制时机：方块与投影画完、整块界面画完。</summary>
 internal sealed class SystemDrawPipeline : ILoaderModule, ILoaderModuleRefresh
 {
@@ -26,7 +27,6 @@ internal sealed class SystemDrawPipeline : ILoaderModule, ILoaderModuleRefresh
 
     public void Refresh()
     {
-        SystemTable.Rebuild();
         InterfaceLayerPipeline.Reset();
 
         _tiles = SystemTable.AnyPostDrawTiles;
@@ -36,14 +36,14 @@ internal sealed class SystemDrawPipeline : ILoaderModule, ILoaderModuleRefresh
     private static void DrawProjectiles(On.Terraria.Main.orig_DrawSuperSpecialProjectiles orig, Main self,
                                         Il2CppSystem.Collections.Generic.List<int> projCache, bool startSpriteBatch)
     {
-        if (_tiles && !Main.gameMenu) SystemTable.PostDrawTiles();
+        if (_tiles && !Main.gameMenu) SystemLoader.PostDrawTiles();
 
         orig(self, projCache, startSpriteBatch);
     }
 
     private static void DrawMouseText(On.Terraria.Main.orig_DrawInterface_33_MouseText orig, Main self)
     {
-        if (_interface && !Main.gameMenu) SystemTable.PostDrawInterface(Main.spriteBatch);
+        if (_interface && !Main.gameMenu) SystemLoader.PostDrawInterface(Main.spriteBatch);
 
         orig(self);
     }

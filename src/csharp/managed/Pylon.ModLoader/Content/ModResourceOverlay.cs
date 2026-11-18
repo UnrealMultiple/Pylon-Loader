@@ -4,8 +4,7 @@ using ReLogic.Content;
 using Terraria;
 using Terraria.GameContent.UI.ResourceSets;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>
 /// 资源条（生命/魔力）的覆盖层：单颗心/星按次给绘制上下文，整条给显示快照。
 /// <c>PreDrawResourceDisplay</c> / <c>PostDrawResourceDisplay</c> / <c>DisplayHoverText</c>）。
@@ -28,7 +27,8 @@ public abstract class ModResourceOverlay : ModType
 
     /// <summary>整条生命/魔力条画之后。</summary>
     public virtual void PostDrawResourceDisplay(PlayerStatsSnapshot snapshot, IPlayerResourcesDisplaySet displaySet,
-        bool drawingLife, Color textColor, bool drawText) { }
+        bool drawingLife, Color textColor, bool drawText)
+    { }
 
     /// <summary>悬停提示要不要画（false = 不画）。</summary>
     public virtual bool DisplayHoverText(PlayerStatsSnapshot snapshot, IPlayerResourcesDisplaySet displaySet,

@@ -4,6 +4,8 @@ using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader;
 using ReLogic.Content;
 using System;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 
 namespace PipelineTest.Content;
 

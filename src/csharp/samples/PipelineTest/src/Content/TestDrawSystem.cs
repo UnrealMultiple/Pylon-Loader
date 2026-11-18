@@ -7,12 +7,15 @@ using Terraria;
 using Terraria.Graphics;
 using Terraria.Localization;
 using Terraria.Map;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
+using PipelineTest.Tests;
 
 namespace PipelineTest.Content;
 
 /// <summary>
 /// 测试系统 B：绘制/网络面。阳光与亮度改写、屏幕位移、矩阵对照、方块与界面绘制计数、
-/// 地图层隐藏与恢复、NetSend/NetReceive 往返与 HijackGetData 消费。
+/// 界面层探针路由（原 Mod 虚方法迁移）、地图层隐藏与恢复、NetSend/NetReceive 往返与 HijackGetData 消费。
 /// </summary>
 public sealed class TestDrawSystem : ModSystem
 {
@@ -25,6 +28,7 @@ public sealed class TestDrawSystem : ModSystem
 
     public override void ModifySunLightColor(ref Color tileColor, ref Color backgroundColor)
     {
+        EnvironmentTests.Sky(ref tileColor, ref backgroundColor);
         Sun++;
         if (!Tint) return;
         tileColor = new Color(10, 20, 30);
@@ -33,11 +37,15 @@ public sealed class TestDrawSystem : ModSystem
 
     public override void ModifyLightingBrightness(ref float scale)
     {
+        EnvironmentTests.Light(ref scale);
         Brightness++;
         if (!Dim) return;
         BrightnessBefore = Lighting.GlobalBrightness;
         scale = 0.5f;
     }
+
+    public override void ModifyInterfaceLayers(List<GameInterfaceLayer> layers) =>
+        TestInterfaceProbe.OnModifyInterfaceLayers(layers);
 
     public override void ModifyScreenPosition()
     {
@@ -55,12 +63,15 @@ public sealed class TestDrawSystem : ModSystem
 
     public override void PostDrawTiles()
     {
+        TestInterfaceProbe.OnPostDrawTiles();
         Tiles++;
         if (Shift) ShiftSeen = Main.screenPosition == ShiftedTo;
     }
 
     public override void PostDrawInterface(SpriteBatch spriteBatch)
     {
+        TestInterfaceProbe.OnPostDrawInterface(spriteBatch);
+        FishingTests.Draw();
         Interface++;
         BatchSet = spriteBatch.Pointer != 0;
     }

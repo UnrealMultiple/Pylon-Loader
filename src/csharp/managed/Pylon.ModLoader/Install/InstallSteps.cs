@@ -1,12 +1,18 @@
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Localization;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.Pipelines;
 using Pylon.ModLoader.Tables;
 using Pylon.ModLoader.Textures;
 using ReLogic.Content;
 using Terraria;
 using Terraria.ID;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Install;
 /// <summary>安装步骤的内容操作：每个方法只做一件事，可单独重入（表被重建时会再跑一次）。</summary>
 internal static class InstallSteps
 {

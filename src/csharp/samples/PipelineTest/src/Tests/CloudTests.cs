@@ -2,6 +2,7 @@ using System;
 using Pylon.ModLoader;
 using Pylon.ModLoader.Textures;
 using Terraria;
+using Pylon.ModLoader.Content;
 
 namespace PipelineTest.Tests;
 

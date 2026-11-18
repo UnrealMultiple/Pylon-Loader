@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Pylon.ModLoader;
+using Pylon.ModLoader.Patching;
 
 if (args.Length == 1 && args[0] == "--self-test") { SelfTest.Run(); return; }
 if (args.Length == 2 && args[0] == "--verify-profile") { SelfTest.Verify(args[1]); return; }

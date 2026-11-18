@@ -2,6 +2,9 @@ using Il2CppMicrosoft.Xna.Framework.Audio;
 using PipelineTest.Content;
 using Pylon.ModLoader;
 using Terraria;
+using Pylon.ModLoader.Audio;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 
 namespace PipelineTest.Tests;
 

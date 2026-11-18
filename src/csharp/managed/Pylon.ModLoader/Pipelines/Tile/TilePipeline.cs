@@ -1,11 +1,15 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Patching;
+using Pylon.ModLoader.Pipeline;
 using Pylon.ModLoader.Tables;
-using Pylon.ModLoader.Textures;
 using Terraria;
 using Terraria.ID;
 using Terraria.ObjectData;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>方块管线：挖、尘土、掉落、边框、通电、制作站、右键；每类型的位集与掉落数据在 TileTable（密集 struct 数组）。</summary>
 internal sealed class TilePipeline : ILoaderModule
 {

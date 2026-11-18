@@ -1,7 +1,10 @@
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.Pipelines;
+using Pylon.ModLoader.SaveData;
 using Terraria.DataStructures;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>自定义方块实体：数据/代码挂在放下的家具上，一个类型一个实例，实体在物体的左上角（Position）。</summary>
 public abstract class ModTileEntity : ModType
 {
@@ -81,7 +84,3 @@ public abstract class ModTileEntity : ModType
     /// <summary>世界里有多少个 mod 方块实体。</summary>
     public static int CountInWorld() => TileEntityBinding.Count;
 }
-
-// 未移植：TryGet（按格取实体的便捷入口，用 Find 即可）。
-// Hook_AfterPlacement 已接：管线放好实体后调用（放置来源：作者在 PlaceInWorld 里手动 Place，或 IsTileValidForEntity 的自动规则）。
-// ModType 派生类由注册管线自动发现。

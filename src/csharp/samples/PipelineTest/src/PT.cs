@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Pylon.ModLoader.Logging;
 
 namespace PipelineTest;
 
@@ -25,8 +26,8 @@ internal static class PT
     /// <summary>组开关：tests.txt 里的组名（null = 全部跑）。</summary>
     public static HashSet<string>? Enabled;
 
-    private static Pylon.ModLoader.IModLog? _log;
-    public static void Bind(Pylon.ModLoader.IModLog log) => _log = log;
+    private static Pylon.ModLoader.Logging.IModLog? _log;
+    public static void Bind(Pylon.ModLoader.Logging.IModLog log) => _log = log;
 
     private static void Log(string message) => _log?.Info(message);
 

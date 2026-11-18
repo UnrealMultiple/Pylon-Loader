@@ -1,13 +1,9 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using Il2CppInterop.Runtime.InteropTypes;
 using Terraria;
 using Terraria.Achievements;
 using Terraria.GameContent.Achievements;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>
 /// 自定义成就（挂在游戏的成就管理器上，键是 &lt;mod&gt;/&lt;类名&gt;，进度存游戏的成就文件）。
 /// 条件只能在 SetStaticDefaults 里加；完成那一下派 OnCompleted；

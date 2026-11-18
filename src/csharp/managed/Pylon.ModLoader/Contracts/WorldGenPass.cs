@@ -1,10 +1,12 @@
 using System.Runtime.CompilerServices;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria.GameContent.Generation;
 using Terraria.IO;
 using Terraria.WorldBuilding;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Contracts;
 /// <summary>创建能插入原生生成任务列表的托管步骤;不要直接派生生成代理类实现虚方法。</summary>
 public static class WorldGenPass
 {

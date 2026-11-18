@@ -1,5 +1,6 @@
 #nullable enable
 using Pylon.ModLoader;
+using Pylon.ModLoader.Content;
 
 namespace PipelineTest.Content;
 

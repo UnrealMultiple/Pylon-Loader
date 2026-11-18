@@ -1,13 +1,9 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
-using ReLogic.Content;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.GameContent;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 背景贴图：每个 <c>Backgrounds/*.png</c> 占一个游戏背景槽（原版槽位之后），
 /// 并把 <c>TextureAssets.Background</c> / <c>Main.backgroundWidth/Height</c> 扩到总数——

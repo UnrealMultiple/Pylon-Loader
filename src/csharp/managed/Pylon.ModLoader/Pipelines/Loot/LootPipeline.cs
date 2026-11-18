@@ -1,8 +1,13 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Patching;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
-using Terraria.GameContent.ItemDropRules;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>掉落管线：全局掉落（对全部 NPC 生效的规则）、mod 物品的规则表，以及开 Boss 袋。</summary>
 internal sealed class LootPipeline : ILoaderModule, ILoaderModuleRefresh
 {

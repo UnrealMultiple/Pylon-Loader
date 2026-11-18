@@ -1,7 +1,11 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>接触攻击只在匹配目标的首次受击中使用来源上下文，嵌套攻击不继承外层来源。</summary>
 internal static class NpcContactHooks
 {

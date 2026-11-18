@@ -1,10 +1,9 @@
-using System.Collections.Generic;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Globals;
 /// <summary>作用于所有 buff（游戏的与 mod 的）的横切类；一个类一个实例，钩子收到 buff 类型自己挑。</summary>
 public abstract class GlobalBuff : ModType
 {

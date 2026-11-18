@@ -1,5 +1,4 @@
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Install;
 /// <summary>安装管线的一步。返回 false 表示"还没做完"，下一帧接着来（可续步骤）。</summary>
 internal interface IInstallStep
 {

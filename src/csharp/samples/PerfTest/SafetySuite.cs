@@ -1,5 +1,6 @@
 using System.Reflection;
 using Il2CppInterop.Runtime;
+using Pylon.ModLoader.Core;
 
 namespace PerfTest;
 

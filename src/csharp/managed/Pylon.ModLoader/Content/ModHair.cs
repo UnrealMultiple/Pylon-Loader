@@ -1,7 +1,6 @@
-using System.Collections.Generic;
+using Pylon.ModLoader.Contracts;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>自定义发型；一个类型一个实例（创建角色与理发师里选，类型在游戏 228 个之后）。</summary>
 public abstract class ModHair : ModType
 {
@@ -19,5 +18,3 @@ public abstract class ModHair : ModType
 
     public virtual IEnumerable<Condition> GetUnlockConditions() => [];
 }
-
-// 未移植 register：占号、装 PlayerHair/PlayerHairAlt 贴图、调 SetStaticDefaults、存档/net 那套都是管线的事。

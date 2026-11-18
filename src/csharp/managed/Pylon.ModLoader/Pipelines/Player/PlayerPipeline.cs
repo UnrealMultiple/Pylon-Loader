@@ -1,11 +1,13 @@
 using Il2CppMicrosoft.Xna.Framework;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.DataStructures;
-using Terraria.GameInput;
-using Terraria.Graphics;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>玩家管线：按玩家分派作者的 ModPlayer 钩子；每个钩子写成显式循环，避免每帧闭包分配。</summary>
 internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 {

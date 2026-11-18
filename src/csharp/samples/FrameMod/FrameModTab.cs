@@ -1,6 +1,8 @@
 // 唯一的一页：一个输入框。
 using Pylon.Mod;
 using Pylon.ModLoader.UI;
+using Pylon.ModLoader;
+using Pylon.ModLoader.ImGuiHost;
 
 namespace FrameMod
 {

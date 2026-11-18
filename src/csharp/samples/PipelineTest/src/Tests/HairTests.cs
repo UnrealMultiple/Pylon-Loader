@@ -4,6 +4,7 @@ using Pylon.ModLoader;
 using Pylon.ModLoader.Textures;
 using Terraria;
 using Terraria.GameContent;
+using Pylon.ModLoader.Content;
 
 namespace PipelineTest.Tests;
 

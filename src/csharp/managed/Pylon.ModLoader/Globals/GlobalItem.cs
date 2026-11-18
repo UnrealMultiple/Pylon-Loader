@@ -1,13 +1,15 @@
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Pipelines;
 using Terraria;
 using Terraria.DataStructures;
 using Terraria.Utilities;
+using ItemCreationContext = Pylon.ModLoader.Contracts.ItemCreationContext;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Globals;
 /// <summary>全局物品：对游戏自己的物品（和 mod 的）也跑的一套钩子；一个类一份模板，AppliesToEntity 挑哪些物品。</summary>
 public abstract class GlobalItem : ModType
 {
@@ -163,11 +165,13 @@ public abstract class GlobalItem : ModType
     public virtual Vector2? HoldoutOffset(int type) => null;
 
     public virtual void PickAmmo(Item weapon, Item ammo, Player player, ref int type, ref float speed,
-                                 ref StatModifier damage, ref float knockback) { }
+                                 ref StatModifier damage, ref float knockback)
+    { }
 
     /// <summary>每个弹幕之前：位置/速度/类型/伤害/击退都是可写引用。</summary>
     public virtual void ModifyShootStats(Item item, Player player, ref Vector2 position, ref Vector2 velocity,
-                                         ref int type, ref int damage, ref float knockback) { }
+                                         ref int type, ref int damage, ref float knockback)
+    { }
 
     /// <summary>false：游戏不发射自己的弹幕（在这里造自己的）；source 是这一发的来源，可能是 null 包装。</summary>
     public virtual bool Shoot(Item item, Player player, EntitySource_ItemUse_WithAmmo? source, Vector2 position,
@@ -224,7 +228,8 @@ public abstract class GlobalItem : ModType
 
     /// <summary>地上画它之后（否决了也跑）。</summary>
     public virtual void PostDrawInWorld(Item item, SpriteBatch spriteBatch, Color lightColor, Color alphaColor,
-                                        float rotation, float scale, int whoAmI) { }
+                                        float rotation, float scale, int whoAmI)
+    { }
 
     /// <summary>背包里画它之前（收的是游戏算好的帧、原点和缩放）；false = 不画。</summary>
     public virtual bool PreDrawInInventory(Item item, SpriteBatch spriteBatch, Vector2 position, Rectangle frame,
@@ -232,7 +237,8 @@ public abstract class GlobalItem : ModType
 
     /// <summary>背包里画它之后（否决了也跑）。</summary>
     public virtual void PostDrawInInventory(Item item, SpriteBatch spriteBatch, Vector2 position, Rectangle frame,
-                                            Color drawColor, Color itemColor, Vector2 origin, float scale) { }
+                                            Color drawColor, Color itemColor, Vector2 origin, float scale)
+    { }
 
     public virtual void ModifyItemLoot(Item item, ItemLoot itemLoot) { }
 
@@ -262,7 +268,8 @@ public abstract class GlobalItem : ModType
 
     /// <summary>画盔甲部件时的颜色（type 是部位、slot 是盔甲槽；可写引用）。</summary>
     public virtual void DrawArmorColor(EquipType type, int slot, Player drawPlayer, float shadow, ref Color color,
-                                       ref int glowMask, ref Color glowMaskColor) { }
+                                       ref int glowMask, ref Color glowMaskColor)
+    { }
 
     /// <summary>画手臂盔甲的辉光（slot 是身体槽）。</summary>
     public virtual void ArmorArmGlowMask(int slot, Player drawPlayer, float shadow, ref int glowMask, ref Color color) { }
@@ -298,7 +305,8 @@ public abstract class GlobalItem : ModType
 
     /// <summary>空中这对翅膀的五个可写引用（item 是穿的那件，或 null）。</summary>
     public virtual void VerticalWingSpeeds(Item? item, Player player, ref float ascentWhenFalling, ref float ascentWhenRising,
-                                           ref float maxCanAscendMultiplier, ref float maxAscentMultiplier, ref float constantAscend) { }
+                                           ref float maxCanAscendMultiplier, ref float maxAscentMultiplier, ref float constantAscend)
+    { }
 
     /// <summary>空中平飞的加速度和速度（两个可写引用）。</summary>
     public virtual void HorizontalWingSpeeds(Item? item, Player player, ref float speed, ref float acceleration) { }
@@ -326,4 +334,3 @@ public abstract class GlobalItem : ModType
         table[slot > 0 && slot < table.Length ? slot : 0];
 }
 
-// 分派未接的声明钩子见各方法注释；接分派时同步 HookId（追加区）与调用点。

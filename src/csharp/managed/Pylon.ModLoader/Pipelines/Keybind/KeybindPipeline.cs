@@ -1,7 +1,9 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 键位管线：手机端"按键"就是触屏按钮，所以这里只做两件事——
 /// 把注册转给触屏按钮，以及补上键盘端才有的"别在打字时触发"判定。

@@ -1,5 +1,4 @@
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Contracts;
 /// <summary>玩家挨的这一下（OnHurt、OnHitByNPC、OnHitPlayer、OnHitPvp... 收到）；Damage 是游戏 Hurt 实际扣的血。</summary>
 public class HurtInfo
 {

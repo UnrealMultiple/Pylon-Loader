@@ -1,7 +1,7 @@
+using Pylon.ModLoader.Content;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Contracts;
 /// <summary>自然生成抽选（EditSpawnPool 的池子）：NPC 类型 -> 权重；0 是游戏自己的生成（权重 1），mod 的经 SpawnChance 进来。</summary>
 public class SpawnPool
 {

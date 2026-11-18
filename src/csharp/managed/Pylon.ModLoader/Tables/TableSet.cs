@@ -1,5 +1,3 @@
-using System;
-
 namespace Pylon.ModLoader.Tables;
 
 /// <summary>一类跟着内容编号变长的原生表：原版长度 + 要一起变长的类。</summary>

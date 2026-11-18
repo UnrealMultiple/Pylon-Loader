@@ -1,13 +1,14 @@
-using System;
-using System.Collections.Generic;
 using Il2CppInterop.Runtime;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Pylon.ModLoader.Tables;
 using Terraria;
 using Terraria.ID;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 物品排序白名单：原版 SetupWhiteLists 只给原版类型建层，mod 物品不在任何白名单里，
 /// 背包"整理"时会被整层跳过（白名单按层过滤可排序格，不在名单 = 物品消失）。

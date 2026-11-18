@@ -4,6 +4,8 @@ using Pylon.ModLoader;
 using Terraria;
 using Terraria.DataStructures;
 using Terraria.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 
 namespace PipelineTest.Content;
 

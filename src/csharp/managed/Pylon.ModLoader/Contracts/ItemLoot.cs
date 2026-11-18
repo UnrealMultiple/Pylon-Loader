@@ -1,8 +1,12 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.Pipelines;
 using Terraria;
 using Terraria.GameContent.ItemDropRules;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Contracts;
 /// <summary>打开一个物品（Boss 袋、箱子）吐什么，像 tModLoader 的 ItemLoot；游戏没有按物品的掉落表（ItemDropDatabase 只认识 NPC），规则按类型存在这。</summary>
 public class ItemLoot : ILoot
 {

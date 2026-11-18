@@ -3,12 +3,15 @@ using System.Text.RegularExpressions;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.Localization;
 using OnMain = On.Terraria.Main;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 物品提示管线：把游戏算出来的行变成 List&lt;TooltipLine&gt; 让作者改再按原顺序写回游戏的数组；
 /// 绘制期拦 <c>SpriteBatch.DrawString</c>/<c>SpriteFont.MeasureString</c>，每一行以真实绘制参数
@@ -465,8 +468,16 @@ internal sealed class TooltipPipeline : ILoaderModule
             {
                 var pass = new Pass
                 {
-                    Self = self, Font = font, Text = text, Position = position, Color = color, Rotation = rotation,
-                    Origin = origin, Scale = scale, Effects = effects, Depth = depth,
+                    Self = self,
+                    Font = font,
+                    Text = text,
+                    Position = position,
+                    Color = color,
+                    Rotation = rotation,
+                    Origin = origin,
+                    Scale = scale,
+                    Effects = effects,
+                    Depth = depth,
                 };
                 if (Take(state, text, pass)) return;
             }

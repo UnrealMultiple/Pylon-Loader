@@ -1,8 +1,12 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.ID;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>商店管线：货架装货（InventoryStorage.SetupShop）——原版店首开时收编条目并跑 ModifyShop/晶塔注入，mod 店按条目装；旅行商店在原版装货之后分派全局模板。</summary>
 internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
 {

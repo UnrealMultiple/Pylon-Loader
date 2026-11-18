@@ -1,5 +1,3 @@
-using System;
-
 namespace Pylon.ModLoader.Tables;
 
 /// <summary>一条扩表请求：哪张表、目标多长、要不要在内容装配前扩好。</summary>

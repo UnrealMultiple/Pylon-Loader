@@ -8,6 +8,9 @@ using Color = Il2CppMicrosoft.Xna.Framework.Graphics.Color;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Terraria;
 using Terraria.GameContent;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Install;
 
 namespace XiheBoss
 {

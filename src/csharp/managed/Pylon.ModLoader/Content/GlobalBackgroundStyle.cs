@@ -1,6 +1,4 @@
-using Pylon.ModLoader;
-
-namespace Pylon.ModLoader;
+namespace Pylon.ModLoader.Content;
 
 public abstract class GlobalBackgroundStyle : ModType
 {

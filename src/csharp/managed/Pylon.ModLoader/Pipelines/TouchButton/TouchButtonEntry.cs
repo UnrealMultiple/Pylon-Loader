@@ -1,9 +1,8 @@
-using System;
+using Pylon.ModLoader.Content;
 using Terraria;
 using GameTexture2D = Il2CppMicrosoft.Xna.Framework.Graphics.Texture2D;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>一个触屏按钮的注册记录：注册时填一次元数据，之后由状态机逐帧维护状态。</summary>
 public sealed class TouchButtonEntry
 {

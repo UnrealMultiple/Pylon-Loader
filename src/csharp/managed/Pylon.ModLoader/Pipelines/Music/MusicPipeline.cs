@@ -1,8 +1,11 @@
+using Pylon.ModLoader.Audio;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.ID;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 音乐管线：每帧选曲、Mod 曲淡入淡出、把原版音乐压掉，以及前后台暂停。
 /// 旧的 ModMusic 模块已并入这里：选曲与淡出共用同一份状态，不再跨类读表。

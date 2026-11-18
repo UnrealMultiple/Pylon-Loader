@@ -1,14 +1,14 @@
-using System;
-using System.Collections.Generic;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
-using Terraria.UI;
 using Terraria.Achievements;
 using Terraria.Localization;
+using Terraria.UI;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 成就管线：建 <c>Achievement</c>（分类默认 Slayer，作者可在 SetStaticDefaults 里 SetCategory 改）
 /// → 作者加条件 → 注册进 <c>Main.Achievements</c> 与图标序号 → 全部注册完重读一次成就存档。

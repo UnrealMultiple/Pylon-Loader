@@ -1,4 +1,5 @@
 using Pylon.ModLoader;
+using Pylon.ModLoader.Pipelines;
 
 namespace PipelineTest.Tests;
 

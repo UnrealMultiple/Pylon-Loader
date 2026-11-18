@@ -5,6 +5,8 @@ using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader;
 using Terraria;
 using Terraria.ID;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 
 namespace XiheBoss
 {

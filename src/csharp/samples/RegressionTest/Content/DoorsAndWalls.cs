@@ -7,6 +7,8 @@ using Terraria.DataStructures;
 using Terraria.Enums;
 using Terraria.ID;
 using Terraria.ObjectData;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 
 namespace RegressionTest.Content
 {

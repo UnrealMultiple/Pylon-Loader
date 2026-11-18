@@ -1,7 +1,8 @@
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>玩家客户端状态通道：进世界 SyncPlayer、每帧 clientClone + SendClientChanges、断开 SyncDisconnectedPlayer；补上"我看别人"的那份 mod 状态。</summary>
 internal sealed class PlayerNetPipeline : ILoaderModule
 {

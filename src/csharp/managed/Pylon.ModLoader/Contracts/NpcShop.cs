@@ -1,7 +1,7 @@
+using Pylon.ModLoader.Content;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Contracts;
 /// <summary>城镇 NPC 的普通商店：Add 填商品、Register 占号（从 99 往下发）；手机端货架由商店管线在 SetupShop 时装，FinishSetup 后条目按排序落位。</summary>
 public class NpcShop : AbstractNpcShop
 {

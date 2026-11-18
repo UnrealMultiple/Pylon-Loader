@@ -1,5 +1,6 @@
 using Pylon.ModLoader;
 using Terraria;
+using Pylon.ModLoader.Core;
 
 namespace PipelineTest.Tests;
 

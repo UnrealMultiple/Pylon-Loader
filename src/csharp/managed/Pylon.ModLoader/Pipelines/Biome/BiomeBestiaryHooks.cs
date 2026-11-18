@@ -1,13 +1,15 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Localization;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using ReLogic.Content;
 using Terraria;
 using Terraria.GameContent.Bestiary;
-using Terraria.GameContent.UI.Elements;
 using Terraria.Localization;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>群落图鉴美术：每个群落建一个图鉴元素，三个图鉴入口把图标/背景/出生页换成作者贴图。</summary>
 internal static class BiomeBestiaryHooks
 {

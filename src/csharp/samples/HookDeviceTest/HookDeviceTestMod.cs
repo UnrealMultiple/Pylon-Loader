@@ -2,6 +2,8 @@ using System.Text;
 using Il2CppInterop.RuntimeDetour;
 using Il2CppMicrosoft.Xna.Framework;
 using Pylon.Mod;
+using Pylon.ModLoader;
+using Pylon.ModLoader.Core;
 
 namespace HookDeviceTest;
 

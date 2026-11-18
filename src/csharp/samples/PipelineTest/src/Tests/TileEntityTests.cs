@@ -2,6 +2,9 @@ using System;
 using Pylon.ModLoader;
 using Terraria;
 using Terraria.DataStructures;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.SaveData;
 
 namespace PipelineTest.Tests;
 

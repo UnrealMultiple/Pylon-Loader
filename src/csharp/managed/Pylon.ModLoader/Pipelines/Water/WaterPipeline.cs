@@ -1,12 +1,15 @@
-using Pylon.ModLoader.Tables;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.Tables;
 using Pylon.ModLoader.Textures;
 using ReLogic.Content;
 using Terraria;
 using Terraria.GameContent;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 水样式管线：发号 + 扩表 + 主贴图，并在场景效果选出赢家之后写 <c>Main.waterStyle</c>。
 /// 瀑布样式（发号 + 贴图 + 绘制补画）也在这里：瀑布的编号空间、贴图表与绘制入口都挂在
@@ -267,7 +270,7 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
     {
         var index = orig(position, velocity);
 
-        if (_raining is { } water && Hooks.Overrides(water.GetType(), typeof(ModWaterStyle), nameof(ModWaterStyle.GetRainVariant)))
+        if (_raining is { } water && HookGuard.Overrides(water.GetType(), typeof(ModWaterStyle), nameof(ModWaterStyle.GetRainVariant)))
             SetRainType(index, water);
         return index;
     }

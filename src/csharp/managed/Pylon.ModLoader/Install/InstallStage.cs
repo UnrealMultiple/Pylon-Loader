@@ -1,5 +1,4 @@
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Install;
 /// <summary>安装阶段。枚举顺序即执行顺序，只用于分组与断言。</summary>
 internal enum InstallStage
 {

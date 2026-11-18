@@ -1,5 +1,6 @@
-namespace Pylon.ModLoader;
+using Pylon.ModLoader.Content;
 
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 配置的公开门面：作者与屏幕都按静态方法调用，状态全在 ConfigPipeline 里。
 /// </summary>

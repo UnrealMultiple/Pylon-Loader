@@ -1,9 +1,12 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.SaveData;
 using Pylon.ModLoader.Tables;
 using Pylon.ModLoader.Textures;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>发型管线：发号 + 主贴图 + 发型菜单（创建角色 / 理发师）+ 戴帽子版贴图。</summary>
 internal sealed class HairPipeline : ILoaderModule, ILoaderModuleRefresh
 {

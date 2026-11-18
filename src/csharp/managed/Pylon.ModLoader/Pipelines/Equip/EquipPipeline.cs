@@ -1,13 +1,16 @@
-using Pylon.ModLoader.Tables;
-using System;
-using Terraria.ID;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.Tables;
 using Pylon.ModLoader.Textures;
 using ReLogic.Content;
 using Terraria;
+using Terraria.ID;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>装备贴图管线：收表、按部位扩表、发号、写贴图槽位；效果与套装钩子挂玩家更新入口。</summary>
 internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
 {

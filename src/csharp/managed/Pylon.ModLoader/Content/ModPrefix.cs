@@ -1,7 +1,7 @@
+using Pylon.ModLoader.Pipelines;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>自定义前缀（修饰语）：一个类 = 一个前缀，Type 就是 item.prefix 存的那个号；Category 决定哪些物品能拿它。</summary>
 public abstract class ModPrefix : ModType
 {
@@ -19,7 +19,8 @@ public abstract class ModPrefix : ModType
 
     public virtual void SetStats(ref float damageMult, ref float knockbackMult, ref float useTimeMult,
                                  ref float scaleMult, ref float shootSpeedMult, ref float manaMult,
-                                 ref int critBonus) { }
+                                 ref int critBonus)
+    { }
 
     public virtual bool AllStatChangesHaveEffectOn(Item item) => true;
 

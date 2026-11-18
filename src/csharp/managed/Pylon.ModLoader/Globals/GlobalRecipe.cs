@@ -1,7 +1,7 @@
+using Pylon.ModLoader.Content;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Globals;
 /// <summary>作用于所有配方（游戏的与 mod 的）的横切类；一个类一个实例，钩子收到配方自己挑。</summary>
 public abstract class GlobalRecipe : ModType
 {
@@ -17,5 +17,3 @@ public abstract class GlobalRecipe : ModType
     /// <summary>做出来的物品，在进到光标或背包之前。</summary>
     public virtual void OnCraft(Item item, Recipe recipe) { }
 }
-
-// 未移植 register：注册与反查走 Pylon 的自动发现 + ModContent，不照抄静态注册表。

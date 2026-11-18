@@ -1,8 +1,10 @@
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 稀有度管线：拾取色 / 悬停色表 / 前缀升降。
 /// 没有实体、没有每帧路径，所以没有绑定表也没有上下文字段。

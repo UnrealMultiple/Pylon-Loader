@@ -1,6 +1,7 @@
 #nullable enable
 using Pylon.ModLoader;
 using Terraria;
+using Pylon.ModLoader.Content;
 
 namespace PipelineTest.Content;
 

@@ -1,9 +1,12 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Pylon.ModLoader.Textures;
 using Terraria;
 using Terraria.ID;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>Projectile.SetDefaults 接管：自定义弹幕清出厂值后走作者 SetDefaults，原版弹幕照走原版并补一次 Global 分派。</summary>
 internal sealed class ProjectileDefaults(ProjectileBinding binding)
 {

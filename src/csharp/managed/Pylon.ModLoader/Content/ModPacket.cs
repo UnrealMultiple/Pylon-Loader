@@ -1,8 +1,7 @@
-using System.IO;
+using Pylon.ModLoader.Pipelines;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>Mod 发的自定义网络包（Mod.GetPacket() 拿，本身是 BinaryWriter）；对端由同一个 mod 的 HandlePacket 接收。</summary>
 public sealed class ModPacket : BinaryWriter
 {

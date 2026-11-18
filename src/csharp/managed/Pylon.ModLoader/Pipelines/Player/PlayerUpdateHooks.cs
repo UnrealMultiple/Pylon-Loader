@@ -1,7 +1,9 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>把更新回调接在计算完成或首次移动之前，避免用整帧前后替代精确时机。</summary>
 internal static class PlayerUpdateHooks
 {

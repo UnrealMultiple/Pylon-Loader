@@ -3,6 +3,7 @@ using Pylon.ModLoader;
 using PipelineTest.Content;
 using Terraria;
 using Terraria.Chat;
+using Pylon.ModLoader.Content;
 
 namespace PipelineTest.Tests;
 

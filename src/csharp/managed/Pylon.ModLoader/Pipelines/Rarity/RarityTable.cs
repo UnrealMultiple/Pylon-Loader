@@ -1,8 +1,9 @@
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
 using Terraria.GameContent.UI;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 稀有度表：类型 ↔ 实例、颜色查询、颜色表写回。
 /// 安装期与每次游戏重建颜色表都走这里，所以它不依赖管线实例。

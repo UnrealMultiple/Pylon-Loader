@@ -1,9 +1,13 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.GameContent;
 using Terraria.ID;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>城镇 NPC 外观档案：把作者的档案写进游戏自带 TownNPCProfiles 表，游戏自己按表查询（变体/名字/贴图/头像）。</summary>
 internal static class NpcProfilePipeline
 {

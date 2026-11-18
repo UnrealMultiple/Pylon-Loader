@@ -1,11 +1,15 @@
 using Il2CppMicrosoft.Xna.Framework;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Globals;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.GameContent;
 using Terraria.GameContent.ObjectInteractions;
 using Terraria.ID;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>低频方块交互：锁动作、坐卧目标与锤坡；不以回调位集屏蔽默认虚方法。</summary>
 internal static class TileInteractionHooks
 {
@@ -38,39 +42,39 @@ internal static class TileInteractionHooks
         var targets = self.targets;
 
         for (var i = lx; i <= hx; i++)
-        for (var j = ly; j <= hy; j++)
-        {
-            var tile = Main.tile[i, j];
-            if (!tile.active()) continue;
-
-            var mod = TileTable.Of(tile.type);
-            if (mod is null) continue;
-            if (!mod.HookEnabled(HookId.HasSmartInteract) && !mod.HookEnabled(HookId.RightClick)) continue;
-
-            bool smart;
-            try
+            for (var j = ly; j <= hy; j++)
             {
-                smart = mod.HasSmartInteract(i, j, settings);
-            }
-            catch (Exception e)
-            {
-                Fail(mod, nameof(ModTile.HasSmartInteract), e);
-                continue;
-            }
+                var tile = Main.tile[i, j];
+                if (!tile.active()) continue;
 
-            if (!smart) continue;
+                var mod = TileTable.Of(tile.type);
+                if (mod is null) continue;
+                if (!mod.HookEnabled(HookId.HasSmartInteract) && !mod.HookEnabled(HookId.RightClick)) continue;
 
-            var value = self.JoinValue(i, j);
-            var exists = false;
-            for (var k = 0; k < targets.Count; k++)
-            {
-                if (targets[k] != value) continue;
-                exists = true;
-                break;
+                bool smart;
+                try
+                {
+                    smart = mod.HasSmartInteract(i, j, settings);
+                }
+                catch (Exception e)
+                {
+                    Fail(mod, nameof(ModTile.HasSmartInteract), e);
+                    continue;
+                }
+
+                if (!smart) continue;
+
+                var value = self.JoinValue(i, j);
+                var exists = false;
+                for (var k = 0; k < targets.Count; k++)
+                {
+                    if (targets[k] != value) continue;
+                    exists = true;
+                    break;
+                }
+
+                if (!exists) targets.Add(value);
             }
-
-            if (!exists) targets.Add(value);
-        }
     }
 
     private static ModTile? At(int x, int y)
@@ -141,15 +145,15 @@ internal static class TileInteractionHooks
     {
         Terraria.Audio.SoundEngine.PlaySound(SoundID.Unlock, x * 16, y * 16, 1, 1f, 0f);
         for (var i = x; i <= x + 1 && i < Main.maxTilesX; i++)
-        for (var j = y; j <= y + 1 && j < Main.maxTilesY; j++)
-        {
-            var tile = Main.tile[i, j];
-            if (!tile.active() || tile.type != type) continue;
-            tile.frameX = (short)(tile.frameX + shift);
-            if (dust < 0) continue;
-            for (var k = 0; k < 4; k++)
-                Dust.NewDust(new Vector2(i * 16, j * 16), 16, 16, dust, 0, 0, 0, default, 1);
-        }
+            for (var j = y; j <= y + 1 && j < Main.maxTilesY; j++)
+            {
+                var tile = Main.tile[i, j];
+                if (!tile.active() || tile.type != type) continue;
+                tile.frameX = (short)(tile.frameX + shift);
+                if (dust < 0) continue;
+                for (var k = 0; k < 4; k++)
+                    Dust.NewDust(new Vector2(i * 16, j * 16), 16, 16, dust, 0, 0, 0, default, 1);
+            }
     }
 
     private static Vector2 Position(TileRestingInfo info, int extraRow) =>

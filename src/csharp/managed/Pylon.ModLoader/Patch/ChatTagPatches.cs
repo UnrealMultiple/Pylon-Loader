@@ -1,6 +1,11 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Patching;
+using Pylon.ModLoader.Pipeline;
 using Terraria.GameContent.UI.Chat;
 
-namespace Pylon.ModLoader;
+namespace Pylon.ModLoader.Patch;
 
 /// <summary>
 /// 聊天标签：[i:类型]/[ct:类型,控制] 的类型上限 6195 编进 movz 立即数，mod 物品只能显示原文；

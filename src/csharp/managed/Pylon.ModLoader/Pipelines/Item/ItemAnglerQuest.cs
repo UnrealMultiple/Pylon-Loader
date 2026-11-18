@@ -1,7 +1,11 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Globals;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>任务鱼按类型使用注册模板;文案和每日可用性不能依赖某个背包物品实例。</summary>
 internal static class ItemAnglerQuest
 {

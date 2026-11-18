@@ -1,11 +1,13 @@
-using Pylon.ModLoader.Tables;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.Tables;
 using Pylon.ModLoader.Textures;
 using Terraria;
 using Terraria.DataStructures;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>血腥粒子管线：生成 / 更新 / 颜色三条入口，加安装期的扩表。类型表在 <see cref="GoreTable"/>。</summary>
 internal sealed class GorePipeline : ILoaderModule, ILoaderModuleRefresh
 {

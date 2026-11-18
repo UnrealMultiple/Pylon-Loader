@@ -1,7 +1,11 @@
 using System.Reflection;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Globals;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipelines;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipeline;
 /// <summary>
 /// 注册管线：把一个 Mod 程序集里的类型变成"已占号的内容"。
 /// 不碰游戏对象、不调用作者的内容代码，只做发现、实例化、发号与索引。

@@ -6,13 +6,10 @@ public sealed class ScreenFrame
     private readonly List<ScreenEffect> _draws = [];
     private readonly List<ScreenTarget> _targets = [];
 
-    /// <summary>这帧要读上一帧世界（ScreenTexture.History）时开。</summary>
     public bool History { get; set; }
 
-    /// <summary>按顺序执行的步骤（同一帧里后画的盖先画的）。</summary>
     public IReadOnlyList<ScreenEffect> Draws => _draws;
 
-    /// <summary>这帧的离屏目标。</summary>
     public IReadOnlyList<ScreenTarget> Targets => _targets;
 
     public ScreenFrame Add(ScreenEffect effect)
@@ -32,6 +29,5 @@ public sealed class ScreenFrame
         return this;
     }
 
-    /// <summary>把这一帧交给渲染 hooks（游戏线程）。没步骤的帧会被忽略。</summary>
     public void Submit() => ScreenGraphics.Submit(this);
 }

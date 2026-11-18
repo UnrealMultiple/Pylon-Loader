@@ -73,7 +73,6 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="AsmArm64" Version="[2.4.0]" GeneratePathProperty="true" />
-    <EmbeddedResource Include="../../tools/limit-profile/terraria-1.4.5.8.6-arm64-v8a.json" LogicalName="Pylon.LimitProfile.json" />
     <!-- Class libraries do not copy NuGet assets by default. The Android host loads
          AsmArm64 from files/pylon-managed, so make it an explicit output artifact. -->
     <None Include="$(PkgAsmArm64)/lib/net8.0/AsmArm64.dll" Link="AsmArm64.dll"
@@ -84,8 +83,8 @@
     <EmbeddedResource Include="Textures\loaderIcon.png" />
     <EmbeddedResource Include="Textures\pylon.png" />
     <!-- ImGui 字体随程序集内嵌，避免在安卓上依赖外部文件路径 -->
-    <EmbeddedResource Include="ImGui\Fonts\ui.ttf">
-      <LogicalName>Pylon.ModLoader.ImGui.Fonts.ui.ttf</LogicalName>
+    <EmbeddedResource Include="ImGuiHost\Fonts\ui.ttf">
+      <LogicalName>Pylon.ModLoader.ImGuiHost.Fonts.ui.ttf</LogicalName>
     </EmbeddedResource>
   </ItemGroup>
 </Project>

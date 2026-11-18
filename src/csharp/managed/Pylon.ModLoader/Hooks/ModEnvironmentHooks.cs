@@ -1,7 +1,8 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Hooks;
 /// <summary>在原版环境值计算之后分发修改，避免作者写入被同帧原版计算覆盖。</summary>
 internal static class ModEnvironmentHooks
 {
@@ -24,17 +25,6 @@ internal static class ModEnvironmentHooks
 
         var tile = Main.tileColor;
         var background = Main.ColorOfTheSkies;
-        foreach (var mod in LoaderHost.Current.Hooks.Channel(HookId.ModifySunLightColor))
-        {
-            try
-            {
-                mod.ModifySunLightColor(ref tile, ref background);
-            }
-            catch (Exception e)
-            {
-                Safe.Report(mod.Name + ".ModifySunLightColor", e);
-            }
-        }
         SystemLoader.ModifySunLightColor(ref tile, ref background);
         Main.tileColor = tile;
         Main.ColorOfTheSkies = background;
@@ -46,17 +36,6 @@ internal static class ModEnvironmentHooks
         if (Main.gameMenu) return;
 
         var scale = 1f;
-        foreach (var mod in LoaderHost.Current.Hooks.Channel(HookId.ModifyLightingBrightness))
-        {
-            try
-            {
-                mod.ModifyLightingBrightness(ref scale);
-            }
-            catch (Exception e)
-            {
-                Safe.Report(mod.Name + ".ModifyLightingBrightness", e);
-            }
-        }
         SystemLoader.ModifyLightingBrightness(ref scale);
         if (float.IsFinite(scale) && scale >= 0f && scale != 1f)
             Lighting.GlobalBrightness *= scale;
@@ -71,35 +50,10 @@ internal static class ModEnvironmentHooks
         LocalizationsLoaded();
     }
 
-    internal static void LocalizationsLoaded()
-    {
-        foreach (var mod in LoaderHost.Current.Hooks.Channel(HookId.OnLocalizationsLoaded))
-        {
-            try
-            {
-                mod.OnLocalizationsLoaded();
-            }
-            catch (Exception e)
-            {
-                Safe.Report(mod.Name + ".OnLocalizationsLoaded", e);
-            }
-        }
-        SystemLoader.OnLocalizationsLoaded();
-    }
+    internal static void LocalizationsLoaded() => SystemLoader.OnLocalizationsLoaded();
 
     private static void BeforeProjectiles(On.Terraria.Main.orig_PreUpdateAllProjectiles orig, Main self)
     {
-        foreach (var mod in LoaderHost.Current.Hooks.Channel(HookId.PreUpdateProjectiles))
-        {
-            try
-            {
-                mod.PreUpdateProjectiles();
-            }
-            catch (Exception e)
-            {
-                Safe.Report(mod.Name + ".PreUpdateProjectiles", e);
-            }
-        }
         SystemLoader.PreUpdateProjectiles();
         orig(self);
     }

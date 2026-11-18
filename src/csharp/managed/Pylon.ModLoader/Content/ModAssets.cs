@@ -1,8 +1,7 @@
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using ReLogic.Content;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Content;
 /// <summary>Mod 的资源门面：基线的 Mod.Assets；本构建只支持贴图请求。</summary>
 public sealed class ModAssets
 {

@@ -1,5 +1,6 @@
-namespace Pylon.ModLoader;
+using Pylon.ModLoader.Logging;
 
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>游戏侧接入的公开门面（UI 启动流程用）：真正的挂钩在 TouchButtonPipeline 里。</summary>
 public static class TouchButtonHooks
 {

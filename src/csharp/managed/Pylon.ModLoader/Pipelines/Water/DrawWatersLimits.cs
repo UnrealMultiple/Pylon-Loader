@@ -1,7 +1,9 @@
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Patching;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// Main.DrawWaters 的两个循环把水样式总数编成了立即数（地址索引版带 +8 数组头，
 /// 开头比较版 b.eq 退出），mod 水样式超过原版数后水面不动/不画。

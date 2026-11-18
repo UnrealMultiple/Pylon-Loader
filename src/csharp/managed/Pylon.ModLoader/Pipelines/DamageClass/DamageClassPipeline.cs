@@ -1,7 +1,12 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Globals;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 伤害职业管线：安装期把 Mod 职业加进职业表（引擎入口随第一个 mod 职业激活）；
 /// 武器数值入口（伤害/暴击/击退/体积）上派发 ModItem/GlobalItem/ModPlayer 的修改钩。

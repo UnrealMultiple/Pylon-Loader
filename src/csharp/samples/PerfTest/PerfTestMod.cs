@@ -1,6 +1,9 @@
 using Pylon.Mod;
 using Pylon.ModLoader.UI;
 using Il2CppMicrosoft.Xna.Framework;
+using Pylon.ModLoader;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.ImGuiHost;
 
 namespace PerfTest;
 

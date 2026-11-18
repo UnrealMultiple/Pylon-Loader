@@ -1,5 +1,6 @@
 using AsmArm64;
 using Pylon.ModLoader;
+using Pylon.ModLoader.Patching;
 using static AsmArm64.Arm64RegisterX;
 using static AsmArm64.Arm64ConditionalKind;
 using AsmInstruction = AsmArm64.Arm64Instruction;

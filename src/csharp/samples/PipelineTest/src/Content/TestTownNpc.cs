@@ -2,6 +2,8 @@ using System.Collections.Generic;
 using Pylon.ModLoader;
 using Terraria;
 using Terraria.ID;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
 
 namespace PipelineTest.Content;
 

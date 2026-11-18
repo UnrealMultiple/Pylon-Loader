@@ -1,10 +1,11 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
 using Terraria;
 using Terraria.DataStructures;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Globals;
 /// <summary>全局弹幕：对游戏自己的弹幕（和 mod 的）也跑的一套钩子；一个类一份模板，AppliesToEntity 挑哪些弹幕。</summary>
 public abstract class GlobalProjectile : ModType
 {

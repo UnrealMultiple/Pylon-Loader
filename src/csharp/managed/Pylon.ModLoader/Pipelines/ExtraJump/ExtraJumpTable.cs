@@ -1,11 +1,9 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
-using Terraria.Audio;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>一次双跳的三态开关：作者经 <see cref="ExtraJumpTable.GetJumpState"/> 直接读写。</summary>
 public struct ExtraJumpState
 {

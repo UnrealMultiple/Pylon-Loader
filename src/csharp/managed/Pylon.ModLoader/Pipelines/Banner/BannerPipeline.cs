@@ -1,11 +1,12 @@
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.SaveData;
 using Pylon.ModLoader.Tables;
-using Pylon.ModLoader.Textures;
 using Terraria;
 using Terraria.GameContent;
-using Terraria.ID;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 敌人旗子管线：把 mod NPC 接进游戏的旗子系统（映射 / 击杀数 / 新旗标 / 存档）。
 /// 游戏那三张平行表一张都不扩，mod 编号的访问全部由 <see cref="BannerTable"/> 回答。

@@ -1,9 +1,8 @@
-using System.IO;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Pylon.ModLoader.Textures;
 using Pylon.ModLoader.UI;
-using UnityEngine;
 using Pylon.NaviteAPI.Effects;
+using UnityEngine;
 
 namespace Pylon.ModLoader.Effects;
 
@@ -15,28 +14,22 @@ public static class ScreenGraphics
     private static readonly float[] CenterBuf = new float[2];
     private static readonly float[] ColorBuf = new float[4];
 
-    /// <summary>内核 hooks 是否已装（PylonFx_Install 结果）。</summary>
     public static bool Installed
     {
         get
         {
-            // 桌面/非安卓构建可能根本没有 libpylon：库不在就当没装。
             try { return ScreenEffectsNative.Available() != 0; }
             catch { return false; }
         }
     }
 
-    /// <summary>
-    /// 装渲染 hooks（GL hooks + Camera.FireOnPostRender）。幂等；框架在内容就绪时自动调一次，
-    /// 这里再暴露给需要更早/更晚的 Mod。只能在游戏线程（UnityMain）调。
-    /// </summary>
     public static void Install()
     {
         if (_installTried) return;
         _installTried = true;
         if (!PylonTexture.IsGameThread)
         {
-            _installTried = false;  // 换对线程后还能再试
+            _installTried = false;
             throw new ScreenEffectsException("ScreenGraphics.Install 只能在游戏线程(UnityMain)上调用");
         }
         try
@@ -51,13 +44,8 @@ public static class ScreenGraphics
         }
     }
 
-    /// <summary>注册一个片元着色器（GLSL ES 3.00，可带 #include &lt;bl/...&gt;）。同名字同源码复用同一 id。</summary>
     public static ScreenShader Shader(string name, string source) => new(name, source);
 
-    /// <summary>
-    /// 从 Mod 资产加载一张效果纹理（PNG/JPG，相对路径按 Mod 目录解析）。游戏线程调。
-    /// 行序已翻成 v=0 在图像底部，shader 里 vUV 和图像方向一致。
-    /// </summary>
     public static ScreenTexture Texture(Mod owner, string path, bool linear = true, bool repeat = false)
     {
         var full = PylonTexture.Resolve(owner, path);
@@ -82,7 +70,6 @@ public static class ScreenGraphics
 
         var width = unity.width;
         var height = unity.height;
-        // GetRawTextureData<T>() 返回 NativeArray<byte>（Unity 2021.3）；拷成托管数组再翻行
         var rgba = FlipRows(unity.GetRawTextureData<byte>().ToArray(), width, height);
         UnityEngine.Object.Destroy(unity);
 
@@ -96,10 +83,6 @@ public static class ScreenGraphics
         return new ScreenTexture(id, width, height);
     }
 
-    /// <summary>
-    /// 直接登记一张内存里的 RGBA 纹理（行序：v=0 在图像底部，与 shader 的 vUV 一致）。游戏线程调。
-    /// 同 key 同过滤复用同一 id；上传发生在渲染线程首次使用该纹理时。
-    /// </summary>
     public static ScreenTexture Texture(string key, int width, int height, byte[] rgba,
         bool linear = true, bool repeat = false)
     {
@@ -118,11 +101,9 @@ public static class ScreenGraphics
         }
         catch (Exception e) { throw new ScreenEffectsException($"效果纹理登记失败：{key}（{e.Message}）"); }
         if (id == 0) throw new ScreenEffectsException($"效果纹理登记失败：{key}（参数无效）");
-        // 同 key 复用时内核回的是那张纹理的真实尺寸
         return new ScreenTexture(id, outWidth > 0 ? outWidth : width, outHeight > 0 ? outHeight : height);
     }
 
-    /// <summary>提交一帧（游戏线程）。没步骤的帧会被忽略。</summary>
     public static void Submit(ScreenFrame frame)
     {
         ArgumentNullException.ThrowIfNull(frame);
@@ -136,52 +117,51 @@ public static class ScreenGraphics
                 ScreenEffectsNative.SubmitAddTarget(target.Id, target.Name, target.Scale, target.Persistent ? 1 : 0);
 
             foreach (var draw in frame.Draws)
-        {
-            int handle;
-            if (draw.Mesh)
             {
-                var verts = draw.MeshVertices;
-                if (verts is null || verts.Length == 0 || verts.Length % 12 != 0) continue;
-                var count = verts.Length / 12;
-                if (count % 3 != 0) continue;
-                handle = ScreenEffectsNative.SubmitAddMesh(
-                    draw.Shader?.Id ?? 0,
-                    (int)draw.Layer,
-                    draw.Dest,
-                    (int)draw.MeshBlend,
-                    count,
-                    verts);
-                if (handle <= 0) continue;
-            }
-            else
-            {
-                // Box 只接受 4 个数（x0,y0,x1,y1）；长度不对按 null（整屏默认）处理。
-                float[]? box = null;
-                if (draw.Box is { Length: 4 } candidate)
+                int handle;
+                if (draw.Mesh)
                 {
-                    box = candidate;
-                    Array.Copy(candidate, BoxBuf, 4);
+                    var verts = draw.MeshVertices;
+                    if (verts is null || verts.Length == 0 || verts.Length % 12 != 0) continue;
+                    var count = verts.Length / 12;
+                    if (count % 3 != 0) continue;
+                    handle = ScreenEffectsNative.SubmitAddMesh(
+                        draw.Shader?.Id ?? 0,
+                        (int)draw.Layer,
+                        draw.Dest,
+                        (int)draw.MeshBlend,
+                        count,
+                        verts);
+                    if (handle <= 0) continue;
                 }
-                CenterBuf[0] = draw.Center.x;
-                CenterBuf[1] = draw.Center.y;
-                ColorBuf[0] = draw.Color.r;
-                ColorBuf[1] = draw.Color.g;
-                ColorBuf[2] = draw.Color.b;
-                ColorBuf[3] = draw.Color.a;
-                handle = ScreenEffectsNative.SubmitAddDraw(
-                    draw.Shader?.Id ?? 0,
-                    (int)draw.Layer,
-                    draw.Dest,
-                    draw.Source?.Id ?? ScreenTexture.kTexNone,
-                    box is null ? null : BoxBuf,
-                    CenterBuf,
-                    draw.Radius,
-                    draw.Intensity,
-                    draw.Progress,
-                    draw.Age,
-                    ColorBuf);
-                if (handle <= 0) continue;
-            }
+                else
+                {
+                    float[]? box = null;
+                    if (draw.Box is { Length: 4 } candidate)
+                    {
+                        box = candidate;
+                        Array.Copy(candidate, BoxBuf, 4);
+                    }
+                    CenterBuf[0] = draw.Center.x;
+                    CenterBuf[1] = draw.Center.y;
+                    ColorBuf[0] = draw.Color.r;
+                    ColorBuf[1] = draw.Color.g;
+                    ColorBuf[2] = draw.Color.b;
+                    ColorBuf[3] = draw.Color.a;
+                    handle = ScreenEffectsNative.SubmitAddDraw(
+                        draw.Shader?.Id ?? 0,
+                        (int)draw.Layer,
+                        draw.Dest,
+                        draw.Source?.Id ?? ScreenTexture.kTexNone,
+                        box is null ? null : BoxBuf,
+                        CenterBuf,
+                        draw.Radius,
+                        draw.Intensity,
+                        draw.Progress,
+                        draw.Age,
+                        ColorBuf);
+                    if (handle <= 0) continue;
+                }
                 draw.Submit(handle);
             }
         }
@@ -191,11 +171,6 @@ public static class ScreenGraphics
         }
     }
 
-    /// <summary>
-    /// 写一张中性 LUT（size² × size，RGB 恒等映射）到 Mod 目录，供 Modder 编辑后再用。
-    /// 纯 C# 生成 PNG（游戏的 ImageConversion.EncodeToPNG / Texture2D.SetPixels 在代理里不可用，
-    /// 且这里不需要真建一张 Unity 纹理）。
-    /// </summary>
     public static void SaveNeutralLut(string path, int size = 16)
     {
         if (size < 2) throw new ArgumentException("LUT 尺寸必须 >= 2", nameof(size));
@@ -221,7 +196,6 @@ public static class ScreenGraphics
         File.WriteAllBytes(path, PngEncoder.Encode(w, size, rgba));
     }
 
-    /// <summary>统计快照（任意线程）。</summary>
     public static ScreenStats Stats()
     {
         ScreenEffectsNative.Stats(out var native);
@@ -234,13 +208,10 @@ public static class ScreenGraphics
         return stats;
     }
 
-    /// <summary>请内核录下一整帧 GL 调用进日志（排帧点问题用）。</summary>
     public static void RequestTrace() => ScreenEffectsNative.RequestTrace();
 
-    /// <summary>运行时上传路径 A/B 开关；不改变 Mod 的顶点格式、绘制顺序或混合。</summary>
     public static void SetMeshStreaming(bool enabled) => ScreenEffectsNative.SetMeshStreaming(enabled ? 1 : 0);
 
-    // Unity 原始数据第一行是顶部；GL 的 v=0 在底部（和 vUV 一致），翻行。
     private static byte[] FlipRows(byte[] raw, int width, int height)
     {
         var row = width * 4;

@@ -1,8 +1,11 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Localization;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.GameContent.UI;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 表情气泡侧表：编号 = <see cref="EmoteID.Count"/>（151，编译期常量）+ 注册序。
 /// 表只有"编号 → 模板"，没有实例缓存：泡泡本体是游戏对象，模板按编号现取。

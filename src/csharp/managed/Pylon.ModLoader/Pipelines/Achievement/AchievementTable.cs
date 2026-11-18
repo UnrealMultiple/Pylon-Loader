@@ -1,5 +1,6 @@
-namespace Pylon.ModLoader;
+using Pylon.ModLoader.Content;
 
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>成就表：按注册序；键是 <c>&lt;mod&gt;/&lt;类名&gt;</c>（进游戏成就文件的就是这个键）。</summary>
 internal static class AchievementTable
 {

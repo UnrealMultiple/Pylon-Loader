@@ -1,5 +1,4 @@
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Contracts;
 /// <summary>NPC 挨的这一下（OnHit* 收到的结果）：Damage 是 NPC 实际掉的，SourceDamage 是防御前的原始伤害。</summary>
 public class HitInfo
 {

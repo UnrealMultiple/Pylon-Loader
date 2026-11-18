@@ -6,6 +6,11 @@ using Pylon.ModLoader;
 using Terraria;
 using Terraria.GameContent;
 using Terraria.ID;
+using Pylon.ModLoader.Audio;
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Pipelines;
 
 namespace XiheBoss
 {

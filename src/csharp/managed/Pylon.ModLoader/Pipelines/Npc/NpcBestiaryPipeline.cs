@@ -1,9 +1,12 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Logging;
+using Pylon.ModLoader.Pipeline;
 using Terraria;
 using Terraria.GameContent.Bestiary;
 using Terraria.ID;
 
-namespace Pylon.ModLoader;
-
+namespace Pylon.ModLoader.Pipelines;
 /// <summary>图鉴：内容就绪时给每个 mod NPC 建 Enemy/TownNPC/Critter 条目，先跑 ModNpc/GlobalNpc.SetBestiary，再注册并补掉落。</summary>
 internal static class NpcBestiaryPipeline
 {

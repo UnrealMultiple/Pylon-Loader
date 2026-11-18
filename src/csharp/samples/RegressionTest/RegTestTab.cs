@@ -4,6 +4,7 @@ using Pylon.ModLoader;
 using Pylon.ModLoader.UI;
 using Terraria;
 using Terraria.ID;
+using Pylon.ModLoader.ImGuiHost;
 
 namespace RegressionTest
 {
