@@ -112,7 +112,7 @@ internal static class XiheSky
     {
         orig(self, backgroundTopMagicNumber, bgGlobalScaleMultiplier, pushBGTopHack);
         if (_intensity <= 0f || Main.gameMenu) return;
-        _gradient ??= ModContent.Request(XiheBossMod.Instance, "assets/textures/TSSky1.png")?.Value;
+        _gradient ??= XiheBossMod.Instance.Assets.Request<Texture2D>("assets/textures/TSSky1.png")?.Value;
         if (_gradient == null) return;
         var sb = Main.spriteBatch;
         sb.End();

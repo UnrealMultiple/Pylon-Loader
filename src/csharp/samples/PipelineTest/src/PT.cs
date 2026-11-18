@@ -140,6 +140,7 @@ internal static class PT
             FailCase(id, $"threw {e.GetType().Name}: {e.Message}");
             return;
         }
+        if (check.Skipped || check.PendingFlag) return;
         if (check.Ok) PassCase(id, check.Detail.Length == 0 ? "ok" : check.Detail);
     }
 
@@ -198,11 +199,25 @@ internal static class PT
     }
 }
 
-/// <summary>断言辅助：失败记 FAIL 并继续（一轮拿全部结果）。</summary>
+/// <summary>断言辅助：失败记 FAIL 并继续（一轮拿全部结果）；延迟用例体内用 Skip 记环境跳过、Pending 标记本轮重试。</summary>
 internal sealed class Check(string id)
 {
     public bool Ok = true;
+    public bool Skipped;
+    internal bool PendingFlag;
     public string Detail = "";
+
+    /// <summary>轮询用例的本轮没到判定时机：不打印结果行，等下一次重排。</summary>
+    public void Pending()
+    {
+        PendingFlag = true;
+    }
+
+    public void Skip(string reason)
+    {
+        Skipped = true;
+        PT.SkipCase(id, reason);
+    }
 
     public void True(bool condition, string detail)
     {

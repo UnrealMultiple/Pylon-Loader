@@ -23,8 +23,9 @@ namespace XiheBoss
             Main.projFrames[Type] = 1;
         }
 
-        public override void SetDefaults(Projectile proj)
+        public override void SetDefaults()
         {
+            var proj = Projectile;
             proj.width = 20;
             proj.height = 20;
             proj.aiStyle = -1;
@@ -39,8 +40,9 @@ namespace XiheBoss
             proj.extraUpdates = 1;
         }
 
-        public override void OnSpawn(Projectile proj)
+        public override void OnSpawn(Terraria.DataStructures.IEntitySource source)
         {
+            var proj = Projectile;
             var ai = proj.ai;
             _maxTime = ai[2] > 0f ? (int)ai[2] : proj.timeLeft;
 
@@ -60,8 +62,9 @@ namespace XiheBoss
 
         private int Timer(Projectile proj) => _maxTime - proj.timeLeft;
 
-        public override void AI(Projectile proj)
+        public override void AI()
         {
+            var proj = Projectile;
             var ai = proj.ai;
             // Boss 在生成后才写 ai[2]（maxTime），所以每 tick 都以 ai[2] 为准刷新一次。
             if (ai[2] > 0f) _maxTime = (int)ai[2];
@@ -191,12 +194,13 @@ namespace XiheBoss
             }
         }
 
-        public override bool ShouldUpdatePosition(Projectile proj) => false;
+        public override bool ShouldUpdatePosition() => false;
 
-        public override bool CanDamage(Projectile proj) => proj.scale > 0.2f;
+        public override bool CanDamage() => Projectile.scale > 0.2f;
 
-        public override bool? Colliding(Projectile proj, Rectangle projHitbox, Rectangle targetHitbox)
+        public override bool? Colliding(Rectangle projHitbox, Rectangle targetHitbox)
         {
+            var proj = Projectile;
             // 源文件：Center → Center + Vxr(rotation) * localAI[1]，宽 18*scale 的线段。
             var unit = XiheHelper.Vxr(proj.rotation);
             float point = 0f;
@@ -206,7 +210,7 @@ namespace XiheBoss
                 18f * proj.scale, ref point);
         }
 
-        public override bool PreDraw(Projectile proj, Color lightColor) => false;
+        public override bool PreDraw(Player player, ref Color lightColor) => false;
 
         /// <summary>源 PreDraw：tex4 的 5 倍宽 wrap 长条 + Laser0 两端 + Extra[89] 四层十字，全部 Colorize+Additive。</summary>
         public static void PushVisual(Projectile p)

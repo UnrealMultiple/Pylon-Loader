@@ -224,6 +224,8 @@ internal sealed class PlayerDrawInfoPipeline : ILoaderModule
                 ContentErrors.Report($"[playerdrawinfo] {mod.Mod?.Name}.ModifyScreenPosition 异常：{Safe.Describe(e)}");
             }
         }
+
+        SystemLoader.ModifyScreenPosition();
     }
 
     /// <summary>

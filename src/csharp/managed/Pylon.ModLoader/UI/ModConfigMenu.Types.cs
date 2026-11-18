@@ -29,7 +29,7 @@ public static partial class ModConfigMenu
         public float[] Hsl = [0f, 0f, 1f];
     }
 
-    private sealed record Row(string Kind, ModConfigEntry Entry, ModConfigOption O, string Key, float Height);
+    private sealed record Row(string Kind, ModConfigEntry Entry, ConfigOption O, string Key, float Height);
 
     private sealed class TabItem
     {
@@ -63,16 +63,6 @@ public static partial class ModConfigMenu
         public required TransactionButton_Layout Option;
     }
 
-    private sealed class PopupState
-    {
-        public required Row Row;
-        public Rectangle Rect;
-        public bool Down;
-        public bool DownInside;
-        public bool Armed;
-        public required float[] Scales;
-    }
-
     private sealed class SegmentsData
     {
         public float Y;
@@ -82,3 +72,4 @@ public static partial class ModConfigMenu
         public required Func<int, float> XOf;
     }
 }
+

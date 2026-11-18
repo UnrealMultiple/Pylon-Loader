@@ -112,7 +112,7 @@ internal static class DamageClassTests
             var player = Main.player[Main.myPlayer];
             if (player is null || !player.active)
             {
-                PT.SkipCase("DMGCLS-W1", "玩家还没就绪");
+                c.Skip("玩家还没就绪");
                 return;
             }
 
@@ -122,6 +122,7 @@ internal static class DamageClassTests
             _damageGap0 = player.rangedDamage - player.magicDamage;
             _savedArmor = player.armor[Slot];
             player.armor[Slot] = Make(ModContent.ItemType<Content.TestBonusCharm>());
+            PT.Info($"DMGCLS-W1 写槽 slot={Slot} armor={player.armor[Slot]?.type ?? -1} dead={player.dead} gameMenu={Main.gameMenu}");
         });
 
         PT.Later("DMGCLS-W2", 240, c =>
@@ -129,12 +130,13 @@ internal static class DamageClassTests
             var player = Main.player[Main.myPlayer];
             if (player is null || !player.active)
             {
-                PT.SkipCase("DMGCLS-W2", "玩家还没就绪");
+                c.Skip("玩家还没就绪");
                 return;
             }
 
             var sword = Make(ModContent.ItemType<Content.TestClassSword>());
             var cls = Class;
+            PT.Info($"DMGCLS-W2 状态 armor={player.armor[Slot]?.type ?? -1} dead={player.dead} active={player.active} gameMenu={Main.gameMenu}");
 
             c.Eq(player.GetCritChance(cls), 14f, "SetDefaultStats+UpdateAccessory 的暴击（4+10）");
             c.Eq(player.GetArmorPenetration<Content.TestDamageClass>(), 10f, "SetDefaultStats 的破防");
@@ -184,7 +186,7 @@ internal static class DamageClassTests
             var player2 = Main.player[Main.myPlayer];
             if (player2 is null || !player2.active)
             {
-                PT.SkipCase("DMGCLS-W3", "玩家还没就绪");
+                c.Skip("玩家还没就绪");
                 return;
             }
 
@@ -223,3 +225,4 @@ internal static class DamageClassTests
         });
     }
 }
+

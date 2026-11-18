@@ -19,6 +19,8 @@ public sealed class XiheBossBar : ModBossBar
         return heads != null && slot >= 0 && slot < heads.Length ? heads[slot] : null;
     }
 
+    // 返回 null = 交给管线按目标 NPC 的 life/lifeMax 回填。
+    // 返回 true 则必须自己把 life/lifeMax 写进 ref，否则会出现 0/0。
     public override bool? ModifyInfo(BossBarInfo info, ref float life, ref float lifeMax,
-        ref float shield, ref float shieldMax) => true;
+        ref float shield, ref float shieldMax) => null;
 }

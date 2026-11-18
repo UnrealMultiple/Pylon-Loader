@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text;
 using Il2CppMicrosoft.Xna.Framework;
 using Terraria;
 using Terraria.Localization;
@@ -274,6 +275,7 @@ internal sealed class NetPipeline : ILoaderModule
             switch (kind)
             {
                 case KindPacket: ReceivePacket(reader, from); break;
+                case KindWorld: ReceiveSystemWorld(reader); break;
                 case KindNpc: ReceiveNpc(reader); break;
                 case KindProjectile: ReceiveProjectile(reader); break;
                 case ItemKind: _items.Receive(reader, from); break;
@@ -332,6 +334,24 @@ internal sealed class NetPipeline : ILoaderModule
         catch (Exception e)
         {
             Safe.Report($"net.channel.{kind}", e);
+        }
+    }
+
+    private void ReceiveSystemWorld(Il2CppSystem.IO.BinaryReader reader)
+    {
+        var count = reader.ReadInt32();
+        for (var i = 0; i < count; i++)
+        {
+            var key = reader.ReadString();
+            var raw = reader.ReadBytes(reader.Read7BitEncodedInt());
+            var system = SystemLoader.ByKey(key);
+            if (system is null) continue;
+
+            var payload = new byte[raw?.Length ?? 0];
+            for (var k = 0; k < payload.Length; k++) payload[k] = raw![k];
+            using var stream = new MemoryStream(payload, false);
+            using var inner = new BinaryReader(stream);
+            SystemLoader.NetReceive(system, inner);
         }
     }
 
@@ -496,6 +516,19 @@ internal sealed class NetPipeline : ILoaderModule
                     Safe.Report(mod.Name + ".HijackSendData", e);
                 }
             }
+
+            if (!hijacked && SystemLoader.With(HookId.HijackSendData).Length > 0)
+            {
+                try
+                {
+                    if (SystemLoader.HijackSendData(who, msgType, remoteClient, ignoreClient, text, number,
+                            number2, number3, number4, number5, number6, number7)) hijacked = true;
+                }
+                catch (Exception e)
+                {
+                    Safe.Report("system.HijackSendData", e);
+                }
+            }
         }
 
         if (!hijacked && Main.netMode != 0)
@@ -511,9 +544,32 @@ internal sealed class NetPipeline : ILoaderModule
 
         switch (msgType)
         {
+            case 7: Safe.Run("net.systemworld", () => SendSystemWorld(remoteClient, ignoreClient)); break;
             case 23: Safe.Run("net.npc", () => SendNpc((int)number, remoteClient, ignoreClient)); break;
             case 27: Safe.Run("net.projectile", () => SendProjectile((int)number, remoteClient, ignoreClient)); break;
         }
+    }
+
+    /// <summary>世界数据发完紧接着发 system 的 NetSend 包；客户端在读档完成后的通道里按键读回。</summary>
+    private void SendSystemWorld(int remoteClient, int ignoreClient)
+    {
+        if (Main.netMode != 2 || remoteClient < 0) return;
+
+        var systems = SystemLoader.NetSystems();
+        if (systems.Length == 0) return;
+
+        SendChannel(KindWorld, writer =>
+        {
+            writer.Write(systems.Length);
+            foreach (var system in systems)
+            {
+                using var data = new MemoryStream();
+                using (var inner = new BinaryWriter(data, Encoding.UTF8, true)) SystemLoader.NetSend(system, inner);
+                writer.Write(SystemLoader.KeyOf(system));
+                writer.Write7BitEncodedInt((int)data.Length);
+                writer.Write(data.GetBuffer(), 0, (int)data.Length);
+            }
+        }, remoteClient, ignoreClient);
     }
 
     #endregion

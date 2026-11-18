@@ -75,10 +75,13 @@ internal sealed class ConfigNetPipeline : ILoaderModule
         for (var index = 0; index < options.Count; index++)
         {
             var option = options[index];
-            if (!ConfigPipeline.HasValue(option)) continue;
+            if (option.Kind == ConfigOptionKind.Data) continue;
 
-            values.Add(option.Key);
-            values.Add(entry.Instance.GetValue(option.Key));
+            var value = option.Get(entry.Instance);
+            values.Add(option.Name);
+            values.Add(option.Kind == ConfigOptionKind.Color && value is Il2CppMicrosoft.Xna.Framework.Graphics.Color color
+                ? ConfigOption.FormatColor(color)
+                : value ?? "");
         }
     }
 
@@ -137,8 +140,8 @@ internal sealed class ConfigNetPipeline : ILoaderModule
         foreach (var pair in requested)
         {
             var option = FindOption(entry, pair.Key);
-            if (option is null || !ConfigPipeline.Coerce(option, pair.Value, out var value)) continue;
-            pending.__SetValueRaw(pair.Key, value);
+            if (option is null || option.Coerce(pair.Value) is not { } value) continue;
+            option.Set(pending, value);
         }
 
         var message = NetworkText.Empty;
@@ -165,7 +168,7 @@ internal sealed class ConfigNetPipeline : ILoaderModule
             var option = FindOption(entry, key);
             if (option is null) continue;
 
-            entry.Instance.__SetValueRaw(key, pending.__StoredValue(key));
+            option.Set(entry.Instance, option.Get(pending));
         }
 
         ConfigPipeline.Instance.Save(entry);
@@ -213,13 +216,21 @@ internal sealed class ConfigNetPipeline : ILoaderModule
     // ===================== 客户端请求 =====================
 
     /// <summary>客户端改了一份 ServerSide 配置：把整份值当请求发出去（服务器按需接受/拒绝）。</summary>
-    internal void Request(ModConfigEntry entry)
+    internal void Request(ModConfigEntry entry, bool broadcast = true)
     {
         if (Main.netMode != 1) return;
 
         var values = new List<object> { ActionAsk, entry.Mod.Name, entry.Name };
         Pack(entry, values);
         _net.SendValues(_kind, values, -1, -1);
+    }
+
+    /// <summary>服务器把当前值广播给所有客户端（SaveChanges 成功后的 ServerSide 广播）。</summary>
+    internal void Broadcast(ModConfigEntry entry, bool broadcast = true)
+    {
+        if (!broadcast || Main.netMode != 2) return;
+
+        SendSync(entry, -1);
     }
 
     /// <summary>离开世界：把服务器改过的值写回本机原值。</summary>
@@ -229,9 +240,10 @@ internal sealed class ConfigNetPipeline : ILoaderModule
 
         foreach (var pair in _applied)
         {
-            foreach (var value in pair.Value)
+            foreach (var option in pair.Key.Options)
             {
-                pair.Key.Instance.__SetValueRaw(value.Key, value.Value);
+                if (!pair.Value.TryGetValue(option.Name, out var restored)) continue;
+                option.Set(pair.Key.Instance, restored);
             }
 
             try
@@ -270,9 +282,9 @@ internal sealed class ConfigNetPipeline : ILoaderModule
         for (var index = 0; index < options.Count; index++)
         {
             var option = options[index];
-            if (!ConfigPipeline.HasValue(option)) continue;
+            if (option.Kind == ConfigOptionKind.Data) continue;
 
-            values[option.Key] = entry.Instance.GetValue(option.Key);
+            values[option.Name] = option.Get(entry.Instance) ?? "";
         }
 
         return values;
@@ -287,9 +299,9 @@ internal sealed class ConfigNetPipeline : ILoaderModule
             if (string.IsNullOrEmpty(key)) continue;
 
             var option = FindOption(entry, key);
-            if (option is null || !ConfigPipeline.Coerce(option, values[index + 1], out var coerced)) continue;
+            if (option is null || option.Coerce(values[index + 1]) is not { } coerced) continue;
 
-            entry.Instance.__SetValueRaw(key, coerced);
+            option.Set(entry.Instance, coerced);
         }
     }
 
@@ -305,12 +317,12 @@ internal sealed class ConfigNetPipeline : ILoaderModule
         return pairs;
     }
 
-    private static ModConfigOption? FindOption(ModConfigEntry entry, string key)
+    private static ConfigOption? FindOption(ModConfigEntry entry, string key)
     {
         var options = entry.Options;
         for (var index = 0; index < options.Count; index++)
         {
-            if (options[index].Key == key) return options[index];
+            if (options[index].Name == key) return options[index];
         }
 
         return null;
@@ -328,3 +340,6 @@ internal sealed class ConfigNetPipeline : ILoaderModule
         return null;
     }
 }
+
+
+

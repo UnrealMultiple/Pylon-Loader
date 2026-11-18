@@ -30,8 +30,9 @@ namespace XiheBoss
             Main.projFrames[Type] = 1;
         }
 
-        public override void SetDefaults(Projectile proj)
+        public override void SetDefaults()
         {
+            var proj = Projectile;
             proj.width = 1;
             proj.height = 1;
             proj.aiStyle = -1;
@@ -44,8 +45,9 @@ namespace XiheBoss
             proj.ignoreWater = false;
         }
 
-        public override void OnSpawn(Projectile proj)
+        public override void OnSpawn(Terraria.DataStructures.IEntitySource source)
         {
+            var proj = Projectile;
             var ai = proj.ai;
             var l = proj.localAI;
             _ownerIndex = (int)ai[0];
@@ -57,10 +59,11 @@ namespace XiheBoss
             DrawEff[proj.whoAmI] = 0;
         }
 
-        public override void OnKill(Projectile proj, int timeLeft) => DrawEff.Remove(proj.whoAmI);
+        public override void OnKill(int timeLeft) => DrawEff.Remove(Projectile.whoAmI);
 
-        public override void AI(Projectile proj)
+        public override void AI()
         {
+            var proj = Projectile;
             if (_canDamageTimer > 0) _canDamageTimer--;
             if (_drawEffTimer > 0) _drawEffTimer--;
             DrawEff[proj.whoAmI] = _drawEffTimer;
@@ -235,8 +238,9 @@ namespace XiheBoss
             proj.localAI = l;
         }
 
-        public override bool? Colliding(Projectile proj, Rectangle projHitbox, Rectangle targetHitbox)
+        public override bool? Colliding(Rectangle projHitbox, Rectangle targetHitbox)
         {
+            var proj = Projectile;
             var target = Utils.TopLeft(targetHitbox) + Utils.Size(targetHitbox) / 2f;
             if (Vector2.Distance(proj.Center, target) > 3000f) return false;
 
@@ -246,7 +250,7 @@ namespace XiheBoss
                    > l[1] * 28f && _canDamageTimer > 0;
         }
 
-        public override bool PreDraw(Projectile proj, Color lightColor) => false;
+        public override bool PreDraw(Player player, ref Color lightColor) => false;
 
         /// <summary>画面：源 DrawCycloid 的三条 TriangleStrip（摆线 + 100/110 两圈），全部 MagicPixel + Additive。</summary>
         public static void PushVisual(Projectile p)

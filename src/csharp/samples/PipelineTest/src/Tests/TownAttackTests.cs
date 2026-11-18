@@ -64,7 +64,7 @@ internal static class TownAttackTests
             TestTownNpc.ProjCalls = TestTownNpc.SpeedCalls = 0;
             _attempts = 0;
             PT.Info($"镇攻探针：town={_town} enemy={_enemy}");
-            PT.RetryLater("TOWNATTACK-W2", 60, Wait);
+            c.Pending();            PT.RetryLater("TOWNATTACK-W2", 60, Wait);
         });
     }
 
@@ -82,7 +82,7 @@ internal static class TownAttackTests
         _attempts++;
         if (_attempts < 15)
         {
-            PT.RetryLater("TOWNATTACK-W2", 60, Wait);
+            c.Pending();            PT.RetryLater("TOWNATTACK-W2", 60, Wait);
             return;
         }
 
@@ -109,3 +109,4 @@ internal static class TownAttackTests
         return -1;
     }
 }
+

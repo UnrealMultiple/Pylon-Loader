@@ -488,4 +488,7 @@ internal enum HookId
     VerticalWingSpeeds,
     HorizontalWingSpeeds,
     WingUpdate,
+
+    PreDrawMapIconOverlay,
+    PostDrawFullscreenMap,
 }

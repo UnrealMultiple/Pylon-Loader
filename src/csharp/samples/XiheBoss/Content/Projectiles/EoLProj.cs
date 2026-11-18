@@ -36,8 +36,9 @@ namespace XiheBoss
             Main.projFrames[Type] = 1;
         }
 
-        public override void SetDefaults(Projectile proj)
+        public override void SetDefaults()
         {
+            var proj = Projectile;
             proj.width = 5;
             proj.height = 5;
             proj.aiStyle = -1;
@@ -51,8 +52,9 @@ namespace XiheBoss
             proj.extraUpdates = 1;
         }
 
-        public override void OnSpawn(Projectile proj)
+        public override void OnSpawn(Terraria.DataStructures.IEntitySource source)
         {
+            var proj = Projectile;
             var ai = proj.ai;
             var mode = ai[1];
 
@@ -74,8 +76,9 @@ namespace XiheBoss
             }
         }
 
-        public override void AI(Projectile proj)
+        public override void AI()
         {
+            var proj = Projectile;
             proj.rotation += 0.05f;
 
             var ai = proj.ai;
@@ -217,8 +220,9 @@ namespace XiheBoss
             }
         }
 
-        public override void OnKill(Projectile proj, int timeLeft)
+        public override void OnKill(int timeLeft)
         {
+            var proj = Projectile;
             ClearTrail(proj);
 
             if (!IsInScreen(proj.Center)) return;
@@ -242,12 +246,13 @@ namespace XiheBoss
             }
         }
 
-        public override bool ShouldUpdatePosition(Projectile proj) => false;
+        public override bool ShouldUpdatePosition() => false;
 
-        public override bool PreDraw(Projectile proj, Color lightColor) => false;
+        public override bool PreDraw(Player player, ref Color lightColor) => false;
 
-        public override void PostDraw(Projectile proj, Color lightColor)
+        public override void PostDraw(Player player, Color lightColor)
         {
+            var proj = Projectile;
             // MEAC PostDraw：预乘 AlphaBlend 下 RGB 非零、alpha=0 的三笔 Ball 仍可见。
             // 它们是光弹的旋转十字，不能按“全透明”删掉；太阳与十字共同使用 scale*0.7。
             try

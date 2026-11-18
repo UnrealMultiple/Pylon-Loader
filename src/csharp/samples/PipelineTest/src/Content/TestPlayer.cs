@@ -234,6 +234,14 @@ public sealed class TestPlayer : ModPlayer
             var slot = inv[i];
             if (slot is not null && slot.type == type)
             {
+                if (i != 0)
+                {
+                    var first = inv[0];
+                    inv[0] = slot;
+                    inv[i] = first;
+                    PT.Info($"已把测试物品从第 {i + 1} 格换到第 1 格（inv0={inv[0]?.type ?? -1} inv{i}={inv[i]?.type ?? -1}）");
+                }
+
                 _given = true;
                 return;
             }

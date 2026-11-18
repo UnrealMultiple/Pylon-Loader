@@ -136,7 +136,7 @@ internal static unsafe class SystemStages
             return PlayerPipeline.Instance.ModsActive(playerHook);
         foreach (var id in stage.Hooks)
         {
-            if (hooks.Channel(id).Length > 0) return true;
+            if (hooks.Channel(id).Length > 0 || SystemLoader.With(id).Length > 0) return true;
         }
         return false;
     }
@@ -293,6 +293,19 @@ internal static unsafe class SystemStages
                 Safe.Report(mod.Name + "." + id, e);
             }
         }
+
+        switch (id)
+        {
+            case HookId.PreUpdatePlayers: SystemLoader.PreUpdatePlayers(); break;
+            case HookId.PostUpdatePlayers: SystemLoader.PostUpdatePlayers(); break;
+            case HookId.PreUpdateNPCs: SystemLoader.PreUpdateNPCs(); break;
+            case HookId.PostUpdateNPCs: SystemLoader.PostUpdateNPCs(); break;
+            case HookId.PreUpdateGores: SystemLoader.PreUpdateGores(); break;
+            case HookId.PostUpdateGores: SystemLoader.PostUpdateGores(); break;
+            case HookId.PostUpdateProjectiles: SystemLoader.PostUpdateProjectiles(); break;
+            case HookId.PreUpdateItems: SystemLoader.PreUpdateItems(); break;
+            case HookId.PostUpdateItems: SystemLoader.PostUpdateItems(); break;
+        }
     }
 
     private static void ModifyTransform()
@@ -311,6 +324,7 @@ internal static unsafe class SystemStages
                 Safe.Report(mod.Name + ".ModifyTransformMatrix", e);
             }
         }
+        SystemLoader.ModifyTransformMatrix(ref transform);
         Main.GameViewMatrix = transform;
     }
 
@@ -425,6 +439,7 @@ internal static unsafe class SystemStages
                 Safe.Report(mod.Name + ".ModifyTimeRate", e);
             }
         }
+        SystemLoader.ModifyTimeRate(ref time, ref tiles, ref events);
 
         _clockRate = Rate(time, initialTime);
         var tileRate = Rate(tiles, initialTiles) + _tileRemainder;

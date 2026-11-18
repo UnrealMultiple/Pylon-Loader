@@ -19,8 +19,9 @@ namespace XiheMagic
             Main.projFrames[Type] = 1;
         }
 
-        public override void SetDefaults(Projectile proj)
+        public override void SetDefaults()
         {
+            var proj = Projectile;
             proj.width = 20;
             proj.height = 20;
             proj.aiStyle = -1;
@@ -38,10 +39,11 @@ namespace XiheMagic
             proj.hide = true;
         }
 
-        public override bool ShouldUpdatePosition(Projectile proj) => false;
+        public override bool ShouldUpdatePosition() => false;
 
-        public override void OnSpawn(Projectile proj)
+        public override void OnSpawn(Terraria.DataStructures.IEntitySource source)
         {
+            var proj = Projectile;
             // 兜底：控制器传过来的伤害若是 0（GetWeaponDamage 在个别路径返回 0），至少给武器基础伤害。
             if (proj.damage <= 0) proj.damage = 200;
             proj.originalDamage = proj.damage;
@@ -49,8 +51,9 @@ namespace XiheMagic
                 XiheMagicMod.Log?.Info($"[xihe] pillar spawn dmg={proj.damage} scale={proj.scale}");
         }
 
-        public override void AI(Projectile proj)
+        public override void AI()
         {
+            var proj = Projectile;
             proj.rotation = 1.57f;
             var localai = proj.localAI;
             localai[1] = 10000f;
@@ -147,18 +150,20 @@ namespace XiheMagic
             dust.noGravity = true;
         }
 
-        public override bool CanDamage(Projectile proj) => proj.scale > 0.2f;
+        public override bool CanDamage() => Projectile.scale > 0.2f;
 
-        public override bool? Colliding(Projectile proj, Rectangle projHitbox, Rectangle targetHitbox)
+        public override bool? Colliding(Rectangle projHitbox, Rectangle targetHitbox)
         {
+            var proj = Projectile;
             // 只判 X：整根柱子在竖直方向贯穿（MEAC 原版行为）。
             return Math.Abs(targetHitbox.Center.X - proj.Center.X) < proj.scale * 90f;
         }
 
-        public override bool PreDraw(Projectile proj, Color lightColor) => false;
+        public override bool PreDraw(Player player, ref Color lightColor) => false;
 
-        public override void OnKill(Projectile proj, int timeLeft)
+        public override void OnKill(int timeLeft)
         {
+            var proj = Projectile;
             if (proj.owner != Main.myPlayer) return;
 
             for (var i = 0; i < 40; i++)

@@ -33,7 +33,7 @@ internal static class ModLifecycle
         On.Terraria.Main.DoUpdateInWorld += PreEntitiesPostEverything;
         On.Terraria.Dust.UpdateDust += UpdateDust;
         On.Terraria.Main.UpdateInvasion += UpdateInvasions;
-        On.Terraria.Main.UpdateUIStates += UpdateUI;
+        On.Terraria.Main.DoUpdate += UpdateUI;
         On.Terraria.Main.DoUpdate_HandleInput += PostInput;
         On.Terraria.SceneMetrics.Reset += MetricsReset;
         On.Terraria.SceneMetrics.AggregateTileCounts += MetricsCounts;
@@ -45,6 +45,7 @@ internal static class ModLifecycle
         if (_unloaded) return;
         _unloaded = true;
         Each(HookId.OnModUnload, static mod => mod.OnModUnload());
+        SystemLoader.OnModUnload();
     }
 
     private static void Each(HookId hook, Action<Mod> call)
@@ -83,14 +84,30 @@ internal static class ModLifecycle
             }
         }
 
-        return null;
+        if (SystemLoader.CanWorldBePlayed(player, world, out var rejector) || rejector is null) return null;
+        try
+        {
+            var message = rejector.WorldCanBePlayedRejectionMessage(player, world);
+            if (!string.IsNullOrWhiteSpace(message)) return message;
+        }
+        catch (Exception e)
+        {
+            Safe.Report(rejector.FullKey + ".WorldCanBePlayedRejectionMessage", e);
+        }
+        return rejector.Mod.DisplayName + " does not allow this character in this world";
     }
 
     private static void ClearWorldPostfix(On.Terraria.WorldGen.orig_clearWorld orig)
     {
         orig();
         Each(HookId.ClearWorld, static mod => mod.ClearWorld());
-        if (Main.netMode == 1) Each(HookId.OnWorldLoad, static mod => mod.OnWorldLoad());
+        SystemLoader.ClearWorld();
+        SystemLoader.ResetNearbyTileEffects();
+        if (Main.netMode == 1)
+        {
+            Each(HookId.OnWorldLoad, static mod => mod.OnWorldLoad());
+            SystemLoader.OnWorldLoad();
+        }
     }
 
     private static void LoadWorld(On.Terraria.IO.WorldFile.orig_LoadWorld orig, bool canCheckFileState)
@@ -107,16 +124,16 @@ internal static class ModLifecycle
         orig(canCheckFileState);
 
         Each(HookId.OnWorldLoad, static mod => mod.OnWorldLoad());
+        SystemLoader.OnWorldLoad();
         LoadWorldData();
         Each(HookId.PostWorldLoad, static mod => mod.PostWorldLoad());
     }
 
     private static void LoadWorldData()
     {
-        var file = WorldDataFile();
-        if (file is null || !File.Exists(file)) return;
+        var all = WorldSidecar.Read();
+        if (all.Count == 0) return;
 
-        var all = TagJson.Read(file);
         foreach (var mod in Of(HookId.LoadWorldData))
         {
             if (!all.TryGetValue(mod.Name, out var value)) continue;
@@ -129,6 +146,13 @@ internal static class ModLifecycle
                 Safe.Report(mod.Name + ".LoadWorldData", e);
             }
         }
+
+        var systems = SystemLoader.With(HookId.LoadWorldData);
+        for (var i = 0; i < systems.Length; i++)
+        {
+            if (!all.TryGetValue(SystemLoader.KeyOf(systems[i]), out var value)) continue;
+            SystemLoader.LoadWorldData(systems[i], TagCompound.From(value));
+        }
     }
 
     private static void SaveWorldPostfix(On.Terraria.IO.WorldFile.orig_InternalSaveWorld orig,
@@ -137,10 +161,7 @@ internal static class ModLifecycle
         orig(useCloudSaving, resetTime);
         if (useCloudSaving || Main.worldPathName is null) return;
 
-        var file = WorldDataFile();
-        if (file is null) return;
-
-        var all = TagJson.Read(file);
+        var all = WorldSidecar.Read();
         foreach (var mod in Of(HookId.SaveWorldData))
         {
             var tag = new TagCompound();
@@ -157,22 +178,25 @@ internal static class ModLifecycle
             else all.Remove(mod.Name);
         }
 
-        try
+        var systems = SystemLoader.With(HookId.SaveWorldData);
+        for (var i = 0; i < systems.Length; i++)
         {
-            if (all.Count > 0) TagJson.Write(file, all);
-            else if (File.Exists(file)) File.Delete(file);
-        }
-        catch (Exception e)
-        {
-            Safe.Report("Mod 世界存档", e);
+            var tag = new TagCompound();
+            SystemLoader.SaveWorldData(systems[i], tag);
+            var key = SystemLoader.KeyOf(systems[i]);
+            if (tag.Count > 0) all[key] = tag;
+            else all.Remove(key);
         }
 
-        SaveWorldHeaders();
+        SaveWorldHeaders(all);
+        WorldSidecar.Write(all);
     }
 
     private static void PreSaveAndQuitPrefix(On.Terraria.WorldGen.orig_SaveAndQuit orig)
     {
         Each(HookId.PreSaveAndQuit, static mod => mod.PreSaveAndQuit());
+        SystemLoader.PreSaveAndQuit();
+        SystemLoader.ResetNearbyTileEffects();
         orig();
     }
 
@@ -181,14 +205,16 @@ internal static class ModLifecycle
     {
         orig(threadContext);
         Each(HookId.OnWorldUnload, static mod => mod.OnWorldUnload());
+        SystemLoader.OnWorldUnload();
     }
 
-    private static void SaveWorldHeaders()
+    private static void SaveWorldHeaders(TagCompound root)
     {
         var mods = Of(HookId.SaveWorldHeader);
-        if (mods.IsEmpty || WorldSidecarPath(".wld.header.json") is not { } file) return;
+        var systems = SystemLoader.With(HookId.SaveWorldHeader);
+        if (mods.IsEmpty && systems.Length == 0) return;
 
-        var all = TagJson.Read(file);
+        var headers = root.GetCompound(WorldSidecar.HeadersSection);
         foreach (var mod in mods)
         {
             var tag = new TagCompound();
@@ -201,80 +227,94 @@ internal static class ModLifecycle
                 Safe.Report(mod.Name + ".SaveWorldHeader", e);
             }
 
-            if (tag.Count > 0) all[mod.Name] = tag;
-            else all.Remove(mod.Name);
+            if (tag.Count > 0) headers[mod.Name] = tag;
+            else headers.Remove(mod.Name);
         }
 
-        try
+        for (var i = 0; i < systems.Length; i++)
         {
-            if (all.Count > 0) TagJson.Write(file, all);
-            else if (File.Exists(file)) File.Delete(file);
+            var tag = new TagCompound();
+            SystemLoader.SaveWorldHeader(systems[i], tag);
+            var key = SystemLoader.KeyOf(systems[i]);
+            if (tag.Count > 0) headers[key] = tag;
+            else headers.Remove(key);
         }
-        catch (Exception e)
-        {
-            Safe.Report("Mod 世界头存档", e);
-        }
+
+        root[WorldSidecar.HeadersSection] = headers;
     }
 
     private static void UpdateWorld(On.Terraria.WorldGen.orig_UpdateWorld orig)
     {
         Each(HookId.PreUpdateWorld, static mod => mod.PreUpdateWorld());
+        SystemLoader.PreUpdateWorld();
         orig();
         Each(HookId.PostUpdateWorld, static mod => mod.PostUpdateWorld());
+        SystemLoader.PostUpdateWorld();
     }
 
     private static void UpdateTime(On.Terraria.Main.orig_UpdateTime orig)
     {
         Each(HookId.PreUpdateTime, static mod => mod.PreUpdateTime());
+        SystemLoader.PreUpdateTime();
         orig();
         Each(HookId.PostUpdateTime, static mod => mod.PostUpdateTime());
+        SystemLoader.PostUpdateTime();
     }
 
     private static void PreEntitiesPostEverything(On.Terraria.Main.orig_DoUpdateInWorld orig, Main self)
     {
         Each(HookId.PreUpdateEntities, static mod => mod.PreUpdateEntities());
+        SystemLoader.PreUpdateEntities();
         orig(self);
         Each(HookId.PostUpdateEverything, static mod => mod.PostUpdateEverything());
+        SystemLoader.PostUpdateEverything();
     }
 
     private static void UpdateDust(On.Terraria.Dust.orig_UpdateDust orig)
     {
         Each(HookId.PreUpdateDusts, static mod => mod.PreUpdateDusts());
+        SystemLoader.PreUpdateDusts();
         orig();
         Each(HookId.PostUpdateDusts, static mod => mod.PostUpdateDusts());
+        SystemLoader.PostUpdateDusts();
     }
 
     private static void UpdateInvasions(On.Terraria.Main.orig_UpdateInvasion orig)
     {
         Each(HookId.PreUpdateInvasions, static mod => mod.PreUpdateInvasions());
+        SystemLoader.PreUpdateInvasions();
         orig();
         Each(HookId.PostUpdateInvasions, static mod => mod.PostUpdateInvasions());
+        SystemLoader.PostUpdateInvasions();
     }
 
-    private static void UpdateUI(On.Terraria.Main.orig_UpdateUIStates orig, GameTime gameTime)
+    private static void UpdateUI(On.Terraria.Main.orig_DoUpdate orig, Main self, GameTime gameTime)
     {
-        orig(gameTime);
+        orig(self, gameTime);
         if (Main.gameMenu) return;
         Each(HookId.UpdateUI, mod => mod.UpdateUI(gameTime));
+        SystemLoader.UpdateUI(gameTime);
     }
 
     private static void PostInput(On.Terraria.Main.orig_DoUpdate_HandleInput orig, Main self)
     {
         orig(self);
         Each(HookId.PostUpdateInput, static mod => mod.PostUpdateInput());
+        SystemLoader.PostUpdateInput();
     }
 
     private static void MetricsReset(On.Terraria.SceneMetrics.orig_Reset orig, SceneMetrics self)
     {
         orig(self);
-        if (Main.gameMenu || self != Main.PlayerSceneMetrics) return;
+        if (Main.gameMenu || Main.PlayerSceneMetrics is null || self.Pointer != Main.PlayerSceneMetrics.Pointer) return;
         Each(HookId.ResetNearbyTileEffects, static mod => mod.ResetNearbyTileEffects());
+        SystemLoader.ResetNearbyTileEffects();
     }
 
     private static void MetricsCounts(On.Terraria.SceneMetrics.orig_AggregateTileCounts orig, SceneMetrics self)
     {
         orig(self);
-        if (Main.gameMenu || self != Main.PlayerSceneMetrics) return;
+        if (Main.gameMenu || Main.PlayerSceneMetrics is null || self.Pointer != Main.PlayerSceneMetrics.Pointer) return;
 
         var counts = self._tileCounts;
         foreach (var mod in Of(HookId.TileCountsAvailable))
@@ -288,21 +328,13 @@ internal static class ModLifecycle
                 Safe.Report(mod.Name + ".TileCountsAvailable", e);
             }
         }
+
+        SystemLoader.TileCountsAvailable(counts.AsSpan());
     }
 
     private static void Quit(On.Terraria.Main.orig_QuitGame orig, Main self)
     {
         Unload();
         orig(self);
-    }
-
-    private static string? WorldDataFile() => WorldSidecarPath(".wld.bl.json");
-
-    private static string? WorldSidecarPath(string suffix)
-    {
-        var path = Main.worldPathName;
-        if (string.IsNullOrEmpty(path)) return null;
-        if (path.EndsWith(".wld", StringComparison.OrdinalIgnoreCase)) path = path[..^4];
-        return path + suffix;
     }
 }

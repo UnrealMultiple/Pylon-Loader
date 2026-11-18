@@ -35,6 +35,7 @@ internal static class ModEnvironmentHooks
                 Safe.Report(mod.Name + ".ModifySunLightColor", e);
             }
         }
+        SystemLoader.ModifySunLightColor(ref tile, ref background);
         Main.tileColor = tile;
         Main.ColorOfTheSkies = background;
     }
@@ -56,6 +57,7 @@ internal static class ModEnvironmentHooks
                 Safe.Report(mod.Name + ".ModifyLightingBrightness", e);
             }
         }
+        SystemLoader.ModifyLightingBrightness(ref scale);
         if (float.IsFinite(scale) && scale >= 0f && scale != 1f)
             Lighting.GlobalBrightness *= scale;
     }
@@ -82,6 +84,7 @@ internal static class ModEnvironmentHooks
                 Safe.Report(mod.Name + ".OnLocalizationsLoaded", e);
             }
         }
+        SystemLoader.OnLocalizationsLoaded();
     }
 
     private static void BeforeProjectiles(On.Terraria.Main.orig_PreUpdateAllProjectiles orig, Main self)
@@ -97,6 +100,7 @@ internal static class ModEnvironmentHooks
                 Safe.Report(mod.Name + ".PreUpdateProjectiles", e);
             }
         }
+        SystemLoader.PreUpdateProjectiles();
         orig(self);
     }
 }

@@ -36,7 +36,6 @@ public static partial class ModConfigMenu
     private static int _guardIdle;
     private static int? _pressY;
     private static bool _dragged;
-    private static PopupState? _popup;
     private static float _listTop;
     private static float _listBottom;
     private static float _tabScroll;
@@ -232,7 +231,7 @@ public static partial class ModConfigMenu
         var result = new List<ModConfigEntry>();
         foreach (var e in ModConfigLoader.Of(mod))
         {
-            if (!inWorld || e.VisibleInWorld) result.Add(e);
+            result.Add(e);
         }
         return result;
     }
@@ -378,14 +377,13 @@ public static partial class ModConfigMenu
         if (!_open) return;
         _open = false;
         _where = Where.None;
-        _popup = null;
         ReleaseSliders();
         if (apply) ModConfigLoader.Apply();
         else ModConfigLoader.Discard();
         if (sound) SoundEngine.PlaySound(MENU_CLOSE);
     }
 
-    private static bool Modal() => _popup != null;
+    private static bool Modal() => false;
 
     private static bool Blocked() => _guard || _dragged || Modal();
 
@@ -531,3 +529,6 @@ public static partial class ModConfigMenu
         }
     }
 }
+
+
+

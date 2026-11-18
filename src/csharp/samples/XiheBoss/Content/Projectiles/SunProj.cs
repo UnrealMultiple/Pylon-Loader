@@ -19,8 +19,9 @@ namespace XiheBoss
             Main.projFrames[Type] = 1;
         }
 
-        public override void SetDefaults(Projectile proj)
+        public override void SetDefaults()
         {
+            var proj = Projectile;
             proj.width = 20;
             proj.height = 20;
             proj.aiStyle = -1;
@@ -33,8 +34,9 @@ namespace XiheBoss
             proj.scale = 0f;
         }
 
-        public override void OnSpawn(Projectile proj)
+        public override void OnSpawn(Terraria.DataStructures.IEntitySource source)
         {
+            var proj = Projectile;
             // 源 OnSpawn：25 个 MagicRing_Sun，ai1 各加 0..50。
             for (var i = 0; i < 25; i++)
             {
@@ -44,10 +46,11 @@ namespace XiheBoss
             }
         }
 
-        public override bool ShouldUpdatePosition(Projectile proj) => false;
+        public override bool ShouldUpdatePosition() => false;
 
-        public override void AI(Projectile proj)
+        public override void AI()
         {
+            var proj = Projectile;
             if (proj.timeLeft == 313)
             {
                 XiheFx.ScreenShake(30f, proj.Center);
@@ -144,13 +147,14 @@ namespace XiheBoss
             p.netUpdate2 = true;
         }
 
-        public override bool? Colliding(Projectile proj, Rectangle projHitbox, Rectangle targetHitbox)
+        public override bool? Colliding(Rectangle projHitbox, Rectangle targetHitbox)
         {
+            var proj = Projectile;
             var target = Utils.TopLeft(targetHitbox) + Utils.Size(targetHitbox) / 2f;
             return proj.timeLeft > 10 && Vector2.Distance(target, proj.Center) < 100f * proj.scale;
         }
 
-        public override bool PreDraw(Projectile proj, Color lightColor) => false;
+        public override bool PreDraw(Player player, ref Color lightColor) => false;
 
         /// <summary>源 PreDraw：EoLSky.DrawSun → 逐像素 Sun.fx。</summary>
         public static void PushVisual(Projectile p)

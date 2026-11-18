@@ -111,9 +111,9 @@ internal sealed class NpcSavePipeline
 
     private void WriteFile(List<TagCompound>? rooms)
     {
-        if (DataFile() is not { } file) return;
+        if (DataFile() is null) return;
 
-        var root = new TagCompound();
+        var root = WorldSidecar.Read();
 
         var npcs = new List<object?>();
         var world = Main.npc;
@@ -151,15 +151,7 @@ internal sealed class NpcSavePipeline
         if (npcs.Count > 0) root.Set(NpcSection, npcs);
         if (roomRows.Count > 0) root.Set(RoomSection, roomRows);
 
-        try
-        {
-            if (root.Count > 0) TagJson.Write(file, root);
-            else if (File.Exists(file)) File.Delete(file);
-        }
-        catch (Exception e)
-        {
-            Safe.Report("npc 存档", e);
-        }
+        if (root.Count > 0) WorldSidecar.Write(root);
     }
 
     private void LoadNpcs(On.Terraria.IO.WorldFile.orig_LoadNPCs orig, Il2CppSystem.IO.BinaryReader reader)
@@ -173,20 +165,19 @@ internal sealed class NpcSavePipeline
         var root = ReadFile();
         if (root.Count == 0) return;
 
-        var rows = root.GetList(NpcSection);
+        var rows = root.GetList<TagCompound>(NpcSection);
         for (var i = 0; i < rows.Count; i++)
         {
-            if (rows[i] is not TagCompound row) continue;
-            if (Restore(row)) continue;
+            if (Restore(rows[i])) continue;
 
             _keptNpcs ??= [];
-            _keptNpcs.Add(row);
+            _keptNpcs.Add(rows[i]);
         }
 
-        var rooms = root.GetList(RoomSection);
+        var rooms = root.GetList<TagCompound>(RoomSection);
         for (var i = 0; i < rooms.Count; i++)
         {
-            if (rooms[i] is TagCompound room) _pendingRooms.Add(room);
+            _pendingRooms.Add(rooms[i]);
         }
     }
 
@@ -319,11 +310,11 @@ internal sealed class NpcSavePipeline
         }
 
         if (!saved.ContainsKey("g")) return;
-        var globals = saved.GetList("g");
+        var globals = saved.GetList<TagCompound>("g");
 
-        foreach (var entry in globals)
+        foreach (var tag in globals)
         {
-            if (entry is not TagCompound tag || !tag.ContainsKey("d")) continue;
+            if (!tag.ContainsKey("d")) continue;
             var key = tag.GetString("m") + "/" + tag.GetString("n");
             var globalData = tag.GetCompound("d");
 
@@ -374,16 +365,7 @@ internal sealed class NpcSavePipeline
 
     private static TagCompound ReadFile()
     {
-        if (DataFile() is not { } file || !File.Exists(file)) return new TagCompound();
-
-        try
-        {
-            return TagJson.Read(file);
-        }
-        catch (Exception e)
-        {
-            Safe.Report("npc 读档", e);
-            return new TagCompound();
-        }
+        if (DataFile() is null) return new TagCompound();
+        return WorldSidecar.Read();
     }
 }

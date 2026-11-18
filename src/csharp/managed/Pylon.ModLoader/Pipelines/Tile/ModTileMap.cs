@@ -517,7 +517,7 @@ internal static unsafe class ModTileMap
         if (lockObject is not null) IL2CPP.il2cpp_monitor_enter(lockObject.Pointer);
         try
         {
-            foreach (var entry in TagJson.Read(file).GetList("cells"))
+            foreach (var entry in TagJson.Read(file).GetList<TagCompound>("cells"))
             {
                 if (entry is not TagCompound row) continue;
 
@@ -750,3 +750,4 @@ internal static unsafe class ModTileMap
         return path + ".json";
     }
 }
+

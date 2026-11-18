@@ -13,12 +13,12 @@ namespace XiheBoss
         {
             try
             {
-                _laser = new SoundStyle("Sounds/Laser", new SoundStyle.Options
+                _laser = new SoundStyle("Sounds/Laser")
                 {
                     Volume = 1f,
                     MaxInstances = 2,
                     SoundLimitBehavior = 1,
-                });
+                };
                 log?.Info("[sound] MEAC Laser.wav 已登记");
             }
             catch (Exception e)

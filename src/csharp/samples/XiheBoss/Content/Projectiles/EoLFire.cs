@@ -64,8 +64,9 @@ namespace XiheBoss
             Main.projFrames[Type] = 1;
         }
 
-        public override void SetDefaults(Projectile proj)
+        public override void SetDefaults()
         {
+            var proj = Projectile;
             proj.width = 15;
             proj.height = 15;
             proj.aiStyle = -1;
@@ -78,21 +79,24 @@ namespace XiheBoss
             proj.scale = 1.5f;
         }
 
-        public override void OnSpawn(Projectile proj)
+        public override void OnSpawn(Terraria.DataStructures.IEntitySource source)
         {
+            var proj = Projectile;
             NodeTable[proj.whoAmI] = new List<Node>();
         }
 
-        public override void OnKill(Projectile proj, int timeLeft)
+        public override void OnKill(int timeLeft)
         {
+            var proj = Projectile;
             NodeTable.Remove(proj.whoAmI);
         }
 
         // 源：位置完全由 AI 钉在宿主身上。
-        public override bool ShouldUpdatePosition(Projectile proj) => false;
+        public override bool ShouldUpdatePosition() => false;
 
-        public override void AI(Projectile proj)
+        public override void AI()
         {
+            var proj = Projectile;
             var ai = proj.ai;
 
             var idx = (int)ai[0];
@@ -145,8 +149,9 @@ namespace XiheBoss
         }
 
         // 源：沿节点折线每 2 个节点取一段，半宽 node.width*0.7；其余交给原生矩形。
-        public override bool? Colliding(Projectile proj, Rectangle projHitbox, Rectangle targetHitbox)
+        public override bool? Colliding(Rectangle projHitbox, Rectangle targetHitbox)
         {
+            var proj = Projectile;
             var nodes = NodesOf(proj);
             if (nodes != null)
             {
@@ -165,7 +170,7 @@ namespace XiheBoss
             return null;
         }
 
-        public override bool PreDraw(Projectile proj, Color lightColor) => false;
+        public override bool PreDraw(Player player, ref Color lightColor) => false;
 
         private static List<Node> NodesOf(Projectile proj)
         {

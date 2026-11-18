@@ -19,8 +19,9 @@ namespace XiheBoss
             Main.projFrames[Type] = 1;
         }
 
-        public override void SetDefaults(Projectile proj)
+        public override void SetDefaults()
         {
+            var proj = Projectile;
             proj.width = 100;
             proj.height = 1;
             proj.aiStyle = -1;
@@ -35,16 +36,18 @@ namespace XiheBoss
             proj.hide = true;
         }
 
-        public override void OnSpawn(Projectile proj)
+        public override void OnSpawn(Terraria.DataStructures.IEntitySource source)
         {
+            var proj = Projectile;
             var ai = proj.ai;
             _maxTime = ai[2] > 1f ? (int)ai[2] : 600;
         }
 
         private int Timer(Projectile proj) => _maxTime - proj.timeLeft;
 
-        public override void AI(Projectile proj)
+        public override void AI()
         {
+            var proj = Projectile;
             // MEAC 在 NewProjectileDirect 返回后同时设置 timeLeft 和 maxtime。
             // 迁移版用 ai[2] 传 maxtime，OnSpawn 早于调用方的 SetLanceTime，
             // 所以必须在计算 timer 前读取后写入的值；否则末尾模式 6 从约 275 开始计时，
@@ -205,17 +208,18 @@ namespace XiheBoss
             return idx >= 0 && idx < Main.projectile.Length ? Main.projectile[idx] : null;
         }
 
-        public override bool ShouldUpdatePosition(Projectile proj) => true;
+        public override bool ShouldUpdatePosition() => true;
 
-        public override bool? Colliding(Projectile proj, Rectangle projHitbox, Rectangle targetHitbox)
+        public override bool? Colliding(Rectangle projHitbox, Rectangle targetHitbox)
         {
+            var proj = Projectile;
             float point = 0f;
             var vec = XiheHelper.Normalize2(proj.velocity) * 120f / 2f;
             return Collision.CheckAABBvLineCollision(Utils.TopLeft(targetHitbox), Utils.Size(targetHitbox),
                 proj.Center - vec, proj.Center + vec, 20f, ref point);
         }
 
-        public override bool PreDraw(Projectile proj, Color lightColor) => false;
+        public override bool PreDraw(Player player, ref Color lightColor) => false;
 
         /// <summary>源 PreDraw：2500px 的顶点光矛 + 8 层残影 + 枪身，全部加色。</summary>
         public static void PushVisual(Projectile p)

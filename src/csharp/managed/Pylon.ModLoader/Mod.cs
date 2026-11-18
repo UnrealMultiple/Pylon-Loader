@@ -256,6 +256,7 @@ public abstract class Mod : IPylonMod
         Logger.Info($"加载：{Types.Count} 个内容");
         Load();
         Safe.Run(Name + ".OnModLoad", OnModLoad);
+        SystemLoader.OnModLoad(this);
     }
 
     void IPylonMod.OnContentReady(IModContext context)

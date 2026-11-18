@@ -42,7 +42,6 @@ public static partial class ModConfigMenu
         DrawList(S, mod);
 
         var action = DrawActions(S, mod);
-        Safe("ModConfigMenu.Popup", () => DrawPopup(S));
         if (action != null && !Blocked())
         {
             XNAUIInputLayer.Instance.CaptureUICrusorDrag(-1);
@@ -68,7 +67,6 @@ public static partial class ModConfigMenu
         {
             var gi = GUIInstance.Active;
             if (gi != null && gi.GUIKeyboardMappings != null) gi.GUIKeyboardMappings.DisableEscapeKeyUsage();
-            if (_popup != null) _popup = null;
             else Close();
         }
     }
@@ -411,10 +409,15 @@ public static partial class ModConfigMenu
         var height = S.ToggleTemplate.ToggleButton.overloadedSize.Y + GAP;
         foreach (var entry in Entries(mod))
         {
+            var config = entry.Instance;
             foreach (var o in entry.Options)
             {
-                var key = entry.Name + "." + o.Key;
-                if (o.Kind == OptionKind.Color)
+                var key = entry.Name + "." + o.Name;
+                var header = o.HeaderText(config);
+                if (header is not null)
+                    rows.Add(new Row("header", entry, o, key + ":header", height + HEADER_EXTRA));
+
+                if (o.Kind == ConfigOptionKind.Color)
                 {
                     foreach (var part in new[] { "color", "hue", "saturation", "lightness" })
                     {
@@ -423,12 +426,14 @@ public static partial class ModConfigMenu
                 }
                 else
                 {
-                    rows.Add(new Row(
-                        o.Kind.ToString().ToLowerInvariant(),
-                        entry,
-                        o,
-                        key,
-                        o.Kind == OptionKind.Header ? height + HEADER_EXTRA : height));
+                    var kind = o.Kind switch
+                    {
+                        ConfigOptionKind.Toggle => "toggle",
+                        ConfigOptionKind.Range => "range",
+                        ConfigOptionKind.Choice => "cycle",
+                        _ => "data",
+                    };
+                    rows.Add(new Row(kind, entry, o, key, height));
                 }
             }
         }
@@ -617,3 +622,5 @@ public static partial class ModConfigMenu
         };
     }
 }
+
+

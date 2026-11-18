@@ -105,6 +105,8 @@ namespace XiheBoss
 
         public override void PostSetupContent()
         {
+            // 游戏贴图表已就绪：先取 Boss 绘制用的原版贴图，再注册音乐。
+            XiheBossNpc.LoadVisualAssets();
             // 音乐注册放到内容就绪之后：音频引擎这时才稳定（失败也只是没 BGM）。
             XiheBossNpc.ResolveMusic(this);
         }

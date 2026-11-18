@@ -25,8 +25,9 @@ namespace XiheBoss
             Main.projFrames[Type] = 1;
         }
 
-        public override void SetDefaults(Projectile proj)
+        public override void SetDefaults()
         {
+            var proj = Projectile;
             proj.width = 10;
             proj.height = 10;
             proj.aiStyle = -1;
@@ -40,9 +41,9 @@ namespace XiheBoss
             proj.alpha = 255;
         }
 
-        public override void OnSpawn(Projectile proj) => Alloc(proj);
+        public override void OnSpawn(Terraria.DataStructures.IEntitySource source) => Alloc(Projectile);
 
-        public override void OnKill(Projectile proj, int timeLeft) => Clear(proj);
+        public override void OnKill(int timeLeft) => Clear(Projectile);
 
         private static Vector2[] TrailOf(Projectile proj)
         {
@@ -80,8 +81,9 @@ namespace XiheBoss
             if (_oldRot != null && _oldRot.Length == count) _oldRot[i] = null;
         }
 
-        public override void AI(Projectile proj)
+        public override void AI()
         {
+            var proj = Projectile;
             var ai = proj.ai;
 
             // 源：alpha = timeLeft > 10 ? Lerp(alpha, 0, 0.1) : Lerp(alpha, 255, 0.1)
@@ -178,9 +180,9 @@ namespace XiheBoss
             }
         }
 
-        public override bool ShouldUpdatePosition(Projectile proj) => true;
+        public override bool ShouldUpdatePosition() => true;
 
-        public override bool PreDraw(Projectile proj, Color lightColor) => false;
+        public override bool PreDraw(Player player, ref Color lightColor) => false;
 
         /// <summary>源 PreDraw：30 段 Ball 拖尾 + projTex 箭体 + 两笔 Ball 十字，全部 Colorize+Additive。</summary>
         public static void PushVisual(Projectile p)

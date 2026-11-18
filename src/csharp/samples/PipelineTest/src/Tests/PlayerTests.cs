@@ -57,9 +57,7 @@ internal static class PlayerTests
             c.True(TestPlayerLifecycle.CtFrameEffects > 0, $"FrameEffects 每帧被调（{TestPlayerLifecycle.CtFrameEffects}）");
         });
 
-        // 放岩浆等玩家掉进去太不可控（位置/液体物理都不一定配合）。
-        // 旅程模式的神模式会让 KillMe 走 creativeGodMode 短路（基线同形状），测试期间先关掉。
-        PT.Later("PL-W2", 40, c =>
+        PT.Later("PL-W2", 3200, c =>
         {
             var p = Main.player[Main.myPlayer];
             _savedGodMode = p.creativeGodMode;
@@ -73,8 +71,7 @@ internal static class PlayerTests
             PT.Info("已调 KillMe（9999 伤害）");
         });
 
-        // W3：Kill 应已触发（岩浆每帧掉血）。
-        PT.Later("PL-W3", 100, c =>
+        PT.Later("PL-W3", 3260, c =>
         {
             c.True(TestPlayerLifecycle.CtKill > 0, $"Kill 被触发（{TestPlayerLifecycle.CtKill} 次）");
             var p = Main.player[Main.myPlayer];
@@ -82,9 +79,7 @@ internal static class PlayerTests
             if (Main.player[Main.myPlayer] is { } me) me.creativeGodMode = _savedGodMode;
         });
 
-        // W4：复活后 OnRespawn 触发。复活倒计时约 11 秒；实测推进频率约 180 帧/秒（每帧多个入口），
-        // 排 2500 帧约 14 秒，跨过复活点且整组仍在 60 秒内跑完。
-        PT.Later("PL-W4", 2500, c =>
+        PT.Later("PL-W4", 5660, c =>
         {
             c.True(TestPlayerLifecycle.CtOnRespawn > 0, $"OnRespawn 被触发（{TestPlayerLifecycle.CtOnRespawn} 次）");
             TestPlayerLifecycle.Counting = false;

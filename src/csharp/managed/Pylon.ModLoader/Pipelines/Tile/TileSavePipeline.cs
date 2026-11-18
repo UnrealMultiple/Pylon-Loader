@@ -279,8 +279,7 @@ internal static class TileSavePipeline
 
     private static unsafe void WriteSidecar(TilePtrs ptrs)
     {
-        var file = DataFile();
-        if (file is null) return;
+        if (DataFile() is null) return;
 
         var rows = new List<object?>(_recordCount);
         for (var i = 0; i < _recordCount; i++)
@@ -310,21 +309,13 @@ internal static class TileSavePipeline
         }
 
         if (_kept is not null) rows.AddRange(_kept);
-        var root = TagJson.Read(file);
+        var root = WorldSidecar.Read();
         if (rows.Count > 0) root.Set(SaveSection, rows);
         else root.Remove(SaveSection);
 
         if (_wallsReady) WriteWalls(root);
 
-        try
-        {
-            if (root.Count > 0) TagJson.Write(file, root);
-            else if (File.Exists(file)) File.Delete(file);
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report("[tile] 侧车写入失败：" + Safe.Describe(e));
-        }
+        if (root.Count > 0) WorldSidecar.Write(root);
     }
 
     private static unsafe void WriteWalls(TagCompound root)
@@ -509,10 +500,9 @@ internal static class TileSavePipeline
 
         try
         {
-            var file = DataFile();
-            if (file is null || !File.Exists(file)) return;
+            if (DataFile() is null) return;
 
-            var rows = TagJson.Read(file).GetList(SaveSection);
+            var rows = WorldSidecar.Read().GetList<TagCompound>(SaveSection);
             if (rows.Count == 0) return;
 
             var tile = Main.tile;
@@ -524,10 +514,8 @@ internal static class TileSavePipeline
             var restored = 0;
             var builtOver = 0;
 
-            foreach (var entry in rows)
+            foreach (var row in rows)
             {
-                if (entry is not TagCompound row) continue;
-
                 try
                 {
                     if (!ModContent.TryFind<ModTile>(row.GetString("t"), out var modTile))
@@ -570,7 +558,7 @@ internal static class TileSavePipeline
             _kept = kept.Count > 0 ? kept : null;
             Log.Info($"[tile] 侧车恢复 {restored} 个 mod 方块（等待 {_kept?.Count ?? 0}，被占用 {builtOver}）");
 
-            if (_wallsReady) RestoreWalls(file, width, height);
+            if (_wallsReady) RestoreWalls(width, height);
         }
         catch (Exception e)
         {
@@ -585,11 +573,9 @@ internal static class TileSavePipeline
         orig();
     }
 
-    private static unsafe void RestoreWalls(string file, int width, int height)
+    private static unsafe void RestoreWalls(int width, int height)
     {
-        if (!File.Exists(file)) return;
-
-        var rows = TagJson.Read(file).GetList(WallSection);
+        var rows = WorldSidecar.Read().GetList<TagCompound>(WallSection);
         if (rows.Count == 0) return;
 
         var wall = ReadPtrs().Wall;
@@ -603,10 +589,8 @@ internal static class TileSavePipeline
         var builtOver = 0;
         var placed = new List<(int X, int Y)>();
 
-        foreach (var entry in rows)
+        foreach (var row in rows)
         {
-            if (entry is not TagCompound row) continue;
-
             try
             {
                 var x = row.GetInt("x");

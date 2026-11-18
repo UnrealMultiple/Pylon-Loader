@@ -64,6 +64,12 @@ namespace XiheMagic
             XiheFx.Probe();
         }
 
+        public override void PostSetupContent()
+        {
+            // 贴图表这时已定型：把物品图标指到原版光女魔法武器。
+            ModContent.GetInstance<XiHeMagicItem>()?.ApplyIcon();
+        }
+
         private static void BeforeDraw(On.Terraria.Main.orig_DoDraw orig, Main self, GameTime gameTime)
         {
             XiheFx.Submit();

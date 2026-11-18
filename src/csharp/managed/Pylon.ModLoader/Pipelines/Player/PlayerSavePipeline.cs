@@ -3,7 +3,7 @@ using Terraria.IO;
 
 namespace Pylon.ModLoader;
 
-/// <summary>玩家侧车存档：把 ModPlayer 存档族接到玩家文件读写；PreSavePlayer→写 .plr→PreSaveCustomData→SaveData→PostSavePlayer，读档后逐作者 LoadData，侧车与发型共用 .pl.json。</summary>
+/// <summary>玩家侧车存档：把 ModPlayer 存档族接到玩家文件读写；PreSavePlayer→写 .plr→PreSaveCustomData→SaveData→PostSavePlayer，读档后逐作者 LoadData，侧车与发型共用 .pyon。</summary>
 internal sealed class PlayerSavePipeline : ILoaderModule
 {
     public static PlayerSavePipeline Instance { get; } = new();
@@ -37,7 +37,7 @@ internal sealed class PlayerSavePipeline : ILoaderModule
 
             Dispatch(player, HookId.PreSaveCustomData);
 
-            var all = TagJson.Read(file);
+            var all = PlayerSidecar.Read(file);
             var templates = Binding.Templates;
             var instances = Binding.Of(player);
 
@@ -62,7 +62,7 @@ internal sealed class PlayerSavePipeline : ILoaderModule
                 }
             }
 
-            if (all.Count > 0) TagJson.Write(file, all);
+            if (all.Count > 0) PlayerSidecar.Write(file, all);
             else File.Delete(file);
         }
         catch (Exception e)
@@ -87,7 +87,7 @@ internal sealed class PlayerSavePipeline : ILoaderModule
             if (player is null) return data;
             if (PlayerSidecar.DataFile(data) is not { } file) return data;
 
-            var all = TagJson.Read(file);
+            var all = PlayerSidecar.Read(file);
             var templates = Binding.Templates;
             var instances = Binding.Of(player);
 

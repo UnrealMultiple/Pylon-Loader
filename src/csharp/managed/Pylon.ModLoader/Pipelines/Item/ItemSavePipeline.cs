@@ -5,7 +5,7 @@ using Terraria;
 
 namespace Pylon.ModLoader;
 
-/// <summary>mod 物品持久化：.plr 只认原版类型号，mod 物品与 mod 前缀走侧车 &lt;玩家文件&gt;.pl.json 的 items 段按容器+槽位存取，读档时恢复或进？池占位。</summary>
+/// <summary>mod 物品持久化：.plr 只认原版类型号，mod 物品与 mod 前缀走侧车 &lt;玩家文件&gt;.pyon 的 items 段按容器+槽位存取，读档时恢复或进？池占位。</summary>
 internal sealed class ItemSavePipeline
 {
     public static ItemSavePipeline Instance { get; } = new();
@@ -47,11 +47,11 @@ internal sealed class ItemSavePipeline
 
             rows.AddRange(CarryKept(player));
 
-            var root = TagJson.Read(file);
+            var root = PlayerSidecar.Read(file);
             if (rows.Count > 0) root.Set(SaveSection, rows);
             else root.Remove(SaveSection);
 
-            if (root.Count > 0) TagJson.Write(file, root);
+            if (root.Count > 0) PlayerSidecar.Write(file, root);
             else File.Delete(file);
         }
         catch (Exception e)
@@ -176,7 +176,7 @@ internal sealed class ItemSavePipeline
             if (data is null || data.IsCloudSave || data.Player is not { } player) return data!;
             if (DataFile(data) is not { } file || !File.Exists(file)) return data!;
 
-            var rows = TagJson.Read(file).GetList(SaveSection);
+            var rows = PlayerSidecar.Read(file).GetList<TagCompound>(SaveSection);
             foreach (var entry in rows)
             {
                 if (entry is not TagCompound row) continue;
@@ -391,6 +391,7 @@ internal sealed class ItemSavePipeline
     {
         if (data.IsCloudSave) return null;
         var path = data.Path;
-        return string.IsNullOrEmpty(path) ? null : path + ".pl.json";
+        return string.IsNullOrEmpty(path) ? null : path + ".pl";
     }
 }
+

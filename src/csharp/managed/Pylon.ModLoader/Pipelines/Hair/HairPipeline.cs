@@ -184,7 +184,7 @@ internal sealed class HairPipeline : ILoaderModule, ILoaderModuleRefresh
             if (player is null) return;
             if (PlayerSidecar.DataFile(playerFile) is not { } file) return;
 
-            var all = TagJson.Read(file);
+            var all = PlayerSidecar.Read(file);
             if (hair is not null)
             {
                 all.Set(SaveKey, hair.FullKey);
@@ -198,7 +198,7 @@ internal sealed class HairPipeline : ILoaderModule, ILoaderModuleRefresh
                 return;
             }
 
-            if (all.Count > 0) TagJson.Write(file, all);
+            if (all.Count > 0) PlayerSidecar.Write(file, all);
             else File.Delete(file);
         }
         catch (Exception e)
@@ -222,7 +222,7 @@ internal sealed class HairPipeline : ILoaderModule, ILoaderModuleRefresh
             if (player is null) return data;
             if (PlayerSidecar.DataFile(data) is not { } file) return data;
 
-            var all = TagJson.Read(file);
+            var all = PlayerSidecar.Read(file);
             if (all.Get(SaveKey) is not string key) return data;
 
             var type = HairTable.Find(key);

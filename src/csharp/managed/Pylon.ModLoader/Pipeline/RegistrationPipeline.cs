@@ -76,6 +76,7 @@ internal static class RegistrationPipeline
     {
         switch (content)
         {
+            case ModSystem system: SystemLoader.Add(system); break;
             case GlobalItem global: GlobalItemRegistry.Register(global); break;
             case GlobalProjectile global: GlobalProjectileRegistry.Register(global); break;
             case GlobalNpc global: GlobalNpcRegistry.Register(global); break;

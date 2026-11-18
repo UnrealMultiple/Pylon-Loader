@@ -162,17 +162,11 @@ internal static class TileEntityTests
 
             PT.Later("TE-7", 70, cc =>
             {
-                // 侧车存档：世界存盘后，实体表写进 <世界>.wld.tileentities.json。
                 var basePath = Main.worldPathName;
                 if (basePath.EndsWith(".wld", StringComparison.OrdinalIgnoreCase)) basePath = basePath[..^4];
-                var path = basePath + ".wld.tileentities.json";
+                var path = basePath + ".wld.pylon";
                 Terraria.IO.WorldFile.SaveWorld();
-                cc.True(System.IO.File.Exists(path), $"侧车存档已写出：{path}");
-
-                if (!System.IO.File.Exists(path)) return;
-                var text = System.IO.File.ReadAllText(path);
-                cc.True(text.Contains("ents"), "侧车存档里有实体段");
-                cc.True(text.Contains("TestTileEntity"), "侧车存档里记了实体键");
+                cc.True(System.IO.File.Exists(path), $"世界侧车已写出：{path}（实体段随世界头/数据一起进二进制旁车，读回由 TE-1..6 的世界重进恢复覆盖）");
             });
         });
 

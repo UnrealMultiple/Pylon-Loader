@@ -65,12 +65,17 @@ internal static class InstallPlan
             new Step("背景安装", InstallStage.Static, () => BackgroundPipeline.Instance.Build()),
             new Step("额外跳跃安装", InstallStage.Static, () => ExtraJumpTable.Build(host.Log)),
             new Step("系统阶段", InstallStage.Static, () => SystemStages.Build(host.Log)),
+            new Step("系统地图时机", InstallStage.Static, SystemMapHooks.Install),
 
             new HookStep("ResizeArrays", InstallStage.Mods, HookId.ResizeArrays, static mod => mod.ResizeArrays()),
+            new Step("System.ResizeArrays", InstallStage.Mods, SystemLoader.ResizeArrays),
             new HookStep("Mod.SetupContent", InstallStage.Mods, HookId.SetupContent, static mod => mod.SetupContent()),
+            new Step("System.SetStaticDefaults", InstallStage.Mods, SystemStaticDefaults),
             new HookStep("Mod.AddRecipeGroups", InstallStage.Mods, HookId.AddRecipeGroups, static mod => mod.AddRecipeGroups()),
+            new Step("System.AddRecipeGroups", InstallStage.Mods, SystemRecipeGroups),
             new Step("GlobalNPC 配方组", InstallStage.Mods, GlobalRecipeGroups),
             new HookStep("Mod.PostSetupContent", InstallStage.Mods, HookId.PostSetupContent, static mod => mod.PostSetupContent()),
+            new Step("System.PostSetupContent", InstallStage.Mods, SystemPostSetupContent),
             new Step("渔夫任务鱼", InstallStage.Mods, ItemAnglerQuest.Build),
             new Step("本地化加载完成", InstallStage.Mods, ModEnvironmentHooks.LocalizationsLoaded),
             new Step("提示重建开关", InstallStage.Mods, () => TooltipPipeline.Instance.Build()),
@@ -78,8 +83,10 @@ internal static class InstallPlan
 
             new Step("配方注册", InstallStage.Recipes, RecipesRegister),
             new HookStep("Mod.PostAddRecipes", InstallStage.Recipes, HookId.PostAddRecipes, static mod => mod.PostAddRecipes()),
+            new Step("System.PostAddRecipes", InstallStage.Recipes, SystemPostAddRecipes),
             new Step("配方收尾", InstallStage.Recipes, () => RecipeTable.Finish(LoaderHost.Current.Log)),
             new HookStep("Mod.PostSetupRecipes", InstallStage.Recipes, HookId.PostSetupRecipes, static mod => mod.PostSetupRecipes()),
+            new Step("System.PostSetupRecipes", InstallStage.Recipes, SystemLoader.PostSetupRecipes),
         };
 
         return [.. steps];
@@ -92,6 +99,10 @@ internal static class InstallPlan
         foreach (var mod in LoaderHost.Current.Mods.Mods)
         {
             Safe.Run(mod.Name + ".AddRecipes", mod.AddRecipes);
+            foreach (var system in SystemLoader.Of(mod))
+            {
+                Safe.Run($"{system.FullKey}.AddRecipes", system.AddRecipes);
+            }
             foreach (var item in ModContent.GetContent<ModItem>())
             {
                 if (item.Mod != mod) continue;
@@ -103,6 +114,26 @@ internal static class InstallPlan
                 Safe.Run($"{mod.Name}/{global.Name}.AddRecipes", global.AddRecipes);
             }
         }
+    }
+
+    private static void SystemStaticDefaults()
+    {
+        foreach (var mod in LoaderHost.Current.Mods.Mods) SystemLoader.SetupContent(mod);
+    }
+
+    private static void SystemPostSetupContent()
+    {
+        foreach (var mod in LoaderHost.Current.Mods.Mods) SystemLoader.PostSetupContent(mod);
+    }
+
+    private static void SystemRecipeGroups()
+    {
+        foreach (var mod in LoaderHost.Current.Mods.Mods) SystemLoader.AddRecipeGroups(mod);
+    }
+
+    private static void SystemPostAddRecipes()
+    {
+        foreach (var mod in LoaderHost.Current.Mods.Mods) SystemLoader.PostAddRecipes(mod);
     }
 
     private static void GlobalRecipeGroups()

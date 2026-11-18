@@ -69,11 +69,10 @@ namespace XiheBoss
         public override string DisplayName => "羲和";
         public override int Music => _musicSlot;
         public override int SceneEffectPriority => 6;
-        public override bool HideFromBestiary => true;
 
         // Reuse Terraria's original Empress of Light boss head entry for both
         // the boss bar head hook and the minimap boss marker.
-        public override void BossHeadSlot(NPC npc, ref int index)
+        public override void BossHeadSlot(ref int index)
         {
             var heads = NPCID.Sets.BossHeadTextures;
             var type = NPCID.HallowBoss;
@@ -103,8 +102,9 @@ namespace XiheBoss
             Main.npcFrameCount[Type] = 2;
         }
 
-        public override void SetDefaults(NPC npc)
+        public override void SetDefaults()
         {
+            var npc = NPC;
             npc.noGravity = true;
             npc.width = 100;
             npc.height = 50;
@@ -123,7 +123,8 @@ namespace XiheBoss
             npc.BossBar = ModContent.GetInstance<XiheBossBar>();
         }
 
-        public override void PostSetupContent()
+        /// <summary>由 <see cref="XiheBossMod.PostSetupContent"/> 调用：那时游戏贴图表已就绪。</summary>
+        internal static void LoadVisualAssets()
         {
             BodyTexture = LoadGameTexture("Images/NPC_" + NPCID.HallowBoss, "boss 身体");
             WingTexture = LoadGameTexture("Images/Extra_157", "翅膀");
@@ -152,8 +153,9 @@ namespace XiheBoss
 
         // ================= 生成 / 死亡 =================
 
-        public override void OnSpawn(NPC npc, Terraria.DataStructures.IEntitySource source)
+        public override void OnSpawn(Terraria.DataStructures.IEntitySource source)
         {
+            var npc = NPC;
             Current = this;
             _spawned = true;
             // act = 1（源码同值；手臂帧固定第 1 帧）
@@ -178,8 +180,9 @@ namespace XiheBoss
             if (_musicSlot > 0) MusicLoader.RestartMusic(_musicSlot);
         }
 
-        public override void ApplyDifficultyAndPlayerScaling(NPC npc, int numPlayers, float balance, float bossAdjustment)
+        public override void ApplyDifficultyAndPlayerScaling(int numPlayers, float balance, float bossAdjustment)
         {
+            var npc = NPC;
             npc.lifeMax = 100000;
             if (Main.expertMode) npc.lifeMax = 120000;
             if (Main.masterMode) npc.lifeMax = 150000;
@@ -192,8 +195,9 @@ namespace XiheBoss
             npc.defDamage = 50;
         }
 
-        public override bool CheckDead(NPC npc)
+        public override bool CheckDead()
         {
+            var npc = NPC;
             if (BossState != State.Leave)
             {
                 npc.life = 1;
@@ -204,7 +208,7 @@ namespace XiheBoss
             return true;
         }
 
-        public override void OnKill(NPC npc)
+        public override void OnKill()
         {
             // MEAC does not hard-stop its track from XiHe.OnKill. The NPC remains
             // active through the 360-tick Leave animation; once it is gone, the
@@ -218,8 +222,9 @@ namespace XiheBoss
         /// MEAC XiHe.LimitDPS：按 14820 tick 的战斗时间限制单次伤害，避免高伤害武器
         /// 提前把 Boss 压到 1 血，导致 Leave 阶段比原版提前进入。
         /// </summary>
-        public override void ModifyIncomingHit(NPC npc, ref HitModifiers modifiers)
+        public override void ModifyIncomingHit(ref HitModifiers modifiers)
         {
+            var npc = NPC;
             if (npc.life <= 1 || npc.lifeMax <= 0) return;
 
             // Pylon 的 damage 是扣防御/乘暴击之前的基数，与 MEAC 旧 ModifyHit 的输入一致。
@@ -236,8 +241,9 @@ namespace XiheBoss
             modifiers.damage = (int)MathHelper.Lerp(original, compensated / critMultiplier, 0.8f);
         }
 
-        public override void HitEffect(NPC npc, int hitDirection, double damage)
+        public override void HitEffect(HitInfo hit)
         {
+            var npc = NPC;
             // MEAC OnHit()：11451~11500 锁血；11501~11529 转 Speacial4。
             if (TimerM > 11451 && TimerM < 11500) npc.dontTakeDamage = true;
             if (TimerM > 11500 && TimerM < 11530)
@@ -258,7 +264,7 @@ namespace XiheBoss
             }
         }
 
-        public override void SendExtraAI(NPC npc, NetWriter writer)
+        public override void SendExtraAI(NetWriter writer)
         {
             writer.WriteInt32(TimerM);
             writer.WriteVector2(_areaCenter);
@@ -269,7 +275,7 @@ namespace XiheBoss
             writer.WriteSingle(_ai3);
         }
 
-        public override void ReceiveExtraAI(NPC npc, NetReader reader)
+        public override void ReceiveExtraAI(NetReader reader)
         {
             TimerM = reader.ReadInt32();
             _areaCenter = reader.ReadVector2();
@@ -284,13 +290,14 @@ namespace XiheBoss
         internal static int EmpressHeadSlot => NPCID.Sets.BossHeadTextures[NPCID.HallowBoss];
 
         /// <summary>源文件 CheckActive = false：离玩家再远也不消失。</summary>
-        public override bool CheckActive(NPC npc) => false;
+        public override bool CheckActive() => false;
 
         // ================= AI =================
 
-        public override void AI(NPC npc)
+        public override void AI()
         {
-            if (!_spawned) OnSpawn(npc, null);
+            var npc = NPC;
+            if (!_spawned) OnSpawn(null);
 
             // 固定 60Hz：每帧按真实时间补 0/1/2 步。这样无论手机当前是 59/60/120 帧，
             // TimerM 都按 60 tick/s 推进，和 140 BPM 的 BGM 逐拍对齐（PC 版 tModLoader 就是固定 60Hz）。
@@ -1996,8 +2003,9 @@ namespace XiheBoss
 
         // ================= 绘制 =================
 
-        public override bool PreDraw(NPC npc, SpriteBatch spriteBatch, Vector2 screenPos, Color drawColor)
+        public override bool PreDraw(SpriteBatch spriteBatch, Vector2 screenPos, Color drawColor)
         {
+            var npc = NPC;
             try
             {
                 XiheVisuals.DrawEolSprites(spriteBatch, screenPos, _alpha);
@@ -2104,7 +2112,7 @@ namespace XiheBoss
         {
             var a = MathHelper.Clamp(_alpha, 0f, 1f);
             if (a <= 0.002f) return;
-            _wingGradientTexture ??= ModContent.Request(XiheBossMod.Instance, "assets/textures/XiHe_Wing.png")?.Value;
+            _wingGradientTexture ??= XiheBossMod.Instance.Assets.Request<Texture2D>("assets/textures/XiHe_Wing.png")?.Value;
             _bodyVeilTexture ??= LoadGameTexture("Images/Extra_187", "本体光幕");
             _bodyVeilGlowTexture ??= LoadGameTexture("Images/Extra_188", "本体光幕辉光");
             _leftArmTexture ??= LoadGameTexture("Images/Extra_158", "左臂");

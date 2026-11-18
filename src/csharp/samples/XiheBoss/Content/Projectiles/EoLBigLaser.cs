@@ -39,8 +39,9 @@ namespace XiheBoss
             Main.projFrames[Type] = 1;
         }
 
-        public override void SetDefaults(Projectile proj)
+        public override void SetDefaults()
         {
+            var proj = Projectile;
             proj.width = 20;
             proj.height = 20;
             proj.aiStyle = -1;
@@ -55,8 +56,9 @@ namespace XiheBoss
             proj.extraUpdates = 0;
         }
 
-        public override void OnSpawn(Projectile proj)
+        public override void OnSpawn(Terraria.DataStructures.IEntitySource source)
         {
+            var proj = Projectile;
             // 源 OnSpawn：ai[1] == 0 时 CreateRing(0f, -0.2f, 210)。
             var ai = proj.ai;
             if (ai[1] == 0f) AddRing(proj, 0f, -0.2f, 210);
@@ -71,8 +73,9 @@ namespace XiheBoss
             list.Add(new RingData { Birth = proj.timeLeft, Y = yOffset, Scale = scale, Life = life });
         }
 
-        public override void AI(Projectile proj)
+        public override void AI()
         {
+            var proj = Projectile;
             proj.rotation = 1.57f;
             var lai = proj.localAI;
             lai[1] = 10000f;
@@ -261,22 +264,24 @@ namespace XiheBoss
             }
         }
 
-        public override void OnKill(Projectile proj, int timeLeft)
+        public override void OnKill(int timeLeft)
         {
+            var proj = Projectile;
             RingTable.Remove(proj.whoAmI);
         }
 
-        public override bool ShouldUpdatePosition(Projectile proj) => false;
+        public override bool ShouldUpdatePosition() => false;
 
-        public override bool CanDamage(Projectile proj) => proj.scale > 0.2f;
+        public override bool CanDamage() => Projectile.scale > 0.2f;
 
-        public override bool? Colliding(Projectile proj, Rectangle projHitbox, Rectangle targetHitbox)
+        public override bool? Colliding(Rectangle projHitbox, Rectangle targetHitbox)
         {
+            var proj = Projectile;
             // 源文件：只按 X 距离判定（一根竖直柱）。
             return Math.Abs(targetHitbox.Center.X - proj.Center.X) < proj.scale * 60f;
         }
 
-        public override bool PreDraw(Projectile proj, Color lightColor) => false;
+        public override bool PreDraw(Player player, ref Color lightColor) => false;
 
         /// <summary>画面：MEAC 原版的四次 PointWrap + Colorize 绘制，并保留独立环几何。</summary>
         public static void PushVisual(Projectile p)

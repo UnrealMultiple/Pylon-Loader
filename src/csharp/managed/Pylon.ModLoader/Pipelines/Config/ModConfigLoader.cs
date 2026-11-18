@@ -1,7 +1,7 @@
 namespace Pylon.ModLoader;
 
 /// <summary>
-/// 配置的公开门面：作者与屏幕都按静态方法调用（这是已编译的 API），状态全在 ConfigPipeline 里。
+/// 配置的公开门面：作者与屏幕都按静态方法调用，状态全在 ConfigPipeline 里。
 /// </summary>
 public static class ModConfigLoader
 {
@@ -24,15 +24,13 @@ public static class ModConfigLoader
 
     public static void Add(ModConfig instance) => ConfigPipeline.Instance.Add(instance);
 
-    public static List<ModConfigOption> BuildOptions(ModConfig instance) => ConfigPipeline.BuildOptions(instance);
-
-    public static bool HasValue(ModConfigOption option) => ConfigPipeline.HasValue(option);
-
-    public static double Snap(ModConfigOption option, double value) => ConfigPipeline.Snap(option, value);
-
     public static void Begin() => ConfigPipeline.Instance.Begin();
 
     public static ModConfig View(ModConfigEntry entry) => ConfigPipeline.Instance.View(entry);
+
+    /// <summary>读一个选项的当前值：屏幕开着时草稿优先，否则读字段。</summary>
+    public static object? Read(ModConfigEntry entry, ConfigOption option) =>
+        ConfigPipeline.Read(entry, option);
 
     public static bool Pending() => ConfigPipeline.Instance.Pending();
 
@@ -46,19 +44,8 @@ public static class ModConfigLoader
 
     public static void Discard() => ConfigPipeline.Instance.Discard();
 
-    public static void Set(ModConfigEntry entry, ModConfigOption option, object value) =>
+    public static void Set(ModConfigEntry entry, ConfigOption option, object value) =>
         ConfigPipeline.Instance.Set(entry, option, value);
-
-    public static void Reset(ModConfig instance) => ConfigPipeline.Instance.Reset(instance);
-
-    public static void SetOption(ModConfig instance, string key, object value) =>
-        ConfigPipeline.Instance.SetOption(instance, key, value);
-
-    public static bool IsEnabled(ModConfigEntry entry, ModConfigOption option) =>
-        ConfigPipeline.Instance.IsEnabled(entry, option);
-
-    public static void Run(ModConfigEntry entry, ModConfigOption option) =>
-        ConfigPipeline.Instance.Run(entry, option);
 
     public static void Flush() => ConfigPipeline.Instance.Flush();
 
@@ -66,7 +53,7 @@ public static class ModConfigLoader
 
     public static ModConfigEntry? EntryOf(ModConfig instance) => ConfigPipeline.Instance.EntryOf(instance);
 
-    public static ModConfigOption? Find(ModConfigEntry? entry, string? key) => ConfigPipeline.Instance.Find(entry, key);
+    public static ConfigOption? Find(ModConfigEntry? entry, string? name) => ConfigPipeline.Instance.Find(entry, name);
 
     public static string Flatten(Exception e) => ConfigPipeline.Flatten(e);
 }

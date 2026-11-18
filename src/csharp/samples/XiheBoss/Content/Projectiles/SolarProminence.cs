@@ -25,8 +25,9 @@ namespace XiheBoss
         // lifetime is 120 ticks. Keep the original timing so the corona matches MEAC.
         private static int Timer(Projectile p, int maxTime) => 100 - p.timeLeft;
 
-        public override void SetDefaults(Projectile proj)
+        public override void SetDefaults()
         {
+            var proj = Projectile;
             proj.width = 15;
             proj.height = 15;
             proj.aiStyle = -1;
@@ -39,13 +40,15 @@ namespace XiheBoss
             proj.scale = 0f;
         }
 
-        public override void OnSpawn(Projectile proj)
+        public override void OnSpawn(Terraria.DataStructures.IEntitySource source)
         {
+            var proj = Projectile;
             TrailPos[proj.whoAmI] = new List<Vector2>();
         }
 
-        public override void OnKill(Projectile proj, int timeLeft)
+        public override void OnKill(int timeLeft)
         {
+            var proj = Projectile;
             Centers.Remove(proj.whoAmI);
             Radii.Remove(proj.whoAmI);
             TrailPos.Remove(proj.whoAmI);
@@ -83,8 +86,9 @@ namespace XiheBoss
             }
         }
 
-        public override void AI(Projectile proj)
+        public override void AI()
         {
+            var proj = Projectile;
             var timer = Timer(proj, _maxTime);
             if (timer == 0)
             {
@@ -104,14 +108,15 @@ namespace XiheBoss
             proj.scale = scale;
         }
 
-        public override bool ShouldUpdatePosition(Projectile proj) => false;
+        public override bool ShouldUpdatePosition() => false;
 
-        public override bool CanDamage(Projectile proj) => proj.scale > 0.1f && Timer(proj, _maxTime) > 65;
+        public override bool CanDamage() => Projectile.scale > 0.1f && Timer(Projectile, _maxTime) > 65;
 
-        public override bool PreDraw(Projectile proj, Color lightColor) => false;
+        public override bool PreDraw(Player player, ref Color lightColor) => false;
 
-        public override bool? Colliding(Projectile proj, Rectangle projHitbox, Rectangle targetHitbox)
+        public override bool? Colliding(Rectangle projHitbox, Rectangle targetHitbox)
         {
+            var proj = Projectile;
             if (!TrailPos.TryGetValue(proj.whoAmI, out var pos)) return null;
             var point = 0f;
             for (var i = 0; i < pos.Count - 2; i += 2)

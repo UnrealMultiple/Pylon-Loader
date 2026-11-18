@@ -21,7 +21,8 @@ namespace XiheMagic
         // 这里不复制游戏美术，等贴图表定型后把槽位指到原版贴图（完全一致）。
         public override string TexturePath => null;
 
-        public override void PostSetupContent()
+        /// <summary>由 <see cref="XiheMagicMod.PostSetupContent"/> 调用：贴图表定型后指向原版图标。</summary>
+        internal void ApplyIcon()
         {
             try
             {
@@ -43,8 +44,9 @@ namespace XiheMagic
             catch (System.Exception e) { Mod.Logger.Warn("[item] Arc 兜底图标失败：" + e.Message); }
         }
 
-        public override void SetDefaults(Item item)
+        public override void SetDefaults()
         {
+            var item = Item;
             item.width = 30;
             item.height = 30;
 
@@ -75,8 +77,9 @@ namespace XiheMagic
         }
 
         /// <summary>每次「真正开始使用」问一次：场上没有控制器就造一个（原版 Shoot 的同一个判断）。</summary>
-        public override bool UseItem(Item item, Player player)
+        public override bool? UseItem(Player player)
         {
+            var item = Item;
             if (player.whoAmI != Main.myPlayer) return false;
             SpawnController(item, player);
             return false;

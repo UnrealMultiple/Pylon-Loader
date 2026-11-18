@@ -22,8 +22,9 @@ namespace XiheMagic
             Main.projFrames[Type] = 1;
         }
 
-        public override void SetDefaults(Projectile proj)
+        public override void SetDefaults()
         {
+            var proj = Projectile;
             proj.width = 1;
             proj.height = 1;
             proj.aiStyle = -1;
@@ -37,8 +38,9 @@ namespace XiheMagic
             proj.magic = true;
         }
 
-        public override void OnSpawn(Projectile proj)
+        public override void OnSpawn(Terraria.DataStructures.IEntitySource source)
         {
+            var proj = Projectile;
             _inited = true;
             _spawnedPillar = false;
 
@@ -51,8 +53,9 @@ namespace XiheMagic
                 XiheMagicMod.Log?.Info($"[xihe] controller spawn dmg={proj.damage}");
         }
 
-        public override void AI(Projectile proj)
+        public override void AI()
         {
+            var proj = Projectile;
             var player = Main.player[proj.owner];
             if (player == null || !player.active)
             {
@@ -60,7 +63,7 @@ namespace XiheMagic
                 return;
             }
 
-            if (!_inited) OnSpawn(proj);
+            if (!_inited) OnSpawn(null);
 
             var alpha = Math.Min(1f, proj.localAI[0] + 0.01f);
             // localAI/ai 是定长结构体属性：改完必须整体写回，否则改的是副本。
@@ -149,12 +152,13 @@ namespace XiheMagic
             }
         }
 
-        public override bool CanDamage(Projectile proj) => false;
+        public override bool CanDamage() => false;
 
-        public override bool PreDraw(Projectile proj, Color lightColor) => false;
+        public override bool PreDraw(Player player, ref Color lightColor) => false;
 
-        public override void OnKill(Projectile proj, int timeLeft)
+        public override void OnKill(int timeLeft)
         {
+            var proj = Projectile;
             if (proj.owner != Main.myPlayer) return;
 
             for (var i = 0; i < 18; i++)

@@ -15,12 +15,12 @@ namespace XiheMagic
             try
             {
                 // 路径从 Assets/ 开始、不带扩展名；文件在 assets/sounds/Laser.wav。
-                _laser = new SoundStyle("Sounds/Laser", new SoundStyle.Options
+                _laser = new SoundStyle("Sounds/Laser")
                 {
                     Volume = 1f,
                     MaxInstances = 2,
                     SoundLimitBehavior = 1,
-                });
+                };
                 log?.Info("[sound] MEAC Laser.wav 已登记");
             }
             catch (Exception e)

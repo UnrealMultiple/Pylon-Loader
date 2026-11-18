@@ -114,6 +114,7 @@ public sealed class PipelineTestMod : Mod
         Tests.PlayerUpdateTests.Register();
         Tests.PlayerHurtTests.Register();
         Tests.PlayerDamageSourceTests.Register();
+        Tests.SystemTests.Register();
         Tests.ItemPvpTests.Register();
         Tests.AmmoTests.Register();
         Tests.HealTests.Register();

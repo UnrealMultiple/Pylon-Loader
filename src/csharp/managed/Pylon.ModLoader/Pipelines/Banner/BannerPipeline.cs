@@ -228,15 +228,13 @@ internal sealed class BannerPipeline : ILoaderModule
 
     private static void Load()
     {
-        if (DataFile() is not { } file) return;
+        if (DataFile() is null) return;
 
-        var entries = TagJson.Read(file).GetList(SaveSection);
+        var entries = WorldSidecar.Read().GetList<TagCompound>(SaveSection);
         var loaded = 0;
 
-        foreach (var node in entries)
+        foreach (var entry in entries)
         {
-            if (node is not TagCompound entry) continue;
-
             var key = entry.GetString("k");
             if (string.IsNullOrEmpty(key)) continue;
 
@@ -257,7 +255,7 @@ internal sealed class BannerPipeline : ILoaderModule
 
     private static void Save()
     {
-        if (DataFile() is not { } file) return;
+        if (DataFile() is null) return;
 
         var entries = new List<object?>();
         foreach (var banner in BannerTable.Dirty())
@@ -270,19 +268,12 @@ internal sealed class BannerPipeline : ILoaderModule
             });
         }
 
-        var root = TagJson.Read(file);
+        var root = WorldSidecar.Read();
         if (entries.Count > 0) root.Set(SaveSection, entries);
         else if (!root.ContainsKey(SaveSection)) return;
         else root.Remove(SaveSection);
 
-        try
-        {
-            TagJson.Write(file, root);
-        }
-        catch (Exception e)
-        {
-            Safe.Report("banner.save", e);
-        }
+        WorldSidecar.Write(root);
     }
 
     private static string? DataFile()
@@ -293,3 +284,4 @@ internal sealed class BannerPipeline : ILoaderModule
         return path + ".wld.banners.json";
     }
 }
+

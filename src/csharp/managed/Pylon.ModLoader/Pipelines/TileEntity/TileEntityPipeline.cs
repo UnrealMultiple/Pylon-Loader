@@ -452,16 +452,14 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static void Load()
     {
-        if (DataFile() is not { } file) return;
+        if (DataFile() is null) return;
 
-        var entries = TagJson.Read(file).GetList(SaveSection);
+        var entries = WorldSidecar.Read().GetList<TagCompound>(SaveSection);
         var loaded = 0;
         var dropped = 0;
 
-        foreach (var node in entries)
+        foreach (var entry in entries)
         {
-            if (node is not TagCompound entry) continue;
-
             var template = TileEntityTable.ByName(entry.GetString("t"));
             if (template is null)
             {
@@ -519,9 +517,9 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static void Save()
     {
-        if (DataFile() is not { } file) return;
+        if (DataFile() is null) return;
 
-        var root = TagJson.Read(file);
+        var root = WorldSidecar.Read();
         var all = TileEntityBinding.All;
         if (all.Count == 0 && !root.ContainsKey(SaveSection)) return;
 
@@ -546,14 +544,7 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
         if (entries.Count > 0) root.Set(SaveSection, entries);
         else root.Remove(SaveSection);
 
-        try
-        {
-            TagJson.Write(file, root);
-        }
-        catch (Exception e)
-        {
-            Safe.Report("tileentity.save", e);
-        }
+        WorldSidecar.Write(root);
     }
 
     private static string? DataFile()

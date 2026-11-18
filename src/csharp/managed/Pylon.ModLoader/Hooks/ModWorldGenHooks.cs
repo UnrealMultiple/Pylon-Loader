@@ -31,25 +31,34 @@ internal static class ModWorldGenHooks
         var pre = Of(HookId.PreWorldGen);
         var edit = Of(HookId.ModifyWorldGenTasks);
         var post = Of(HookId.PostWorldGen);
+        var sysPre = SystemLoader.With(HookId.PreWorldGen);
+        var sysEdit = SystemLoader.With(HookId.ModifyWorldGenTasks);
+        var sysPost = SystemLoader.With(HookId.PostWorldGen);
         var protectChests = ModContent.GetContent<ModTile>().Count > 0;
-        if (pre.IsEmpty && edit.IsEmpty && post.IsEmpty && !protectChests) return orig(self);
+        if (pre.IsEmpty && edit.IsEmpty && post.IsEmpty && sysPre.Length == 0 && sysEdit.Length == 0 &&
+            sysPost.Length == 0 && !protectChests) return orig(self);
 
         foreach (var mod in pre)
         {
             try { mod.PreWorldGen(); }
             catch (Exception e) { Report(mod, nameof(Mod.PreWorldGen), e); }
         }
-        if (edit.IsEmpty && !protectChests)
+        for (var i = 0; i < sysPre.Length; i++)
+        {
+            var system = sysPre[i];
+            Safe.Run($"{system.FullKey}.PreWorldGen", system.PreWorldGen);
+        }
+        if (edit.IsEmpty && sysEdit.Length == 0 && !protectChests)
         {
             var completed = orig(self);
-            if (completed) Post(post);
+            if (completed) Post(post, sysPost);
             return completed;
         }
 
         var native = self._passes;
         var tasks = new List<GenPass>(native.Count);
         for (var i = 0; i < native.Count; i++) tasks.Add(WorldGenPass.Retain(native[i]));
-        Edit(tasks, edit, false);
+        Edit(tasks, edit, sysEdit, false);
         if (protectChests) KeepModChests(tasks);
         var weight = WeightOf(tasks);
         native.Clear();
@@ -59,7 +68,7 @@ internal static class ModWorldGenHooks
         try
         {
             var completed = orig(self);
-            if (completed) Post(post);
+            if (completed) Post(post, sysPost);
             return completed;
         }
         finally
@@ -118,16 +127,21 @@ internal static class ModWorldGenHooks
         tasks[index] = replacement;
     }
 
-    private static void Post(ModChannel mods)
+    private static void Post(ModChannel mods, ModSystem[] systems)
     {
         foreach (var mod in mods)
         {
             try { mod.PostWorldGen(); }
             catch (Exception e) { Report(mod, nameof(Mod.PostWorldGen), e); }
         }
+        for (var i = 0; i < systems.Length; i++)
+        {
+            var system = systems[i];
+            Safe.Run($"{system.FullKey}.PostWorldGen", system.PostWorldGen);
+        }
     }
 
-    private static void Edit(List<GenPass> tasks, ModChannel mods, bool hardmode)
+    private static void Edit(List<GenPass> tasks, ModChannel mods, ModSystem[] systems, bool hardmode)
     {
         foreach (var mod in mods)
         {
@@ -150,6 +164,32 @@ internal static class ModWorldGenHooks
                     tasks.Add(state.Pass);
                 }
                 Report(mod, hardmode ? nameof(Mod.ModifyHardmodeTasks) : nameof(Mod.ModifyWorldGenTasks), e);
+            }
+        }
+
+        for (var s = 0; s < systems.Length; s++)
+        {
+            var system = systems[s];
+            var previous = tasks.Select(static p => new PassState(p, p.Name, p.Weight, p.Enabled)).ToArray();
+            try
+            {
+                var totalWeight = WeightOf(tasks);
+                if (hardmode) system.ModifyHardmodeTasks(tasks);
+                else system.ModifyWorldGenTasks(tasks, ref totalWeight);
+                WeightOf(tasks);
+                for (var i = 0; i < tasks.Count; i++) tasks[i] = WorldGenPass.Retain(tasks[i]);
+            }
+            catch (Exception e)
+            {
+                tasks.Clear();
+                foreach (var state in previous)
+                {
+                    state.Pass.Name = state.Name;
+                    state.Pass.Weight = state.Weight;
+                    if (state.Enabled) state.Pass.Enable(); else state.Pass.Disable();
+                    tasks.Add(state.Pass);
+                }
+                ContentErrors.Report($"[worldgen] {system.FullKey}.{(hardmode ? nameof(ModSystem.ModifyHardmodeTasks) : nameof(ModSystem.ModifyWorldGenTasks))} 异常:{Safe.Describe(e)}");
             }
         }
     }
@@ -189,10 +229,11 @@ internal static class ModWorldGenHooks
     private static void Hardmode(On.Terraria.WorldGen.orig_initializeHardMode orig)
     {
         var mods = Of(HookId.ModifyHardmodeTasks);
-        if (mods.IsEmpty) { orig(); return; }
+        var systems = SystemLoader.With(HookId.ModifyHardmodeTasks);
+        if (mods.IsEmpty && systems.Length == 0) { orig(); return; }
         var conversion = WorldGenPass.Create("Hardmode Conversion", (_, _) => orig());
         var tasks = new List<GenPass> { conversion };
-        Edit(tasks, mods, true);
+        Edit(tasks, mods, systems, true);
         var progress = new GenerationProgress { TotalWeight = WeightOf(tasks) };
         try
         {
