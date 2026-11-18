@@ -104,7 +104,6 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    /// <summary>摇树：这一列是 mod 树就交给作者（ref createLeaves 能关掉原版掉落）；作者接管时记进 shake 标记。</summary>
     private static void ShakeTree(On.Terraria.WorldGen.orig_ShakeTree orig, int i, int j)
     {
         if (TreeTable.Count == 0)
@@ -113,43 +112,70 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
             return;
         }
 
-        var tree = TreeAt(i, j);
-        if (tree is null)
-        {
-            orig(i, j);
-            return;
-        }
+        if (ShakeModTree(i, j)) return;
+        orig(i, j);
+    }
 
-        // 同一棵树只摇一次：写 treeShakeX/Y + numTreeShakes，游戏据此去重。
-        WorldGen.GetTreeBottom(i, j, out var x, out var bottom);
-        var count = WorldGen.numTreeShakes;
-        if (count >= WorldGen.maxTreeShakes) return;
-        for (var k = 0; k < count; k++)
-        {
-            if (WorldGen.treeShakeX[k] == x && WorldGen.treeShakeY[k] == bottom) return;
-        }
-
-        var createLeaves = true;
-        bool vanilla;
+    private static bool ShakeModTree(int i, int j)
+    {
         try
         {
-            vanilla = tree.Shake(x, bottom - 1, ref createLeaves);
+            WorldGen.GetTreeBottom(i, j, out var x, out var bottom);
+            if ((uint)x >= (uint)Main.maxTilesX || (uint)bottom >= (uint)Main.maxTilesY) return false;
+
+            var ground = Main.tile[x, bottom];
+            if (!ground.active() || TreeTable.ForGround(ground.type) is not { } tree) return false;
+
+            var count = WorldGen.numTreeShakes;
+            if (count >= WorldGen.maxTreeShakes) return true;
+            for (var k = 0; k < count; k++)
+            {
+                if (WorldGen.treeShakeX[k] == x && WorldGen.treeShakeY[k] == bottom) return true;
+            }
+
+            var top = bottom - 1;
+            while (top > 10 && Main.tile[x, top].active() && Terraria.ID.TileID.Sets.IsShakeable[Main.tile[x, top].type])
+                top--;
+            top++;
+
+            if (!WorldGen.IsTileALeafyTreeTop(x, top) || Terraria.Collision.SolidTiles(x - 2, x + 2, top - 2, top + 2))
+                return false;
+
+            var leaves = true;
+            bool vanilla;
+            try
+            {
+                vanilla = tree.Shake(x, top, ref leaves);
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[tree] {tree.Name}.Shake 异常：{Safe.Describe(e)}");
+                vanilla = true;
+            }
+
+            if (vanilla) return false;
+
+            WorldGen.treeShakeX[count] = x;
+            WorldGen.treeShakeY[count] = bottom;
+            WorldGen.numTreeShakes = count + 1;
+
+            if (!leaves) return true;
+
+            var leaf = tree.TreeLeaf();
+            if (leaf < 0) return true;
+
+            if ((Main.netMode & 2) != 0)
+                Terraria.NetMessage.SendData(Terraria.ID.MessageID.SpecialFX, -1, -1, null, 1, x, top, 1f, leaf);
+            if (Main.netMode != 1 && Main.netMode != 2)
+                WorldGen.TreeGrowFX(x, top, 1, leaf, true);
+
+            return true;
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[tree] {tree.Name}.Shake 异常：{Safe.Describe(e)}");
-            vanilla = true;
+            ContentErrors.Report($"[tree] 摇树失败：{Safe.Describe(e)}");
+            return false;
         }
-
-        if (vanilla)
-        {
-            orig(i, j);
-            return;
-        }
-
-        WorldGen.treeShakeX[count] = x;
-        WorldGen.treeShakeY[count] = bottom;
-        WorldGen.numTreeShakes = count + 1;
     }
 
     /// <summary>砍树掉木头：这一列是 mod 树就换成作者声明的木头（原版只认自己的风格号）。</summary>
@@ -183,7 +209,7 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
         try
         {
             var leaf = tree.TreeLeaf();
-            if (leaf >= 0) passStyle = leaf;
+            passStyle = leaf >= 0 ? leaf : -1;
         }
         catch (Exception e)
         {

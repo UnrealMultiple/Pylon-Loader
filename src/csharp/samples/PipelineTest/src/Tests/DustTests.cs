@@ -2,6 +2,7 @@ using System;
 using Il2CppMicrosoft.Xna.Framework;
 using Pylon.ModLoader;
 using Terraria;
+using Terraria.ID;
 
 namespace PipelineTest.Tests;
 
@@ -23,6 +24,14 @@ internal static class DustTests
             c.NotNull(dust, "GetInstance");
             if (dust is null) return;
             c.True(dust.Type >= 10000, $"type={dust.Type}（mod 尘土从 10000 起）");
+        });
+
+        PT.Case("DUST-R2", c =>
+        {
+            c.Eq((int)DustID.WoodFurniture, 7, "WoodFurniture 别名");
+            c.Eq((int)DustID.Rain, 154, "Rain 别名");
+            c.Eq((int)DustID.LastPrism, 267, "LastPrism 别名");
+            c.Eq((int)DustID.Water, 33, "Water 别名");
         });
 
         PT.Case("DUST-H1", c =>

@@ -113,7 +113,9 @@ internal static class InstallSteps
         {
             try
             {
+                type.AutoStaticDefaults();
                 type.SetStaticDefaults();
+                if (!Terraria.ID.NPCID.Search.ContainsName(type.FullKey)) Terraria.ID.NPCID.Search.Add(type.FullKey, type.Type);
                 Safe.Run(type.Name + ".ModifyNPCLoot", () => type.ModifyNPCLoot(new NPCLoot(type.Type)));
                 count++;
             }

@@ -1,5 +1,5 @@
 using System;
-using System.IO;
+using System.Linq;
 using Pylon.ModLoader;
 
 namespace PipelineTest.Tests;
@@ -27,7 +27,8 @@ internal static class HostTests
         {
             // LoaderHost 是 internal，Mod 侧只能从可观察面验证：内容被注册了、Logger 可用。
             c.True(PipelineTestMod.Instance.Name == "PipelineTest", "PipelineTestMod.Instance.Name=" + PipelineTestMod.Instance.Name);
-            c.True(PipelineTestMod.Instance.Types.Count > 0, $"PipelineTestMod.Instance.Types.Count={PipelineTestMod.Instance.Types.Count}");
+            c.True(PipelineTestMod.Instance.GetContent().Count() > 0,
+                $"GetContent().Count()={PipelineTestMod.Instance.GetContent().Count()}");
             var log = PipelineTestMod.Instance.Logger;
             c.NotNull(log, "Logger");
         });
@@ -37,16 +38,17 @@ internal static class HostTests
             // BOOT 行已在 PT.Boot() 打过；这里验证内容发现按 FullKey 回查。
             var found = ModContent.TryFind<Pylon.ModLoader.ModType>("PipelineTest/NotExist", out var _);
             c.True(!found, "不存在的 FullKey 不应命中");
-            c.True(PipelineTestMod.Instance.Types.Count > 0, $"内容发现 {PipelineTestMod.Instance.Types.Count} 个");
+            c.True(PipelineTestMod.Instance.GetContent().Count() > 0,
+                $"内容发现 {PipelineTestMod.Instance.GetContent().Count()} 个");
         });
 
         PT.Case("HOST-03", c =>
         {
             // GetContent 收集 == 本 Mod 注册的内容数。
-            var all = ModContent.GetContent<Pylon.ModLoader.ModType>();
-            var mine = PipelineTestMod.Instance.GetContent<Pylon.ModLoader.ModType>();
-            c.Eq(mine.Count, PipelineTestMod.Instance.Types.Count, "Mod.GetContent 数");
-            c.True(all.Count >= mine.Count, $"全局 {all.Count} >= 本 Mod {mine.Count}");
+            var mine = PipelineTestMod.Instance.GetContent<Pylon.ModLoader.ModType>().ToList();
+            c.True(mine.Count > 0, $"本 Mod 内容 {mine.Count} 个");
+            c.True(mine.All(instance => instance.Mod == PipelineTestMod.Instance), "全部属于本 Mod");
+            c.Eq(PipelineTestMod.Instance.GetContent().Count(), mine.Count, "Mod.GetContent 数");
         });
 
         PT.Case("HOST-05", c =>

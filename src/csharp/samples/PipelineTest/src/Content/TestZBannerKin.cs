@@ -8,7 +8,7 @@ public sealed class TestZBannerKin : ModNpc
 {
     public override string DisplayName => "测试旗子史莱姆（同族）";
 
-    public override int Banner => ModContent.NpcType<TestZBannerNpc>();
+    public override int Banner => ModContent.NPCType<TestZBannerNpc>();
 
     public override void SetDefaults()
     {

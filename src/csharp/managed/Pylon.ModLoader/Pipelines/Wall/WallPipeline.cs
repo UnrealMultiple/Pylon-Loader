@@ -32,9 +32,49 @@ internal sealed class WallPipeline : ILoaderModule
         On.Terraria.WorldGen.KillWall_PlaySounds += PlaySounds;
         On.Terraria.WorldGen.KillWall_DropItems += DropItems;
         On.Terraria.Framing.WallFrame += Frame;
+        On.Terraria.Main.DoUpdate_AnimateWalls += Animate;
 
-        Log.Info("[wall] 已挂（挖 / 尘土 / 声音 / 掉落 / 边框）");
+        Log.Info("[wall] 已挂（挖 / 尘土 / 声音 / 掉落 / 边框 / 动画）");
         return true;
+    }
+
+    private void Animate(On.Terraria.Main.orig_DoUpdate_AnimateWalls orig)
+    {
+        orig();
+
+        try
+        {
+            var frames = Main.wallFrame;
+            var counters = Main.wallFrameCounter;
+            if (frames is null || counters is null) return;
+
+            var walls = WallTable.All;
+            for (var n = 0; n < walls.Length; n++)
+            {
+                var wall = walls[n];
+                if (wall is null || !wall.HookEnabled(HookId.AnimateWall)) continue;
+                if (wall.Type >= frames.Length || wall.Type >= counters.Length) continue;
+
+                var frame = frames[wall.Type];
+                var counter = counters[wall.Type];
+                try
+                {
+                    wall.AnimateWall(ref frame, ref counter);
+                }
+                catch (Exception e)
+                {
+                    Fail(wall, HookId.AnimateWall, e);
+                    continue;
+                }
+
+                frames[wall.Type] = frame;
+                counters[wall.Type] = counter;
+            }
+        }
+        catch (Exception e)
+        {
+            Safe.Once("wall.animate", "[wall] 墙动画推进异常：" + Safe.Describe(e), true);
+        }
     }
 
     internal void Build()
@@ -117,7 +157,7 @@ internal sealed class WallPipeline : ILoaderModule
     private void MakeDust(On.Terraria.WorldGen.orig_KillWall_MakeWallDust orig, int i, int j, Tile tileCache)
     {
         var wall = WallTable.Of(tileCache.wall);
-        if (wall is null || !wall.HookEnabled(HookId.CreateDust))
+        if (wall is null)
         {
             orig(i, j, tileCache);
             return;
@@ -130,7 +170,7 @@ internal sealed class WallPipeline : ILoaderModule
         var type = wall.DustType;
         try
         {
-            if (!wall.CreateDust(i, j, ref type) || type <= 0) return;
+            if (!wall.CreateDust(i, j, ref type) || type < 0) return;
         }
         catch (Exception e)
         {
@@ -144,32 +184,28 @@ internal sealed class WallPipeline : ILoaderModule
     private void PlaySounds(On.Terraria.WorldGen.orig_KillWall_PlaySounds orig, int i, int j, Tile tileCache)
     {
         var wall = WallTable.Of(tileCache.wall);
-        if (wall is null || !wall.HookEnabled(HookId.KillSound))
+        if (wall is null)
         {
             orig(i, j, tileCache);
             return;
         }
 
         var play = true;
-        try
+        if (wall.HookEnabled(HookId.KillSound))
         {
-            play = wall.KillSound(i, j, _failing);
-        }
-        catch (Exception e)
-        {
-            Fail(wall, HookId.KillSound, e);
+            try
+            {
+                play = wall.KillSound(i, j, _failing);
+            }
+            catch (Exception e)
+            {
+                Fail(wall, HookId.KillSound, e);
+            }
         }
 
         if (!play) return;
 
-        // HitSound 是原版音效号；作者没给（<=0）就用游戏的默认声音。
-        if (wall.HitSound > 0)
-        {
-            Terraria.Audio.SoundEngine.PlaySound(wall.HitSound, i * 16, j * 16, 1, 1f, 0f);
-            return;
-        }
-
-        orig(i, j, tileCache);
+        if (wall.HitSound > 0) Terraria.Audio.SoundEngine.PlaySound(wall.HitSound, i * 16, j * 16, 1, 1f, 0f);
     }
 
     private void DropItems(On.Terraria.WorldGen.orig_KillWall_DropItems orig, int i, int j, Tile tileCache)

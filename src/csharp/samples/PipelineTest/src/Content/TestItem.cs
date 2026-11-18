@@ -46,6 +46,7 @@ public sealed class TestItem : ModItem
     /// <summary>W2 记下的改行后行数（W3 对比用）。</summary>
     public static int MutatedLineCount;
     public static int LastLineCount = -1;
+    public static int ProbeLineR = -1, ProbeLineG = -1, ProbeLineB = -1;
 
     public static void ResetTooltipProbe()
     {
@@ -53,6 +54,7 @@ public sealed class TestItem : ModItem
         CtModifyTooltips = CtPreDrawTooltip = CtPostDrawTooltip = 0;
         CtPreDrawTooltipLine = CtPostDrawTooltipLine = 0;
         LastLineCount = -1;
+        ProbeLineR = ProbeLineG = ProbeLineB = -1;
     }
 
     public override void ModifyTooltips(List<TooltipLine> tooltips)
@@ -68,7 +70,10 @@ public sealed class TestItem : ModItem
         if (MutateTooltip)
         {
             if (tooltips.Count > 0) tooltips[0].Text = "[管线改写] " + tooltips[0].Text;
-            tooltips.Add(new TooltipLine(Mod, "PipelineProbe", "[管线加行] 界面探针"));
+            tooltips.Add(new TooltipLine(Mod, "PipelineProbe", "[管线加行] 界面探针")
+            {
+                OverrideColor = new Il2CppMicrosoft.Xna.Framework.Graphics.Color(255, 40, 40, 255),
+            });
         }
         LastLineCount = tooltips.Count;
 
@@ -88,7 +93,16 @@ public sealed class TestItem : ModItem
         return true;
     }
 
-    public override void PostDrawTooltipLine(DrawableTooltipLine line) => CtPostDrawTooltipLine++;
+    public override void PostDrawTooltipLine(DrawableTooltipLine line)
+    {
+        CtPostDrawTooltipLine++;
+        if (line.Name == "PipelineProbe")
+        {
+            ProbeLineR = line.Color.R;
+            ProbeLineG = line.Color.G;
+            ProbeLineB = line.Color.B;
+        }
+    }
 
     public override bool Shoot(Player player, Terraria.DataStructures.EntitySource_ItemUse_WithAmmo? source,
                                Vector2 position, Vector2 velocity, int type, int damage, float knockBack)

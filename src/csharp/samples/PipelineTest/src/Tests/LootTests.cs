@@ -20,12 +20,31 @@ internal static class LootTests
 
     private static void RunReady()
     {
-        var npcType = ModContent.NpcType<Content.TestNpc>();
+        var npcType = ModContent.NPCType<Content.TestNpc>();
 
         PT.Case("LOOT-R1", c =>
         {
             var rules = new NPCLoot(npcType).Get();
             c.True(rules is { Count: > 0 }, $"测试 NPC 掉落规则数={rules?.Count ?? 0}（应 > 0）");
+        });
+
+        PT.Case("LOOT-R2", c =>
+        {
+            var loot = new GlobalLoot();
+            var before = loot.Get().Count;
+
+            var rule = Terraria.GameContent.ItemDropRules.ItemDropRule.Common(ItemID.Gel, 1, 1, 1);
+            loot.Add(rule);
+            c.Eq(new GlobalLoot().Get().Count, before + 1, "Add 后全局规则数 +1");
+
+            loot.Remove(rule);
+            c.Eq(new GlobalLoot().Get().Count, before, "Remove 后恢复");
+
+            loot.RemoveWhere(r => r.Pointer == rule.Pointer);
+            c.Eq(new GlobalLoot().Get().Count, before, "RemoveWhere 幂等");
+
+            var npcLoot = new NPCLoot(npcType);
+            c.True(npcLoot.Get(true).Count >= npcLoot.Get(false).Count, "Get(true) 含全局规则，不少于 Get(false)");
         });
     }
 
@@ -35,7 +54,7 @@ internal static class LootTests
 
     private static void RunWorld()
     {
-        var npcType = ModContent.NpcType<Content.TestNpc>();
+        var npcType = ModContent.NPCType<Content.TestNpc>();
         var player = Main.player[Main.myPlayer];
         if (player is null || !player.active)
         {
@@ -77,7 +96,7 @@ internal static class LootTests
             if (blueRules is { Count: 0 } || blueRules is null)
             {
                 new NPCLoot(blue).Add(Terraria.GameContent.ItemDropRules.ItemDropRule.Common(
-                    ModContent.TypeOf<Content.TestItem>(), 1, 1, 1));
+                    ModContent.ItemType<Content.TestItem>(), 1, 1, 1));
             }
             var control = NPC.NewNPC(source, (int)player.Center.X, (int)player.Center.Y - 60, blue, 0, 0f, 0f, 0f, 0f, 0);
             if (control >= 0)

@@ -12,14 +12,19 @@ namespace Pylon.ModLoader;
 /// 钩 GetTileDrawData 两个 16 参重载做形状/动画修正并派发作者三钩子；
 /// 另钩 AnimateTiles 推进 mod 动画帧。作者钩子的结果走 4096 槽缓存
 /// （键 12 int + 世界/16×16 区域时代 + 5s TTL，区域触碰挂 SquareTileFrame/RangeFrame），
-/// special 面（Tile 重载）与 CacheDrawData=false 的类型不缓存。
+/// special 面（Tile 重载）不缓存。
 /// </summary>
 internal static class TileDrawHooks
 {
     private static bool _installed;
     private static int[] _animHeights = [];
     private static int[] _frameCounts = []; // 0 = 贴图还没就绪，晚点再算
-    private static bool[] _uncached = [];   // CacheDrawData=false 的类型（安装期读一次）
+
+    [ThreadStatic] private static int _trackX;
+    [ThreadStatic] private static int _trackY;
+    [ThreadStatic] private static bool _trackOk;
+
+    internal static (int X, int Y, bool Ok) TrackedCell() => (_trackX, _trackY, _trackOk);
 
     private static IModLog Log => LoaderHost.Current.Log;
 
@@ -39,19 +44,15 @@ internal static class TileDrawHooks
         }
         _frameCounts = new int[total];
 
-        // 缓存面：有作者绘制钩子且该类型声明可缓存的才装时代触碰钩（无 mod 钩子零开销）。
-        _uncached = new bool[total];
         var cacheWanted = false;
         foreach (var tile in ModContent.GetContent<ModTile>())
         {
             var type = tile.Type;
             if (type < VanillaCounts.Tile || type >= total) continue;
 
-            _uncached[type] = !tile.CacheDrawData;
-            if (!_uncached[type] &&
-                (tile.HookEnabled(HookId.AnimateIndividualTile) ||
-                 tile.HookEnabled(HookId.SetDrawPositions) ||
-                 tile.HookEnabled(HookId.SetSpriteEffects)))
+            if (tile.HookEnabled(HookId.AnimateIndividualTile) ||
+                tile.HookEnabled(HookId.SetDrawPositions) ||
+                tile.HookEnabled(HookId.SetSpriteEffects))
                 cacheWanted = true;
         }
 
@@ -84,6 +85,10 @@ internal static class TileDrawHooks
             out tileTop, out halfBrickHeight, out addFrX, out addFrY, out tileSpriteEffect, out glowTexture,
             ref glowSourceRect, ref glowColor);
 
+        _trackX = x;
+        _trackY = y;
+        _trackOk = true;
+
         var frameX = tileFrameX;
         var frameY = tileFrameY;
         Apply(x, y, type, special: false, ref frameX, ref frameY, ref tileWidth, ref tileHeight, ref tileTop,
@@ -102,6 +107,10 @@ internal static class TileDrawHooks
         orig(self, x, y, tileCache, type, ref tileFrameX, ref tileFrameY, out tileWidth, out tileHeight,
             out tileTop, out halfBrickHeight, out addFrX, out addFrY, out tileSpriteEffect, out glowTexture,
             out glowSourceRect, out glowColor);
+
+        _trackX = x;
+        _trackY = y;
+        _trackOk = true;
 
         var frameX = tileFrameX;
         var frameY = tileFrameY;
@@ -166,8 +175,7 @@ internal static class TileDrawHooks
 
         // 缓存键含作者读到的全部输入（位置/类型/当前帧 + 修正后八值）；时代在钩子之前取——
         // 钩子跑的当口世界变了，条目一出生就是旧的。
-        var cacheable = !special && _drawCache is not null &&
-                        ((uint)type >= (uint)_uncached.Length || !_uncached[type]);
+        var cacheable = !special && _drawCache is not null;
         var epochWorld = cacheable ? _drawEpoch : 0;
         var epochArea = cacheable ? AreaEpochAt(x, y) : 0;
         var now = cacheable ? Environment.TickCount64 : 0;
@@ -237,6 +245,19 @@ internal static class TileDrawHooks
                 catch (Exception e)
                 {
                     Report(modTile, HookId.SetSpriteEffects, e);
+                }
+            }
+
+            var spriteGlobals = GlobalTileRegistry.For(HookId.SetSpriteEffects);
+            for (var g = 0; g < spriteGlobals.Count; g++)
+            {
+                try
+                {
+                    spriteGlobals[g].SetSpriteEffects(x, y, type, ref eff);
+                }
+                catch (Exception e)
+                {
+                    Safe.Once("tile.spriteeffects", "[tile] GlobalTile.SetSpriteEffects 异常：" + Safe.Describe(e), true);
                 }
             }
 
@@ -472,6 +493,19 @@ internal static class TileDrawHooks
 
             frames[type] = frame;
             counters[type] = counter;
+        }
+
+        var animateGlobals = GlobalTileRegistry.For(HookId.AnimateTile);
+        for (var g = 0; g < animateGlobals.Count; g++)
+        {
+            try
+            {
+                animateGlobals[g].AnimateTile();
+            }
+            catch (Exception e)
+            {
+                Safe.Once("tile.animateglobal", "[tile] GlobalTile.AnimateTile 异常：" + Safe.Describe(e), true);
+            }
         }
     }
 

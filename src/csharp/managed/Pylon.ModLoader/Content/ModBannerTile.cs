@@ -43,12 +43,34 @@ public abstract class ModBannerTile : ModTile
     /// <summary>砸/挖时不出尘土（ModTile.DustType 只读，落成覆写）。</summary>
     public override int DustType => -1;
 
-    /// <summary>不画默认贴图（返回 false）；命中左上角那格的特殊绘制点由管线接。</summary>
-    public override bool PreDraw(int i, int j, SpriteBatch spriteBatch) => false;
+    /// <summary>不画默认贴图（返回 false）；左上角那格交给管线的随风绘制。</summary>
+    public override bool PreDraw(int i, int j, SpriteBatch spriteBatch)
+    {
+        var tile = Main.tile[i, j];
+        var data = Terraria.ObjectData.TileObjectData.GetTileData(tile);
+        if (data is not null && tile.frameX % data.CoordinateFullWidth == 0 && tile.frameY % data.CoordinateFullHeight == 0)
+            TileDrawPipeline.AddVine(i, j);
+        return false;
+    }
 
     /// <summary>往下挪 2 像素再画（只用 width 与 offsetY 两个参数）。</summary>
     public override void SetDrawPositions(int i, int j, ref int width, ref int offsetY, ref int height, ref int tileFrameX, ref int tileFrameY) => offsetY += 2;
 
-    /// <summary>旗在玩家附近；按掉落物查 BannerLoader.ByItem 拿代表 NPC，点亮 Main.SceneMetrics 的 NPCBannerBuff/hasBanner（由管线接）。</summary>
-    public override void NearbyEffects(int i, int j, bool closer) { }
+    /// <summary>旗在玩家附近（buff 扫描面）：按掉落物反查旗子号，点亮扫描 SceneMetrics 的 NPCBannerBuff/hasBanner。</summary>
+    public override void NearbyEffects(int i, int j, bool closer)
+    {
+        if (closer) return;
+
+        var item = TileTable.DropOf(Type, TileObjectDataTml.GetTileStyle(Main.tile[i, j]));
+        if (item <= 0 || !BannerTable.TryGetBannerForItem(item, out var banner)) return;
+
+        var strength = ItemID.Sets.BannerStrength;
+        if (strength is null || (uint)item >= (uint)strength.Length || !strength[item].Enabled) return;
+
+        var metrics = TileEffectsHooks.ScanningMetrics;
+        BannerTable.Fit(metrics);
+        var buffs = metrics.NPCBannerBuff;
+        if (buffs is not null && banner < buffs.Length) buffs[banner] = true;
+        metrics.hasBanner = true;
+    }
 }

@@ -24,7 +24,7 @@ internal sealed class KeybindPipeline : ILoaderModule
 
     internal ModTouchButton Register(Mod mod, string name, string defaultKey = "")
     {
-        var button = TouchButtonLoader.RegisterButton(mod, name, null);
+        var button = TouchButtonLoader.Register(mod, name, defaultKey);
         _count++;
         Log.Info($"[keybind] {mod?.Name}/{name} → 触屏按钮 #{_count - 1}");
         return button;
@@ -34,7 +34,7 @@ internal sealed class KeybindPipeline : ILoaderModule
     /// Current 的"不在文本界面里"版本：聊天 / NPC 对话 / 牌子打开时不算按下。
     /// 作者要"按住按钮边走边打字"时仍该读 Current。
     /// </summary>
-    internal bool RetroCurrent(ModTouchButton button)
+    internal bool RetroCurrent(ModKeybind button)
     {
         if (button is null || !button.Current) return false;
 

@@ -219,6 +219,13 @@ public static partial class ModConfigMenu
         Guard();
     }
 
+    /// <summary>作者调 ModConfig.Open：按当前场景打开设置界面（关屏回调暂不支持）。</summary>
+    internal static void OpenConfig(ModConfig config, Action? onClose)
+    {
+        if (_open) return;
+        Open(Main.gameMenu ? Where.Menu : Where.Pause);
+    }
+
     private static List<ModConfigEntry> Entries(Mod mod)
     {
         var inWorld = _where != Where.Menu;

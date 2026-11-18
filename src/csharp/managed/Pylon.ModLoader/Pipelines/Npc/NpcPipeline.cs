@@ -31,6 +31,9 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private int _drawDepth;
 
+    [ThreadStatic] private static (long Address, HitInfo Hit)? _hitContext;
+    [ThreadStatic] private static bool _vanillaAi;
+
     private sealed class CatchScope
     {
         public Player Player = null!;
@@ -85,6 +88,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.NPC.NPCLoot += Loot;
         On.Terraria.NPC.DropEoWLoot += DropEoWLoot;
         On.Terraria.NPC.HitEffect += HitEffect;
+        On.Terraria.NPC.GetMeleeCollisionData += CollisionData;
         On.Terraria.NPC.Collision_DecideFallThroughPlatforms += FallThroughPlatforms;
         On.Terraria.NPC.get_TypeName += TypeName;
         On.Terraria.NPC.UsesPartyHat += PartyHat;
@@ -150,6 +154,12 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private void Ai(On.Terraria.NPC.orig_AI orig, NPC self)
     {
+        if (_vanillaAi)
+        {
+            orig(self);
+            return;
+        }
+
         var mod = _binding.InstanceOf(self);
         var globals = GlobalNpcRegistry.AnyWith(HookId.PreAI, HookId.AI, HookId.PostAI);
         if (mod is null && !globals)
@@ -956,12 +966,21 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         var globals = GlobalNpcRegistry.For(self, HookId.HitEffect);
         if (mod is null && globals.Count == 0) return;
 
+        HitInfo hit;
+        if (_hitContext is { } context && context.Address == NpcBinding.Address(self))
+        {
+            hit = context.Hit;
+        }
+        else
+        {
+            var value = Math.Max((int)dmg, 1);
+            hit = new HitInfo(hitDirection: hitDirection, damage: value, sourceDamage: value);
+        }
+
         if (mod is not null && mod.HookEnabled(HookId.HitEffect))
         {
             try
             {
-                var hit = new HitInfo(hitDirection: hitDirection, damage: Math.Max((int)dmg, 1),
-                                      sourceDamage: Math.Max((int)dmg, 1));
                 mod.HitEffect(hit);
             }
             catch (Exception e)
@@ -974,7 +993,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         {
             try
             {
-                global.HitEffect(self, hitDirection, (int)dmg);
+                global.HitEffect(self, hit);
             }
             catch (Exception e)
             {
@@ -983,27 +1002,143 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
+    internal static void HitWithInfo(NPC npc, HitInfo hit)
+    {
+        var outer = _hitContext;
+        _hitContext = (NpcBinding.Address(npc), hit);
+        try
+        {
+            npc.HitEffect(hit.HitDirection, hit.InstantKill ? 9999 : hit.Damage);
+        }
+        finally
+        {
+            _hitContext = outer;
+        }
+    }
+
+    internal static void RunVanillaAi(NPC npc)
+    {
+        var outer = _vanillaAi;
+        _vanillaAi = true;
+        try
+        {
+            npc.AI();
+        }
+        finally
+        {
+            _vanillaAi = outer;
+        }
+    }
+
+    internal void CloneDefaults(NPC npc, int type)
+    {
+        if (npc is null) throw new ArgumentNullException(nameof(npc));
+        if (type == npc.type || type >= ModContent.NextType(ContentKind.Npc))
+            throw new ArgumentOutOfRangeException(nameof(type), type, "CloneDefaults 需要一个不同的已注册 NPC 类型");
+
+        var mod = _binding.InstanceOf(npc);
+        var globals = GlobalNpcRegistry.Of(npc);
+        var originalType = npc.type;
+        var originalNetId = npc.netID;
+        try
+        {
+            npc.SetDefaultsKeepPlayerInteraction(type, new NPCSpawnParams
+            {
+                difficultyOverride = new Il2CppSystem.Nullable<float>(0f),
+                sizeScaleOverride = new Il2CppSystem.Nullable<float>(1f),
+            });
+        }
+        finally
+        {
+            npc.type = originalType;
+            npc.netID = originalNetId;
+            _binding.RebindTo(npc, mod);
+            GlobalNpcRegistry.Restore(npc, globals);
+        }
+    }
+
     private void LifeRegen(On.Terraria.NPC.orig_UpdateNPC_BuffApplyDOTs orig, NPC self)
     {
         var mod = _binding.InstanceOf(self);
-        if (mod is null || !mod.HookEnabled(HookId.UpdateLifeRegen))
+        var globals = GlobalNpcRegistry.For(self, HookId.UpdateLifeRegen);
+        var modRegens = mod is not null && mod.HookEnabled(HookId.UpdateLifeRegen);
+        if (!modRegens && globals.Count == 0)
         {
             orig(self);
             return;
         }
 
-        try
+        var regen = self.lifeRegen;
+        if (modRegens)
         {
-            var regen = self.lifeRegen;
-            mod.UpdateLifeRegen(ref regen);
-            self.lifeRegen = regen;
-        }
-        catch (Exception e)
-        {
-            Fail(self, HookId.UpdateLifeRegen, e);
+            try
+            {
+                mod!.UpdateLifeRegen(ref regen);
+            }
+            catch (Exception e)
+            {
+                Fail(mod, HookId.UpdateLifeRegen, e);
+            }
         }
 
+        foreach (var global in globals)
+        {
+            try
+            {
+                global.UpdateLifeRegen(self, ref regen);
+            }
+            catch (Exception e)
+            {
+                Fail(global, HookId.UpdateLifeRegen, e);
+            }
+        }
+
+        self.lifeRegen = regen;
         orig(self);
+    }
+
+    private static void CollisionData(On.Terraria.NPC.orig_GetMeleeCollisionData orig, ref Rectangle victimHitbox,
+                                      int enemyIndex, ref int specialHitSetter, ref float damageMultiplier,
+                                      ref Rectangle npcRect)
+    {
+        var npcs = Main.npc;
+        if ((uint)enemyIndex >= (uint)npcs.Length || npcs[enemyIndex] is not { } npc ||
+            !Instance.NpcOverrides(npc, HookId.ModifyCollisionData))
+        {
+            orig(ref victimHitbox, enemyIndex, ref specialHitSetter, ref damageMultiplier, ref npcRect);
+            return;
+        }
+
+        var multiplier = MultipliableFloat.One;
+        var allowed = true;
+        foreach (var global in GlobalNpcRegistry.For(npc, HookId.ModifyCollisionData))
+        {
+            try
+            {
+                if (!global.ModifyCollisionData(npc, victimHitbox, ref specialHitSetter, ref multiplier, ref npcRect)) allowed = false;
+            }
+            catch (Exception e)
+            {
+                Instance.Fail(global, HookId.ModifyCollisionData, e);
+            }
+        }
+
+        var own = Instance._binding.InstanceOf(npc);
+        if (allowed && own is not null && own.HookEnabled(HookId.ModifyCollisionData))
+        {
+            try
+            {
+                allowed = own.ModifyCollisionData(victimHitbox, ref specialHitSetter, ref multiplier, ref npcRect);
+            }
+            catch (Exception e)
+            {
+                Instance.Fail(own, HookId.ModifyCollisionData, e);
+            }
+        }
+
+        damageMultiplier *= multiplier.Value;
+        if (!allowed) return;
+        orig(ref victimHitbox, enemyIndex, ref specialHitSetter, ref damageMultiplier, ref npcRect);
     }
 
     private void Scaling(On.Terraria.NPC.orig_ScaleStats_ByPlayerCount orig, NPC self, int numPlayers)

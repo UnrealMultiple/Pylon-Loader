@@ -47,7 +47,7 @@ public sealed class TestNpc : ModNpc
     public override void ModifyNPCLoot(NPCLoot npcLoot)
     {
         npcLoot.Add(Terraria.GameContent.ItemDropRules.ItemDropRule.Common(
-            ModContent.TypeOf<TestItem>(), 1, 1, 2));
+            ModContent.ItemType<TestItem>(), 1, 1, 2));
 
     }
 }

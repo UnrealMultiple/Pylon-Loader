@@ -59,12 +59,12 @@ internal static class AchievementTests
         {
             var flagMod = ModContent.GetInstance<Content.TestFlagAchievement>();
             var countMod = ModContent.GetInstance<Content.TestCountAchievement>();
-            var multiMod = ModContent.GetInstance<Content.TestMultiAchievement>();
             var multi = Of<Content.TestMultiAchievement>();
 
-            c.Eq(flagMod.Conditions.Count, 1, "flag 条件数");
-            c.Eq(countMod.Conditions.Count, 1, "count 条件数");
-            c.Eq(multiMod.Conditions.Count, 2, "multi 条件数");
+            c.Eq(flagMod.Achievement._conditions.Count, 1, "flag 条件数");
+            c.Eq(countMod.Achievement._conditions.Count, 1, "count 条件数");
+            c.Eq(multi._conditions.Count, 2, "multi 条件数");
+            c.NotNull(flagMod.Achievement.GetCondition("Condition"), "flag 条件（默认名）");
             c.NotNull(multi.GetCondition("Gel"), "multi 的 Gel 条件（按名字取）");
             c.NotNull(multi.GetCondition("Torch"), "multi 的 Torch 条件（按名字取）");
 
@@ -124,7 +124,7 @@ internal static class AchievementTests
         PT.Case("ACH-W3", c =>
         {
             int kills = Content.AchievementProbe.Kills;
-            AchievementsHelper.NotifyNPCKilledDirect(player, NPCID.BlueSlime);
+            Terraria.GameContent.Achievements.AchievementsHelper.NotifyNPCKilledDirect(player, NPCID.BlueSlime);
 
             c.True(Of<Content.TestKillAchievement>().IsCompleted, "杀怪条件完成");
             c.True(Content.AchievementProbe.Kills > kills, $"OnNPCKilled 通知（{kills}→{Content.AchievementProbe.Kills}）");
@@ -138,7 +138,7 @@ internal static class AchievementTests
             gel.stack = 3;
 
             int pickups = Content.AchievementProbe.Pickups;
-            AchievementsHelper.NotifyItemPickup(player, gel);
+            Terraria.GameContent.Achievements.AchievementsHelper.NotifyItemPickup(player, gel);
 
             c.True(multi.GetCondition("Gel").IsCompleted, "Gel 条件完成");
             c.True(!multi.IsCompleted, "只完成一条时成就还没完成");

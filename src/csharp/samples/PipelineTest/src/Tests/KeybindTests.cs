@@ -1,46 +1,103 @@
+using Il2CppMicrosoft.Xna.Framework.Input;
 using Pylon.ModLoader;
 
 namespace PipelineTest.Tests;
 
 /// <summary>
-/// 管线 18：Keybind —— 功能验证。KeybindLoader.RegisterKeybind 返回 ModTouchButton，
-/// 轮询它的 Current/JustPressed 不抛即通过（真按键在 Tick 阶段由 TouchButton 管线驱动）。
+/// Keybind / TouchButton：注册面（KeybindLoader 两种重载、TouchButtonLoader.RegisterButton）、
+/// 同名去重、ModKeybind 状态轮询与显示名、ModTouchButton 的 Icon/Label/Visible/Enabled/OnPress 属性。
+/// 真按键状态由 TouchButton 管线按帧驱动，Ready 阶段只验面与容错。
 /// </summary>
 internal static class KeybindTests
 {
-    public static void Register() => PT.Group("keybind", Phase.Ready, Run);
+    public static void Register()
+    {
+        PT.Group("keybind", Phase.Ready, RunKeybind);
+        PT.Group("touchbutton", Phase.Ready, RunTouchButton);
+    }
 
-    private static void Run()
+    private static void RunKeybind()
     {
         PT.Case("KEYBIND-R1", c =>
         {
-            var bind = KeybindLoader.RegisterKeybind(PipelineTestMod.Instance, "TestKey");
-            c.NotNull(bind, "RegisterKeybind 返回 null");
-            if (bind is { } b)
-            {
-                c.True(b.FullName.Length > 0, $"FullName={b.FullName}（应为空才对——FullName 是注册键）");
-                c.NoThrow(() => _ = b.Current, "Current 轮询");
-                c.NoThrow(() => _ = b.JustPressed, "JustPressed 轮询");
-                c.NoThrow(() => _ = b.JustReleased, "JustReleased 轮询");
-                c.NoThrow(() => _ = b.IsBound, "IsBound 轮询");
-            }
+            var bind = KeybindLoader.RegisterKeybind(PipelineTestMod.Instance, "TestKey", "None");
+            c.NotNull(bind, "RegisterKeybind 返回实例");
+            if (bind is null) return;
+
+            c.True(bind is ModTouchButton, "按键在手机端就是触屏按钮");
+            c.Eq(bind.ToString(), "PipelineTest/TestKey", "ToString 是 Mod/Name");
+            c.Eq(bind.DisplayName?.Value, "Test Key", "默认显示名按类名拆词");
+            c.NoThrow(() => _ = bind.GetAssignedKeys(), "GetAssignedKeys 不抛");
+            c.NoThrow(() => _ = bind.Current, "Current 轮询");
+            c.NoThrow(() => _ = bind.JustPressed, "JustPressed 轮询");
+            c.NoThrow(() => _ = bind.JustReleased, "JustReleased 轮询");
+            c.NoThrow(() => _ = bind.Old, "Old 轮询");
+            c.NoThrow(() => _ = bind.RetroCurrent, "RetroCurrent 轮询");
         });
 
-        // 重复注册同名：第二次调用应返回可用实例（覆盖行为）或抛——两者都行，关键是不崩
         PT.Case("KEYBIND-R2", c =>
         {
-            c.NoThrow(() => KeybindLoader.RegisterKeybind(PipelineTestMod.Instance, "TestKey"), "重复注册同名");
+            var keys = KeybindLoader.RegisterKeybind(PipelineTestMod.Instance, "TestKeyEnum", Keys.None);
+            c.NotNull(keys, "Keys 重载返回实例");
+            c.True(keys is ModTouchButton, "Keys 重载也是触屏按钮");
         });
 
-        // E1：轮询一个没注册任何键位的全新 ModTouchButton 也不崩（覆盖轮询路径容错）
-        PT.Case("KEYBIND-E1", c =>
+        PT.Case("KEYBIND-R3", c =>
         {
-            var bind = KeybindLoader.RegisterKeybind(PipelineTestMod.Instance, "TestKeyEmpty");
-            if (bind is { } b)
-            {
-                c.True(!b.Current, "未按键时 Current=false");
-                c.True(!b.JustPressed, "未按键时 JustPressed=false");
-            }
+            var first = KeybindLoader.RegisterKeybind(PipelineTestMod.Instance, "TestKey", "");
+            var again = KeybindLoader.RegisterKeybind(PipelineTestMod.Instance, "TestKey", "");
+            c.True(ReferenceEquals(first, again) || first.ToString() == again.ToString(), "同名重复注册返回同一条");
+
+            var empty = KeybindLoader.RegisterKeybind(PipelineTestMod.Instance, "TestKeyEmpty", "");
+            c.True(!empty.Current, "未按键时 Current=false");
+            c.True(!empty.JustPressed, "未按键时 JustPressed=false");
+        });
+    }
+
+    private static void RunTouchButton()
+    {
+        PT.Case("TOUCH-R1", c =>
+        {
+            var button = TouchButtonLoader.RegisterButton(PipelineTestMod.Instance, "TestTouch");
+            c.NotNull(button, "RegisterButton 返回按钮");
+            if (button is null) return;
+
+            c.Eq(button.FullName, "PipelineTest/TestTouch", "FullName 是 Mod/Name");
+            c.True(TouchButtonLoader.Count > 0, $"按钮数={TouchButtonLoader.Count}");
+
+            var listed = false;
+            foreach (var item in TouchButtonLoader.Buttons)
+                if (ReferenceEquals(item, button) || item.FullName == button.FullName) listed = true;
+            c.True(listed, "Buttons 表里有这个按钮");
+            c.True(!button.IsBound, "新按钮默认不在布局里");
+        });
+
+        PT.Case("TOUCH-R2", c =>
+        {
+            var button = TouchButtonLoader.RegisterButton(PipelineTestMod.Instance, "TestTouchProps");
+            var calls = 0;
+
+            button.Icon = "Assets/TouchButtons/TestTouchProps.png";
+            button.Label = () => "自定义标签";
+            button.Visible = () => true;
+            button.Enabled = () => true;
+            button.OnPress = _ => calls++;
+
+            c.Eq(button.Icon, "Assets/TouchButtons/TestTouchProps.png", "Icon 可读回");
+            c.Eq(button.Label?.Invoke(), "自定义标签", "Label 可读回");
+            c.True(button.Visible?.Invoke() == true, "Visible 可读回");
+            c.True(button.Enabled?.Invoke() == true, "Enabled 可读回");
+            button.OnPress?.Invoke(null!);
+            c.Eq(calls, 1, "OnPress 可读回");
+
+            PT.Info("OnPress 回调已读回：真机触摸由控制布局按帧派发");
+        });
+
+        PT.Case("TOUCH-R3", c =>
+        {
+            var first = TouchButtonLoader.RegisterButton(PipelineTestMod.Instance, "TestTouchDup");
+            var again = TouchButtonLoader.RegisterButton(PipelineTestMod.Instance, "TestTouchDup");
+            c.True(ReferenceEquals(first, again), "同名重复注册返回同一个实例");
         });
     }
 }

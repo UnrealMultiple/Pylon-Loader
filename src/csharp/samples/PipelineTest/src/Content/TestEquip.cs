@@ -10,9 +10,11 @@ using Terraria.ObjectData;
 
 namespace PipelineTest.Content;
 
-/// <summary>测试头盔：穿齐三件跑套装 / 时装套回调，各计数。</summary>
+/// <summary>测试头盔：穿齐三件跑套装 / 时装套回调，各计数；套装文字写 player.setBonus。</summary>
 public sealed class TestHelmet : ModItem
 {
+    public const string SetBonusText = "测试套装文字";
+
     public static int SetUpdates, VanityUpdates;
 
     public override void Load() => AddEquipTexture("TestHelmet_Head", EquipType.Head, "assets/items/TestHelmet_Head.png");
@@ -27,7 +29,11 @@ public sealed class TestHelmet : ModItem
     public override bool IsArmorSet(Item head, Item body, Item legs) =>
         body.type == ModContent.ItemType<TestBreastplate>() && legs.type == ModContent.ItemType<TestLeggings>();
 
-    public override void UpdateArmorSet(Player player) => SetUpdates++;
+    public override void UpdateArmorSet(Player player)
+    {
+        SetUpdates++;
+        player.setBonus = SetBonusText;
+    }
 
     public override void UpdateVanitySet(Player player) => VanityUpdates++;
 }
@@ -71,7 +77,7 @@ public sealed class TestWings : ModItem
 {
     public static int Vertical, Horizontal;
 
-    public override void Load() => AddEquipTexture("TestWings_Wings", EquipType.Wing, "assets/items/TestWings_Wings.png");
+    public override void Load() => AddEquipTexture("TestWings_Wings", EquipType.Wings, "assets/items/TestWings_Wings.png");
 
     public override void SetDefaults()
     {

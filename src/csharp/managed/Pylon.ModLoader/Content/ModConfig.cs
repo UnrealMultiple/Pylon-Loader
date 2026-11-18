@@ -1,28 +1,36 @@
 using System.Text.RegularExpressions;
+using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Terraria.Localization;
 
 namespace Pylon.ModLoader;
 
-/// <summary>配置在多人游戏里归谁管。</summary>
-public enum ConfigScope
-{
-    /// <summary>只在本机生效，不同步（默认）。</summary>
-    ClientSide,
-
-    /// <summary>服务器说了算：客户端连上时收到服务器的值，改了要发请求、由服务器裁决。</summary>
-    ServerSide,
-}
-
-/// <summary>一个 Mod 的一份配置。作者派生它、写静态 <c>Options</c>，其余交给加载器。</summary>
+/// <summary>
+/// 一个 Mod 的一份配置：Mode 声明归属，选项在 DeclareOptions 里声明；
+/// 值经 SetOption/Set 写入并落盘，OnChanged 在值真的变了之后调一次。
+/// </summary>
 public abstract class ModConfig : ModType
 {
-    private readonly Dictionary<string, object> _values = new(StringComparer.Ordinal);
+    private Dictionary<string, object> _values = new(StringComparer.Ordinal);
     private IReadOnlyList<ModConfigOption>? _options;
 
-    /// <summary>多人同步的归属；默认只在本机。</summary>
-    public virtual ConfigScope Scope => ConfigScope.ClientSide;
+    /// <summary>多人同步的归属；作者必须声明（服务器说了算 = ServerSide）。</summary>
+    public abstract ConfigScope Mode { get; }
+
+    /// <summary>本地化键的分类（"Configs"）。</summary>
+    public virtual string LocalizationCategory => "Configs";
+
+    /// <summary>菜单里显示的名字；默认按类名拆词。</summary>
+    public virtual LocalizedText DisplayName =>
+        new($"Mods.{Mod?.Name}.{LocalizationCategory}.{Name}.DisplayName", SplitWords(Name));
+
+    /// <summary>"Mod名/配置名"（落盘文件名与跨设备定位用）。</summary>
+    public string FullName => $"{Mod?.Name}/{Name}";
 
     /// <summary>false：世界里不显示这份配置（世界生成那种只在进世界前有用的选项）。</summary>
-    public virtual bool VisibleInWorld => true;
+    internal virtual bool VisibleInWorld => true;
+
+    /// <summary>作者可以在这里拒绝自动加载（默认总是加载）。</summary>
+    public virtual bool Autoload(ref string name) => true;
 
     public IReadOnlyDictionary<string, object> Values => _values;
 
@@ -31,43 +39,59 @@ public abstract class ModConfig : ModType
 
     internal void __SetOptions(List<ModConfigOption> options) => _options = options;
 
-    /// <summary>管线侧调一次声明（protected 不对外）。</summary>
     internal void __DeclareOptions(ConfigOptions options) => DeclareOptions(options);
 
-    /// <summary>
-    /// 声明本配置的选项（注册期调一次）。写成虚方法而不是静态字段：
-    /// 声明顺序由代码顺序决定，且不需要任何反射。
-    /// </summary>
+    /// <summary>声明本配置的选项（注册期调一次）；声明顺序 = 代码顺序。</summary>
     protected virtual void DeclareOptions(ConfigOptions options) { }
 
     /// <summary>值刚从文件读出来时（Mod 加载期）。</summary>
     public virtual void OnLoaded() { }
 
-    /// <summary>某个选项变了（屏幕上按 Aplicar 时；屏幕外 SetOption 立刻）。</summary>
-    public virtual void OnChanged(string key) { }
+    /// <summary>某个值真的变了（应用/改值之后调一次）。</summary>
+    public virtual void OnChanged() { }
 
-    /// <summary>玩家按了"应用"，且这份配置确实变了；在自己那些 OnChanged 之后。</summary>
-    public virtual void OnApply() { }
+    /// <summary>
+    /// <see cref="ConfigScope.ServerSide"/> 时服务器对客户端改值请求的裁决：默认接受全部。
+    /// 作者可改 pendingConfig 上的值（部分接受），返回 false 表示全部拒绝；抛异常按全拒绝处理。
+    /// </summary>
+    public virtual bool AcceptClientChanges(ModConfig pendingConfig, int whoAmI, ref NetworkText message) => true;
+
+    /// <summary>服务器回信到达时（客户端侧）；默认什么都不做。</summary>
+    public virtual void HandleAcceptClientChangesReply(bool success, int player, NetworkText message)
+    {
+    }
+
+    /// <summary>复制一份（同类型、同值；不共享值字典）。</summary>
+    public virtual ModConfig Clone()
+    {
+        var clone = (ModConfig)MemberwiseClone();
+        clone._values = new Dictionary<string, object>(_values, StringComparer.Ordinal);
+        clone._options = _options;
+        clone.__Overlay = null;
+        return clone;
+    }
+
+    /// <summary>这份改动要不要重载（默认不要；需要重载的内容自己覆写）。</summary>
+    public virtual bool NeedsReload(ModConfig pendingConfig) => false;
+
+    /// <summary>保存并应用改动；pendingConfig 省略时保存自己。</summary>
+    public ConfigSaveResult SaveChanges(ModConfig? pendingConfig = null, Action<string, Color>? status = null,
+                                        bool silent = true, bool broadcast = true) =>
+        ConfigPipeline.Instance.SaveChanges(this, pendingConfig ?? this, status, silent, broadcast);
+
+    /// <summary>打开这份配置的设置界面。</summary>
+    public void Open(Action? onClose = null, string? scrollToOption = null, bool centerScrolledOption = true,
+                     bool playSound = true) =>
+        UI.ModConfigMenu.OpenConfig(this, onClose);
 
     /// <summary>把这份配置恢复成默认值（并落盘）。</summary>
     public void ResetToDefaults() => ModConfigLoader.Reset(this);
 
-    /// <summary>
-    /// <see cref="ConfigScope.ServerSide"/> 时，服务器对客户端改值请求的裁决：默认接受全部键。
-    /// 想锁住某些键就在这里否决（把不要的键从 <paramref name="requested"/> 里删掉 = 部分接受，
-    /// 返回 false = 全部拒绝）。抛异常按"全部拒绝"处理。
-    /// </summary>
-    public virtual bool AcceptClientChanges(int fromPlayer, Dictionary<string, object> requested, ref string message) => true;
-
     /// <summary>改一个选项：校验 → Snap → 落盘 → OnChanged。</summary>
     public void SetOption(string key, object value) => ModConfigLoader.SetOption(this, key, value);
 
-    /// <summary>
-    /// 这个键改了要不要重启（ true = 拒改并保留旧值，屏幕上按应用也不落盘）。
-    /// 与 <see cref="AcceptClientChanges"/> 同形，只是单人侧的拒绝点：改值要重生成内容/重载世界时用。
-    /// </summary>
-    public virtual bool NeedsReload(string key) => false;
-
+    /// <summary>这个键改了要不要重启（true = 拒改并保留旧值）；管线内部用，作者用 <see cref="NeedsReload"/>。</summary>
+    internal virtual bool NeedsReloadKey(string key) => false;
 
     /// <summary>屏幕上的未保存改动（没开屏幕时为 null）；读取一律先看它。</summary>
     internal IReadOnlyDictionary<string, object>? __Overlay { get; set; }
@@ -141,6 +165,15 @@ public abstract class ModConfig : ModType
     internal void __SetValueRaw(string key, object value) => _values[key] = value;
 
     internal Dictionary<string, object> __Values => _values;
+
+    internal Dictionary<string, object> __CopyValues()
+    {
+        var copy = new Dictionary<string, object>(StringComparer.Ordinal);
+        foreach (var pair in _values) copy[pair.Key] = pair.Value;
+        return copy;
+    }
+
+    internal void __ReplaceValues(Dictionary<string, object> values) => _values = values;
 
     /// <summary>键名拆成词：BossHealth → "Boss Health"。</summary>
     internal static string SplitWords(string key) =>

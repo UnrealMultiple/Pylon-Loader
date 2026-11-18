@@ -28,10 +28,6 @@ internal sealed class ProjectilePipeline : ILoaderModule
     private int _drawDepth;
     private long _cutting;
     private int _spawning;
-    private bool _grappleRestore;
-    private int _grappleShoot;
-    private bool _pullChecked;
-    private bool _pullWanted;
 
     private ProjectilePipeline() => _defaults = new ProjectileDefaults(_binding);
 
@@ -80,6 +76,27 @@ internal sealed class ProjectilePipeline : ILoaderModule
 
     internal void SetupTemplates(IModLog log) => _defaults.CreateTemplates(log);
 
+    /// <summary>照另一个已注册类型的默认值铺一遍；类型号与 Mod/Global 绑定保持不变。</summary>
+    internal void CloneDefaults(Projectile projectile, int type)
+    {
+        if (projectile is null || projectile.Pointer == IntPtr.Zero)
+            throw new ArgumentException("CloneDefaults requires a projectile", nameof(projectile));
+
+        var originalType = projectile.type;
+        var originalMod = _binding.InstanceOf(projectile);
+        var originalGlobals = GlobalProjectileRegistry.Of(projectile);
+        try
+        {
+            projectile.SetDefaults(type);
+        }
+        finally
+        {
+            projectile.type = originalType;
+            _binding.Restore(projectile, originalMod);
+            GlobalProjectileRegistry.Restore(projectile, originalGlobals);
+        }
+    }
+
 #region AI
 
     private void Ai(On.Terraria.Projectile.orig_AI orig, Projectile self)
@@ -109,18 +126,6 @@ internal sealed class ProjectilePipeline : ILoaderModule
             Fail("OnSpawn", self.type, e);
         }
 
-        if (mod is not null && mod.Plan.Has(HookId.PreAI))
-        {
-            try
-            {
-                if (!mod.PreAI()) skip = true;
-            }
-            catch (Exception e)
-            {
-                Fail("PreAI", self.type, e);
-            }
-        }
-
         if (globals)
         {
             foreach (var global in GlobalProjectileRegistry.For(self, HookId.PreAI))
@@ -133,6 +138,18 @@ internal sealed class ProjectilePipeline : ILoaderModule
                 {
                     Fail("PreAI", self.type, e);
                 }
+            }
+        }
+
+        if (!skip && mod is not null && mod.Plan.Has(HookId.PreAI))
+        {
+            try
+            {
+                if (!mod.PreAI()) skip = true;
+            }
+            catch (Exception e)
+            {
+                Fail("PreAI", self.type, e);
             }
         }
 
@@ -160,6 +177,8 @@ internal sealed class ProjectilePipeline : ILoaderModule
             }
         }
 
+        var rangeCheck = false;
+        var rangeDistance = 0f;
         if (!skip)
         {
             try
@@ -169,13 +188,21 @@ internal sealed class ProjectilePipeline : ILoaderModule
                     swapped = true;
                     self.type = mod.AIType;
                 }
-
-                if (self.aiStyle == ModProjectile.HookAIStyle && mod is not null && mod.Plan.Has(HookId.GrappleRange))
-                    ApplyGrappleRange(self, mod);
             }
             catch (Exception e)
             {
                 Fail("GrappleRange", self.type, e);
+            }
+
+            if (self.aiStyle == ModProjectile.HookAIStyle && mod is not null && mod.Plan.Has(HookId.GrappleRange) &&
+                self.ai[0] == 0f && !HasVanillaGrappleRange(mod.AIType > 0 ? mod.AIType : self.type))
+            {
+                var owner = Main.player[self.owner];
+                var center = owner.MountedCenter;
+                var dx = center.X - (self.position.X + self.width * 0.5f);
+                var dy = center.Y - (self.position.Y + self.height * 0.5f);
+                rangeDistance = MathF.Sqrt(dx * dx + dy * dy);
+                rangeCheck = true;
             }
 
             try
@@ -191,6 +218,20 @@ internal sealed class ProjectilePipeline : ILoaderModule
                 }
             }
 
+            try
+            {
+                if (rangeCheck && self.ai[0] == 0f && rangeDistance > mod!.GrappleRange())
+                {
+                    var ai = self.ai;
+                    ai[0] = 1f;
+                    self.ai = ai;
+                }
+            }
+            catch (Exception e)
+            {
+                Fail("GrappleRange", self.type, e);
+            }
+
             if (hidden is not null && self.active && self.ai[0] == 2f)
             {
                 try
@@ -202,6 +243,9 @@ internal sealed class ProjectilePipeline : ILoaderModule
                     Fail("NumGrappleHooks", self.type, e);
                 }
             }
+
+            if (self.aiStyle == ModProjectile.HookAIStyle && mod is not null && mod.Plan.Has(HookId.GrappleRetreatSpeed))
+                ApplyGrappleRetreat(self, mod);
         }
 
         try
@@ -215,15 +259,11 @@ internal sealed class ProjectilePipeline : ILoaderModule
                 }
             }
 
-            if (self.aiStyle == ModProjectile.HookAIStyle && mod is not null && mod.Plan.Has(HookId.GrappleRetreatSpeed))
-                ApplyGrappleRetreat(self, mod);
-
+            if (mod is not null && mod.Plan.Has(HookId.PostAI)) mod.PostAI();
             if (globals)
             {
                 foreach (var global in GlobalProjectileRegistry.For(self, HookId.PostAI)) global.PostAI(self);
             }
-
-            if (mod is not null && mod.Plan.Has(HookId.PostAI)) mod.PostAI();
         }
         catch (Exception e)
         {
@@ -358,6 +398,24 @@ internal sealed class ProjectilePipeline : ILoaderModule
 
     private void UpdatePosition(On.Terraria.Projectile.orig_UpdatePosition orig, Projectile self, Vector2 wetVelocity)
     {
+        if (_moveDepth > 0)
+        {
+            ref var frame = ref Move;
+            if (frame.Address == ProjectileBinding.Address(self))
+            {
+                try
+                {
+                    if (!frame.Reported && frame.HasCollision && self.active && self.tileCollide &&
+                        Collided(self, in frame))
+                        ReportCollision(self, _binding.InstanceOf(self), ref frame);
+                }
+                catch (Exception e)
+                {
+                    Fail("OnTileCollide", self.type, e);
+                }
+            }
+        }
+
         var mod = _binding.InstanceOf(self);
         var globals = GlobalProjectileRegistry.AnyFor(self, HookId.ShouldUpdatePosition);
         if ((mod is null || !mod.Plan.Has(HookId.ShouldUpdatePosition)) && !globals)
@@ -369,15 +427,18 @@ internal sealed class ProjectilePipeline : ILoaderModule
         var allowed = true;
         try
         {
-            foreach (var global in GlobalProjectileRegistry.For(self, HookId.ShouldUpdatePosition))
-            {
-                if (global.ShouldUpdatePosition(self)) continue;
-                allowed = false;
-                break;
-            }
-
-            if (allowed && mod is not null && mod.Plan.Has(HookId.ShouldUpdatePosition))
+            if (mod is not null && mod.Plan.Has(HookId.ShouldUpdatePosition))
                 allowed = mod.ShouldUpdatePosition();
+
+            if (allowed)
+            {
+                foreach (var global in GlobalProjectileRegistry.For(self, HookId.ShouldUpdatePosition))
+                {
+                    if (global.ShouldUpdatePosition(self)) continue;
+                    allowed = false;
+                    break;
+                }
+            }
         }
         catch (Exception e)
         {
@@ -453,7 +514,8 @@ internal sealed class ProjectilePipeline : ILoaderModule
 
         try
         {
-            if (!frame.Reported && frame.HasCollision && proj.active && proj.tileCollide && Collided(proj, in frame))
+            if (!frame.Reported && frame.HasCollision && proj.active &&
+                (frame.PendingKill || proj.tileCollide && Collided(proj, in frame)))
                 ReportCollision(proj, mod, ref frame);
 
             if (frame.Kept && proj.active)
@@ -829,9 +891,6 @@ internal sealed class ProjectilePipeline : ILoaderModule
         try
         {
             if (!self.CanCutTiles()) return;
-
-            foreach (var global in globals) global.CutTiles(self);
-            if (modCut) mod!.CutTiles();
         }
         catch (Exception e)
         {
@@ -844,9 +903,24 @@ internal sealed class ProjectilePipeline : ILoaderModule
         {
             orig(self);
         }
+        catch (Exception e)
+        {
+            Fail("CutTiles", self.type, e);
+            return;
+        }
         finally
         {
             _cutting = 0;
+        }
+
+        try
+        {
+            foreach (var global in globals) global.CutTiles(self);
+            if (modCut) mod!.CutTiles();
+        }
+        catch (Exception e)
+        {
+            Fail("CutTiles", self.type, e);
         }
     }
 
@@ -929,7 +1003,8 @@ internal sealed class ProjectilePipeline : ILoaderModule
                 sprite = false;
             }
 
-            if (mod is not null && mod.Plan.Has(HookId.PreDraw) && !mod.PreDraw(owner!, ref light)) sprite = false;
+            if (sprite && mod is not null && mod.Plan.Has(HookId.PreDraw) && !mod.PreDraw(owner!, ref light))
+                sprite = false;
         }
         catch (Exception e)
         {
@@ -1016,59 +1091,124 @@ internal sealed class ProjectilePipeline : ILoaderModule
 
     private void FireGrapple(On.Terraria.Player.orig_FireGrapple orig, Player self, Item grappleItem)
     {
-        if (PrepareGrapple(self, grappleItem)) orig(self, grappleItem);
-        RestoreGrapple(grappleItem);
-    }
-
-    private bool PrepareGrapple(Player player, Item? grappleItem)
-    {
-        if (grappleItem is null) return true;
+        if (grappleItem is null)
+        {
+            orig(self, grappleItem);
+            return;
+        }
 
         var shoot = grappleItem.shoot;
-        var template = ModContent.Find(ContentKind.Projectile, shoot) as ModProjectile;
-        var canUse = GlobalProjectileRegistry.TemplatesFor(HookId.CanUseGrapple);
-        if (template is null && canUse.Count == 0) return true;
+        var verdict = GrappleVerdict(self, shoot);
+        if (verdict == false) return;
+
+        List<Projectile>? hidden = verdict == true ? FlyingOverLimit(shoot) : null;
+
+        var chosen = UseGrappleChoice(self, shoot);
+        var replaced = chosen > 0 && chosen != shoot;
+        if (replaced) grappleItem.shoot = chosen;
 
         try
         {
-            var allowed = true;
-            if (template is not null && template.Plan.Has(HookId.CanUseGrapple))
-                allowed = template.CanUseGrapple(player) != false;
+            orig(self, grappleItem);
+        }
+        finally
+        {
+            if (replaced) grappleItem.shoot = shoot;
+            if (hidden is not null)
+            {
+                foreach (var hook in hidden) hook.aiStyle = ModProjectile.HookAIStyle;
+            }
+        }
+    }
+
+    private bool? GrappleVerdict(Player player, int shoot)
+    {
+        var canUse = GlobalProjectileRegistry.TemplatesFor(HookId.CanUseGrapple);
+        if (ModContent.Find(ContentKind.Projectile, shoot) is not ModProjectile && canUse.Count == 0) return null;
+
+        bool? verdict = null;
+        try
+        {
+            if (ModContent.Find(ContentKind.Projectile, shoot) is ModProjectile template &&
+                template.Plan.Has(HookId.CanUseGrapple))
+                verdict = template.CanUseGrapple(player);
 
             foreach (var global in canUse)
             {
-                if (global.CanUseGrapple(shoot, player) is not { } verdict) continue;
-                allowed = verdict;
+                if (global.CanUseGrapple(shoot, player) is not { } answer) continue;
+                verdict = answer;
             }
-
-            if (!allowed) return false;
-
-            var chosen = shoot;
-            if (template is not null && template.Plan.Has(HookId.UseGrapple)) template.UseGrapple(player, ref chosen);
-            foreach (var global in GlobalProjectileRegistry.TemplatesFor(HookId.UseGrapple))
-                global.UseGrapple(player, ref chosen);
-
-            if (chosen <= 0 || chosen == shoot) return true;
-
-            grappleItem.shoot = chosen;
-            _grappleRestore = true;
-            _grappleShoot = shoot;
         }
         catch (Exception e)
         {
             Fail("CanUseGrapple", shoot, e);
         }
 
-        return true;
+        return verdict;
     }
 
-    private void RestoreGrapple(Item? grappleItem)
+    private int UseGrappleChoice(Player player, int shoot)
     {
-        if (!_grappleRestore) return;
+        var chosen = shoot;
+        try
+        {
+            if (ModContent.Find(ContentKind.Projectile, shoot) is ModProjectile template &&
+                template.Plan.Has(HookId.UseGrapple))
+                template.UseGrapple(player, ref chosen);
 
-        _grappleRestore = false;
-        if (grappleItem is not null) grappleItem.shoot = _grappleShoot;
+            foreach (var global in GlobalProjectileRegistry.TemplatesFor(HookId.UseGrapple))
+                global.UseGrapple(player, ref chosen);
+        }
+        catch (Exception e)
+        {
+            Fail("UseGrapple", shoot, e);
+        }
+
+        return chosen;
     }
+
+    private static List<Projectile>? FlyingOverLimit(int type)
+    {
+        var flying = 0;
+        var latched = 0;
+        List<Projectile>? mine = null;
+        var all = Main.projectile;
+        for (var i = 0; i < all.Length; i++)
+        {
+            var hook = all[i];
+            if (hook is null || !hook.active || hook.owner != Main.myPlayer ||
+                hook.aiStyle != ModProjectile.HookAIStyle)
+                continue;
+
+            if (hook.ai[0] == 2f)
+            {
+                latched++;
+                continue;
+            }
+
+            flying++;
+            mine ??= [];
+            mine.Add(hook);
+        }
+
+        if (flying < Math.Max(1, FireLimit(type) - latched)) return null;
+
+        if (mine is not null)
+        {
+            foreach (var hook in mine) hook.aiStyle = 0;
+        }
+
+        return mine;
+    }
+
+    private static int FireLimit(int type) => type switch
+    {
+        73 or 652 or 256 => 2,
+        165 => 8,
+        646 => 4,
+        13 or 315 or 331 or 753 or 865 or 935 or (>= 230 and <= 235) => 1,
+        _ => 3,
+    };
 
     private bool Latch(On.Terraria.Projectile.orig_AI_007_GrapplingHooks_CanTileBeLatchedOnTo orig,
                        Projectile self, Tile theTile)
@@ -1103,21 +1243,9 @@ internal sealed class ProjectilePipeline : ILoaderModule
         return orig(self, theTile);
     }
 
-    private static void ApplyGrappleRange(Projectile proj, ModProjectile mod)
-    {
-        if (mod.AIType > 0) return;
-        if (proj.ai[0] != 0f) return;
-
-        var owner = Main.player[proj.owner];
-        var center = owner.MountedCenter;
-        var dx = center.X - (proj.position.X + proj.width * 0.5f);
-        var dy = center.Y - (proj.position.Y + proj.height * 0.5f);
-        if (Math.Sqrt(dx * dx + dy * dy) <= mod.GrappleRange()) return;
-
-        var ai = proj.ai;
-        ai[0] = 1f;
-        proj.ai = ai;
-    }
+    private static bool HasVanillaGrappleRange(int type) => type is 13 or 32 or 73 or 74 or 165 or 256 or 315 or 322
+        or 331 or 332 or 372 or 396 or 652 or 865 or 935 or 446 or 753
+        or (>= 646 and <= 649) or (>= 486 and <= 489) or (>= 230 and <= 235);
 
     private static int VanillaHookLimit(int type) => type switch
     {
@@ -1188,8 +1316,6 @@ internal sealed class ProjectilePipeline : ILoaderModule
     {
         orig(self, fromPosition, out preferredDirection, out velocityX, out velocityY);
 
-        if (!WantsGrapplePull()) return;
-
         try
         {
             var grappling = self.grappling;
@@ -1198,51 +1324,120 @@ internal sealed class ProjectilePipeline : ILoaderModule
             var count = Math.Min(self.grapCount, grappling.Length);
             if (count <= 0) return;
 
-            Projectile? first = null;
-            var centerX = 0f;
-            var centerY = 0f;
-            var latched = 0;
+            var first = Main.projectile[grappling[0]];
+            if (first is null) return;
 
-            for (var i = 0; i < count; i++)
+            var pull = WantsHook(first, HookId.GrapplePullSpeed);
+            var target = false;
+            for (var i = 0; i < count && !target; i++)
             {
                 var hook = Main.projectile[grappling[i]];
-                if (hook is null || !hook.active || hook.ai[0] != 2f) continue;
-
-                if (hook.type is 446 or 652 or 865) return;
-
-                centerX += hook.position.X + hook.width * 0.5f;
-                centerY += hook.position.Y + hook.height * 0.5f;
-                latched++;
-                first ??= hook;
+                target = hook is not null && hook.ai[0] == 2f && WantsHook(hook, HookId.GrappleTargetPoint);
             }
 
-            if (latched == 0 || first is null) return;
+            if (!pull && !target) return;
 
-            centerX /= latched;
-            centerY /= latched;
+            float x = 0f, y = 0f;
+            int? direction = null;
+            var hooks = 0;
 
             for (var i = 0; i < count; i++)
             {
                 var hook = Main.projectile[grappling[i]];
-                if (hook is null || !hook.active || hook.ai[0] != 2f) continue;
+                if (hook is null || hook.ai[0] != 2f ||
+                    float.IsNaN(hook.position.X) || float.IsNaN(hook.position.Y))
+                    continue;
+
+                x += hook.position.X + hook.width / 2;
+                y += hook.position.Y + hook.height / 2;
+                hooks++;
 
                 var mod = _binding.InstanceOf(hook);
-                if (mod is not null && mod.Plan.Has(HookId.GrappleTargetPoint))
-                    mod.GrappleTargetPoint(self, ref centerX, ref centerY);
+                var resolved = mod is { AIType: > 0 } ? mod.AIType : hook.type;
+                if (resolved == 446)
+                {
+                    var input = new Vector2(ToInt(self.controlRight) - ToInt(self.controlLeft),
+                        (ToInt(self.controlDown) - ToInt(self.controlUp)) * self.gravDir);
+                    if (input.X != 0f || input.Y != 0f) input = Normalize(input);
+                    input = new Vector2(input.X * 100f, input.Y * 100f);
+                    var away = Normalize(new Vector2(self.Center.X - hook.Center.X, self.Center.Y - hook.Center.Y) + input);
+                    if (float.IsNaN(away.X) || float.IsNaN(away.Y)) away = new Vector2(0f, -1f);
+                    x += away.X * 200f;
+                    y += away.Y * 200f;
+                }
+                else if (resolved == 652)
+                {
+                    var input = SafeNormalize(new Vector2(ToInt(self.controlRight) - ToInt(self.controlLeft),
+                        (ToInt(self.controlDown) - ToInt(self.controlUp)) * self.gravDir), Vector2.Zero);
+                    var toHook = new Vector2(hook.Center.X - self.Center.X, hook.Center.Y - self.Center.Y);
+                    var along = SafeNormalize(toHook, Vector2.Zero);
+                    var push = Vector2.Zero;
+                    if (input.X != 0f || input.Y != 0f)
+                    {
+                        var dot = along.X * input.X + along.Y * input.Y;
+                        push = new Vector2(along.X * dot, along.Y * dot);
+                    }
+
+                    var strength = 6f;
+                    var toHookLength = MathF.Sqrt(toHook.X * toHook.X + toHook.Y * toHook.Y);
+                    if (push.X * toHook.X + push.Y * toHook.Y < 0f && toHookLength >= 600f) strength = 0f;
+                    x += -toHook.X + push.X * strength;
+                    y += -toHook.Y + push.Y * strength;
+                }
+                else if (resolved == 865)
+                {
+                    var angle = hook.rotation - MathF.PI / 2f;
+                    var facing = SafeNormalize(new Vector2(MathF.Cos(angle), MathF.Sin(angle)),
+                        new Vector2(0f, 1f));
+                    x += -facing.X * 28f;
+                    y += -facing.Y * 28f;
+                    if (facing.X != 0f) direction = Math.Sign(facing.X);
+                }
+
+                try
+                {
+                    if (mod is not null && mod.Plan.Has(HookId.GrappleTargetPoint))
+                        mod.GrappleTargetPoint(self, ref x, ref y);
+                    foreach (var global in GlobalProjectileRegistry.For(hook, HookId.GrappleTargetPoint))
+                        global.GrappleTargetPoint(hook, self, ref x, ref y);
+                }
+                catch (Exception e)
+                {
+                    Fail("GrappleTargetPoint", hook.type, e);
+                }
             }
 
+            preferredDirection = direction is null
+                ? new Il2CppSystem.Nullable<int>()
+                : new Il2CppSystem.Nullable<int>(direction.Value);
+
+            if (hooks == 0)
+            {
+                velocityX = self.velocity.X;
+                velocityY = self.velocity.Y;
+                return;
+            }
+
+            velocityX = x / hooks - fromPosition.X;
+            velocityY = y / hooks - fromPosition.Y;
+            var length = MathF.Sqrt(velocityX * velocityX + velocityY * velocityY);
             var speed = VanillaPullSpeed(first.type);
-            var firstMod = _binding.InstanceOf(first);
-            if (firstMod is not null && firstMod.Plan.Has(HookId.GrapplePullSpeed))
-                firstMod.GrapplePullSpeed(self, ref speed);
+            try
+            {
+                var firstMod = _binding.InstanceOf(first);
+                if (firstMod is not null && firstMod.Plan.Has(HookId.GrapplePullSpeed))
+                    firstMod.GrapplePullSpeed(self, ref speed);
+                foreach (var global in GlobalProjectileRegistry.For(first, HookId.GrapplePullSpeed))
+                    global.GrapplePullSpeed(first, self, ref speed);
+            }
+            catch (Exception e)
+            {
+                Fail("GrapplePullSpeed", first.type, e);
+            }
 
-            var dx = centerX - fromPosition.X;
-            var dy = centerY - fromPosition.Y;
-            var length = Math.Sqrt(dx * dx + dy * dy);
-            var scale = length <= speed || length <= 0 ? 1d : speed / length;
-
-            velocityX = (float)(dx * scale);
-            velocityY = (float)(dy * scale);
+            var scale = length <= speed ? 1f : speed / length;
+            velocityX *= scale;
+            velocityY *= scale;
         }
         catch (Exception e)
         {
@@ -1250,19 +1445,22 @@ internal sealed class ProjectilePipeline : ILoaderModule
         }
     }
 
-    private bool WantsGrapplePull()
+    private bool WantsHook(Projectile hook, HookId hookId) =>
+        (_binding.InstanceOf(hook)?.Plan.Has(hookId) ?? false) ||
+        GlobalProjectileRegistry.For(hook, hookId).Count > 0;
+
+    private static int ToInt(bool value) => value ? 1 : 0;
+
+    private static Vector2 Normalize(Vector2 value)
     {
-        if (_pullChecked) return _pullWanted;
+        var length = MathF.Sqrt(value.X * value.X + value.Y * value.Y);
+        return new Vector2(value.X / length, value.Y / length);
+    }
 
-        _pullChecked = true;
-        foreach (var type in ModContent.GetContent<ModProjectile>())
-        {
-            if (!type.Plan.Has(HookId.GrappleTargetPoint) && !type.Plan.Has(HookId.GrapplePullSpeed)) continue;
-            _pullWanted = true;
-            break;
-        }
-
-        return _pullWanted;
+    private static Vector2 SafeNormalize(Vector2 value, Vector2 defaultValue)
+    {
+        var length = MathF.Sqrt(value.X * value.X + value.Y * value.Y);
+        return length == 0f || float.IsNaN(length) ? defaultValue : value / length;
     }
 
     private static float VanillaRetreatSpeed(int type)

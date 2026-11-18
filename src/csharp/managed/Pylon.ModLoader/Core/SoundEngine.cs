@@ -1,29 +1,31 @@
 using Il2CppMicrosoft.Xna.Framework;
+using ReLogic.Utilities;
 using Terraria.Audio;
-using SoundEffectInstance = Il2CppMicrosoft.Xna.Framework.Audio.SoundEffectInstance;
 
 namespace Pylon.ModLoader;
 
-/// <summary>放游戏或 Mod 声音的静态入口。</summary>
+/// <summary>放游戏或 Mod 声音的静态入口：Mod 声音走 Sound 管线，原生音效请全限定调游戏的 SoundEngine。</summary>
 public static class SoundEngine
 {
-    /// <summary>放一个 Mod 声音，按位置衰减；返回请求句柄，0 = 被拒。</summary>
-    public static int PlaySound(SoundStyle style, Vector2 position) => SoundPipeline.Instance.Play(style, position);
+    /// <summary>放一个声音；Mod 音效按位置衰减。返回请求句柄（被拒时无效）。</summary>
+    public static SlotId PlaySound(in SoundStyle style, Vector2? position = null)
+    {
+        if (style.IsNative)
+        {
+            if (style.NativePointer != 0)
+            {
+                var legacy = new LegacySoundStyle(style.NativePointer);
+                if (position is Vector2 at) Terraria.Audio.SoundEngine.PlaySound(legacy, at, 0f, 1f);
+                else Terraria.Audio.SoundEngine.PlaySound(legacy, -1, -1, 0f, 1f);
+            }
+            else if (position is Vector2 at) Terraria.Audio.SoundEngine.PlaySound(style.NativeId, at, 1, 0f);
+            else Terraria.Audio.SoundEngine.PlaySound(style.NativeId, -1, -1, 1, 1f, 0f);
+            return default;
+        }
 
-    /// <summary>放一个 Mod 声音，不按距离衰减；返回请求句柄，0 = 被拒。</summary>
-    public static int PlaySound(SoundStyle style) => SoundPipeline.Instance.Play(style, null);
-
-    public static SoundEffectInstance PlaySound(int type, Vector2 position) =>
-        Terraria.Audio.SoundEngine.PlaySound(type, (int)Math.Floor(position.X), (int)Math.Floor(position.Y), 1, 1f, 0f);
-
-    public static SoundEffectInstance PlaySound(int type) =>
-        Terraria.Audio.SoundEngine.PlaySound(type, -1, -1, 1, 1f, 0f);
-
-    public static SoundEffectInstance PlaySound(LegacySoundStyle style, Vector2 position) =>
-        Terraria.Audio.SoundEngine.PlaySound(style, position, 0f, 1f);
-
-    public static SoundEffectInstance PlaySound(LegacySoundStyle style) =>
-        Terraria.Audio.SoundEngine.PlaySound(style, -1, -1, 0f, 1f);
+        var handle = position is Vector2 p ? SoundPipeline.Instance.Play(style, p) : SoundPipeline.Instance.Play(style, null);
+        return handle > 0 ? new SlotId((uint)handle) : default;
+    }
 
     /// <summary>这个 Mod 声音现在有几个在响。</summary>
     public static int FindActiveSound(SoundStyle style) => SoundPipeline.Instance.FindActive(style);

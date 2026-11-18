@@ -60,6 +60,7 @@ internal static class HairTable
 
             hair.Type = Base + _next;
             hair.Registered = true;
+            HairIdTml.Sets.Resize(hair.Type + 1);
             _hairs[_next++] = hair;
 
             ByKey[hair.Mod.Name + "/" + hair.Name] = hair;

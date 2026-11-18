@@ -16,6 +16,8 @@ public abstract class ModItem : ModType
     /// <summary>名字（空 = 用 ItemName.&lt;类名&gt; 的本地化键）。</summary>
     public virtual string DisplayName => Name;
 
+    public virtual string LocalizationCategory => "Items";
+
     /// <summary>描述（空 = 用 ItemTooltip.&lt;类名&gt;）；多行用 \n。</summary>
     public virtual string Tooltip => null!;
 
@@ -34,7 +36,7 @@ public abstract class ModItem : ModType
     }
 
     /// <summary>true：新物品拿模板的副本（Clone），不是新实例。</summary>
-    public virtual bool CloneNewInstances => false;
+    protected virtual bool CloneNewInstances => false;
 
     /// <summary>给一个新生实体造对应的实例（默认新造，不是复用模板）。</summary>
     public virtual ModItem NewInstance(Item entity)
@@ -62,7 +64,7 @@ public abstract class ModItem : ModType
         var equip = new EquipTexture
         {
             Name = name,
-            Type = (int)type,
+            Type = type,
             Texture = texture,
             Item = this,
         };
@@ -81,7 +83,7 @@ public abstract class ModItem : ModType
     public virtual void AddRecipes() { }
 
     /// <summary>新开一份以本物品为结果的配方（链式填完 Register）。</summary>
-    public ModRecipe CreateRecipe(int amount = 1) => new ModRecipe().SetResult(Type, amount);
+    public ModRecipe CreateRecipe(int amount = 1) => new ModRecipe { Mod = Mod }.SetResult(Type, amount);
 
     /// <summary>每次 tooltip 显示时一次（合成指南弹窗里也会，不带颜色）；直接改 tooltips 列表。</summary>
     public virtual void ModifyTooltips(List<TooltipLine> tooltips) { }
@@ -422,9 +424,20 @@ public abstract class ModItem : ModType
     /// <summary>读档后按保存的数据恢复（与 SaveData 配对）。</summary>
     public virtual void LoadData(TagCompound tag) { }
 
-    /// <summary>这个编号的游戏样表那一份（IsVanitySet 用；没有就是 0 号）。</summary>
-    private static Item Sample(int type) =>
-        ContentSamples.ItemsByType.TryGetValue(type, out var sample) ? sample : ContentSamples.ItemsByType[0];
+    /// <summary>这个编号的游戏样表那一份（IsVanitySet 用；没有就造一份默认值）。</summary>
+    private static Item Sample(int type)
+    {
+        var samples = ContentSamples.ItemsByType;
+        if (samples is not null)
+        {
+            if (type > 0 && samples.ContainsKey(type)) return samples[type];
+            if (samples.ContainsKey(0)) return samples[0];
+        }
+
+        var item = new Item();
+        item.SetDefaults(type, null);
+        return item;
+    }
 
     /// <summary>画出来的槽位 → 那件衣服的编号（越界和 0 都按 0 号算）。</summary>
     private static int SlotItemType(Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<int> table, int slot) =>

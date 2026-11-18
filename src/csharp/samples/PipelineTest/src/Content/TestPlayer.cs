@@ -25,6 +25,8 @@ public sealed class TestPlayer : ModPlayer
     internal static bool RegenProbeActive;
     internal static int RegenHits;
 
+    internal static bool DangerDrive;
+
     public override void NaturalLifeRegen(ref float regen)
     {
         if (!RegenProbeActive) return;
@@ -35,7 +37,7 @@ public sealed class TestPlayer : ModPlayer
     /// <summary>shop 组：附近没有测试商人就补一只（5 秒检查一次）。</summary>
     private void EnsureMerchant(Player player)
     {
-        var type = ModContent.NpcType<TestTownNpc>();
+        var type = ModContent.NPCType<TestTownNpc>();
         var all = Main.npc;
         if (all is null) return;
 
@@ -58,7 +60,7 @@ public sealed class TestPlayer : ModPlayer
     /// <summary>loot 组：附近没有测试史莱姆就补两只 1 血的，方便反复验证掉落。</summary>
     private void EnsureLootNpc(Player player)
     {
-        var type = ModContent.NpcType<TestNpc>();
+        var type = ModContent.NPCType<TestNpc>();
         var all = Main.npc;
         if (all is null) return;
 
@@ -104,7 +106,7 @@ public sealed class TestPlayer : ModPlayer
     /// <summary>附近 800 像素内没有测试史莱姆时，在玩家两侧各补一只（带音效、会跳）。</summary>
     private void EnsureTestNpc(Player player)
     {
-        var type = ModContent.NpcType<TestNpc>();
+        var type = ModContent.NPCType<TestNpc>();
         var all = Main.npc;
         if (all is null) return;
 
@@ -134,7 +136,7 @@ public sealed class TestPlayer : ModPlayer
         if (_npcProbeFrames == 0) return;
         if (--_npcProbeFrames > 0) return;
 
-        var type = ModContent.NpcType<TestNpc>();
+        var type = ModContent.NPCType<TestNpc>();
         var all = Main.npc;
         if (all is null) return;
 
@@ -162,6 +164,12 @@ public sealed class TestPlayer : ModPlayer
     {
         var player = Player;
         if (player is null || !player.active) return;
+
+        if (DangerDrive)
+        {
+            player.dangerSense = true;
+            player.findTreasure = true;
+        }
 
         if (_given)
         {
@@ -215,7 +223,7 @@ public sealed class TestPlayer : ModPlayer
             return;
         }
 
-        var type = ModContent.TypeOf<TestItem>();
+        var type = ModContent.ItemType<TestItem>();
         if (type <= 0) return;
 
         var inv = player.inventory;

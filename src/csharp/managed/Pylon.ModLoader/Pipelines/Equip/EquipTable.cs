@@ -1,5 +1,6 @@
 using Pylon.ModLoader.Tables;
 using Pylon.ModLoader.Textures;
+using Terraria;
 
 namespace Pylon.ModLoader;
 
@@ -9,8 +10,8 @@ internal static class EquipTable
     internal static readonly EquipType[] Parts =
     [
         EquipType.Head, EquipType.Body, EquipType.Legs,
-        EquipType.HandOn, EquipType.HandOff, EquipType.Back, EquipType.Front,
-        EquipType.Shoes, EquipType.Waist, EquipType.Wing, EquipType.Shield,
+        EquipType.HandsOn, EquipType.HandsOff, EquipType.Back, EquipType.Front,
+        EquipType.Shoes, EquipType.Waist, EquipType.Wings, EquipType.Shield,
         EquipType.Neck, EquipType.Face, EquipType.Balloon, EquipType.Beard,
     ];
 
@@ -36,6 +37,36 @@ internal static class EquipTable
 
     internal static List<EquipTexture> Of(EquipType part) => ByPart[(int)part];
 
+    internal static List<EquipType> Installed()
+    {
+        var types = new List<EquipType>();
+        for (var index = 0; index < Parts.Length; index++)
+        {
+            if (ByPart[index].Count > 0) types.Add(Parts[index]);
+        }
+        return types;
+    }
+
+    internal static int PlayerSlot(Player player, EquipType type) => type switch
+    {
+        EquipType.Head => player.head,
+        EquipType.Body => player.body,
+        EquipType.Legs => player.legs,
+        EquipType.HandsOn => player.handon,
+        EquipType.HandsOff => player.handoff,
+        EquipType.Back => player.back,
+        EquipType.Front => player.front,
+        EquipType.Shoes => player.shoe,
+        EquipType.Waist => player.waist,
+        EquipType.Wings => player.wings,
+        EquipType.Shield => player.shield,
+        EquipType.Neck => player.neck,
+        EquipType.Face => player.face,
+        EquipType.Balloon => player.balloon,
+        EquipType.Beard => player.beard,
+        _ => -1,
+    };
+
     internal static int Vanilla(EquipType part) => EquipTables.Vanilla((int)part, Table(part));
 
     internal static TableSet Set(EquipType part) => part switch
@@ -43,13 +74,13 @@ internal static class EquipTable
         EquipType.Head => EquipTables.Head,
         EquipType.Body => EquipTables.Body,
         EquipType.Legs => EquipTables.Legs,
-        EquipType.HandOn => EquipTables.HandOn,
-        EquipType.HandOff => EquipTables.HandOff,
+        EquipType.HandsOn => EquipTables.HandOn,
+        EquipType.HandsOff => EquipTables.HandOff,
         EquipType.Back => EquipTables.Back,
         EquipType.Front => EquipTables.Front,
         EquipType.Shoes => EquipTables.Shoes,
         EquipType.Waist => EquipTables.Waist,
-        EquipType.Wing => EquipTables.Wing,
+        EquipType.Wings => EquipTables.Wing,
         EquipType.Shield => EquipTables.Shield,
         EquipType.Neck => EquipTables.Neck,
         EquipType.Face => EquipTables.Face,
@@ -68,13 +99,13 @@ internal static class EquipTable
         EquipType.Head => TextureTable.ArmorHead,
         EquipType.Body => TextureTable.ArmorBody,
         EquipType.Legs => TextureTable.ArmorLeg,
-        EquipType.HandOn => TextureTable.AccHandsOn,
-        EquipType.HandOff => TextureTable.AccHandsOff,
+        EquipType.HandsOn => TextureTable.AccHandsOn,
+        EquipType.HandsOff => TextureTable.AccHandsOff,
         EquipType.Back => TextureTable.AccBack,
         EquipType.Front => TextureTable.AccFront,
         EquipType.Shoes => TextureTable.AccShoes,
         EquipType.Waist => TextureTable.AccWaist,
-        EquipType.Wing => TextureTable.Wings,
+        EquipType.Wings => TextureTable.Wings,
         EquipType.Shield => TextureTable.AccShield,
         EquipType.Neck => TextureTable.AccNeck,
         EquipType.Face => TextureTable.AccFace,
@@ -85,16 +116,16 @@ internal static class EquipTable
     internal static TextureTable[] Companions(EquipType part) => part switch
     {
         EquipType.Body => [TextureTable.ArmorBodyComposite, TextureTable.ArmorArm, TextureTable.FemaleBody],
-        EquipType.HandOn => [TextureTable.AccHandsOnComposite],
-        EquipType.HandOff => [TextureTable.AccHandsOffComposite],
+        EquipType.HandsOn => [TextureTable.AccHandsOnComposite],
+        EquipType.HandsOff => [TextureTable.AccHandsOffComposite],
         _ => [],
     };
 
     internal static TableSet[] CompanionSets(EquipType part) => part switch
     {
         EquipType.Body => [EquipTables.BodyComposite, EquipTables.Arm],
-        EquipType.HandOn => [EquipTables.HandOnComposite],
-        EquipType.HandOff => [EquipTables.HandOffComposite],
+        EquipType.HandsOn => [EquipTables.HandOnComposite],
+        EquipType.HandsOff => [EquipTables.HandOffComposite],
         _ => [],
     };
 
@@ -124,13 +155,13 @@ internal static class EquipTable
             {
                 var equip = equips[slot];
 
-                if (equip.Type < (int)EquipType.Head || equip.Type > (int)EquipType.Beard)
+                if (equip.Type < EquipType.Head || equip.Type > EquipType.Beard)
                 {
                     ContentErrors.Report($"[equip] {item.Name}.{equip.Name} 的部位 {equip.Type} 不存在（0..14）");
                     continue;
                 }
 
-                ByPart[equip.Type].Add(equip);
+                ByPart[(int)equip.Type].Add(equip);
             }
         }
     }
@@ -210,13 +241,13 @@ internal static class EquipTable
         [EquipType.Head] = "headSlot",
         [EquipType.Body] = "bodySlot",
         [EquipType.Legs] = "legSlot",
-        [EquipType.HandOn] = "handOnSlot",
-        [EquipType.HandOff] = "handOffSlot",
+        [EquipType.HandsOn] = "handOnSlot",
+        [EquipType.HandsOff] = "handOffSlot",
         [EquipType.Back] = "backSlot",
         [EquipType.Front] = "frontSlot",
         [EquipType.Shoes] = "shoeSlot",
         [EquipType.Waist] = "waistSlot",
-        [EquipType.Wing] = "wingSlot",
+        [EquipType.Wings] = "wingSlot",
         [EquipType.Shield] = "shieldSlot",
         [EquipType.Neck] = "neckSlot",
         [EquipType.Face] = "faceSlot",

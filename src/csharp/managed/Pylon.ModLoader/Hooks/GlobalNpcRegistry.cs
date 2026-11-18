@@ -24,4 +24,6 @@ internal static class GlobalNpcRegistry
     internal static bool AnyWith(params ReadOnlySpan<HookId> hooks) => Registry.AnyWith(hooks);
 
     internal static void Attach(NPC? entity, bool lateInstantiation) => Registry.Attach(entity, lateInstantiation);
+
+    internal static void Restore(NPC? entity, List<GlobalNpc>? previous) => Registry.Restore(entity, previous);
 }

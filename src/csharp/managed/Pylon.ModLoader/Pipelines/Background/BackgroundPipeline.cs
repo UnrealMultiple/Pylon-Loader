@@ -61,7 +61,10 @@ internal sealed class BackgroundPipeline : ILoaderModule, ILoaderModuleRefresh
     {
         // 先收各 Mod 的背景贴图（ResizeArrays 要用），再发号。
         var mods = LoaderHost.Current.Mods;
-        for (var i = 0; i < mods.Count; i++) BackgroundTextureLoader.AutoloadBackgrounds(mods.Mods[i]);
+        for (var i = 0; i < mods.Count; i++)
+        {
+            if (mods.Mods[i].BackgroundAutoloadingEnabled) BackgroundTextureLoader.AutoloadBackgrounds(mods.Mods[i]);
+        }
 
         BackgroundTable.Assign();
         BackgroundTable.AssignUnderground();
@@ -77,35 +80,23 @@ internal sealed class BackgroundPipeline : ILoaderModule, ILoaderModuleRefresh
 
     // ===================== 每帧：赢家写 bgStyle =====================
 
-    /// <summary>这一帧的表层风格赢家（画淡入淡出时要用）。</summary>
-    internal static ModSurfaceBackgroundStyle? CurrentSurface;
-
-    internal void Apply(ModSceneEffect? effect, bool allowed)
+    internal static ModSurfaceBackgroundStyle? CurrentSurface
     {
-        CurrentSurface = null;
-        if (effect is null || !allowed) return;
-
-        ModSurfaceBackgroundStyle? style;
-        try
+        get
         {
-            style = effect.SurfaceBackgroundStyle;
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report($"[background] {effect.Name}.SurfaceBackgroundStyle 异常：{Safe.Describe(e)}");
-            return;
-        }
+            if (SceneEffectPipeline.SurfaceEffect is not { } effect) return null;
 
-        if (style is null) return;
-
-        if (!style.Registered)
-        {
-            ContentErrors.Report($"[background] {effect.Name} 的 SurfaceBackgroundStyle 没注册：{style.Name}");
-            return;
+            try
+            {
+                var style = effect.SurfaceBackgroundStyle;
+                return style is not null && style.Registered ? style : null;
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[background] {effect.Name}.SurfaceBackgroundStyle 异常：{Safe.Describe(e)}");
+                return null;
+            }
         }
-
-        Main.bgStyle = style.Slot;
-        CurrentSurface = style;
     }
 
     // ===================== 背景号 =====================
@@ -133,7 +124,22 @@ internal sealed class BackgroundPipeline : ILoaderModule, ILoaderModuleRefresh
     private static int ChooseSurface(int vanilla)
     {
         if (Main.gameMenu) return vanilla;
-        return CurrentSurface is { } style ? style.Slot : vanilla;
+        if (CurrentSurface is not { } style || SceneEffectPipeline.SurfaceEffect is not { } effect) return vanilla;
+
+        try
+        {
+            var priority = effect.Priority;
+            var forest = vanilla is 0 or 10 or 11 or 12;
+            if (priority >= VanillaSceneTier.BiomeHigh) return style.Slot;
+            if (priority >= VanillaSceneTier.BiomeMedium && (forest || vanilla == 3 || vanilla == 7)) return style.Slot;
+            if (priority >= VanillaSceneTier.BiomeLow && forest) return style.Slot;
+            return vanilla;
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report($"[background] {effect.Name}.Priority 异常：{Safe.Describe(e)}");
+            return vanilla;
+        }
     }
 
     private static void Ensure()
@@ -350,8 +356,18 @@ internal sealed class BackgroundPipeline : ILoaderModule, ILoaderModuleRefresh
         var style = vanilla;
         try
         {
-            if (!Main.gameMenu && CurrentUnderground() is { } underground && Main.BackgroundEnabled)
-                style = underground.Slot;
+            if (!Main.gameMenu && Main.BackgroundEnabled && SceneEffectPipeline.UndergroundEffect is { } effect)
+            {
+                var underground = effect.UndergroundBackgroundStyle;
+                if (underground is not null && underground.Slot >= 0)
+                {
+                    var priority = effect.Priority;
+                    var cave = vanilla == Cave();
+                    if (priority >= VanillaSceneTier.BiomeHigh) style = underground.Slot;
+                    else if (priority >= VanillaSceneTier.BiomeMedium && (cave || vanilla == 1 || vanilla == 11)) style = underground.Slot;
+                    else if (priority >= VanillaSceneTier.BiomeLow && cave) style = underground.Slot;
+                }
+            }
 
             foreach (var global in BackgroundTable.GlobalStyles) global.ChooseUndergroundBackgroundStyle(ref style);
         }
@@ -364,22 +380,14 @@ internal sealed class BackgroundPipeline : ILoaderModule, ILoaderModuleRefresh
         return style;
     }
 
-    private static ModUndergroundBackgroundStyle? CurrentUnderground()
+    private static int Cave()
     {
-        if (SceneEffectPipeline.Current is not { } effect) return null;
+        var x = (int)((Main.screenPosition.X + Main.screenWidth / 2) / 16);
+        var backX = Main.caveBackX;
+        var backStyle = Main.caveBackStyle;
+        if (backX is null || backStyle is null || backX.Length < 4 || backStyle.Length < 4) return -1;
 
-        ModUndergroundBackgroundStyle? style;
-        try
-        {
-            style = effect.UndergroundBackgroundStyle;
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report($"[background] {effect.Name}.UndergroundBackgroundStyle 异常：{Safe.Describe(e)}");
-            return null;
-        }
-
-        return style is not null && style.Slot >= 0 ? style : null;
+        return (x > backX[0] ? x > backX[1] ? x > backX[2] ? backStyle[3] : backStyle[2] : backStyle[1] : backStyle[0]) + 3;
     }
 
     private static Il2CppReferenceArray<Texture2D> BackTextureValues(On.Terraria.Main.orig_get_backTextureValues orig, Main self)

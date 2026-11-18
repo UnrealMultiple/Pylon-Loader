@@ -88,6 +88,27 @@ internal static class HairTests
             c.Eq(player.hair, hair.Type, "player.hair");
         });
 
+        PT.Case("HAIR-W3", c =>
+        {
+            if (player is null || !player.active) { c.True(false, "玩家还没就绪"); return; }
+
+            var saved = player.hair;
+            try
+            {
+                player.hair = hair.Type;
+                player.GetHairSettings(out _, out _, out _, out var back, out _);
+                c.True(back, $"DrawBackHair[{hair.Type}]=true → backHairDraw");
+
+                player.hair = 0;
+                player.GetHairSettings(out _, out _, out _, out var vanillaBack, out _);
+                c.True(!vanillaBack, "原版 0 号不画后发");
+            }
+            finally
+            {
+                player.hair = saved;
+            }
+        });
+
         // W2：走真实存盘链路 —— .plr 里存 0，名字进玩家侧车；存完内存里的值要恢复。
         PT.Case("HAIR-W2", c =>
         {

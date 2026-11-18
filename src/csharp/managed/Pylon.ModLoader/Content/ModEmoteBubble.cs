@@ -25,11 +25,7 @@ public abstract class ModEmoteBubble : ModType
     /// <summary>注册过的分类（管线用）。</summary>
     internal IReadOnlyList<int> Categories => _categories is null ? Array.Empty<int>() : _categories;
 
-    /// <summary>玩家做这个表情时，最近的城镇 NPC 用哪个原版表情回应（-1 = 不回应，默认）。</summary>
-    public virtual int NPCReaction => -1;
-
-    /// <summary>悬停/菜单里显示的名字；默认类名，作者可覆盖。</summary>
-    public virtual string DisplayName => Name;
+    public virtual string LocalizationCategory => "Emotes";
 
     /// <summary>聊天里触发这个表情的命令（不含斜杠）；默认类名小写。</summary>
     public virtual string Command => Name.ToLower();

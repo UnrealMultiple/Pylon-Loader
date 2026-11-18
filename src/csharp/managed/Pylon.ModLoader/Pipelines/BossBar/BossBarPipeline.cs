@@ -1,4 +1,3 @@
-using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Terraria;
@@ -7,7 +6,7 @@ using Terraria.GameContent.UI.BigProgressBar;
 
 namespace Pylon.ModLoader;
 
-/// <summary>Boss 血条管线：拦在 BigProgressBarSystem 上抓目标与换条，GUI 层接管条身皮肤。</summary>
+/// <summary>Boss 血条管线：拦在 BigProgressBarSystem 上抓目标与换条（NPC 与血条的绑定在 NPC.BossBar 上），GUI 层接管条身皮肤。</summary>
 internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
 {
     public static BossBarPipeline Instance { get; } = new();
@@ -15,6 +14,10 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
     public string Name => "bossbar";
 
     private static IModLog Log => LoaderHost.Current.Log;
+
+    private static readonly object Gate = new();
+
+    private static readonly Dictionary<nint, (int Type, ModBossBar Bar)> Assigned = [];
 
     private static ModBossBar? Bar;
 
@@ -24,6 +27,28 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static int Tracked = -1;
     private static int ScanAge;
+
+    internal static ModBossBar? Get(NPC npc)
+    {
+        if (npc is null || npc.Pointer == nint.Zero) return null;
+        lock (Gate)
+            return Assigned.TryGetValue(npc.Pointer, out var entry) && entry.Type == npc.type ? entry.Bar : null;
+    }
+
+    internal static void Set(NPC npc, ModBossBar? bar)
+    {
+        if (npc is null || npc.Pointer == nint.Zero) return;
+        lock (Gate)
+        {
+            if (bar is null) Assigned.Remove(npc.Pointer);
+            else Assigned[npc.Pointer] = (npc.type, bar);
+        }
+    }
+
+    private static bool AnyAssigned
+    {
+        get { lock (Gate) return Assigned.Count > 0; }
+    }
 
     public bool Install()
     {
@@ -88,7 +113,7 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
                 var at = self._info.npcIndexToAimAt;
                 var own = Of(at);
 
-                if (own is not null && !Collect(own, at)) self._currentBar = null;
+                if (own is not null && !Collect(own, at, self._info.showText)) self._currentBar = null;
 
                 return;
             }
@@ -96,18 +121,18 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
             if (Tracked >= 0)
             {
                 var own = Of(Tracked);
-                if (own is not null && Collect(own, Tracked)) return;
+                if (own is not null && Collect(own, Tracked, self._info.showText)) return;
 
                 Tracked = -1;
             }
 
-            if (++ScanAge < ScanEvery) return;
+            if (++ScanAge < ScanEvery || !AnyAssigned) return;
             ScanAge = 0;
 
             var found = Find();
             if (found < 0) return;
 
-            if (Of(found) is { } candidate && Collect(candidate, found)) Tracked = found;
+            if (Of(found) is { } candidate && Collect(candidate, found, self._info.showText)) Tracked = found;
         }
         catch (Exception e)
         {
@@ -123,18 +148,28 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         if (npcs is null || at >= npcs.Length) return null;
 
         var npc = npcs[at];
-        if (npc is null || !npc.active) return null;
-        if (ModContent.Find(ContentKind.Npc, npc.type) is not ModNpc modNpc) return null;
-
-        return modNpc.BossBar;
+        return npc is not null && npc.active ? Get(npc) : null;
     }
 
-    private static bool Collect(ModBossBar candidate, int at)
+    private static bool Collect(ModBossBar candidate, int at, bool showText)
     {
-        var info = new BossBarInfo { npcIndexToAimAt = at };
+        var info = new BossBarInfo { npcIndexToAimAt = at, showText = showText };
+
+        bool valid;
+        try
+        {
+            valid = candidate.ValidateAndCollectNecessaryInfo(ref info);
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report($"[bossbar] {candidate.Name}.ModifyInfo 异常：{Safe.Describe(e)}");
+            valid = false;
+        }
+
+        if (!valid) return false;
 
         Bar = candidate;
-        Index = at;
+        Index = info.npcIndexToAimAt;
         return true;
     }
 
@@ -166,7 +201,7 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
             if (position.X + npc.width < left || position.X > right) continue;
             if (position.Y + npc.height < top || position.Y > bottom) continue;
 
-            if (ModContent.Find(ContentKind.Npc, npc.type) is not ModNpc modNpc || modNpc.BossBar is null) continue;
+            if (Get(npc) is null) continue;
 
             var dx = npc.Center.X - center.X;
             var dy = npc.Center.Y - center.Y;
@@ -211,35 +246,6 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         var gui = GUIInstance.Active is null ? null : GUIInstance.Active.GUIBossBar;
         if (gui is null) return;
 
-        var life = bar.Life;
-        var lifeMax = bar.LifeMax;
-        var shield = bar.Shield;
-        var shieldMax = bar.ShieldMax;
-
-        try
-        {
-            bar.Collected(npc.life, npc.lifeMax, shield, shieldMax);
-            life = bar.Life;
-            lifeMax = bar.LifeMax;
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report($"[bossbar] {bar.Name}.Collected 异常：{Safe.Describe(e)}");
-        }
-
-        var info = new BossBarInfo { npcIndexToAimAt = npc.whoAmI };
-        bool? verdict = null;
-        try
-        {
-            verdict = bar.ModifyInfo(info, ref life, ref lifeMax, ref shield, ref shieldMax);
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report($"[bossbar] {bar.Name}.ModifyInfo 异常：{Safe.Describe(e)}");
-        }
-
-        if (verdict == false) return;
-
         Rectangle? frame = null;
         Texture2D? icon = null;
         try
@@ -259,10 +265,10 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         {
             IconTexture = icon,
             IconFrame = frame ?? new Rectangle(0, 0, icon.Width, icon.Height),
-            Life = life,
-            LifeMax = lifeMax,
-            Shield = shield,
-            ShieldMax = shieldMax,
+            Life = bar.Life,
+            LifeMax = bar.LifeMax,
+            Shield = bar.Shield,
+            ShieldMax = bar.ShieldMax,
             BarTexture = null!,
             BarCenter = Center(),
             BarColor = Color.White,

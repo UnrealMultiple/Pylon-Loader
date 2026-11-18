@@ -42,7 +42,7 @@ internal static class TileTable
         {
             try
             {
-                while (data.Count < tileTotal) data.Add(TileObjectData.Style1x1);
+                while (data.Count < tileTotal) data.Add(null);
             }
             catch (Exception e)
             {
@@ -74,7 +74,6 @@ internal static class TileTable
             meta.Masks = HookScan.Of(tile.GetType(), typeof(ModTile));
             tile.Hooks = meta.Masks;
 
-            if (tile.ItemDrop > 0) meta.DropItem = tile.ItemDrop;
             meta.MinPick = tile.MinPick;
             meta.MineResist = tile.MineResist;
 

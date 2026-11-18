@@ -18,6 +18,10 @@ internal static class RecipeTests
     /// <summary>配方 2（条件 + 回调）：5 石头 → 5 测试物品；条件永远可翻转。</summary>
     public static ModRecipe Conditional;
 
+    public static ModRecipe ApiProbe = null!;
+    public static ModRecipe ApiCreated = null!;
+    public static RecipeGroup ApiGroup = null!;
+
     public static bool ConditionMet = true;
     public static int ConsumeCalls, CraftCalls;
     public static int DiscountTo = -1;
@@ -45,6 +49,14 @@ internal static class RecipeTests
         });
         Conditional.AddOnCraftCallback((recipe, item, consumed, destination) => CraftCalls++);
         Conditional.Register();
+
+        ApiCreated = ModRecipe.Create(testItem, 4);
+        ApiProbe = new ModRecipe().SetResult(testItem, 2);
+        ApiProbe.AddIngredient(ItemID.Wood, 3);
+        ApiProbe.AddTile(TileID.WorkBenches);
+        ApiProbe.AddCondition("Conditions.ApiProbe", () => true);
+        ApiGroup = RecipeGroup.Register("PipelineTest/ApiProbeGroup", "RecipeGroups.ApiProbe",
+            ItemID.Wood, ItemID.StoneBlock);
 
         PT.Info($"配方已注册：Basic=#{RecipeIndexOf(Basic)} Conditional=#{RecipeIndexOf(Conditional)}");
     }
@@ -108,6 +120,48 @@ internal static class RecipeTests
 
             // 材料被标记为制作材料。
             c.True(ItemID.Sets.IsAMaterial[ItemID.Wood], "木头标记为材料");
+        });
+
+        PT.Case("RECIPE-API-1", c =>
+        {
+            var probe = ApiProbe;
+            var result = ModContent.ItemType<Content.TestItem>();
+            c.NotNull(probe, "ApiProbe");
+            c.True(probe.HasResult(result), "HasResult");
+            c.True(probe.HasIngredient(ItemID.Wood), "HasIngredient");
+            c.True(probe.HasTile(TileID.WorkBenches), "HasTile");
+            c.True(probe.HasCondition(probe.Conditions[0]), "HasCondition");
+            c.True(probe.TryGetResult(result, out var got) && got.stack == 2, "TryGetResult");
+            c.True(probe.TryGetIngredient(ItemID.Wood, out var ingredient) && ingredient.stack == 3,
+                "TryGetIngredient");
+        });
+
+        PT.Case("RECIPE-API-2", c =>
+        {
+            var clone = ApiProbe.Clone();
+            c.True(clone.HasResult(ModContent.ItemType<Content.TestItem>()), "Clone 结果");
+            c.True(clone.HasIngredient(ItemID.Wood), "Clone 材料");
+            c.True(clone.HasTile(TileID.WorkBenches), "Clone 工作台");
+            c.Eq(clone.Conditions.Count, 1, "Clone 条件");
+            c.True(clone.RemoveIngredient(ItemID.Wood), "RemoveIngredient");
+            c.True(!clone.HasIngredient(ItemID.Wood), "RemoveIngredient 生效");
+            c.True(clone.RemoveTile(TileID.WorkBenches), "RemoveTile");
+            clone.ReplaceResult(ItemID.Gel, 6);
+            c.True(clone.HasResult(ItemID.Gel), "ReplaceResult");
+            c.Eq(clone.Recipe.createItem.stack, 6, "ReplaceResult stack");
+            clone.DisableRecipe();
+            c.True(clone.Disabled, "DisableRecipe");
+        });
+
+        PT.Case("RECIPE-API-3", c =>
+        {
+            c.NotNull(ApiCreated, "ModRecipe.Create");
+            c.True(ApiCreated.HasResult(ModContent.ItemType<Content.TestItem>()), "Create 结果");
+            c.NotNull(ApiGroup, "RecipeGroup.Register");
+            c.Eq(ApiGroup.Key, "PipelineTest/ApiProbeGroup", "RecipeGroup.Key");
+            c.True(ApiGroup.Contains(ItemID.Wood), "RecipeGroup 初始成员");
+            ApiGroup.Add(ItemID.Gel);
+            c.True(ApiGroup.Contains(ItemID.Gel), "RecipeGroup.Add");
         });
     }
 

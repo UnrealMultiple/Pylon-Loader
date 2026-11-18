@@ -78,6 +78,7 @@ internal static class BiomeTests
             c.True(TestBiome.Insides > 0, $"OnInBiome 调用={TestBiome.Insides}");
             c.True(one.IsActive(player), "扫描后 IsActive 为 true");
             c.True(one.IsSceneEffectActive(player), "场景效果问句同步为 true");
+            c.True(player.InModBiome(one) && player.InModBiome<TestBiome>(), "InModBiome 两个入口与 IsActive 同源");
 
             // 第二个群落没开：各算各的。
             c.Eq(TestBiomeOther.Enters, 0, "另一个群落的 OnEnter 次数");
@@ -90,6 +91,7 @@ internal static class BiomeTests
         {
             c.True(TestBiome.Leaves >= 1, $"IsBiomeActive 抛异常后补了 OnLeave（{TestBiome.Leaves}）");
             c.True(!one.IsActive(player), "抛异常后标记回 false，不会把玩家困在群落里");
+            c.True(!player.InModBiome(one) && !player.InModBiome<TestBiome>(), "离开后 InModBiome 也是 false");
             c.Eq(TestBiome.Enters, 1, "抛异常不会重复派 OnEnter");
 
             TestBiome.Throw = false;
@@ -115,7 +117,7 @@ internal static class BiomeTests
             TestBiome.Active = false;
         });
 
-        PT.Later("BIOME-W6", 68, c =>
+        PT.Later("BIOME-W6", 96, c =>
         {
             c.Eq(TestBiomeOther.Enters, 1, "另一个群落的 OnEnter 次数");
             c.True(!one.IsActive(player), "关掉的那个已经不在群落里");

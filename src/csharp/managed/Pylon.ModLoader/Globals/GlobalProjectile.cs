@@ -17,8 +17,15 @@ public abstract class GlobalProjectile : ModType
     /// <summary>复制这套钩子实例的字段；弹幕流程里由游戏克隆时调（管线接管）。</summary>
     public virtual GlobalProjectile Clone(Projectile from, Projectile to) => this;
 
-    /// <summary>新弹幕的副本；默认就是模板自己。</summary>
-    public virtual GlobalProjectile NewInstance(Projectile target) => this;
+    /// <summary>新弹幕的副本；InstancePerEntity 时新建一份实例（复制 Mod），否则就是模板自己。</summary>
+    public virtual GlobalProjectile NewInstance(Projectile target)
+    {
+        if (!InstancePerEntity) return this;
+
+        var instance = (GlobalProjectile)Activator.CreateInstance(GetType(), true)!;
+        instance.Mod = Mod;
+        return instance;
+    }
 
     /// <summary>弹幕生成时（网络的另一头也跑）。</summary>
     public virtual void SetDefaults(Projectile proj) { }
@@ -124,8 +131,8 @@ public abstract class GlobalProjectile : ModType
     public virtual bool ShouldUpdatePosition(Projectile proj) => true;
 
     /// <summary>原生弹幕同步包发出后，把全局附加数据写进去。</summary>
-    public virtual void NetSend(Projectile proj, NetWriter writer) { }
+    public virtual void SendExtraAI(Projectile proj, NetWriter writer) { }
 
     /// <summary>收到全局附加数据。</summary>
-    public virtual void NetReceive(Projectile proj, NetReader reader) { }
+    public virtual void ReceiveExtraAI(Projectile proj, NetReader reader) { }
 }

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Terraria;
 
 namespace Pylon.ModLoader;
@@ -434,7 +435,7 @@ internal sealed class ConfigPipeline : ILoaderModule
         }
     }
 
-    /// <summary>应用：待提交的值写回真值 → 只对变了的项发 OnChanged → OnApply → 落盘。</summary>
+    /// <summary>应用：待提交的值写回真值 → 有值变了才发 OnChanged → 落盘。</summary>
     internal void Apply()
     {
         for (var i = 0; i < _entries.Count; i++)
@@ -466,32 +467,23 @@ internal sealed class ConfigPipeline : ILoaderModule
 
             entry.Instance.__SetValueRaw(option.Key, value);
             changed = true;
-
-            try
-            {
-                entry.Instance.OnChanged(option.Key);
-            }
-            catch (Exception e)
-            {
-                Report($"{entry.Name}.OnChanged 出错：{Flatten(e)}");
-            }
         }
 
         if (!changed) return;
 
         try
         {
-            entry.Instance.OnApply();
+            entry.Instance.OnChanged();
         }
         catch (Exception e)
         {
-            Report($"{entry.Name}.OnApply 出错：{Flatten(e)}");
+            Report($"{entry.Name}.OnChanged 出错：{Flatten(e)}");
         }
 
         Save(entry);
 
         // 服务器说了算的那份：本地只是暂时值，得让服务器裁决并在别的端也生效。
-        if (entry.Instance.Scope == ConfigScope.ServerSide && Main.netMode == 1)
+        if (entry.Instance.Mode == ConfigScope.ServerSide && Main.netMode == 1)
             ConfigNetPipeline.Instance.Request(entry);
     }
 
@@ -532,19 +524,13 @@ internal sealed class ConfigPipeline : ILoaderModule
 
         ApplyDefaults(instance, entry.Options);
 
-        var options = entry.Options;
-        for (var i = 0; i < options.Count; i++)
+        try
         {
-            if (!HasValue(options[i])) continue;
-
-            try
-            {
-                instance.OnChanged(options[i].Key);
-            }
-            catch (Exception e)
-            {
-                Report($"{entry.Name}.OnChanged 出错：{Flatten(e)}");
-            }
+            instance.OnChanged();
+        }
+        catch (Exception e)
+        {
+            Report($"{entry.Name}.OnChanged 出错：{Flatten(e)}");
         }
 
         Save(entry);
@@ -563,11 +549,11 @@ internal sealed class ConfigPipeline : ILoaderModule
 
         try
         {
-            if (instance.NeedsReload(option.Key)) return; // 作者声明这个键要重启才能改：拒绝并保留旧值
+            if (instance.NeedsReloadKey(option.Key)) return;
         }
         catch (Exception e)
         {
-            Report($"{entry.Name}.NeedsReload 出错：{Flatten(e)}");
+            Report($"{entry.Name}.NeedsReloadKey 出错：{Flatten(e)}");
             return;
         }
 
@@ -576,11 +562,67 @@ internal sealed class ConfigPipeline : ILoaderModule
 
         try
         {
-            instance.OnChanged(option.Key);
+            instance.OnChanged();
         }
         catch (Exception e)
         {
             Report($"{entry.Name}.OnChanged 出错：{Flatten(e)}");
+        }
+    }
+
+    /// <summary>保存一次（SaveChanges 的实现）：菜单期落盘即可；世界里按归属走同步或重载判定。</summary>
+    internal ConfigSaveResult SaveChanges(ModConfig active, ModConfig pending, Action<string, Color>? status,
+                                         bool silent, bool broadcast)
+    {
+        var entry = EntryOf(active);
+        if (entry is null) return ConfigSaveResult.Success;
+
+        var pendingIsActive = ReferenceEquals(pending, active);
+
+        if (Main.gameMenu)
+        {
+            if (!pendingIsActive) CopyValues(pending, active);
+            Save(entry);
+            NotifyChanged(active);
+            status?.Invoke("配置已保存", new Color(0, 255, 0, 255));
+            return ConfigSaveResult.Success;
+        }
+
+        if (active.Mode == ConfigScope.ServerSide && Main.netMode == 1)
+        {
+            if (!pendingIsActive) CopyValues(pending, active);
+            ConfigNetPipeline.Instance.Request(entry);
+            status?.Invoke("正在让服务器接受改动", new Color(255, 255, 0, 255));
+            return ConfigSaveResult.RequestSentToServer;
+        }
+
+        if (active.NeedsReload(pending))
+        {
+            status?.Invoke("这些改动需要重载游戏才能生效", new Color(255, 0, 0, 255));
+            return ConfigSaveResult.NeedsReload;
+        }
+
+        if (!pendingIsActive) CopyValues(pending, active);
+        Save(entry);
+        NotifyChanged(active);
+        status?.Invoke("配置已保存", new Color(0, 255, 0, 255));
+        return ConfigSaveResult.Success;
+    }
+
+    private static void CopyValues(ModConfig from, ModConfig to)
+    {
+        foreach (var pair in from.__CopyValues()) to.__SetValueRaw(pair.Key, pair.Value);
+    }
+
+    private static void NotifyChanged(ModConfig config)
+    {
+        try
+        {
+            config.OnChanged();
+        }
+        catch (Exception e)
+        {
+            Report($"{config.Name}.OnChanged 出错：{Flatten(e)}");
         }
     }
 

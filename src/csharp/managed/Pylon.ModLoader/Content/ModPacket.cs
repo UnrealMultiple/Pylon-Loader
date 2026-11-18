@@ -1,17 +1,32 @@
+using System.IO;
+using Terraria;
+
 namespace Pylon.ModLoader;
 
-/// <summary>Mod 发的自定义网络包（Mod.GetPacket() 拿）；对端由同一个 mod 的 HandlePacket(reader, whoAmI) 接收。</summary>
-public class ModPacket : NetWriter
+/// <summary>Mod 发的自定义网络包（Mod.GetPacket() 拿，本身是 BinaryWriter）；对端由同一个 mod 的 HandlePacket 接收。</summary>
+public sealed class ModPacket : BinaryWriter
 {
-    public ModPacket(Mod mod)
+    public const int MaxLength = 65000;
+
+    private readonly Mod mod;
+
+    internal ModPacket(Mod mod, int capacity) : base(new MemoryStream(Math.Max(capacity, 16)))
     {
-        Mod = mod;
+        this.mod = mod;
+        Write(NetPipeline.KindPacket);
+        Write(mod.Name);
     }
 
-    /// <summary>发出这个包的 Mod（构造时记下）。</summary>
-    public Mod Mod { get; }
+    public void Send(int toClient = -1, int ignoreClient = -1)
+    {
+        if (Main.netMode == 0)
+            throw new InvalidOperationException($"{mod.Name}: 单人游戏不能发包");
 
-    /// <summary>发出去：客户端发给服务器；服务器发给 toClient（-1 = 广播给除 ignoreClient 外所有人）；单人游戏哪儿也不去。</summary>
-    public void Send(int toClient = -1, int ignoreClient = -1) =>
-        NetPipeline.Instance.SendPacket(this, toClient, ignoreClient);
+        Flush();
+        var stream = (MemoryStream)OutStream;
+        if (stream.Length > MaxLength)
+            throw new InvalidOperationException($"{mod.Name}: 包长 {stream.Length} 字节，上限 {MaxLength}");
+
+        NetPipeline.Instance.SendRawPacket(stream.GetBuffer(), (int)stream.Length, toClient, ignoreClient);
+    }
 }

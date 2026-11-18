@@ -4,7 +4,7 @@ using Terraria.GameContent.ItemDropRules;
 namespace Pylon.ModLoader;
 
 /// <summary>一个 NPC 类型的掉落表（ModifyNPCLoot 里发进来）；Add/Remove 直接改游戏 ItemDropsDB 里那个类型的表，规则照用游戏的 IItemDropRule。</summary>
-public class NPCLoot
+public class NPCLoot : ILoot
 {
     /// <summary>抓住这个 NPC 类型（netID）的掉落；changed 初始 false（见 Changed 的图鉴刷新判定）。</summary>
     public NPCLoot(int type)
@@ -39,25 +39,19 @@ public class NPCLoot
         return rule;
     }
 
-    /// <summary>这 NPC 的掉落规则快照（不算全局规则）；新 List 拷贝，外头改不影响游戏的表。</summary>
-    public List<IItemDropRule> Get()
+    public List<IItemDropRule> Get(bool includeGlobalDrops = true)
     {
         var result = new List<IItemDropRule>();
-        foreach (var rule in Main.ItemDropsDB.GetRulesForNPCID(Type, false)) result.Add(rule);
+        foreach (var rule in Main.ItemDropsDB.GetRulesForNPCID(Type, includeGlobalDrops)) result.Add(rule);
         return result;
     }
 
-    /// <summary>把满足 predicate 的规则全撤掉（对着 Get 的快照轮）；返回撤了几条。</summary>
-    public int RemoveWhere(Func<IItemDropRule, bool> predicate)
+    public void RemoveWhere(Func<IItemDropRule, bool> predicate, bool includeGlobalDrops = true)
     {
-        var removed = 0;
-        foreach (var rule in Get())
+        ArgumentNullException.ThrowIfNull(predicate);
+        foreach (var rule in Get(includeGlobalDrops))
         {
-            if (!predicate(rule)) continue;
-
-            Remove(rule);
-            removed++;
+            if (predicate(rule)) Remove(rule);
         }
-        return removed;
     }
 }

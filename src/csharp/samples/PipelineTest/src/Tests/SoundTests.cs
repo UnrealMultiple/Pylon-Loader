@@ -35,9 +35,9 @@ internal static class SoundTests
         PT.Case("SOUND-R1", c =>
         {
             var style1 = new SoundStyle("assets/sounds/test");
-            var style2 = new SoundStyle("assets/sounds/test", new SoundStyle.Options { Volume = 0.5f });
-            c.True(style1.Path == "assets/sounds/test", "Path 记录");
-            c.Eq(style2.Volume, 0.5f, "Options.Volume");
+            var style2 = new SoundStyle("assets/sounds/test") { Volume = 0.5f };
+            c.True(style1.SoundPath == "assets/sounds/test", "SoundPath 记录");
+            c.Eq(style2.Volume, 0.5f, "Volume 初始化");
             // Style 是 internal 下标——能构造就说明注册没抛
             c.True(true, $"style1/style2 构造成功（音效已登记进表）");
         });

@@ -273,7 +273,7 @@ namespace RegressionTest
                 WorldGen.PlaceTile(gx + 8, gy - 3, TileID.Torches, mute: true, forced: true);
 
                 // 商人（已有存活的就不再生成，避免每次进世界叠一只）
-                var type = ModContent.NpcType<Content.MerchantNpc>();
+                var type = ModContent.NPCType<Content.MerchantNpc>();
                 var existing = 0;
                 for (var i = 0; i < Main.npc.Length; i++)
                 {
@@ -306,7 +306,7 @@ namespace RegressionTest
             {
                 var p = Me;
                 if (p == null || !p.active) { Status("需要先进世界。"); return; }
-                var type = ModContent.NpcType<Content.DrainBossNpc>();
+                var type = ModContent.NPCType<Content.DrainBossNpc>();
                 var src = NPC.GetSpawnSourceForNaturalSpawn();
                 var idx = NPC.NewNPC(src, (int)p.position.X + 300, (int)p.position.Y - 200, type);
                 Status($"Boss 已生成 idx={idx}（开'Boss 掉血'开关观察当帧掉血）");
@@ -450,7 +450,7 @@ namespace RegressionTest
                 var t = Main.tile[dx0 + dx, dy0 + dy];
                 var type = t is { } tt && tt.active() ? (int)tt.type : 0;
                 sig = (sig ^ (ulong)type) * 1099511628211UL;
-                var isMod = type > 0 && ModContent.Find(ContentKind.Tile, type) is not null;
+                var isMod = type > 0 && ModContent.GetModTile(type) is not null;
                 if (isMod || (dx == 0 && dy >= -3))
                 {
                     var fx = t is { } tf ? tf.frameX : (short)0;
@@ -500,7 +500,7 @@ namespace RegressionTest
             try
             {
                 var type = ModContent.ItemType<Content.DataItem>();
-                var pfx = ModContent.PrefixType<Content.RegPrefix>();
+                var pfx = ModContent.GetInstance<Content.RegPrefix>()!.Type;
                 var item = Give(type, prefix: pfx);
                 Status($"mod 前缀物品已发：prefix={item.prefix}（期望 {pfx}）。");
             }

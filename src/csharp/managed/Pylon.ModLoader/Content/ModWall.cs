@@ -19,13 +19,12 @@ public abstract class ModWall : ModType
     /// <summary>挖这面墙时的尘土（-1 = 不出尘土）。</summary>
     public virtual int DustType => 0;
 
-    /// <summary>挖这面墙时的声音（-1 = 用游戏的）。</summary>
-    public virtual int HitSound => -1;
+    /// <summary>挖这面墙时的声音（< 0 = 静音；默认挖土声）。</summary>
+    public virtual int HitSound => Terraria.ID.SoundID.Dig;
 
-    /// <summary>挖掉时掉的物品 ID（0 = 用放置这面墙的 ModItem）。</summary>
-    public virtual int ItemDrop => 0;
+    public string LocalizationCategory => "Walls";
 
-    /// <summary>显式登记的掉落（优先于 <see cref="ItemDrop"/> 与放置物品反查）。</summary>
+    /// <summary>显式登记的掉落（优先于放置物品反查）。</summary>
     internal int RegisteredDrop { get; private set; }
 
     /// <summary>登记这面墙的掉落物品。</summary>
@@ -52,6 +51,11 @@ public abstract class ModWall : ModType
     public virtual void AddMapEntry(Color color, LocalizedText? name = null)
     {
         _mapEntries.Add(new MapEntry { Color = color, Name = name ?? CreateMapEntryName() });
+    }
+
+    public void AddMapEntry(Color color, LocalizedText name, Func<string, int, int, string> nameFunc)
+    {
+        throw new NotSupportedException("Coordinate-dependent map entry names are not supported by the mobile map legend");
     }
 
     /// <summary>地图上这面墙的名字（默认 MapObject.&lt;类名&gt; 的本地化键）。</summary>

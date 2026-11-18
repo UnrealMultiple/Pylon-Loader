@@ -6,9 +6,9 @@ namespace PipelineTest.Tests;
 
 /// <summary>
 /// 管线：Config / ConfigNet —— 真机验证（单机可验部分）。
-/// Ready：注册/声明校验/读盘/OnLoaded；类型转换与 Snap；ServerSide 的 Scope 与 AcceptClientChanges 默认。
-/// World：SetOption 直改（OnChanged→落盘→读回）、草稿 Begin/Set/Apply（OnChanged 只对变了的键、OnApply、落盘）、
-/// NeedsReload 拒改、ResetToDefaults。多人同步（Sync/Request）单机不可验，见 docs。
+/// Ready：注册/声明校验/读盘/OnLoaded；类型转换与 Snap；Mode 与 AcceptClientChanges 的裁决形状；Clone/NeedsReload。
+/// World：SetOption 直改（OnChanged→落盘→读回）、草稿 Begin/Set/Apply（有值变了发 OnChanged、落盘）、
+/// NeedsReloadKey 拒改、ResetToDefaults。多人同步（Sync/Request）单机不可验，见 docs。
 /// </summary>
 internal static class ConfigTests
 {
@@ -59,10 +59,29 @@ internal static class ConfigTests
 
         PT.Case("CFG-R4", c =>
         {
-            // ServerSide：Scope 值、AcceptClientChanges 默认（单机不真跑同步）。
+            // ServerSide：Mode 值、AcceptClientChanges 的基线签名（单机不真跑同步）。
             var server = EntryOf("TestServerConfig");
             c.NotNull(server, "服务器配置在列表里");
-            c.Eq(server!.Instance.Scope, ConfigScope.ServerSide, "Scope = ServerSide");
+            c.Eq(server!.Instance.Mode, ConfigScope.ServerSide, "Mode = ServerSide");
+            c.Eq(EntryOf("TestClientConfig")!.Instance.Mode, ConfigScope.ClientSide, "客户端配置 Mode = ClientSide");
+
+            var pending = server.Instance.Clone();
+            var message = Terraria.Localization.NetworkText.Empty;
+            TestServerConfig.AcceptResult = true;
+            c.True(server.Instance.AcceptClientChanges(pending, 0, ref message), "AcceptClientChanges 默认接受");
+            TestServerConfig.AcceptResult = false;
+            c.True(!server.Instance.AcceptClientChanges(pending, 0, ref message), "拒绝时返回 false；message 带原因");
+            TestServerConfig.AcceptResult = true;
+        });
+
+        PT.Case("CFG-R5", c =>
+        {
+            // 基线成员面：Clone 不共享值、NeedsReload 默认 false、SaveChanges 可用。
+            var entry = EntryOf("TestClientConfig")!;
+            var clone = entry.Instance.Clone();
+            clone.SetOption("Volume", 0.9);
+            c.True(System.Math.Abs(entry.Instance.GetNumber("Volume") - 0.9) > 1e-9, "Clone 的值不影响原件");
+            c.True(!entry.Instance.NeedsReload(clone), "NeedsReload 默认 false");
         });
     }
 
@@ -76,15 +95,13 @@ internal static class ConfigTests
         }
 
         TestClientConfig.ChangedCount = 0;
-        TestClientConfig.ApplyCount = 0;
 
-        // W1：SetOption 直改：校验 → 落盘 → OnChanged（键名记录）。
+        // W1：SetOption 直改：校验 → 落盘 → OnChanged。
         PT.Later("CFG-W1", 5, c =>
         {
             client!.Instance.SetOption("Mode", "hard");
             c.Eq(client.Instance.GetString("Mode"), "hard", "SetOption 写进真值");
             c.True(TestClientConfig.ChangedCount > 0, $"OnChanged 被调（{TestClientConfig.ChangedCount} 次）");
-            c.Eq(TestClientConfig.LastChangedKey, "Mode", "OnChanged 拿到键名");
         });
 
         // W2：非法值被 Coerce 拦下（Radio 里没有的选项不写、不触发 OnChanged）。
@@ -96,7 +113,7 @@ internal static class ConfigTests
             c.Eq(TestClientConfig.ChangedCount, before, "被拦的改动不发 OnChanged");
         });
 
-        // W3：草稿流：Begin → Set（改两个键）→ Apply → 只对变了的键发 OnChanged + OnApply + 落盘。
+        // W3：草稿流：Begin → Set → Apply → 有值变了发 OnChanged + 落盘。
         PT.Later("CFG-W3", 25, c =>
         {
             ModConfigLoader.Begin();
@@ -108,9 +125,10 @@ internal static class ConfigTests
             c.True(System.Math.Abs(client!.Instance.GetNumber("Volume") - 0.3) < 1e-9, "草稿值经 overlay 可见");
             c.True(ModConfigLoader.Pending(new[] { client! }), "Pending 判定改动存在");
 
+            var before = TestClientConfig.ChangedCount;
             ModConfigLoader.Apply();
             c.True(System.Math.Abs(client.Instance.GetNumber("Volume") - 0.3) < 1e-9, "Apply 写进真值");
-            c.True(TestClientConfig.ApplyCount > 0, $"OnApply 被调（{TestClientConfig.ApplyCount} 次）");
+            c.True(TestClientConfig.ChangedCount > before, $"Apply 后 OnChanged 被调（{before}→{TestClientConfig.ChangedCount}）");
             c.True(!ModConfigLoader.Pending(), "Apply 后草稿清空");
         });
 
@@ -133,8 +151,6 @@ internal static class ConfigTests
         PT.Later("CFG-W6", 55, c =>
         {
             TestClientConfig.ChangedCount = 0;
-            TestClientConfig.ApplyCount = 0;
-            TestClientConfig.LastChangedKey = "";
         });
     }
 

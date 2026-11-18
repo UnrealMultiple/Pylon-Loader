@@ -11,6 +11,12 @@ internal static class RegistrationPipeline
     public static List<ModType> Register(LoaderHost host, Mod mod)
     {
         var types = new List<ModType>();
+        if (!mod.ContentAutoloadingEnabled)
+        {
+            host.Content.Register(mod, types);
+            return types;
+        }
+
         foreach (var type in SortedTypes(mod.GetType().Assembly))
         {
             if (type is { IsClass: true, IsAbstract: false } && typeof(ModType).IsAssignableFrom(type))
@@ -66,7 +72,7 @@ internal static class RegistrationPipeline
         }
     }
 
-    private static void RegisterGlobal(ModType content)
+    internal static void RegisterGlobal(ModType content)
     {
         switch (content)
         {

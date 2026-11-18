@@ -15,7 +15,7 @@ namespace PipelineTest.Content;
 /// </summary>
 public sealed class TestWall : ModWall
 {
-    public static int Kills, Dusts, Sounds, Drops, Lights, Randoms, FrameCalls, LastDrop;
+    public static int Kills, Dusts, Sounds, Drops, Lights, Randoms, FrameCalls, LastDrop, Animates;
     public static bool LastFail;
 
     public override void SetStaticDefaults()
@@ -63,6 +63,7 @@ public sealed class TestWall : ModWall
 
     public override void AnimateWall(ref byte frame, ref byte frameCounter)
     {
+        Animates++;
         if (++frameCounter >= 5)
         {
             frameCounter = 0;
@@ -79,14 +80,12 @@ public sealed class TestWall : ModWall
     public override void RandomUpdate(int i, int j, bool underground) => Randoms++;
 }
 
-/// <summary>只挂掉落与地图项的对照墙（ItemDrop 属性决定掉什么）。</summary>
+/// <summary>只挂掉落与地图项的对照墙（RegisterItemDrop 决定掉什么）。</summary>
 public sealed class TestWallPlain : ModWall
 {
-    /// <summary>挖掉掉的物品：石头（放置物品优先级更高时用不到）。</summary>
-    public override int ItemDrop => ItemID.StoneBlock;
-
     public override void SetStaticDefaults()
     {
+        RegisterItemDrop(ItemID.StoneBlock);
         AddMapEntry(new Color(90, 90, 90));
     }
 }

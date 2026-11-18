@@ -1,5 +1,6 @@
 using Pylon.ModLoader.Textures;
 using Terraria;
+using Terraria.ID;
 
 namespace Pylon.ModLoader;
 
@@ -33,6 +34,12 @@ internal sealed class ProjectileDefaults(ProjectileBinding binding)
 
                 type.AutoStaticDefaults();
                 type.SetStaticDefaults();
+
+                var whip = ProjectileID.Sets.IsAWhip;
+                if (type.Plan.Has(HookId.Colliding) ||
+                    whip is not null && type.Type >= 0 && type.Type < whip.Length && whip[type.Type])
+                    ProjectileID.Sets.IsAComplexCollision[type.Type] = true;
+
                 count++;
             }
             catch (Exception e)

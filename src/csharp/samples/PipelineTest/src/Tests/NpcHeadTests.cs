@@ -16,7 +16,7 @@ internal static class NpcHeadTests
     {
         PT.Case("NPC-HEAD1", c =>
         {
-            var type = ModContent.NpcType<Content.TestTownNpc>();
+            var type = ModContent.NPCType<Content.TestTownNpc>();
             var slot = NPC.TypeToDefaultHeadIndex(type);
             c.True(slot >= 0 && slot < TextureAssets.NpcHead.Length, $"城镇头像槽={slot}");
             if (slot >= 0 && slot < TextureAssets.NpcHead.Length) c.NotNull(TextureAssets.NpcHead[slot], "城镇头像贴图");
@@ -44,7 +44,7 @@ internal static class NpcHeadTests
         PT.Case("NPC-HEAD2", c =>
         {
             var npc = new NPC();
-            npc.SetDefaults(ModContent.NpcType<Content.TestBossNpc>(), new NPCSpawnParams());
+            npc.SetDefaults(ModContent.NPCType<Content.TestBossNpc>(), new NPCSpawnParams());
             var slot = npc.GetBossHeadTextureIndex();
             c.True(slot >= 0 && slot < TextureAssets.NpcHeadBoss.Length, $"首领头像槽={slot}");
             if (slot >= 0 && slot < TextureAssets.NpcHeadBoss.Length) c.NotNull(TextureAssets.NpcHeadBoss[slot], "首领头像贴图");
@@ -53,7 +53,7 @@ internal static class NpcHeadTests
         PT.Case("NPC-HEAD3", c =>
         {
             c.True(NPC.TypeToDefaultHeadIndex(NPCID.Guide) >= 0, "原版向导头像直通");
-            c.Eq(NPC.TypeToDefaultHeadIndex(ModContent.NpcType<Content.TestNpc>()), -1, "无头像资源不冒用槽 0");
+            c.Eq(NPC.TypeToDefaultHeadIndex(ModContent.NPCType<Content.TestNpc>()), -1, "无头像资源不冒用槽 0");
         });
         PT.Info("NPC 头像查询验证不代替视觉验收：需在小地图、叠加地图、全屏地图分别检查测试商人与测试 Boss 图标。");
     }

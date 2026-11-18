@@ -90,5 +90,68 @@ internal static class ProjectileTests
             }
             c.Eq(Content.TestProjectile.OnSpawnCount - beforeSpawn, 5, "OnSpawn 次数");
         });
+
+        // W2：全局链 —— GlobalProjectile 的 OnSpawn/PreAI/AI/PostAI/绘制钩子都收到（差值断言，30 帧）
+        PT.Case("PROJ-W2", c =>
+        {
+            Content.TestProjectileGlobal.Reset();
+            var source = player.GetProjectileSource_Misc(0);
+            var spawn0 = Content.TestProjectileGlobal.OnSpawnCount;
+            var preAi0 = Content.TestProjectileGlobal.PreAiCount;
+            var ai0 = Content.TestProjectileGlobal.AiCount;
+            var postAi0 = Content.TestProjectileGlobal.PostAiCount;
+            var preDraw0 = Content.TestProjectileGlobal.PreDrawCount;
+            var postDraw0 = Content.TestProjectileGlobal.PostDrawCount;
+            var alpha0 = Content.TestProjectileGlobal.GetAlphaCount;
+            var anyPreDraw0 = Content.TestProjectileGlobal.AnyPreDrawCount;
+            var proj = Projectile.NewProjectileDirect(source,
+                player.Center + new Vector2(0f, -60f), new Vector2(0f, -4f), type, 50, 0f, player.whoAmI);
+            c.True(proj is { active: true }, "NewProjectile 生成");
+            PT.Later("PROJ-W2", 30, check =>
+            {
+                PT.Info($"[probe] AnyPreDraw={Content.TestProjectileGlobal.AnyPreDrawCount - anyPreDraw0}" +
+                        $" PreDraw={Content.TestProjectileGlobal.PreDrawCount - preDraw0}" +
+                        $" PostDraw={Content.TestProjectileGlobal.PostDrawCount - postDraw0}" +
+                        $" GetAlpha={Content.TestProjectileGlobal.GetAlphaCount - alpha0}");
+                check.True(Content.TestProjectileGlobal.OnSpawnCount - spawn0 > 0, "全局 OnSpawn");
+                check.True(Content.TestProjectileGlobal.PreAiCount - preAi0 > 0, "全局 PreAI");
+                check.True(Content.TestProjectileGlobal.AiCount - ai0 > 0, "全局 AI");
+                check.True(Content.TestProjectileGlobal.PostAiCount - postAi0 > 0, "全局 PostAI");
+                check.True(Content.TestProjectileGlobal.PreDrawCount - preDraw0 > 0, "全局 PreDraw");
+                check.True(Content.TestProjectileGlobal.PostDrawCount - postDraw0 > 0, "全局 PostDraw");
+                check.True(Content.TestProjectileGlobal.GetAlphaCount - alpha0 > 0, "全局 GetAlpha");
+            });
+        });
+
+        // W3：死亡链 —— Kill() 同步触发 PreKill/OnKill（差值断言，不受后续用例 Reset 影响）
+        PT.Case("PROJ-W3", c =>
+        {
+            var preKill0 = Content.TestProjectileGlobal.PreKillCount;
+            var onKill0 = Content.TestProjectileGlobal.OnKillCount;
+            var source = player.GetProjectileSource_Misc(0);
+            var proj = Projectile.NewProjectileDirect(source,
+                player.Center + new Vector2(0f, -60f), new Vector2(0f, -4f), type, 50, 0f, player.whoAmI);
+            c.True(proj is { active: true }, "NewProjectile 生成");
+            proj.Kill();
+            c.True(Content.TestProjectileGlobal.PreKillCount - preKill0 > 0, "全局 PreKill");
+            c.True(Content.TestProjectileGlobal.OnKillCount - onKill0 > 0, "全局 OnKill");
+        });
+
+        // W4：PreKill 否决 —— 同步断言：不跑 OnKill，弹幕立即静默熄灭
+        PT.Case("PROJ-W4", c =>
+        {
+            Content.TestProjectileGlobal.VetoKill = true;
+            var preKill0 = Content.TestProjectileGlobal.PreKillCount;
+            var onKill0 = Content.TestProjectileGlobal.OnKillCount;
+            var source = player.GetProjectileSource_Misc(0);
+            var proj = Projectile.NewProjectileDirect(source,
+                player.Center + new Vector2(0f, -60f), new Vector2(0f, -4f), type, 50, 0f, player.whoAmI);
+            c.True(proj is { active: true }, "NewProjectile 生成");
+            proj.Kill();
+            Content.TestProjectileGlobal.VetoKill = false;
+            c.True(Content.TestProjectileGlobal.PreKillCount - preKill0 > 0, "全局 PreKill 收到");
+            c.Eq(Content.TestProjectileGlobal.OnKillCount - onKill0, 0, "OnKill 不应触发");
+            c.True(proj is not { active: true }, "弹幕已熄灭");
+        });
     }
 }

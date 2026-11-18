@@ -22,7 +22,7 @@ internal static class ItemTests2
     private static void RunReady()
     {
         var item = new Item();
-        item.SetDefaults(ModContent.TypeOf<Content.TestItem>(), null);
+        item.SetDefaults(ModContent.ItemType<Content.TestItem>(), null);
         var player = new Player();
 
         // H7 功能：ModifyWeaponDamage/Crit/Knockback 修正出现现在 GetWeapon* 结果里
@@ -41,7 +41,7 @@ internal static class ItemTests2
         PT.Case("ITEM-E1", c =>
         {
             var probe = new Item();
-            probe.SetDefaults(ModContent.TypeOf<Content.TestItem>(), null);
+            probe.SetDefaults(ModContent.ItemType<Content.TestItem>(), null);
             probe.RebuildTooltip();
             // TestItem 声明 Tooltip="这是一行测试介绍" → 应正好 1 行
             var count = probe.ToolTip.Lines;

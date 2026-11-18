@@ -14,6 +14,7 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
     public static BuffPipeline Instance { get; } = new();
 
     private readonly HashSet<int> _reported = [];
+    private uint _limitsTotal;
 
     public string Name => "buff";
 
@@ -33,20 +34,32 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
 
         On.Terraria.Lang.GetBuffName += BuffName;
         On.Terraria.Main.GetBuffTooltip += BuffTooltip;
+        On.Terraria.Main.MouseText_DrawBuffTooltip += DrawBuffTooltip;
 
-        On.Terraria.Main.DrawBuffIcon += DrawIcon;
         On.GUIBuffs.ItemDraw += DrawGuiIcon;
         On.GUIBuffs.RemoveBuff_int += RemoveGuiBuff;
         BuffIconCapture.Install();
 
-        var count = Prime();
-        PatchCompiledLimits();
+        On.Terraria.IO.WorldFile.LoadWorld += WorldLoaded;
 
-        Log.Info($"[buff] 已挂（效果 / 续时 / 文字 / 图标 / 取消），模板 {count}");
+        var count = Prime();
+
+        Log.Info($"[buff] 已挂（效果 / 续时 / 文字 / 自定义说明 / 图标 / 取消），模板 {count}");
         return true;
     }
 
-    public void Refresh() => Prime();
+    public void Refresh()
+    {
+        Prime();
+        GrowImmuneArrays();
+        PatchCompiledLimits();
+    }
+
+    private void WorldLoaded(On.Terraria.IO.WorldFile.orig_LoadWorld orig, bool canCheckFileState)
+    {
+        orig(canCheckFileState);
+        GrowImmuneArrays();
+    }
 
     internal void GrowImmuneArrays()
     {
@@ -83,11 +96,35 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         var times = self.buffTime;
         if (types is null || times is null) return;
 
-        if (i < 0 || i >= types.Length || i >= times.Length) return;
-        if (times[i] <= 0 || types[i] <= 0) return;
+        try
+        {
+            for (var b = 0; b < types.Length; b++)
+            {
+                var type = types[b];
+                if (type <= 0 || times[b] <= 0) continue;
 
-        UpdateBuff(types, times, i, self, null);
-        UpdateGlobalBuff(types, times, i, self, null);
+                var index = b;
+                var mod = Of(type);
+                if (mod is not null && mod.HookEnabled(HookId.Update))
+                {
+                    try { mod.Update(self, ref index); }
+                    catch (Exception e) { Fail(mod.Name, HookId.Update, e); }
+                }
+
+                foreach (var global in GlobalBuffRegistry.For(HookId.Update))
+                {
+                    if (index != b) break;
+                    try { global.Update(type, self, ref index); }
+                    catch (Exception e) { Fail(global.Name, HookId.Update, e); }
+                }
+
+                b = index;
+            }
+        }
+        catch (Exception e)
+        {
+            Fail("buff", HookId.Update, e);
+        }
     }
 
     private void UpdateNpcBuffs(On.Terraria.NPC.orig_UpdateNPC_BuffSetFlags orig, NPC self, bool flag)
@@ -98,56 +135,34 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         var times = self.buffTime;
         if (types is null || times is null) return;
 
-        for (var i = 0; i < types.Length && i < times.Length; i++)
-        {
-            if (times[i] <= 0 || types[i] <= 0) continue;
-
-            UpdateBuff(types, times, i, null, self);
-            UpdateGlobalBuff(types, times, i, null, self);
-        }
-    }
-
-    private void UpdateBuff(Il2CppStructArray<int> types, Il2CppStructArray<int> times, int index,
-                            Player? player, NPC? npc)
-    {
-        var type = types[index];
-        if (type < VanillaCounts.Buff) return;
-
-        var mod = Of(type);
-        if (mod is null || !mod.HookEnabled(HookId.Update)) return;
-
         try
         {
-            var slot = index;
-            if (player is not null) mod.Update(player, ref slot);
-            else mod.Update(npc!, ref slot);
+            for (var b = 0; b < types.Length; b++)
+            {
+                var type = types[b];
+                if (type <= 0 || times[b] <= 0) continue;
+
+                var index = b;
+                var mod = Of(type);
+                if (mod is not null && mod.HookEnabled(HookId.Update))
+                {
+                    try { mod.Update(self, ref index); }
+                    catch (Exception e) { Fail(mod.Name, HookId.Update, e); }
+                }
+
+                foreach (var global in GlobalBuffRegistry.For(HookId.Update))
+                {
+                    if (index != b) break;
+                    try { global.Update(type, self, ref index); }
+                    catch (Exception e) { Fail(global.Name, HookId.Update, e); }
+                }
+
+                b = index;
+            }
         }
         catch (Exception e)
         {
-            Fail(mod.Name, HookId.Update, e);
-        }
-    }
-
-    private void UpdateGlobalBuff(Il2CppStructArray<int> types, Il2CppStructArray<int> times, int index,
-                                  Player? player, NPC? npc)
-    {
-        var globals = GlobalBuffRegistry.For(HookId.Update);
-        if (globals.Count == 0) return;
-
-        var type = types[index];
-        var slot = index;
-
-        foreach (var global in globals)
-        {
-            try
-            {
-                if (player is not null) global.Update(type, player, ref slot);
-                else global.Update(type, npc!, ref slot);
-            }
-            catch (Exception e)
-            {
-                Fail(global.Name, HookId.Update, e);
-            }
+            Fail("buff", HookId.Update, e);
         }
     }
 
@@ -161,15 +176,13 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         try
         {
             var index = self.FindBuffIndex(type);
-
             if (index >= 0)
             {
-                var stop = false;
                 foreach (var global in GlobalBuffRegistry.For(HookId.ReApply))
                 {
                     try
                     {
-                        if (global.ReApply(type, self, time, index)) stop = true;
+                        if (global.ReApply(type, self, time, index)) return true;
                     }
                     catch (Exception e)
                     {
@@ -177,59 +190,64 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
                     }
                 }
 
-                if (stop) return true;
+                var mod = Of(type);
+                if (mod is not null && mod.HookEnabled(HookId.ReApply))
+                {
+                    try
+                    {
+                        if (mod.ReApply(self, time, index)) return true;
+                    }
+                    catch (Exception e)
+                    {
+                        Fail(mod.Name, HookId.ReApply, e);
+                    }
+                }
             }
-
-            var mod = Of(type);
-            if (mod is null) return orig(self, type, time);
-
-            var renew = index < 0 || !mod.HookEnabled(HookId.ReApply) || !mod.ReApply(self, time, index);
-            return renew ? orig(self, type, time) : true;
         }
         catch (Exception e)
         {
             Fail("buff", HookId.ReApply, e);
-            return orig(self, type, time);
         }
+
+        return orig(self, type, time);
     }
 
     private void AppliedNpc(On.Terraria.NPC.orig_AddBuff orig, NPC self, int type, int time, bool quiet)
     {
-        var existed = self.FindBuffIndex(type) >= 0;
-
-        var mod = Of(type);
-        var globals = GlobalBuffRegistry.For(HookId.ReApply);
-
-        if (existed && (mod is not null && mod.HookEnabled(HookId.ReApply) || globals.Count > 0))
+        try
         {
             var index = self.FindBuffIndex(type);
-            var renew = true;
-
-            foreach (var global in globals)
+            if (index >= 0)
             {
-                try
+                foreach (var global in GlobalBuffRegistry.For(HookId.ReApply))
                 {
-                    if (global.ReApply(type, self, time, index)) renew = false;
+                    try
+                    {
+                        if (global.ReApply(type, self, time, index)) return;
+                    }
+                    catch (Exception e)
+                    {
+                        Fail(global.Name, HookId.ReApply, e);
+                    }
                 }
-                catch (Exception e)
+
+                var mod = Of(type);
+                if (mod is not null && mod.HookEnabled(HookId.ReApply))
                 {
-                    Fail(global.Name, HookId.ReApply, e);
+                    try
+                    {
+                        if (mod.ReApply(self, time, index)) return;
+                    }
+                    catch (Exception e)
+                    {
+                        Fail(mod.Name, HookId.ReApply, e);
+                    }
                 }
             }
-
-            if (mod is not null && mod.HookEnabled(HookId.ReApply))
-            {
-                try
-                {
-                    if (mod.ReApply(self, time, index)) renew = false;
-                }
-                catch (Exception e)
-                {
-                    Fail(mod.Name, HookId.ReApply, e);
-                }
-            }
-
-            if (!renew) return;
+        }
+        catch (Exception e)
+        {
+            Fail("buff", HookId.ReApply, e);
         }
 
         orig(self, type, time, quiet);
@@ -239,90 +257,119 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
 
     #region 文字
 
+    [ThreadStatic] private static bool _texting;
+
     private string BuffName(On.Terraria.Lang.orig_GetBuffName orig, int id)
     {
         var name = orig(id);
+        if (_texting || !WantsText(id)) return name;
 
-        var mod = Of(id);
-        var globals = GlobalBuffRegistry.For(HookId.ModifyBuffText);
-        if (mod is null && globals.Count == 0) return name;
+        var text = name ?? "";
+        string tip;
+        var outer = _texting;
+        _texting = true;
+        try { tip = Lang.GetBuffDescription(id) ?? ""; }
+        finally { _texting = outer; }
 
-        var tip = "";
-        var rare = 0;
-
-        if (mod is not null && mod.HookEnabled(HookId.ModifyBuffText))
-        {
-            try
-            {
-                mod.ModifyBuffText(ref name, ref tip, ref rare);
-            }
-            catch (Exception e)
-            {
-                Fail(mod.Name, HookId.ModifyBuffText, e);
-            }
-        }
-
-        foreach (var global in globals)
-        {
-            try
-            {
-                global.ModifyBuffText(id, ref name, ref tip, ref rare);
-            }
-            catch (Exception e)
-            {
-                Fail(global.Name, HookId.ModifyBuffText, e);
-            }
-        }
-
-        return name;
+        DispatchBuffText(id, ref text, ref tip);
+        return text;
     }
 
     private string BuffTooltip(On.Terraria.Main.orig_GetBuffTooltip orig, Player player, int buffType)
     {
         var tip = orig(player, buffType);
+        if (_texting || !WantsText(buffType)) return tip;
 
-        var mod = Of(buffType);
-        var globals = GlobalBuffRegistry.For(HookId.ModifyBuffText);
-        if (mod is null && globals.Count == 0) return tip;
+        var text = tip ?? "";
+        string name;
+        var outer = _texting;
+        _texting = true;
+        try { name = Lang.GetBuffName(buffType) ?? ""; }
+        finally { _texting = outer; }
 
-        var name = "";
+        DispatchBuffText(buffType, ref name, ref text);
+        return text;
+    }
+
+    private bool WantsText(int type)
+    {
+        if (Of(type) is { } mod && mod.HookEnabled(HookId.ModifyBuffText)) return true;
+        return GlobalBuffRegistry.For(HookId.ModifyBuffText).Count > 0;
+    }
+
+    private void DispatchBuffText(int type, ref string name, ref string tip)
+    {
         var rare = 0;
-
-        if (mod is not null && mod.HookEnabled(HookId.ModifyBuffText))
+        var outer = _texting;
+        _texting = true;
+        try
         {
-            try
+            if (Of(type) is { } mod && mod.HookEnabled(HookId.ModifyBuffText))
             {
-                mod.ModifyBuffText(ref name, ref tip, ref rare);
+                try { mod.ModifyBuffText(ref name, ref tip, ref rare); }
+                catch (Exception e) { Fail(mod.Name, HookId.ModifyBuffText, e); }
             }
-            catch (Exception e)
+
+            foreach (var global in GlobalBuffRegistry.For(HookId.ModifyBuffText))
             {
-                Fail(mod.Name, HookId.ModifyBuffText, e);
+                try { global.ModifyBuffText(type, ref name, ref tip, ref rare); }
+                catch (Exception e) { Fail(global.Name, HookId.ModifyBuffText, e); }
             }
         }
+        finally { _texting = outer; }
+    }
 
-        foreach (var global in globals)
+    private void DrawBuffTooltip(On.Terraria.Main.orig_MouseText_DrawBuffTooltip orig, Main self,
+                                 string cursorText, string buffString, ref int X, ref int Y)
+    {
+        var tip = buffString ?? "";
+        var font = Terraria.GameContent.FontAssets.MouseText.Value;
+        var sizes = new List<Il2CppMicrosoft.Xna.Framework.Vector2>
         {
-            try
-            {
-                global.ModifyBuffText(buffType, ref name, ref tip, ref rare);
-            }
-            catch (Exception e)
-            {
-                Fail(global.Name, HookId.ModifyBuffText, e);
-            }
+            font.MeasureString(tip),
+            font.MeasureString(cursorText ?? ""),
+        };
+        var fixedCount = sizes.Count;
+
+        foreach (var global in GlobalBuffRegistry.For(HookId.CustomBuffTipSize))
+        {
+            try { global.CustomBuffTipSize(tip, sizes); }
+            catch (Exception e) { Fail(global.Name, HookId.CustomBuffTipSize, e); }
         }
 
-        return tip;
+        if (sizes.Count > fixedCount)
+        {
+            var largest = Il2CppMicrosoft.Xna.Framework.Vector2.Zero;
+            foreach (var size in sizes)
+            {
+                largest.X = MathF.Max(largest.X, size.X);
+                largest.Y = MathF.Max(largest.Y, size.Y);
+            }
+
+            if (X + largest.X + 24f > Main.screenWidth) X = (int)(Main.screenWidth - largest.X - 24f);
+            if (Y + largest.Y + 4f > Main.screenHeight) Y = (int)(Main.screenHeight - largest.Y - 4f);
+        }
+
+        orig(self, cursorText, buffString, ref X, ref Y);
+
+        var originY = Y + (int)font.MeasureString(tip).Y;
+        foreach (var global in GlobalBuffRegistry.For(HookId.DrawCustomBuffTip))
+        {
+            try { global.DrawCustomBuffTip(tip, Main.spriteBatch, X, originY); }
+            catch (Exception e) { Fail(global.Name, HookId.DrawCustomBuffTip, e); }
+        }
     }
 
     #endregion
 
     #region 图标与取消
 
-
     private void PatchCompiledLimits()
     {
         var total = (uint)(VanillaCounts.Buff + ModContent.GetContent<ModBuff>().Count);
+        if (total == _limitsTotal) return;
+        _limitsTotal = total;
+
         var vanilla = (uint)VanillaCounts.Buff;
 
         var patches = new (System.Type Class, string Method, int Argc, uint Old, uint New, int Below)[]
@@ -356,72 +403,47 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         Log.Info($"[buff] 编译期上限补丁：{ok}/{patches.Length} 处（buff 总数 {total}）");
     }
 
-    private int DrawIcon(On.Terraria.Main.orig_DrawBuffIcon orig, int drawBuffText, int buffSlotOnPlayer, int x, int y)
-    {
-        var player = Main.player[Main.myPlayer];
-        var types = player?.buffType;
-        if (types is null || buffSlotOnPlayer < 0 || buffSlotOnPlayer >= types.Length)
-            return orig(drawBuffText, buffSlotOnPlayer, x, y);
-
-        var type = types[buffSlotOnPlayer];
-        if (type <= 0) return orig(drawBuffText, buffSlotOnPlayer, x, y);
-
-        return AroundIcon(type, buffSlotOnPlayer, new Vector2(x, y), false,
-                          () => orig(drawBuffText, buffSlotOnPlayer, x, y));
-    }
-
     private void DrawGuiIcon(On.GUIBuffs.orig_ItemDraw orig, GUIBuffs self, ItemGrid_Layout grid,
                              int index, Vector2 position, float scale)
     {
         var active = self.activeBuffs;
-        var types = Main.LocalPlayer?.buffType;
-        if (index < 0 || index >= self.numActiveBuffs || active is null || index >= active.Length || types is null)
+        if (index < 0 || index >= self.numActiveBuffs || active is null || index >= active.Length)
         {
             orig(self, grid, index, position, scale);
             return;
         }
-        var slot = active[index];
-        if ((uint)slot >= (uint)types.Length || types[slot] <= 0)
-        {
-            orig(self, grid, index, position, scale);
-            return;
-        }
-        AroundIcon(types[slot], slot, position, true, () =>
-        {
-            orig(self, grid, index, position, scale);
-            return 0;
-        });
-    }
 
-    private int AroundIcon(int type, int buffSlotOnPlayer, Vector2 position, bool gui, Func<int> original)
-    {
-        var mod = Of(type);
-        var modPre = mod is not null && mod.HookEnabled(HookId.PreDraw);
-        var modPost = mod is not null && mod.HookEnabled(HookId.PostDraw);
-        var pre = GlobalBuffRegistry.For(HookId.PreDraw);
-        var post = GlobalBuffRegistry.For(HookId.PostDraw);
-        if (!modPre && !modPost && pre.Count == 0 && post.Count == 0)
-            return original();
+        var slot = active[index];
+        var types = Main.LocalPlayer?.buffType;
+        if (types is null || (uint)slot >= (uint)types.Length || types[slot] <= 0)
+        {
+            orig(self, grid, index, position, scale);
+            return;
+        }
+
+        var type = types[slot];
+        if (!WantsDraw(type))
+        {
+            orig(self, grid, index, position, scale);
+            return;
+        }
 
         BuffDrawParams? parameters = null;
         try
         {
-            parameters = BuildDrawParams(type, buffSlotOnPlayer, (int)position.X, (int)position.Y);
-            if (parameters is not null && gui)
-            {
-                parameters.Position = position;
-                parameters.TextPosition = new Vector2(position.X, position.Y + parameters.Texture.Height);
-                var alphas = Main.buffAlpha;
-                var alpha = alphas is not null && (uint)buffSlotOnPlayer < (uint)alphas.Length ? alphas[buffSlotOnPlayer] : 1f;
-                parameters.DrawColor = new Color(alpha, alpha, alpha, alpha);
-            }
+            parameters = BuildDrawParams(type, slot, position);
         }
         catch (Exception e)
         {
             Fail("buff", HookId.PreDraw, e);
         }
 
-        if (parameters is null) return original();
+        if (parameters is null)
+        {
+            orig(self, grid, index, position, scale);
+            return;
+        }
+
         var before = new BuffDrawParams
         {
             Texture = parameters.Texture, Position = parameters.Position, TextPosition = parameters.TextPosition,
@@ -429,14 +451,17 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
             DrawColor = parameters.DrawColor
         };
 
+        var mod = Of(type);
+        var modPre = mod is not null && mod.HookEnabled(HookId.PreDraw);
+        var modPost = mod is not null && mod.HookEnabled(HookId.PostDraw);
         var spriteBatch = Main.spriteBatch;
         var draw = true;
 
-        foreach (var global in pre)
+        foreach (var global in GlobalBuffRegistry.For(HookId.PreDraw))
         {
             try
             {
-                if (!global.PreDraw(spriteBatch, type, buffSlotOnPlayer, ref parameters)) draw = false;
+                if (!global.PreDraw(spriteBatch, type, slot, ref parameters)) draw = false;
             }
             catch (Exception e)
             {
@@ -448,7 +473,7 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         {
             try
             {
-                draw = mod!.PreDraw(spriteBatch, buffSlotOnPlayer, ref parameters);
+                draw = mod!.PreDraw(spriteBatch, slot, ref parameters);
             }
             catch (Exception e)
             {
@@ -457,14 +482,13 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
             }
         }
 
-        int result;
-        using (new BuffIconCapture.Scope(before, parameters, draw)) result = original();
+        using (new BuffIconCapture.Scope(before, parameters, draw)) orig(self, grid, index, position, scale);
 
         if (modPost)
         {
             try
             {
-                mod!.PostDraw(spriteBatch, buffSlotOnPlayer, parameters);
+                mod!.PostDraw(spriteBatch, slot, parameters);
             }
             catch (Exception e)
             {
@@ -472,19 +496,23 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
             }
         }
 
-        foreach (var global in post)
+        foreach (var global in GlobalBuffRegistry.For(HookId.PostDraw))
         {
             try
             {
-                global.PostDraw(spriteBatch, type, buffSlotOnPlayer, parameters);
+                global.PostDraw(spriteBatch, type, slot, parameters);
             }
             catch (Exception e)
             {
                 Fail(global.Name, HookId.PostDraw, e);
             }
         }
+    }
 
-        return result;
+    private bool WantsDraw(int type)
+    {
+        if (Of(type) is { } mod && (mod.HookEnabled(HookId.PreDraw) || mod.HookEnabled(HookId.PostDraw))) return true;
+        return GlobalBuffRegistry.For(HookId.PreDraw).Count > 0 || GlobalBuffRegistry.For(HookId.PostDraw).Count > 0;
     }
 
     private void RemoveGuiBuff(On.GUIBuffs.orig_RemoveBuff_int orig, GUIBuffs self, int slot)
@@ -508,7 +536,7 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
         orig(self, slot);
     }
 
-    private static BuffDrawParams? BuildDrawParams(int type, int slot, int x, int y)
+    private static BuffDrawParams? BuildDrawParams(int type, int slot, Vector2 position)
     {
         var assets = TextureAssets.Buff;
         if (assets is null || type < 0 || type >= assets.Length) return null;
@@ -518,15 +546,17 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
 
         var width = texture.Width;
         var height = texture.Height;
+        var alphas = Main.buffAlpha;
+        var alpha = alphas is not null && (uint)slot < (uint)alphas.Length ? alphas[slot] : 1f;
 
         return new BuffDrawParams
         {
             Texture = texture,
-            Position = new Vector2(x, y),
-            TextPosition = new Vector2(x + width, y + height * 0.5f - 8f),
+            Position = position,
+            TextPosition = new Vector2(position.X, position.Y + height),
             SourceRectangle = new Rectangle(0, 0, width, height),
-            MouseRectangle = new Rectangle(x, y, width, height),
-            DrawColor = Color.White,
+            MouseRectangle = new Rectangle((int)position.X, (int)position.Y, width, height),
+            DrawColor = new Color(alpha, alpha, alpha, alpha),
         };
     }
 

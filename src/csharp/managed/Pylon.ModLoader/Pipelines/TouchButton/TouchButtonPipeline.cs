@@ -50,7 +50,7 @@ internal sealed class TouchButtonPipeline : ILoaderModule
 
     #region 注册与编号
 
-    internal ModTouchButton RegisterButton(Mod mod, string name, TouchButtonOptions? options)
+    internal ModTouchButton RegisterButton(Mod mod, string name)
     {
         ArgumentNullException.ThrowIfNull(mod);
         if (string.IsNullOrWhiteSpace(name)) throw new ArgumentException("按钮需要一个名字", nameof(name));
@@ -67,16 +67,7 @@ internal sealed class TouchButtonPipeline : ILoaderModule
             Texts = [$"Mods.{mod.Name}.TouchButtons.{name.Trim()}.DisplayName", $"Mods.{mod.Name}.Keybinds.{name.Trim()}.DisplayName"],
         };
 
-        if (options is not null)
-        {
-            entry.IconFunc = options.Icon;
-            entry.LabelFunc = options.Label;
-            entry.VisibleFunc = options.Visible;
-            entry.EnabledFunc = options.Enabled;
-            entry.OnPress = options.OnPress;
-        }
-
-        var button = new ModTouchButton(entry, entry.Name);
+        var button = new ModTouchButton(mod, entry.Name, "", entry) { Index = index };
         entry.Button = button;
         _table.Add(entry);
 
@@ -198,6 +189,18 @@ internal sealed class TouchButtonPipeline : ILoaderModule
 
     internal TouchButtonEntry[] All => _table.All;
 
+    internal IReadOnlyList<ModTouchButton> Buttons
+    {
+        get
+        {
+            var all = _table.All;
+            var list = new List<ModTouchButton>(_table.Count);
+            for (var i = 0; i < _table.Count; i++)
+                if (all[i].Button is { } button) list.Add(button);
+            return list;
+        }
+    }
+
     internal bool EnabledOf(TouchButtonEntry entry)
     {
         var func = entry.EnabledFunc;
@@ -305,20 +308,39 @@ internal sealed class TouchButtonPipeline : ILoaderModule
         if (entry.TextureResolved) return entry.TextureValue;
 
         entry.TextureResolved = true;
-
-        var func = entry.IconFunc;
-        if (func is null) return null;
-
-        try
-        {
-            entry.TextureValue = func();
-        }
-        catch (Exception e)
-        {
-            Safe.Report(entry.Key + ".Icon", e);
-        }
-
+        entry.TextureValue = ResolveIconPath(entry);
         return entry.TextureValue;
+    }
+
+    /// <summary>按作者给的图标路径取贴图；没给就用 Assets/TouchButtons/名字，再退到 icon_small / icon。</summary>
+    private static Texture2D? ResolveIconPath(TouchButtonEntry entry)
+    {
+        var mod = entry.Mod;
+        if (mod is null) return null;
+
+        string[] candidates = entry.IconPath is not null
+            ? [entry.IconPath]
+            : [$"Assets/TouchButtons/{entry.Name}", "icon_small", "icon"];
+
+        foreach (var path in candidates)
+        {
+            var name = path.StartsWith(mod.Name + "/", StringComparison.Ordinal) ? path : $"{mod.Name}/{path}";
+            try
+            {
+                if (ModContent.RequestIfExists(name, out ReLogic.Content.Asset<Texture2D> asset,
+                        ReLogic.Content.AssetRequestMode.ImmediateLoad))
+                {
+                    return asset.Value;
+                }
+            }
+            catch (Exception e)
+            {
+                Safe.Report(entry.Key + ".Icon", e);
+            }
+        }
+
+        if (entry.IconPath is not null) Safe.Warn($"{entry.Key}: 图标 {entry.IconPath} 不在 mod 里");
+        return null;
     }
 
     #endregion

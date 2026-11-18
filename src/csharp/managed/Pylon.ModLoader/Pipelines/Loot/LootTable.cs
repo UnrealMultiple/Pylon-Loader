@@ -36,7 +36,7 @@ internal static class LootTable
         _globals = 0;
         foreach (var global in ModContent.GetContent<GlobalNpc>())
         {
-            global.ModifyGlobalLoot(database);
+            global.ModifyGlobalLoot(new GlobalLoot());
             _globals++;
         }
     }
@@ -71,7 +71,6 @@ internal static class LootTable
         var samples = ContentSamples.NpcsByNetId;
         if (samples is null) return;
 
-        var database = Main.ItemDropsDB;
         _npcs = 0;
 
         foreach (var pair in samples)
@@ -86,7 +85,7 @@ internal static class LootTable
 
                 try
                 {
-                    global.ModifyNPCLoot(npc, database);
+                    global.ModifyNPCLoot(npc, new NPCLoot(npc.netID));
                 }
                 catch (Exception e)
                 {

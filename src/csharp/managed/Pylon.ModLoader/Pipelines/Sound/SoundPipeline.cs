@@ -37,14 +37,16 @@ internal sealed class SoundPipeline : ILoaderModule
         if (style is null) return 0;
 
         // position 只是接口占位：AndroidAudio 只暴露单音量，没有声像/距离入口（见文档 4.3）。
-        return Play(style.Style, 1f, 0f);
+        return Play(style.EnsureRegistered(), 1f, 0f);
     }
 
     internal int FindActive(SoundStyle? style)
     {
-        if (style is null || (uint)style.Style >= (uint)_table.Count) return 0;
-        Prune(style.Style);
-        ref var entry = ref _table.Entry(style.Style);
+        if (style is null) return 0;
+        var index = style.EnsureRegistered();
+        if ((uint)index >= (uint)_table.Count) return 0;
+        Prune(index);
+        ref var entry = ref _table.Entry(index);
         return entry.Active;
     }
 

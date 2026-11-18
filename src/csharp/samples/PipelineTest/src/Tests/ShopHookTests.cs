@@ -41,7 +41,7 @@ internal static class ShopHookTests
             {
                 _npc = NPC.NewNPC(player.GetProjectileSource_Misc(0),
                     (int)player.Center.X + 40, (int)player.Center.Y - 20,
-                    ModContent.NpcType<Content.TestTownNpc>(), 0, 0f, 0f, 0f, 0f, 0);
+                    ModContent.NPCType<Content.TestTownNpc>(), 0, 0f, 0f, 0f, 0f, 0);
             }
 
             c.True(_npc >= 0 && Main.npc[_npc].active, $"测试商人 index={_npc}");

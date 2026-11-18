@@ -13,10 +13,10 @@ public enum EquipType
     Legs = 2,
 
     /// <summary>手部（画在前面）。</summary>
-    HandOn = 3,
+    HandsOn = 3,
 
     /// <summary>手部（画在后面）。</summary>
-    HandOff = 4,
+    HandsOff = 4,
 
     /// <summary>背部。</summary>
     Back = 5,
@@ -31,7 +31,7 @@ public enum EquipType
     Waist = 8,
 
     /// <summary>翅膀。</summary>
-    Wing = 9,
+    Wings = 9,
 
     /// <summary>盾。</summary>
     Shield = 10,

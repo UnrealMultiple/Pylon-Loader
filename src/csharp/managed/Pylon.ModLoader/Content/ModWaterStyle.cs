@@ -7,6 +7,9 @@ namespace Pylon.ModLoader;
 /// <summary>自定义水样式：抢到玩家场景时出现；占游戏 15 个之后的一号。贴图：类同名 PNG（水面）、X_Block（方块）、X_Slope（斜坡，缺则用方块）。</summary>
 public abstract class ModWaterStyle : ModType
 {
+    /// <summary>占用的水样式号（管线发号：游戏 15 个之后）。</summary>
+    public int Slot => Type;
+
     /// <summary>水面主贴图旁边的方块水贴图：<c>X_Block.png</c>，缺了就用主贴图。</summary>
     public virtual string BlockTexture =>
         System.IO.Path.ChangeExtension(TexturePath ?? "", null) + "_Block.png";

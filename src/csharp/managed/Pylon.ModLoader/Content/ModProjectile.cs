@@ -1,6 +1,5 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
-using Pylon.ModLoader.Textures;
 using Terraria;
 using Terraria.DataStructures;
 
@@ -15,11 +14,20 @@ public abstract class ModProjectile : ModType
     /// <summary>显示名（本地化接入后由 `Lang` 钩子接管；这里给默认值）。</summary>
     public virtual string DisplayName => "";
 
+    /// <summary>本地化键的分类段（Mods.&lt;Mod&gt;.&lt;分类&gt;.&lt;Name&gt;.*）。</summary>
+    public virtual string LocalizationCategory => "Projectiles";
+
+    /// <summary>弹幕命中的免疫冷却槽（-1 = 不指定）；本构建没有消费点，仅保留声明。</summary>
+    public int CooldownSlot { get; set; } = -1;
+
+    /// <summary>发光贴图路径约定（&lt;贴图&gt;_Glow）；本构建没有消费点，仅保留声明。</summary>
+    public virtual string GlowTexture => TextureSibling("_Glow");
+
     /// <summary>用这个原版弹幕的 AI（只在 AI 期间换类型）；0 = 关。</summary>
     public int AIType;
 
     /// <summary>钩子的 AI 风格（本版没有 ProjAIStyleID.Hook 常量，取它的值 7）。</summary>
-    public const int HookAIStyle = 7;
+    internal const int HookAIStyle = 7;
 
     public Projectile Template { get; internal set; } = null!;
 
@@ -32,9 +40,12 @@ public abstract class ModProjectile : ModType
     /// <summary>OnSpawn 是否已经跑过（每发弹幕一次；框架维护）。</summary>
     internal bool Spawned { get; set; }
 
-    /// <summary>基类先填 `Main.projHostile`/`Main.projHook`；覆写时要自己填。</summary>
+    /// <summary>基类先填 `Main.projFrames`/`Main.projHostile`/`Main.projHook`；覆写时要自己填。</summary>
     public virtual void AutoStaticDefaults()
     {
+        var frames = Main.projFrames;
+        if (frames is not null && Type >= 0 && Type < frames.Length) frames[Type] = 1;
+
         var template = Template;
         if (template == null) return;
 
@@ -164,47 +175,4 @@ public abstract class ModProjectile : ModType
     public int DrawOriginOffsetY { get; set; }
 
     public float DrawOriginOffsetX { get; set; }
-
-    public DrawData? GetDefaultDrawData(Projectile proj, Player player, Color lightColor)
-    {
-        var texture = OwnTexture(proj);
-        if (texture is null) return null;
-
-        PylonTexture.Size(texture, out var textureWidth, out var textureHeight);
-
-        var originX = (textureWidth - proj.width) * 0.5f + proj.width * 0.5f + DrawOriginOffsetX;
-        var originOffsetY = -DrawOriginOffsetY;
-
-        var effects = proj.spriteDirection == -1 ? SpriteEffects.FlipHorizontally : SpriteEffects.None;
-        Rectangle sourceRectangle;
-        var frameTable = Main.projFrames;
-        var frames = frameTable is not null && proj.type >= 0 && proj.type < frameTable.Length ? frameTable[proj.type] : 1;
-        if (frames > 1)
-        {
-            var frameHeight = textureHeight / frames;
-            sourceRectangle = new Rectangle(0, frameHeight * proj.frame, textureWidth, frameHeight - 1);
-        }
-        else
-        {
-            sourceRectangle = new Rectangle(0, 0, textureWidth, textureHeight);
-            if (proj.ownerHitCheck && player.gravDir == -1f)
-            {
-                if (player.direction == 1) effects = SpriteEffects.FlipHorizontally;
-                else if (player.direction == -1) effects = SpriteEffects.None;
-            }
-        }
-
-        return new DrawData(texture,
-            new Vector2(proj.position.X - Main.screenPosition.X + originX + DrawOffsetX,
-                        proj.position.Y - Main.screenPosition.Y + proj.height / 2f + proj.gfxOffY),
-            sourceRectangle, proj.GetAlpha(lightColor), proj.rotation,
-            new Vector2(originX, proj.height / 2f + originOffsetY), proj.scale, effects, 0);
-    }
-
-    private static Texture2D? OwnTexture(Projectile proj)
-    {
-        var table = Terraria.GameContent.TextureAssets.Projectile;
-        if (proj.type < 0 || proj.type >= table.Length) return null;
-        return table[proj.type]?.Value;
-    }
 }

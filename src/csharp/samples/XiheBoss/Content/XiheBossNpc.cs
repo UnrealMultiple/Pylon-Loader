@@ -69,7 +69,6 @@ namespace XiheBoss
         public override string DisplayName => "羲和";
         public override int Music => _musicSlot;
         public override int SceneEffectPriority => 6;
-        public override ModBossBar BossBar => ModContent.GetInstance<XiheBossBar>();
         public override bool HideFromBestiary => true;
 
         // Reuse Terraria's original Empress of Light boss head entry for both
@@ -121,6 +120,7 @@ namespace XiheBoss
             npc.boss = true;
             npc.Opacity = 1f;
             npc.dontTakeDamage = true;
+            npc.BossBar = ModContent.GetInstance<XiheBossBar>();
         }
 
         public override void PostSetupContent()

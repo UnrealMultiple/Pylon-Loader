@@ -247,47 +247,47 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
     {
         orig(self, i);
 
-        var mods = _binding.Active(HookId.UpdateEquips) || _binding.Active(HookId.PostUpdateEquips)
-            ? _binding.Of(self)
-            : null;
-
-        if (mods is not null)
-        {
-            foreach (var mod in mods)
-            {
-                if (!mod.HookEnabled(HookId.UpdateEquips)) continue;
-
-                try
-                {
-                    mod.UpdateEquips();
-                }
-                catch (Exception e)
-                {
-                    Fail(mod, HookId.UpdateEquips, e);
-                }
-            }
-        }
-
-        if (_binding.Active(HookId.FrameEffects))
-        {
-            foreach (var mod in _binding.Of(self))
-            {
-                if (!mod.HookEnabled(HookId.FrameEffects)) continue;
-
-                try
-                {
-                    mod.FrameEffects();
-                }
-                catch (Exception e)
-                {
-                    Fail(mod, HookId.FrameEffects, e);
-                }
-            }
-        }
-
-        if (!_binding.Active(HookId.PostUpdateEquips)) return;
+        if (!_binding.Active(HookId.UpdateEquips)) return;
 
         foreach (var mod in _binding.Of(self))
+        {
+            if (!mod.HookEnabled(HookId.UpdateEquips)) continue;
+
+            try
+            {
+                mod.UpdateEquips();
+            }
+            catch (Exception e)
+            {
+                Fail(mod, HookId.UpdateEquips, e);
+            }
+        }
+    }
+
+    internal void RunFrameEffects(Player player)
+    {
+        if (!_binding.Active(HookId.FrameEffects)) return;
+
+        foreach (var mod in _binding.Of(player))
+        {
+            if (!mod.HookEnabled(HookId.FrameEffects)) continue;
+
+            try
+            {
+                mod.FrameEffects();
+            }
+            catch (Exception e)
+            {
+                Fail(mod, HookId.FrameEffects, e);
+            }
+        }
+    }
+
+    internal void RunPostUpdateEquips(Player player)
+    {
+        if (!_binding.Active(HookId.PostUpdateEquips)) return;
+
+        foreach (var mod in _binding.Of(player))
         {
             if (!mod.HookEnabled(HookId.PostUpdateEquips)) continue;
 

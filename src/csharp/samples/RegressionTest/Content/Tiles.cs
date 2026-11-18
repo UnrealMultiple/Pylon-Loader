@@ -43,7 +43,7 @@ namespace RegressionTest.Content
         public override int GetMapOption(int i, int j) => (i / 3) % 2;
 
         /// <summary>P1-7：家具本体也挂随机更新（计数用，生长主体在 CropTile）。</summary>
-        public override void RandomUpdate(int i, int j) => RandomCalls++;
+        public override void RandomUpdate(int i, int j, bool underground) => RandomCalls++;
 
         /// <summary>P1-6c：作者帧偏移（相邻家具错开 18px 看镜像/偏移）。</summary>
         public override void AnimateIndividualTile(int type, int i, int j, ref int frameXOffset, ref int frameYOffset)
@@ -108,7 +108,7 @@ namespace RegressionTest.Content
         public override int DustType => DustID.Grass;
 
         /// <summary>随机更新推进一步：frameY 0→20→40（贴图 20×60 三段）。</summary>
-        public override void RandomUpdate(int i, int j)
+        public override void RandomUpdate(int i, int j, bool underground)
         {
             var tile = Main.tile[i, j];
             if (tile == null || !tile.active() || tile.type != Type) return;

@@ -7,6 +7,10 @@ internal static class TileEffectsHooks
 {
     private static bool _installed;
 
+    private static SceneMetrics? _scanning;
+
+    internal static SceneMetrics ScanningMetrics => _scanning ?? Main.PlayerSceneMetrics;
+
     internal static void Install()
     {
         if (_installed) return;
@@ -20,18 +24,27 @@ internal static class TileEffectsHooks
     {
         orig(self, settings);
 
-        var center = settings.BiomeScanCenterPositionInWorld;
-        var x = (int)(center.X / 16f);
-        var y = (int)(center.Y / 16f);
-        var width = Main.buffScanAreaWidth;
-        var height = Main.buffScanAreaHeight;
-        NearArea(x - width / 2, y - height / 2, width, height, false);
-
-        var visual = settings.VisualScanArea;
-        if (visual is not null && visual.hasValue)
+        var previous = _scanning;
+        _scanning = self;
+        try
         {
-            var area = visual.value;
-            NearArea(area.X, area.Y, area.Width, area.Height, true);
+            var center = settings.BiomeScanCenterPositionInWorld;
+            var x = (int)(center.X / 16f);
+            var y = (int)(center.Y / 16f);
+            var width = Main.buffScanAreaWidth;
+            var height = Main.buffScanAreaHeight;
+            NearArea(x - width / 2, y - height / 2, width, height, false);
+
+            var visual = settings.VisualScanArea;
+            if (visual is not null && visual.hasValue)
+            {
+                var area = visual.value;
+                NearArea(area.X, area.Y, area.Width, area.Height, true);
+            }
+        }
+        finally
+        {
+            _scanning = previous;
         }
     }
 

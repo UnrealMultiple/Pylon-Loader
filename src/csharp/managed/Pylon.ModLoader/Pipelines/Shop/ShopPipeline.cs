@@ -3,7 +3,7 @@ using Terraria.ID;
 
 namespace Pylon.ModLoader;
 
-/// <summary>商店管线：只接管 mod 槽号的装货（InventoryStorage.SetupShop），原版普通商店交给游戏，旅行商店在原版装货之后分派全局模板。</summary>
+/// <summary>商店管线：货架装货（InventoryStorage.SetupShop）——原版店首开时收编条目并跑 ModifyShop/晶塔注入，mod 店按条目装；旅行商店在原版装货之后分派全局模板。</summary>
 internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
 {
     public static ShopPipeline Instance { get; } = new();
@@ -19,17 +19,16 @@ internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.InventoryStorage.SetupShop += SetupShop;
         On.Terraria.InventoryStorage.SetupTravelShop += SetupTravelShop;
 
-        Log.Info("[shop] 已挂（mod 槽号装货 / 原版商店改写 / 旅行商店）");
+        Log.Info("[shop] 已挂（货架装货 / 原版商店收编 / 旅行商店）");
         return true;
     }
 
-    public void Refresh() => ShopTable.Rebuild();
+    public void Refresh()
+    {
+    }
 
     internal void Build()
     {
-        ShopTable.Rebuild();
-
-        if (ShopTable.Count > 0) Log.Info($"[shop] 安装：{ShopTable.Count} 家店");
     }
 
     private static void SetupTravelShop(On.Terraria.InventoryStorage.orig_SetupTravelShop orig)
@@ -60,21 +59,113 @@ internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static void SetupShop(On.Terraria.InventoryStorage.orig_SetupShop orig, InventoryStorage self, int type)
     {
-        if (ShopTable.Of(type) is not { } shop)
+        orig(self, type);
+        NpcShopDatabase.Initialize();
+
+        if (!NpcShopDatabase.ByIndex.TryGetValue(type, out var shop))
         {
-            orig(self, type);
-            ActiveShop(self, NpcOf(type), "Shop");
+            MarkShopItems(self, NpcOf(type), "Shop");
             return;
         }
 
-        ModifyShop(shop);
-        Fill(self, shop);
-        ActiveShop(self, NpcOf(shop.NpcType), shop.Name);
+        try
+        {
+            Fill(self, shop);
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report($"[shop] NPC shop {shop.FullName}：{Safe.Describe(e)}");
+        }
     }
 
-    private static void ModifyShop(NpcShop shop)
+    private static void Fill(InventoryStorage storage, NpcShop shop)
     {
-        if (!Modified.Add(shop) || !GlobalNpcRegistry.AnyWith(HookId.ModifyShop)) return;
+        var native = storage.item;
+        if (native is null) return;
+
+        var npc = TalkingTo();
+        if (npc is null || npc.type != shop.NpcType) npc = null;
+
+        if (shop.Vanilla && !shop.Modified && LoaderHost.Current.Phase == LoaderPhase.Ready)
+        {
+            shop.Modified = true;
+            for (var i = 0; i < native.Length; i++)
+            {
+                var item = native[i];
+                if (item is not null && item.type > 0) shop.Add(new NpcShop.Entry(item.Clone()) { Native = true });
+            }
+            ModifyShop(shop);
+            AddShopEntries(shop);
+            shop.FinishSetup();
+        }
+
+        var items = new Item[native.Length];
+        var slot = 0;
+        var limit = Math.Max(0, items.Length - (shop.FillLastSlot ? 0 : 1));
+
+        if (shop.Vanilla)
+        {
+            for (var i = 0; i < native.Length && slot < limit; i++)
+            {
+                var item = native[i];
+                if (item is null || item.type <= 0) continue;
+
+                NpcShop.Entry? entry = null;
+                foreach (var candidate in shop.Entries)
+                {
+                    if (candidate.Native && candidate.Item.type == item.type)
+                    {
+                        entry = candidate;
+                        break;
+                    }
+                }
+
+                if (entry is not null)
+                {
+                    if (entry.Disabled || !entry.ConditionsMet()) continue;
+                    item = entry.Item.Clone();
+                    native[slot] = item;
+                    if (npc is not null) entry.OnShopOpen(item, npc);
+                }
+
+                native[slot] = item;
+                items[slot++] = item;
+            }
+        }
+
+        foreach (var entry in shop.Entries)
+        {
+            if (entry.Native || entry.Disabled) continue;
+
+            var available = entry.ConditionsMet();
+            if (!available && !entry.SlotReserved) continue;
+            if (slot >= limit)
+            {
+                Log.Warn($"[shop] NPC shop {shop.FullName}: item {entry.Item.type} exceeds the mobile inventory capacity");
+                break;
+            }
+
+            var item = available ? entry.Item.Clone() : NpcShop.Entry.Create(0);
+            native[slot] = item;
+            if (available && npc is not null) entry.OnShopOpen(item, npc);
+            items[slot++] = item;
+        }
+
+        if (npc is not null) ModifyActiveShop(npc, shop.FullName, items);
+
+        for (var i = 0; i < items.Length; i++)
+        {
+            var item = items[i] ?? NpcShop.Entry.Create(0);
+            item.isAShopItem = true;
+            native[i] = item;
+        }
+    }
+
+    internal static void ModifyShop(NpcShop shop)
+    {
+        if (!Modified.Add(shop)) return;
+
+        if (!GlobalNpcRegistry.AnyWith(HookId.ModifyShop)) return;
 
         NPC? sample = null;
         if (ContentSamples.NpcsByNetId is { } samples && samples.TryGetValue(shop.NpcType, out var found)) sample = found;
@@ -84,12 +175,64 @@ internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
             if (!global.Plan.Has(HookId.ModifyShop)) continue;
             if (sample is not null && !global.AppliesToEntity(sample, false)) continue;
 
-            try { global.ModifyShop(shop); }
-            catch (Exception e) { ContentErrors.Report($"[shop] {global.Name}.ModifyShop 异常：{Safe.Describe(e)}"); }
+            try
+            {
+                global.ModifyShop(shop);
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[shop] {global.Name}.ModifyShop 异常：{Safe.Describe(e)}");
+            }
         }
     }
 
-    private static void ActiveShop(InventoryStorage storage, NPC? npc, string shopName)
+    internal static void AddShopEntries(NpcShop shop)
+    {
+        if (NpcShopDatabase.NoPylons.Contains(shop.FullName)) return;
+
+        foreach (var pylon in ModContent.GetContent<ModPylon>())
+        {
+            if (pylon.PylonType < 0) continue;
+
+            try
+            {
+                if (pylon.GetNPCShopEntry() is { } entry) shop.Add(entry);
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[pylon] {pylon.Name}.GetNPCShopEntry 异常：{Safe.Describe(e)}");
+            }
+        }
+    }
+
+    private static void ModifyActiveShop(NPC npc, string shopName, Item[] items)
+    {
+        if (NpcPipeline.Instance.InstanceOf(npc) is { } mod && mod.HookEnabled(HookId.ModifyActiveShop))
+        {
+            try
+            {
+                mod.ModifyActiveShop(shopName, items);
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[shop] {mod.FullKey}.ModifyActiveShop 异常：{Safe.Describe(e)}");
+            }
+        }
+
+        foreach (var global in GlobalNpcRegistry.For(npc, HookId.ModifyActiveShop))
+        {
+            try
+            {
+                global.ModifyActiveShop(npc, shopName, items);
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[shop] {global.FullKey}.ModifyActiveShop 异常：{Safe.Describe(e)}");
+            }
+        }
+    }
+
+    private static void MarkShopItems(InventoryStorage storage, NPC? npc, string shopName)
     {
         var slots = storage.item;
         if (slots is null) return;
@@ -97,20 +240,7 @@ internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
         var items = new Item[slots.Length];
         for (var i = 0; i < items.Length; i++) items[i] = slots[i];
 
-        if (npc is not null)
-        {
-            if (NpcPipeline.Instance.InstanceOf(npc) is { } mod && mod.HookEnabled(HookId.ModifyActiveShop))
-            {
-                try { mod.ModifyActiveShop(shopName, items); }
-                catch (Exception e) { ContentErrors.Report($"[shop] {mod.FullKey}.ModifyActiveShop 异常：{Safe.Describe(e)}"); }
-            }
-
-            foreach (var global in GlobalNpcRegistry.For(npc, HookId.ModifyActiveShop))
-            {
-                try { global.ModifyActiveShop(npc, shopName, items); }
-                catch (Exception e) { ContentErrors.Report($"[shop] {global.FullKey}.ModifyActiveShop 异常：{Safe.Describe(e)}"); }
-            }
-        }
+        if (npc is not null) ModifyActiveShop(npc, shopName, items);
 
         for (var i = 0; i < items.Length; i++)
         {
@@ -120,61 +250,12 @@ internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    private static void Fill(InventoryStorage storage, NpcShop shop)
+    private static NPC? TalkingTo()
     {
-        var entries = shop.Entries;
-
-        storage.Resize(Math.Max(1, entries.Count));
-        storage.FillWithEmptyInstances();
-
-        var slots = storage.item;
-        var slot = 0;
-
-        for (var index = 0; index < entries.Count; index++)
-        {
-            var entry = entries[index];
-
-            if (entry.Condition is not null && !Allow(entry.Condition, shop)) continue;
-
-            var item = new Item();
-            item.SetDefaults(entry.Type, null);
-
-            if (entry.Price.HasValue)
-            {
-                var price = entry.Price.Value;
-                if (entry.HappinessPrice) price = WithHappiness(price, shop.NpcType);
-                item.shopCustomPrice = new Il2CppSystem.Nullable<int>(price);
-            }
-            if (entry.Currency.HasValue) item.shopSpecialCurrency = entry.Currency.Value;
-
-            item.isAShopItem = true;
-
-            if (slots is not null && slot < slots.Length) slots[slot++] = item;
-            else storage.AddItemToShop(item);
-        }
-
-        if (slots is not null && slot > 0) storage.maxItems = Math.Max(storage.maxItems, slot);
-    }
-
-    private static int WithHappiness(int price, int npcType)
-    {
-        try
-        {
-            var helper = Main.ShopHelper;
-            var npc = NpcOf(npcType);
-            if (helper is null || npc is null) return price;
-
-            var multiplier = helper.GetShoppingSettings(Main.LocalPlayer, npc).PriceAdjustment;
-            if (multiplier <= 0f) return price;
-
-            var adjusted = (int)Math.Round(price * multiplier);
-            return adjusted < 1 ? 1 : adjusted;
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report("[shop] 好感度价格计算异常：" + Safe.Describe(e));
-            return price;
-        }
+        var talk = Main.player[Main.myPlayer].talkNPC;
+        var npcs = Main.npc;
+        if (talk < 0 || npcs is null || talk >= npcs.Length) return null;
+        return npcs[talk];
     }
 
     private static NPC? NpcOf(int npcType)
@@ -189,18 +270,5 @@ internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
         }
 
         return null;
-    }
-
-    private static bool Allow(Func<bool> condition, NpcShop shop)
-    {
-        try
-        {
-            return condition();
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report($"[shop] {shop.Name} 的商品条件异常：{Safe.Describe(e)}");
-            return false;
-        }
     }
 }

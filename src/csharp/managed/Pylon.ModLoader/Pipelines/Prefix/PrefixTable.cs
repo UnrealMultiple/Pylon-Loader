@@ -10,8 +10,8 @@ namespace Pylon.ModLoader;
 internal static class PrefixTable
 {
     private static readonly List<ModPrefix> ByType = [];
-    private static readonly Dictionary<int, List<ModPrefix>> ByCategory = [];
-    private static readonly Dictionary<int, int[]> CategoriesByType = [];
+    private static readonly Dictionary<PrefixCategory, List<ModPrefix>> ByCategory = [];
+    private static readonly Dictionary<int, PrefixCategory[]> CategoriesByType = [];
     private static readonly Dictionary<int, Name> Names = [];
     private static readonly HashSet<int> Reported = [];
     private static int _vanilla = -1;
@@ -29,7 +29,7 @@ internal static class PrefixTable
         return ByType[index];
     }
 
-    internal static List<ModPrefix> InCategory(int category) =>
+    internal static List<ModPrefix> InCategory(PrefixCategory category) =>
         ByCategory.TryGetValue(category, out var list) ? list : [];
 
     internal static void Register(ModPrefix prefix)
@@ -37,10 +37,10 @@ internal static class PrefixTable
         if (prefix is null) return;
 
         var category = prefix.Category;
-        if (category < ModPrefix.CategoryMelee || category > ModPrefix.CategoryCustom)
+        if (category is < PrefixCategory.AnyWeapon or > PrefixCategory.Custom)
         {
-            Report(prefix, $"Category 要用 0..6，收到 {category}；按 Custom 处理");
-            category = ModPrefix.CategoryCustom;
+            Report(prefix, $"Category 超出枚举范围（收到 {category}）；按 Custom 处理");
+            category = PrefixCategory.Custom;
         }
 
         if (!ByCategory.TryGetValue(category, out var list)) ByCategory[category] = list = [];
@@ -75,8 +75,6 @@ internal static class PrefixTable
 
         foreach (var prefix in all)
         {
-            prefix.Hooks = HookScan.Of(prefix.GetType(), typeof(ModPrefix));
-
             try
             {
                 prefix.SetStaticDefaults();
@@ -171,36 +169,50 @@ internal static class PrefixTable
         return mask.Has(hook);
     }
 
-    internal static int[] CategoriesOf(Item item)
+    private static readonly Dictionary<Type, HookMask> PrefixMasks = [];
+
+    internal static bool HasHook(ModPrefix prefix, HookId hook)
+    {
+        var type = prefix.GetType();
+        if (!PrefixMasks.TryGetValue(type, out var mask))
+        {
+            mask = HookScan.Of(type, typeof(ModPrefix));
+            PrefixMasks[type] = mask;
+        }
+
+        return mask.Has(hook);
+    }
+
+    internal static PrefixCategory[] CategoriesOf(Item item)
     {
         var type = item.type;
         if (type > 0 && CategoriesByType.TryGetValue(type, out var cached)) return cached;
 
-        var list = new List<int>(3);
+        var list = new List<PrefixCategory>(3);
         var modItem = ItemPipeline.Instance.InstanceOf(item);
         var weapon = modItem is not null && item.damage > 0 && item.ammo == 0 && !item.consumable;
 
-        void Take(int category, bool legacy, Func<bool> ask)
+        void Take(PrefixCategory category, bool legacy, Func<bool> ask)
         {
             if (legacy) list.Add(category);
             else if (weapon && Ask(modItem!, ask)) list.Add(category);
         }
 
-        Take(ModPrefix.CategoryMelee, LegacySet("SwordsHammersAxesPicks", type), () => modItem!.MeleePrefix());
-        Take(ModPrefix.CategoryRanged, LegacySet("GunsBows", type), () => modItem!.RangedPrefix());
-        Take(ModPrefix.CategoryMagic, LegacySet("Magic", type), () => modItem!.MagicPrefix());
-        Take(ModPrefix.CategorySummon, LegacySet("Summon", type), () => modItem!.SummonPrefix());
+        Take(PrefixCategory.Melee, LegacySet("SwordsHammersAxesPicks", type), () => modItem!.MeleePrefix());
+        Take(PrefixCategory.Ranged, LegacySet("GunsBows", type), () => modItem!.RangedPrefix());
+        Take(PrefixCategory.Magic, LegacySet("Magic", type), () => modItem!.MagicPrefix());
+        Take(PrefixCategory.Summon, LegacySet("Summon", type), () => modItem!.SummonPrefix());
 
         var anyWeapon = LegacySet("SpearsMacesChainsawsDrillsPunchCannon", type) ||
                         LegacySet("BoomerangsChakrams", type) ||
                         LegacySet("ItemsThatCanHaveLegendary2", type) ||
                         (weapon && Ask(modItem!, () => modItem!.WeaponPrefix())) ||
                         list.Count > 0;
-        if (anyWeapon) list.Add(ModPrefix.CategoryAnyWeapon);
+        if (anyWeapon) list.Add(PrefixCategory.AnyWeapon);
 
         try
         {
-            if (item.IsAPrefixableAccessory()) list.Add(ModPrefix.CategoryAccessory);
+            if (item.IsAPrefixableAccessory()) list.Add(PrefixCategory.Accessory);
         }
         catch (Exception e)
         {
@@ -225,14 +237,14 @@ internal static class PrefixTable
         }
     }
 
-    internal static int[] VanillaPrefixes(int category) => category switch
+    internal static int[] VanillaPrefixes(PrefixCategory category) => category switch
     {
-        ModPrefix.CategoryMelee => Legacy("Prefixes", "PrefixesForSwords") as int[] ?? [],
-        ModPrefix.CategoryRanged => Legacy("Prefixes", "PrefixesForGunsBows") as int[] ?? [],
-        ModPrefix.CategoryMagic => Legacy("Prefixes", "PrefixesForMagic") as int[] ?? [],
-        ModPrefix.CategorySummon => Legacy("Prefixes", "PrefixesForSummons") as int[] ?? [],
-        ModPrefix.CategoryAnyWeapon => Legacy("Prefixes", "PrefixesForSpears") as int[] ?? [],
-        ModPrefix.CategoryAccessory => Legacy("Prefixes", "PrefixesForAccessories") as int[] ?? [],
+        PrefixCategory.Melee => Legacy("Prefixes", "PrefixesForSwords") as int[] ?? [],
+        PrefixCategory.Ranged => Legacy("Prefixes", "PrefixesForGunsBows") as int[] ?? [],
+        PrefixCategory.Magic => Legacy("Prefixes", "PrefixesForMagic") as int[] ?? [],
+        PrefixCategory.Summon => Legacy("Prefixes", "PrefixesForSummons") as int[] ?? [],
+        PrefixCategory.AnyWeapon => Legacy("Prefixes", "PrefixesForSpears") as int[] ?? [],
+        PrefixCategory.Accessory => Legacy("Prefixes", "PrefixesForAccessories") as int[] ?? [],
         _ => [],
     };
 

@@ -1,3 +1,4 @@
+using System.Linq;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader;
 using PipelineTest.Content;
@@ -25,7 +26,7 @@ internal static class SceneEffectTests
     {
         PT.Case("SCENE-R1", c =>
         {
-            var all = ModContent.GetContent<ModSceneEffect>();
+            var all = PipelineTestMod.Instance.GetContent<ModSceneEffect>();
             c.NotNull(all, "场景效果内容表");
 
             var a = ModContent.GetInstance<TestSceneEffectA>();
@@ -33,7 +34,7 @@ internal static class SceneEffectTests
             var plain = ModContent.GetInstance<TestSceneEffectPlain>();
 
             c.True(all.Contains(a) && all.Contains(b) && all.Contains(plain),
-                $"两个探针 + 空白效果都在表里（表长 {all.Count}）");
+                $"两个探针 + 空白效果都在表里（表长 {all.Count()}）");
         });
 
         PT.Case("SCENE-R2", c =>
@@ -72,7 +73,7 @@ internal static class SceneEffectTests
         PT.Case("SCENE-R4", c =>
         {
             // 群落也是场景效果，进同一张表；它的优先级/静音有自己的默认值（由 biome 组细验）。
-            var all = ModContent.GetContent<ModSceneEffect>();
+            var all = PipelineTestMod.Instance.GetContent<ModSceneEffect>();
             var biome = ModContent.GetInstance<TestBiome>();
             c.True(biome is not null && all.Contains(biome), "群落与普通场景效果同表");
         });
@@ -97,8 +98,10 @@ internal static class SceneEffectTests
         PT.Later("SCENE-W1", 160, c =>
         {
             c.Eq(Main.newMusic, MusicID.OverworldDay, "赢家的 Music 写进了 Main.newMusic");
+            var scene = player.CurrentSceneEffect;
+            c.True(scene.AnyActive && scene.Music.Value == MusicID.OverworldDay, "CurrentSceneEffect 快照与 newMusic 同源");
             TestSceneEffectProbe.BActive = true;
-            TestSceneEffectProbe.BPriority = TestSceneEffectProbe.APriority + 1;
+            TestSceneEffectProbe.BPriority = TestSceneEffectProbe.APriority + 2;
             TestSceneEffectProbe.BWeight = 0f;
         });
 

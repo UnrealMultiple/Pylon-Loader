@@ -2,128 +2,194 @@ using Terraria;
 
 namespace Pylon.ModLoader;
 
-/// <summary>城镇 NPC 的商店：每店占一个 Main.shop 的空位（从 99 往下发）；Add 填商品、Register 占号，摆进游戏由商店管线做。</summary>
-public class NpcShop
+/// <summary>城镇 NPC 的普通商店：Add 填商品、Register 占号（从 99 往下发）；手机端货架由商店管线在 SetupShop 时装，FinishSetup 后条目按排序落位。</summary>
+public class NpcShop : AbstractNpcShop
 {
-    /// <summary>一条商品（Add 造出来的）；condition 返回 false 就不摆。</summary>
-    public sealed class ShopEntry
-    {
-        /// <summary>物品 ID。</summary>
-        public int Type;
+    private readonly List<Entry> _entries = [];
 
-        /// <summary>显示条件（false = 不摆）；null = 没有。</summary>
-        public Func<bool> Condition = null!;
-
-        /// <summary>价格；null = 用游戏的。</summary>
-        public int? Price;
-
-        /// <summary>自定义货币 ID；null = 用金币。</summary>
-        public int? Currency;
-
-        /// <summary>
-        /// true：<see cref="Price"/> 随这个 NPC 的好感度浮动（乘 <c>Main.ShopHelper</c> 算出的 <c>PriceAdjustment</c>）。
-        /// 默认 false —— 原版对自定义价格是否已经乘过折扣，从方法体看不出来，所以让作者显式要。
-        /// </summary>
-        public bool HappinessPrice;
-    }
-
-    // #nextIndex 与 byKey 查重：Register 发号与重名抛错需要；完整注册表与 hook 安装归商店管线。
-    private static int _nextIndex = 99;
-    private static readonly HashSet<string> Keys = new();
-    private static readonly Dictionary<string, NpcShop> ByKey = new();
-    private static readonly Dictionary<int, bool> Built = new();
-
-    /// <summary>新店：npcType 是开店的 NPC 类型，name 默认 'Shop'（聊天按钮返回它来开这家店）。</summary>
     public NpcShop(int npcType, string name = "Shop")
+        : base(npcType, name)
     {
-        NpcType = npcType;
-        Name = name;
-        Entries = [];
         Index = -1;
     }
 
-    /// <summary>开这家店的 NPC 类型。</summary>
-    public int NpcType { get; }
+    public IReadOnlyList<Entry> Entries => _entries;
 
-    /// <summary>店名（OnChatButtonClicked 返回它来开这家店）。</summary>
-    public string Name { get; }
+    protected override IEnumerable<AbstractNpcShop.Entry> AllEntries => _entries;
 
-    /// <summary>商品表（Add 填；管线按顺序摆进 Main.shop 的槽）。</summary>
-    public List<ShopEntry> Entries { get; }
+    public bool FillLastSlot { get; private set; }
 
-    /// <summary>Main.shop 的槽号；Register 从 99 往下发，没注册是 -1。</summary>
-    public int Index { get; set; }
+    internal int Index;
 
-    /// <summary>true：游戏自己的店（管线预置的）；mod 的店是 false。</summary>
-    public bool Vanilla { get; set; }
+    internal bool Vanilla, Modified;
 
-    /// <summary>
-    /// 加一条商品；condition 返回 false 就不摆，price/currency 覆盖价格与货币，
-    /// happinessPrice = 价格随好感度浮动（见 <see cref="ShopEntry.HappinessPrice"/>）。
-    /// </summary>
-    public NpcShop Add(int type, Func<bool>? condition = null, int? price = null, int? currency = null,
-                        bool happinessPrice = false)
+    public Entry GetEntry(int item) => _entries.First(e => e.Item.type == item);
+
+    public bool TryGetEntry(int item, out Entry entry)
     {
-        Entries.Add(new ShopEntry
-        {
-            Type = type, Condition = condition!, Price = price, Currency = currency, HappinessPrice = happinessPrice,
-        });
+        entry = _entries.FirstOrDefault(e => e.Item.type == item)!;
+        return entry is not null;
+    }
+
+    public NpcShop AllowFillingLastSlot()
+    {
+        FillLastSlot = true;
         return this;
     }
 
-    /// <summary>占号（从 99 往下）并查重：同一 NPC+店名重复注册会抛；返回 this。</summary>
-    public NpcShop Register()
+    public NpcShop Add(params Entry[] added)
     {
-        var key = NpcType + "/" + Name;
-        if (!Keys.Add(key)) throw new InvalidOperationException("NPCShop: " + key + " 已经注册过");
-
-        Index = _nextIndex--;
-        ByKey[key] = this;
+        _entries.AddRange(added);
         return this;
     }
 
-    /// <summary>直接打开这家店（等价于聊天里点了商店按钮）。</summary>
-    public void Open()
+    public NpcShop Add(Item item, params Condition[] conditions) => Add(new Entry(item, conditions));
+
+    public NpcShop Add(int item, params Condition[] conditions) => Add(new Entry(item, conditions));
+
+    public NpcShop Add<T>(params Condition[] conditions) where T : ModItem => Add(ModContent.ItemType<T>(), conditions);
+
+    public NpcShop InsertBefore(int target, int item, params Condition[] conditions) =>
+        InsertBefore(GetEntry(target), Entry.Create(item), conditions);
+
+    public NpcShop InsertAfter(int target, int item, params Condition[] conditions) =>
+        InsertAfter(GetEntry(target), Entry.Create(item), conditions);
+
+    public NpcShop InsertBefore(int target, Item item, params Condition[] conditions) =>
+        InsertBefore(GetEntry(target), item, conditions);
+
+    public NpcShop InsertAfter(int target, Item item, params Condition[] conditions) =>
+        InsertAfter(GetEntry(target), item, conditions);
+
+    public NpcShop InsertBefore(Entry target, Item item, params Condition[] conditions) =>
+        Add(new Entry(item, conditions).SortBefore(target));
+
+    public NpcShop InsertAfter(Entry target, Item item, params Condition[] conditions) =>
+        Add(new Entry(item, conditions).SortAfter(target));
+
+    public override void FinishSetup()
     {
-        Build();
-        Main.instance.OpenShop(Index);
-        GUIInstance.Active.GUIPageIcons.OpenUI(GUIPageIcons.Category.Inventory, GUIPageIcons.Category.Shop);
-    }
+        var ordered = new List<Entry>();
+        var visiting = new HashSet<Entry>();
 
-    /// <summary>已注册的店（商店管线收表用）。</summary>
-    internal static IEnumerable<NpcShop> All => ByKey.Values;
-
-    /// <summary>按 NPC 类型 + 店名找已注册的店；没有返回 null。</summary>
-    internal static NpcShop Find(int npcType, string name) =>
-        name != null && ByKey.TryGetValue(npcType + "/" + name, out var shop) ? shop : null!;
-
-    /// <summary>把商品表装进 Main.shop 的槽（第一次 Open 时做）。</summary>
-    private void Build()
-    {
-        if (Index < 0 || Built.ContainsKey(Index)) return;
-        var storage = new InventoryStorage();
-        storage.Resize(Math.Max(1, Entries.Count));
-        storage.FillWithEmptyInstances();
-
-        var slots = storage.item;
-        var slot = 0;
-        foreach (var entry in Entries)
+        void Visit(Entry entry)
         {
-            if (entry.Condition != null && !entry.Condition()) continue;
-            var item = new Item();
-            item.SetDefaults(entry.Type, null);
-            if (entry.Price.HasValue) item.shopCustomPrice = new Il2CppSystem.Nullable<int>(entry.Price.Value);
-            if (entry.Currency.HasValue) item.shopSpecialCurrency = entry.Currency.Value;
-            item.isAShopItem = true;   // 手机端货架只认这个标志，不设就是空店
-            if (slots is not null && slot < slots.Length) slots[slot++] = item;
-            else storage.AddItemToShop(item);
+            if (ordered.Contains(entry)) return;
+            if (!visiting.Add(entry)) throw new InvalidOperationException($"{FullName}: shop entry ordering loop");
+            foreach (var before in _entries.Where(e => e.Target == entry && !e.After)) Visit(before);
+            ordered.Add(entry);
+            foreach (var after in _entries.Where(e => e.Target == entry && e.After)) Visit(after);
+            visiting.Remove(entry);
         }
 
-        if (slots is not null && slot > 0) storage.maxItems = Math.Max(storage.maxItems, slot);
-        Main.instance.shop[Index] = storage;
-        Built[Index] = true;
+        foreach (var entry in _entries.Where(e => e.Target is null && !e.OrdersLast)) Visit(entry);
+        foreach (var entry in _entries.Where(e => e.Target is null && e.OrdersLast)) Visit(entry);
+
+        if (ordered.Count != _entries.Count) throw new InvalidOperationException($"{FullName}: shop ordering target is not registered in this shop");
+
+        _entries.Clear();
+        _entries.AddRange(ordered);
+    }
+
+    public override void FillShop(ICollection<Item> items, NPC npc)
+    {
+        foreach (var entry in _entries)
+        {
+            if (entry.Disabled) continue;
+
+            var available = entry.ConditionsMet();
+            if (!available && !entry.SlotReserved) continue;
+
+            var item = available ? entry.Item.Clone() : Entry.Create(0);
+            item.isAShopItem = true;
+            if (available) entry.OnShopOpen(item, npc);
+            items.Add(item);
+        }
+    }
+
+    public override void FillShop(Item[] items, NPC npc, out bool overflow)
+    {
+        Array.Clear(items);
+        var filled = new List<Item>();
+        FillShop(filled, npc);
+
+        var limit = Math.Max(0, items.Length - (FillLastSlot ? 0 : 1));
+        var count = Math.Min(limit, filled.Count);
+        for (var i = 0; i < count; i++) items[i] = filled[i];
+        overflow = filled.Count > limit;
+    }
+
+    public void Open() => NpcShopDatabase.OpenShop(FullName);
+
+    public new class Entry : AbstractNpcShop.Entry
+    {
+        internal Entry? Target;
+
+        internal bool After, Native;
+
+        private Action<Item, NPC>? _opened;
+
+        public bool OrdersLast { get; private set; }
+
+        public bool SlotReserved { get; private set; }
+
+        public Entry(int item, params Condition[] conditions)
+            : this(Create(item), conditions)
+        {
+        }
+
+        public Entry(Item item, params Condition[] conditions)
+            : base(item, conditions)
+        {
+        }
+
+        internal static Item Create(int type)
+        {
+            var item = new Item();
+            item.SetDefaults(type, null);
+            return item;
+        }
+
+        private Entry Ordering(Entry target, bool after)
+        {
+            ArgumentNullException.ThrowIfNull(target);
+            for (Entry? e = target; e is not null; e = e.Target)
+            {
+                if (e == this) throw new InvalidOperationException("Shop entry ordering loop");
+            }
+            Target = target;
+            After = after;
+            return this;
+        }
+
+        public Entry SortBefore(Entry target) => Ordering(target, false);
+
+        public Entry SortAfter(Entry target) => Ordering(target, true);
+
+        public new Entry AddCondition(Condition condition)
+        {
+            base.AddCondition(condition);
+            return this;
+        }
+
+        public Entry OrderLast()
+        {
+            OrdersLast = true;
+            return this;
+        }
+
+        public Entry ReserveSlot()
+        {
+            SlotReserved = true;
+            return this;
+        }
+
+        public Entry AddShopOpenedCallback(Action<Item, NPC> callback)
+        {
+            _opened += callback;
+            return this;
+        }
+
+        public void OnShopOpen(Item item, NPC npc) => _opened?.Invoke(item, npc);
     }
 }
-
-// 未移植 get()/All 反查、Install()/InstallTravel() 装 hook、原版商店预置与 hook 分发、
-// 注册表（#byKey/#byIndex/#modified）都归商店管线（同 ModType 的 getTypeByName）。

@@ -23,10 +23,10 @@ public sealed class TestLifeOverlay : ModResourceOverlay
 
     public override void SetStaticDefaults()
     {
-        _classic = PipelineTestMod.Instance.LoadAsset("assets/items/ClassicLifeOverlay.png");
-        _fancyPanel = PipelineTestMod.Instance.LoadAsset("assets/items/FancyLifeOverlay_Panel.png");
-        _barsFill = PipelineTestMod.Instance.LoadAsset("assets/items/BarsLifeOverlay_Fill.png");
-        _barsPanel = PipelineTestMod.Instance.LoadAsset("assets/items/BarsLifeOverlay_Panel.png");
+        _classic = PipelineTestMod.Instance.Assets.Request<Texture2D>("assets/items/ClassicLifeOverlay.png");
+        _fancyPanel = PipelineTestMod.Instance.Assets.Request<Texture2D>("assets/items/FancyLifeOverlay_Panel.png");
+        _barsFill = PipelineTestMod.Instance.Assets.Request<Texture2D>("assets/items/BarsLifeOverlay_Fill.png");
+        _barsPanel = PipelineTestMod.Instance.Assets.Request<Texture2D>("assets/items/BarsLifeOverlay_Panel.png");
     }
 
     public override bool PreDrawResource(ResourceOverlayDrawContext context)

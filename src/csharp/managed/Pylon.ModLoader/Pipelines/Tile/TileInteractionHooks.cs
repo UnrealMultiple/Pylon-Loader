@@ -44,7 +44,8 @@ internal static class TileInteractionHooks
             if (!tile.active()) continue;
 
             var mod = TileTable.Of(tile.type);
-            if (mod is null || !mod.HookEnabled(HookId.HasSmartInteract)) continue;
+            if (mod is null) continue;
+            if (!mod.HookEnabled(HookId.HasSmartInteract) && !mod.HookEnabled(HookId.RightClick)) continue;
 
             bool smart;
             try

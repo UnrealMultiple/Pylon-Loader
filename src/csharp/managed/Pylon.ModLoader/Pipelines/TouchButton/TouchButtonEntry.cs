@@ -30,7 +30,7 @@ public sealed class TouchButtonEntry
     internal string[]? Texts;
 
     internal Func<string>? LabelFunc;
-    internal Func<GameTexture2D>? IconFunc;
+    internal string? IconPath;
     internal GameTexture2D? TextureValue;
     internal bool TextureResolved;
 

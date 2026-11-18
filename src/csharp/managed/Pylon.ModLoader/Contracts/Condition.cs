@@ -153,6 +153,9 @@ public class Condition
     /// <summary>在猩红或腐化之地。</summary>
     public static readonly Condition InEvilBiome = new("Conditions.InEvilBiome", () => Me().ZoneCrimson || Me().ZoneCorrupt);
 
+    public static readonly Condition AnotherTownNPCNearby = new("Conditions.AnotherTownNPCNearby",
+        () => Terraria.GameContent.TeleportPylonsSystem.DoesPositionHaveEnoughNPCs(2, Me().Center.ToTileCoordinates16()));
+
     /// <summary>不在猩红也不在腐化之地。</summary>
     public static readonly Condition NotInEvilBiome = new("Conditions.NotInEvilBiome", () => !Me().ZoneCrimson && !Me().ZoneCorrupt);
 

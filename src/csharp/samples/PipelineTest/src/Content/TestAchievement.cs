@@ -7,7 +7,7 @@ using Terraria.ID;
 
 namespace PipelineTest.Content;
 
-/// <summary>成就管线的探针：完成顺序与四条通知的计数。</summary>
+/// <summary>成就管线的探针：完成顺序与通知事件计数。</summary>
 public static class AchievementProbe
 {
     public static readonly List<string> Completed = [];
@@ -25,17 +25,9 @@ public sealed class TestFlagAchievement : ModAchievement
 {
     public override int Index => 0;
 
-    public override void SetStaticDefaults() => AddCondition();
+    public override void SetStaticDefaults() => AddCondition(CustomFlagCondition.Create("Condition"));
 
     public override void OnCompleted(Achievement achievement) => AchievementProbe.Completed.Add(Name);
-
-    public override void OnNPCKilled(Player player, int npcId) => AchievementProbe.Kills++;
-
-    public override void OnItemPickup(Player player, int itemType, int stack) => AchievementProbe.Pickups += stack;
-
-    public override void OnItemCraft(int itemType, int stack) => AchievementProbe.Crafts += stack;
-
-    public override void OnTileDestroyed(Player player, int tileType) => AchievementProbe.Tiles++;
 }
 
 /// <summary>计数条件 + 隐藏文本 + 非默认分类。</summary>
@@ -49,9 +41,11 @@ public sealed class TestCountAchievement : ModAchievement
 
     public override bool Hidden => Condition is null || Condition.Value == 0;
 
-    public override AchievementCategory Category => AchievementCategory.Collector;
-
-    public override void SetStaticDefaults() => Condition = AddIntCondition(5);
+    public override void SetStaticDefaults()
+    {
+        Achievement.SetCategory(AchievementCategory.Collector);
+        Condition = AddIntCondition(5);
+    }
 
     public override void OnCompleted(Achievement achievement) => AchievementProbe.Completed.Add(Name);
 }

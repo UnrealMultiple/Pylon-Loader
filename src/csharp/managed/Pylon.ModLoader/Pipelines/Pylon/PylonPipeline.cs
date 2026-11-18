@@ -378,10 +378,36 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
             if (!Main.mapFullscreen) Main.LocalPlayer.TryOpeningFullscreenMap();
             if (!Main.mapFullscreen) return false;
 
+            var left = origin.X;
+            var top = origin.Y;
+            var right = origin.X;
+            var bottom = origin.Y;
+            var list = List(Main.PylonSystem);
+            for (var k = 0; k < list.Count; k++)
+            {
+                var info = list[k];
+                if (!TeleportPylonsMapLayer.IsRevealed(info)) continue;
+                left = Math.Min(left, info.PositionInTiles.X);
+                right = Math.Max(right, info.PositionInTiles.X);
+                top = Math.Min(top, info.PositionInTiles.Y);
+                bottom = Math.Max(bottom, info.PositionInTiles.Y);
+            }
+
+            var x = left - 20;
+            var y = top - 20;
+            var width = right - left + 40;
+            var height = bottom - top + 40;
+
+            var camera = XNAUnityRunner._instance?.UICameraSettings;
+            var scale = Main.mapFullscreenScale;
+            if (camera is not null && width > 0 && height > 0)
+                scale = Math.Min(scale, Math.Min((camera._cameraWidth - 40f) / width, (camera._cameraHeight - 40f) / height));
+
             Main.MapPylonTile = origin;
             Main.PanTargetMapFullscreen = false;
             Main.resetMapFull = false;
-            Main.mapFullscreenPos = new Vector2(origin.X + 1.5f, origin.Y + 2f);
+            Main.mapFullscreenPos = new Vector2(x + width / 2f, y + height / 2f);
+            Main.mapFullscreenScale = scale;
             return true;
         }
         catch (Exception e)

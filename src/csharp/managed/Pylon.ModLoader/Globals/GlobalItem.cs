@@ -188,11 +188,7 @@ public abstract class GlobalItem : ModType
     /// <summary>饰品装备着时每帧一次；hideVisual = 关了显示。</summary>
     public virtual void UpdateAccessory(Item item, Player player, bool hideVisual) { }
 
-    /// <summary>地上物品的更新之前；false = 这一帧跳过游戏的更新（Post 照跑）。</summary>
-    public virtual bool PreUpdateInWorld(Item item, WorldItem worldItem) => true;
-
-    /// <summary>地上物品的更新之后。</summary>
-    public virtual void PostUpdateInWorld(Item item, WorldItem worldItem) { }
+    public virtual void UpdateVanity(Item item, Player player) { }
 
     /// <summary>false：玩家既不捡也不吸这个物品（同 TML）。</summary>
     public virtual bool CanPickup(Item item, Player player) => true;
@@ -211,6 +207,10 @@ public abstract class GlobalItem : ModType
 
     /// <summary>false：这次右键不消耗该物品（同 TML）。</summary>
     public virtual bool ConsumeItem(Item item, Player player) => true;
+
+    public virtual bool CanRightClick(Item item) => false;
+
+    public virtual void RightClick(Item item, Player player) { }
 
     /// <summary>物品被创建时（同 TML）。</summary>
     public virtual void OnCreated(Item item, ItemCreationContext context) { }
@@ -233,6 +233,8 @@ public abstract class GlobalItem : ModType
     /// <summary>背包里画它之后（否决了也跑）。</summary>
     public virtual void PostDrawInInventory(Item item, SpriteBatch spriteBatch, Vector2 position, Rectangle frame,
                                             Color drawColor, Color itemColor, Vector2 origin, float scale) { }
+
+    public virtual void ModifyItemLoot(Item item, ItemLoot itemLoot) { }
 
     /// <summary>每次 tooltip 显示时一次（合成指南弹窗里也会，不带颜色）；ModItem 的之后跑。</summary>
     public virtual void ModifyTooltips(Item item, List<TooltipLine> tooltips) { }
@@ -295,18 +297,29 @@ public abstract class GlobalItem : ModType
     public virtual void SetMatch(int armorSlot, int type, bool male, ref int equipSlot, ref bool robes) { }
 
     /// <summary>空中这对翅膀的五个可写引用（item 是穿的那件，或 null）。</summary>
-    public virtual void VerticalWingSpeeds(Item item, Player player, ref float ascentWhenFalling, ref float ascentWhenRising,
+    public virtual void VerticalWingSpeeds(Item? item, Player player, ref float ascentWhenFalling, ref float ascentWhenRising,
                                            ref float maxCanAscendMultiplier, ref float maxAscentMultiplier, ref float constantAscend) { }
 
     /// <summary>空中平飞的加速度和速度（两个可写引用）。</summary>
-    public virtual void HorizontalWingSpeeds(Item item, Player player, ref float speed, ref float acceleration) { }
+    public virtual void HorizontalWingSpeeds(Item? item, Player player, ref float speed, ref float acceleration) { }
 
     /// <summary>true：翅膀由 mod 自己动画（游戏的 WingFrame 不跑）。</summary>
     public virtual bool WingUpdate(int wings, Player player, bool inUse) => false;
 
-    /// <summary>这个编号的游戏样表那一份（IsVanitySet 用；没有就是 0 号）。</summary>
-    private static Item Sample(int type) =>
-        Terraria.ID.ContentSamples.ItemsByType.TryGetValue(type, out var sample) ? sample : Terraria.ID.ContentSamples.ItemsByType[0];
+    /// <summary>这个编号的游戏样表那一份（IsVanitySet 用；没有就造一份默认值）。</summary>
+    private static Item Sample(int type)
+    {
+        var samples = Terraria.ID.ContentSamples.ItemsByType;
+        if (samples is not null)
+        {
+            if (type > 0 && samples.ContainsKey(type)) return samples[type];
+            if (samples.ContainsKey(0)) return samples[0];
+        }
+
+        var item = new Item();
+        item.SetDefaults(type, null);
+        return item;
+    }
 
     /// <summary>画出来的槽位 → 那件衣服的编号（越界和 0 都按 0 号算）。</summary>
     private static int SlotItemType(Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<int> table, int slot) =>

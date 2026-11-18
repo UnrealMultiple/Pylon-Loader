@@ -42,4 +42,7 @@ public abstract class ModSceneEffect : ModType
 
     /// <summary>优先级（原版 SceneEffectPriority.None = 0）；都激活时高的抢到音乐/背景/水。</summary>
     public virtual int Priority => 0;
+
+    public virtual Terraria.Graphics.Capture.CaptureBiome.TileColorStyle TileColorStyle
+        => Terraria.Graphics.Capture.CaptureBiome.TileColorStyle.Normal;
 }

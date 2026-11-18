@@ -1,4 +1,5 @@
 using Terraria;
+using Terraria.Localization;
 
 namespace Pylon.ModLoader;
 
@@ -55,7 +56,7 @@ internal sealed class ConfigNetPipeline : ILoaderModule
         for (var index = 0; index < entries.Count; index++)
         {
             var entry = entries[index];
-            if (entry.Instance.Scope != ConfigScope.ServerSide) continue;
+            if (entry.Instance.Mode != ConfigScope.ServerSide) continue;
 
             SendSync(entry, remoteClient);
         }
@@ -116,51 +117,66 @@ internal sealed class ConfigNetPipeline : ILoaderModule
 
         try
         {
-            entry.Instance.OnApply();
+            entry.Instance.OnChanged();
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[confignet] {entry.Name}.OnApply 异常：{Safe.Describe(e)}");
+            ContentErrors.Report($"[confignet] {entry.Name}.OnChanged 异常：{Safe.Describe(e)}");
         }
     }
 
     /// <summary>服务器收到客户端的改值请求：交给作者裁决，过了就存盘、更新、回信。</summary>
     private void Ask(ModConfigEntry entry, int from, object[] values)
     {
-        if (entry.Instance.Scope != ConfigScope.ServerSide) return;
+        if (entry.Instance.Mode != ConfigScope.ServerSide) return;
 
         var requested = ReadPairs(values, 3);
         if (requested.Count == 0) return;
 
-        var message = "";
+        var pending = entry.Instance.Clone();
+        foreach (var pair in requested)
+        {
+            var option = FindOption(entry, pair.Key);
+            if (option is null || !ConfigPipeline.Coerce(option, pair.Value, out var value)) continue;
+            pending.__SetValueRaw(pair.Key, value);
+        }
+
+        var message = NetworkText.Empty;
         var accepted = false;
 
         try
         {
-            accepted = entry.Instance.AcceptClientChanges(from, requested, ref message);
+            accepted = entry.Instance.AcceptClientChanges(pending, from, ref message);
         }
         catch (Exception e)
         {
             ContentErrors.Report($"[confignet] {entry.Name}.AcceptClientChanges 异常：{Safe.Describe(e)}");
         }
 
-        if (accepted) ApplyRequested(entry, requested);
+        if (accepted) ApplyRequested(entry, pending, requested.Keys);
 
-        Reply(entry, from, accepted, message);
+        Reply(entry, from, accepted, message?.ToString() ?? "");
     }
 
-    private static void ApplyRequested(ModConfigEntry entry, Dictionary<string, object> requested)
+    private static void ApplyRequested(ModConfigEntry entry, ModConfig pending, IEnumerable<string> requested)
     {
-        foreach (var pair in requested)
+        foreach (var key in requested)
         {
-            var option = FindOption(entry, pair.Key);
-            if (option is null || !ConfigPipeline.Coerce(option, pair.Value, out var value)) continue;
+            var option = FindOption(entry, key);
+            if (option is null) continue;
 
-            entry.Instance.__SetValueRaw(pair.Key, value);
+            entry.Instance.__SetValueRaw(key, pending.__StoredValue(key));
         }
 
         ConfigPipeline.Instance.Save(entry);
-        entry.Instance.OnApply();
+        try
+        {
+            entry.Instance.OnChanged();
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report($"[confignet] {entry.Name}.OnChanged 异常：{Safe.Describe(e)}");
+        }
     }
 
     private void Reply(ModConfigEntry entry, int toClient, bool success, string message)
@@ -180,6 +196,15 @@ internal sealed class ConfigNetPipeline : ILoaderModule
         var message = values[2] as string ?? "";
 
         if (success) Apply(entry, values, 5);
+
+        try
+        {
+            entry.Instance.HandleAcceptClientChangesReply(success, Main.myPlayer, NetworkText.FromLiteral(message));
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report($"[confignet] {entry.Name}.HandleAcceptClientChangesReply 异常：{Safe.Describe(e)}");
+        }
 
         if (message.Length > 0) Main.NewText(message, 255, 240, 20);
         else if (!success) Main.NewText($"[config] {entry.Mod.Name}/{entry.Name} 的改动被服务器拒绝", 255, 120, 120);
@@ -211,11 +236,11 @@ internal sealed class ConfigNetPipeline : ILoaderModule
 
             try
             {
-                pair.Key.Instance.OnApply();
+                pair.Key.Instance.OnChanged();
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[confignet] {pair.Key.Name}.OnApply 异常：{Safe.Describe(e)}");
+                ContentErrors.Report($"[confignet] {pair.Key.Name}.OnChanged 异常：{Safe.Describe(e)}");
             }
         }
 

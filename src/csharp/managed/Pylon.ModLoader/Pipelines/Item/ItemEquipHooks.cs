@@ -19,8 +19,64 @@ internal static class ItemEquipHooks
         On.Terraria.UI.ItemSlot.ArmorSwap += ArmorSwap;
         On.Terraria.UI.ItemSlot.CanEquipAccessoryInSlot_Item_int += CanEquipAccessoryInSlot;
         On.Terraria.UI.ItemSlot.CanEquipAccessoryInVanitySlot += CanEquipAccessoryInVanitySlot;
+        On.Terraria.UI.ItemSlot.CanEquipBothAccessories += CanEquipBothAccessories;
 
         On.Terraria.DataStructures.PlayerDrawSet.BoringSetup += BoringSetup;
+    }
+
+    private static bool CanEquipBothAccessories(On.Terraria.UI.ItemSlot.orig_CanEquipBothAccessories orig,
+                                                Item acc1, Item acc2, bool vanity)
+    {
+        if (!orig(acc1, acc2, vanity)) return false;
+        if (acc1 is null || acc2 is null || acc1.type <= 0 || acc2.type <= 0) return true;
+
+        try
+        {
+            var player = Main.LocalPlayer;
+            return Pair(acc1, acc2, player) && Pair(acc2, acc1, player);
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report("[item] CanAccessoryBeEquippedWith 异常：" + Safe.Describe(e));
+            return true;
+        }
+    }
+
+    private static bool Pair(Item equipped, Item incoming, Player player)
+    {
+        foreach (var item in new[] { equipped, incoming })
+        {
+            if (ItemPipeline.Instance.InstanceOf(item) is not { } m || !m.Plan.Has(HookId.CanAccessoryBeEquippedWith)) continue;
+
+            var ok = true;
+            try
+            {
+                ok = m.CanAccessoryBeEquippedWith(equipped, incoming, player);
+            }
+            catch (Exception e)
+            {
+                Report(m.FullKey, e);
+            }
+            if (!ok) return false;
+        }
+
+        foreach (var g in GlobalItemRegistry.All)
+        {
+            if (!g.Plan.Has(HookId.CanAccessoryBeEquippedWith)) continue;
+
+            var ok = true;
+            try
+            {
+                ok = g.CanAccessoryBeEquippedWith(equipped, incoming, player);
+            }
+            catch (Exception e)
+            {
+                Report(g.FullKey, e);
+            }
+            if (!ok) return false;
+        }
+
+        return true;
     }
 
     private static bool CanEquipAccessory(Item item, int slot, bool modded)

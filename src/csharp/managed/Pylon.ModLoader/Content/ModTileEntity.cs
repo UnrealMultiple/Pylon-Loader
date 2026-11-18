@@ -57,12 +57,6 @@ public abstract class ModTileEntity : ModType
     public virtual void NetReceive(NetReader reader) { }
 
     /// <summary>
-    /// 服务器每隔多少帧把这个实体重新发一遍（秒级状态用；0 = 不定时，默认）。
-    /// 走的是同一条实体包（<see cref="NetSend"/> 的载荷 + 位置/类型），不额外定义消息。
-    /// </summary>
-    public virtual int NetUpdateInterval => 0;
-
-    /// <summary>
     /// 实体建立成功后的回调（对位 TML PlacementHook）：
     /// 管线在放置/读档建好实体后，对新建实例调用一次（服务端/单机）。
     /// 返回 -1 = 没有别的返回值，管线忽略。

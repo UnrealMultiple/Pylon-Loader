@@ -7,6 +7,7 @@ using Pylon.ModLoader;
 using Terraria;
 using Terraria.GameContent;
 using AuthorLayer = Pylon.ModLoader.GameInterfaceLayer;
+using AuthorLegacyLayer = Pylon.ModLoader.LegacyGameInterfaceLayer;
 
 namespace PipelineTest.Content;
 
@@ -53,7 +54,7 @@ public static class TestInterfaceProbe
 
         if (InsertPanel && !layers.Exists(l => l?.Name == PanelName))
         {
-            layers.Insert(2, new AuthorLayer(PanelName, DrawBanner));
+            layers.Insert(2, new AuthorLegacyLayer(PanelName, DrawBanner));
         }
 
         if (MovePanelToEnd)

@@ -37,118 +37,69 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
 
     public bool Install()
     {
-        On.Terraria.Player.UpdateEquips += UpdateEquips;
         On.Terraria.Player.UpdateArmorSets += UpdateArmorSets;
-        On.Terraria.Player.ApplyEquipFunctional += ApplyEquipFunctional;
-        On.Terraria.Player.ApplyEquipVanity += ApplyEquipVanity;
+        On.Terraria.Player.PlayerFrame += PlayerFrame;
+        On.Terraria.Player.SetArmorEffectVisuals += SetArmorEffectVisuals;
         On.Terraria.Player.SetMatch += SetMatch;
         On.Terraria.Player.WingFrame += WingFrame;
         On.Terraria.Player.WingMovement += WingMovement;
         On.Terraria.Player.WingAirLogicTweaks += WingAirLogicTweaks;
-        On.Terraria.UI.ItemSlot.CanEquipBothAccessories += CanEquipBothAccessories;
 
-        Log.Info("[equip] 已挂（15 个部位：编号 / 扩表 / 写贴图 / 效果回调 / 套装 / 时装套 / SetMatch / 翅膀动画）");
+        Log.Info("[equip] 已挂（15 个部位：编号 / 扩表 / 写贴图 / 套装 / 时装套 / SetMatch / 翅膀动画）");
         return true;
     }
 
-    private static void ApplyEquipFunctional(On.Terraria.Player.orig_ApplyEquipFunctional orig, Player self, int itemSlot, Item currentItem)
-    {
-        orig(self, itemSlot, currentItem);
-        Effects(self, currentItem, vanity: false);
-    }
-
-    private static void ApplyEquipVanity(On.Terraria.Player.orig_ApplyEquipVanity orig, Player self, int itemSlot, Item currentItem)
-    {
-        orig(self, itemSlot, currentItem);
-        Effects(self, currentItem, vanity: true);
-    }
-
-    private static void Effects(Player player, Item? item, bool vanity)
-    {
-        if (item is null || item.IsAir) return;
-
-        var slots = EquipTable.SlotsOfItem(item.type);
-        if (slots is null) return;
-
-        foreach (var (part, slot) in slots)
-        {
-            if (EquipTable.OfSlot(part, slot) is not { } equip) continue;
-
-            try
-            {
-                if (vanity)
-                {
-                    equip.Item?.UpdateVanity(player);
-                }
-                else
-                {
-                    equip.Item?.UpdateEquip(player);
-                    equip.Item?.UpdateAccessory(player, hideVisual: false);
-                }
-            }
-            catch (Exception e)
-            {
-                ContentErrors.Report($"[equip] {equip.Name} 的效果回调异常：{Safe.Describe(e)}");
-            }
-        }
-    }
-
-    private static bool CanEquipBothAccessories(On.Terraria.UI.ItemSlot.orig_CanEquipBothAccessories orig,
-        Item acc1, Item acc2, bool vanity)
-    {
-        if (!orig(acc1, acc2, vanity)) return false;
-
-        if (ModAccessory(acc1) is { } mod1 && ModAccessory(acc2) is { } mod2)
-        {
-            try
-            {
-                return mod1.CanAccessoryBeEquippedWith(acc1, acc2, Main.LocalPlayer)
-                    && mod2.CanAccessoryBeEquippedWith(acc2, acc1, Main.LocalPlayer);
-            }
-            catch (Exception e)
-            {
-                ContentErrors.Report($"[equip] CanAccessoryBeEquippedWith 异常：{Safe.Describe(e)}");
-                return true;
-            }
-        }
-
-        return true;
-    }
-
-    private static ModItem? ModAccessory(Item? item)
-    {
-        if (item is null || item.IsAir) return null;
-        return ModContent.Find(ContentKind.Item, item.type) as ModItem;
-    }
+    private static bool _globalVertical;
+    private static bool _globalHorizontal;
+    private static bool _globalUpdate;
 
     private static int SetMatch(On.Terraria.Player.orig_SetMatch orig, Terraria.Player.SetMatchRequest request, ref bool somethingSpecial)
     {
         var result = orig(request, ref somethingSpecial);
 
-        var slot = request.ArmorSlotRequested switch
-        {
-            0 => request.Head,
-            1 => request.Body,
-            _ => request.Legs,
-        };
-
-        if (EquipTable.OfSlot(request.ArmorSlotRequested == 0 ? EquipType.Head
-                            : request.ArmorSlotRequested == 1 ? EquipType.Body : EquipType.Legs, slot) is not { } equip)
-            return result;
-
-        var equipSlot = result;
-        var robes = somethingSpecial;
         try
         {
-            equip.SetMatch(request.Male, ref equipSlot, ref robes);
+            var part = request.ArmorSlotRequested;
+            var type = part == 1 ? EquipType.Body : part == 2 ? EquipType.Legs : EquipType.Head;
+            var slot = part == 1 ? request.Body : part == 2 ? request.Legs : request.Head;
+            var equip = EquipTable.OfSlot(type, slot);
+
+            var equipSlot = result;
+            var robes = somethingSpecial;
+            if (equip is not null)
+            {
+                try
+                {
+                    equip.SetMatch(request.Male, ref equipSlot, ref robes);
+                }
+                catch (Exception e)
+                {
+                    ContentErrors.Report($"[equip] {equip.Name}.SetMatch 异常：{Safe.Describe(e)}");
+                }
+            }
+
+            foreach (var global in GlobalItemRegistry.All)
+            {
+                if (!global.Plan.Has(HookId.SetMatch)) continue;
+
+                try
+                {
+                    global.SetMatch(part, slot, request.Male, ref equipSlot, ref robes);
+                }
+                catch (Exception e)
+                {
+                    ContentErrors.Report($"[equip] {global.FullKey}.SetMatch 异常：{Safe.Describe(e)}");
+                }
+            }
+
+            somethingSpecial = robes;
+            return equipSlot;
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[equip] {equip.Name}.SetMatch 异常：{Safe.Describe(e)}");
+            ContentErrors.Report($"[equip] SetMatch 异常：{Safe.Describe(e)}");
+            return result;
         }
-
-        somethingSpecial = robes;
-        return equipSlot;
     }
 
 
@@ -172,7 +123,8 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
     private static void WingMovement(On.Terraria.Player.orig_WingMovement orig, Player self)
     {
         var logic = self.wingsLogic;
-        if (EquipTable.OfSlot(EquipType.Wing, logic) is not { } equip)
+        var equip = EquipTable.OfSlot(EquipType.Wings, logic);
+        if (equip is null && !_globalVertical)
         {
             orig(self);
             return;
@@ -195,7 +147,22 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
 
             SeedVanilla(self, logic, ref falling, ref rising, ref maxCan, ref maxAscent, ref constant);
 
-            equip.VerticalWingSpeeds(self, ref falling, ref rising, ref maxCan, ref maxAscent, ref constant);
+            equip?.VerticalWingSpeeds(self, ref falling, ref rising, ref maxCan, ref maxAscent, ref constant);
+
+            var item = equip is null ? EquippedWings(self, logic) : null;
+            foreach (var global in GlobalItemRegistry.All)
+            {
+                if (!global.Plan.Has(HookId.VerticalWingSpeeds)) continue;
+
+                try
+                {
+                    global.VerticalWingSpeeds(item, self, ref falling, ref rising, ref maxCan, ref maxAscent, ref constant);
+                }
+                catch (Exception e)
+                {
+                    ContentErrors.Report($"[equip] {global.FullKey}.VerticalWingSpeeds 异常：{Safe.Describe(e)}");
+                }
+            }
 
             if (logic is 44 or 45) Hover(self, jump);
 
@@ -226,7 +193,7 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[equip] {equip.Name} 的 VerticalWingSpeeds 异常：{Safe.Describe(e)}");
+            ContentErrors.Report("[equip] VerticalWingSpeeds 异常：" + Safe.Describe(e));
             orig(self);
         }
     }
@@ -319,131 +286,288 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
 
         var logic = self.wingsLogic;
         if (self.wings <= 0) return;
-        if (EquipTable.OfSlot(EquipType.Wing, logic) is not { } equip) return;
+
+        var equip = EquipTable.OfSlot(EquipType.Wings, logic);
+        if (equip is null && !_globalHorizontal) return;
 
         try
         {
             var speed = self.accRunSpeed;
             var acceleration = self.runAcceleration;
-            equip.HorizontalWingSpeeds(self, ref speed, ref acceleration);
+            equip?.HorizontalWingSpeeds(self, ref speed, ref acceleration);
+
+            var item = equip is null ? EquippedWings(self, logic) : null;
+            foreach (var global in GlobalItemRegistry.All)
+            {
+                if (!global.Plan.Has(HookId.HorizontalWingSpeeds)) continue;
+
+                try
+                {
+                    global.HorizontalWingSpeeds(item, self, ref speed, ref acceleration);
+                }
+                catch (Exception e)
+                {
+                    ContentErrors.Report($"[equip] {global.FullKey}.HorizontalWingSpeeds 异常：{Safe.Describe(e)}");
+                }
+            }
 
             self.accRunSpeed = speed;
             self.runAcceleration = acceleration;
-            self.maxRunSpeed = speed;
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[equip] {equip.Name} 的 HorizontalWingSpeeds 异常：{Safe.Describe(e)}");
+            ContentErrors.Report("[equip] HorizontalWingSpeeds 异常：" + Safe.Describe(e));
         }
     }
 
     private static void WingFrame(On.Terraria.Player.orig_WingFrame orig, Player self, bool wingFlap)
     {
         var wings = self.wings;
-        if (wings > 0 && EquipTable.OfSlot(EquipType.Wing, wings) is { } equip)
+        var equip = wings > 0 ? EquipTable.OfSlot(EquipType.Wings, wings) : null;
+        if (equip is not null || (_globalUpdate && wings > 0))
         {
+            var custom = false;
             try
             {
-                if (equip.WingUpdate(self, wingFlap)) return;
+                if (equip is not null) custom = equip.WingUpdate(self, wingFlap);
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[equip] {equip.Name}.WingUpdate 异常：{Safe.Describe(e)}");
+                ContentErrors.Report($"[equip] {equip?.Name}.WingUpdate 异常：{Safe.Describe(e)}");
             }
+
+            foreach (var global in GlobalItemRegistry.All)
+            {
+                if (!global.Plan.Has(HookId.WingUpdate)) continue;
+
+                try
+                {
+                    custom |= global.WingUpdate(wings, self, wingFlap);
+                }
+                catch (Exception e)
+                {
+                    ContentErrors.Report($"[equip] {global.FullKey}.WingUpdate 异常：{Safe.Describe(e)}");
+                }
+            }
+
+            if (custom) return;
         }
 
         orig(self, wingFlap);
     }
 
-    private static void UpdateEquips(On.Terraria.Player.orig_UpdateEquips orig, Player self, int i)
-    {
-        orig(self, i);
-
-        if (EquipTable.Count == 0) return;
-
-        EnsureWingStats(self);
-
-        var armor = self.armor;
-        if (armor is null || armor.Length < 3) return;
-
-        var head = armor[0]?.headSlot ?? -1;
-        var body = armor[1]?.bodySlot ?? -1;
-        var legs = armor[2]?.legSlot ?? -1;
-
-        Frame(EquipType.Head, head, self);
-        Frame(EquipType.Body, body, self);
-        Frame(EquipType.Legs, legs, self);
-
-        Vanity(EquipType.Head, head, head, body, legs, self);
-        Vanity(EquipType.Body, body, head, body, legs, self);
-        Vanity(EquipType.Legs, legs, head, body, legs, self);
-    }
-
     private static void UpdateArmorSets(On.Terraria.Player.orig_UpdateArmorSets orig, Player self, int i)
     {
+        if (_setBonusWanted) SetBonusText(self, null);
         orig(self, i);
 
-        if (EquipTable.Count == 0) return;
-
-        var armor = self.armor;
-        if (armor is null || armor.Length < 3) return;
-
-        var head = armor[0];
-        var body = armor[1];
-        var legs = armor[2];
-        if (head is null || body is null || legs is null) return;
-
-        SetBonus(head, head, body, legs, self);
-        SetBonus(body, head, body, legs, self);
-        SetBonus(legs, head, body, legs, self);
-    }
-
-    private static void SetBonus(Item piece, Item head, Item body, Item legs, Player player)
-    {
-        if (piece.IsAir) return;
-        if (ModContent.Find(ContentKind.Item, piece.type) is not ModItem mod) return;
-
         try
         {
-            if (!mod.IsArmorSet(head, body, legs)) return;
-            mod.UpdateArmorSet(player);
+            var armor = self.armor;
+            Item? head = null, body = null, legs = null;
+            if (armor is not null && armor.Length >= 3)
+            {
+                head = armor[0];
+                body = armor[1];
+                legs = armor[2];
+            }
+
+            if (head is not null && body is not null && legs is not null)
+            {
+                foreach (var piece in new[] { head, body, legs })
+                {
+                    if (piece.IsAir || ModContent.Find(ContentKind.Item, piece.type) is not ModItem mod) continue;
+
+                    try
+                    {
+                        if (!mod.IsArmorSet(head, body, legs)) continue;
+                        mod.UpdateArmorSet(self);
+                    }
+                    catch (Exception e)
+                    {
+                        ContentErrors.Report($"[equip] {mod.Name} 的套装回调异常：{Safe.Describe(e)}");
+                    }
+                }
+
+                foreach (var global in GlobalItemRegistry.All)
+                {
+                    if (!global.Plan.Has(HookId.IsArmorSet)) continue;
+
+                    string set = "";
+                    try
+                    {
+                        set = global.IsArmorSet(head, body, legs) ?? "";
+                    }
+                    catch (Exception e)
+                    {
+                        ContentErrors.Report($"[equip] {global.FullKey}.IsArmorSet 异常：{Safe.Describe(e)}");
+                    }
+                    if (set.Length == 0) continue;
+
+                    try
+                    {
+                        global.UpdateArmorSet(self, set);
+                    }
+                    catch (Exception e)
+                    {
+                        ContentErrors.Report($"[equip] {global.FullKey}.UpdateArmorSet 异常：{Safe.Describe(e)}");
+                    }
+                }
+            }
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[equip] {mod.Name} 的套装回调异常：{Safe.Describe(e)}");
+            ContentErrors.Report($"[equip] 套装回调异常：{Safe.Describe(e)}");
         }
+
+        PlayerPipeline.Instance.RunPostUpdateEquips(self);
     }
 
-    private static void Frame(EquipType part, int slot, Player player)
+    private static void PlayerFrame(On.Terraria.Player.orig_PlayerFrame orig, Player self)
     {
-        if (EquipTable.OfSlot(part, slot) is not { } equip) return;
+        orig(self);
 
         try
         {
-            equip.FrameEffects(player, (int)part);
+            Vanity(self, nameof(EquipTexture.PreUpdateVanitySet));
+            PlayerPipeline.Instance.RunFrameEffects(self);
+            foreach (var type in EquipTable.Installed())
+            {
+                if (EquipTable.OfSlot(type, EquipTable.PlayerSlot(self, type)) is not { } equip) continue;
+                try
+                {
+                    equip.FrameEffects(self, type);
+                }
+                catch (Exception e)
+                {
+                    ContentErrors.Report($"[equip] {equip.Name}.FrameEffects 异常：{Safe.Describe(e)}");
+                }
+            }
+            Vanity(self, nameof(EquipTexture.UpdateVanitySet));
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[equip] {equip.Name}.FrameEffects 异常：{Safe.Describe(e)}");
+            ContentErrors.Report($"[equip] 时装套回调异常：{Safe.Describe(e)}");
         }
+
+        EnsureWingStats(self);
     }
 
-    private static void Vanity(EquipType part, int slot, int head, int body, int legs, Player player)
+    private static void SetArmorEffectVisuals(On.Terraria.Player.orig_SetArmorEffectVisuals orig, Player self, Player drawPlayer)
     {
-        if (EquipTable.OfSlot(part, slot) is not { } equip) return;
+        orig(self, drawPlayer);
 
         try
         {
-            if (!equip.IsVanitySet(head, body, legs)) return;
-            equip.PreUpdateVanitySet(player);
-            equip.UpdateVanitySet(player);
-            equip.ArmorSetShadows(player);
+            Vanity(drawPlayer, nameof(EquipTexture.ArmorSetShadows));
+
+            if (!drawPlayer.stoned && drawPlayer.stealth == 1f) return;
+
+            self.armorEffectDrawOutlines = false;
+            self.armorEffectDrawShadow = false;
+            self.armorEffectDrawShadowSubtle = false;
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[equip] {equip.Name} 的时装套回调异常：{Safe.Describe(e)}");
+            ContentErrors.Report($"[equip] 盔甲影子回调异常：{Safe.Describe(e)}");
         }
     }
+
+    private static void Vanity(Player player, string method)
+    {
+        var head = player.head;
+        var body = player.body;
+        var legs = player.legs;
+
+        foreach (var (type, slot) in new[] { (EquipType.Head, head), (EquipType.Body, body), (EquipType.Legs, legs) })
+        {
+            if (EquipTable.OfSlot(type, slot) is not { } equip) continue;
+
+            bool set = false;
+            try
+            {
+                set = equip.IsVanitySet(head, body, legs);
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[equip] {equip.Name}.IsVanitySet 异常：{Safe.Describe(e)}");
+            }
+            if (!set) continue;
+
+            try
+            {
+                switch (method)
+                {
+                    case nameof(EquipTexture.PreUpdateVanitySet):
+                        equip.PreUpdateVanitySet(player);
+                        break;
+                    case nameof(EquipTexture.UpdateVanitySet):
+                        equip.UpdateVanitySet(player);
+                        break;
+                    case nameof(EquipTexture.ArmorSetShadows):
+                        equip.ArmorSetShadows(player);
+                        break;
+                }
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[equip] {equip.Name}.{method} 异常：{Safe.Describe(e)}");
+            }
+        }
+
+        foreach (var global in GlobalItemRegistry.All)
+        {
+            if (!global.Plan.Has(HookId.IsVanitySet)) continue;
+
+            string set = "";
+            try
+            {
+                set = global.IsVanitySet(head, body, legs) ?? "";
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[equip] {global.FullKey}.IsVanitySet 异常：{Safe.Describe(e)}");
+            }
+            if (set.Length == 0) continue;
+
+            try
+            {
+                switch (method)
+                {
+                    case nameof(EquipTexture.PreUpdateVanitySet):
+                        global.PreUpdateVanitySet(player, set);
+                        break;
+                    case nameof(EquipTexture.UpdateVanitySet):
+                        global.UpdateVanitySet(player, set);
+                        break;
+                    case nameof(EquipTexture.ArmorSetShadows):
+                        global.ArmorSetShadows(player, set);
+                        break;
+                }
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[equip] {global.FullKey}.{method} 异常：{Safe.Describe(e)}");
+            }
+        }
+    }
+
+    internal static string? SetBonusText(Player player) =>
+        _setBonuses.TryGetValue(player.Pointer, out var text) ? text : null;
+
+    internal static void SetBonusText(Player player, string? text)
+    {
+        if (!_setBonusWanted)
+        {
+            _setBonusWanted = true;
+        }
+        if (string.IsNullOrEmpty(text)) _setBonuses.Remove(player.Pointer);
+        else _setBonuses[player.Pointer] = text;
+    }
+
+    private static bool _setBonusWanted;
+
+    private static readonly Dictionary<long, string> _setBonuses = [];
 
     public void Refresh()
     {
@@ -460,6 +584,10 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         Write();
         WriteSlotOwners();
         WriteSwitches();
+
+        _globalVertical = GlobalItemRegistry.AnyWith(HookId.VerticalWingSpeeds);
+        _globalHorizontal = GlobalItemRegistry.AnyWith(HookId.HorizontalWingSpeeds);
+        _globalUpdate = GlobalItemRegistry.AnyWith(HookId.WingUpdate);
 
         if (EquipTable.Count > 0) Log.Info($"[equip] 安装：{EquipTable.Count} 张装备贴图");
     }
@@ -502,10 +630,10 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static string PartName(EquipType type) => type switch
     {
-        EquipType.HandOn => "HandOn",
-        EquipType.HandOff => "HandOff",
+        EquipType.HandsOn => "HandOn",
+        EquipType.HandsOff => "HandOff",
         EquipType.Shoes => "Shoe",
-        EquipType.Wing => "Wing",
+        EquipType.Wings => "Wing",
         _ => type.ToString(),
     };
 
@@ -548,15 +676,15 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
     private static void WriteSwitches()
     {
         NewFraming(EquipType.Body);
-        NewFraming(EquipType.HandOn);
-        NewFraming(EquipType.HandOff);
+        NewFraming(EquipType.HandsOn);
+        NewFraming(EquipType.HandsOff);
 
         RefillWingStats();
     }
 
     private static void RefillWingStats()
     {
-        var wings = EquipTable.Of(EquipType.Wing);
+        var wings = EquipTable.Of(EquipType.Wings);
         if (wings.Count == 0) return;
 
         var first = wings[0].Slot;
@@ -575,7 +703,7 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
     {
         var slot = player.wings;
         if (slot <= 0) return;
-        if (EquipTable.OfSlot(EquipType.Wing, slot) is null) return;
+        if (EquipTable.OfSlot(EquipType.Wings, slot) is null) return;
 
         if (EquipTables.WingFlyTime(slot) <= 0) RefillWingStats();
 
@@ -711,13 +839,13 @@ internal static class EquipTables
             case EquipType.Head: ArmorIDs.Head.Count = total; break;
             case EquipType.Body: ArmorIDs.Body.Count = total; break;
             case EquipType.Legs: ArmorIDs.Legs.Count = total; break;
-            case EquipType.HandOn: ArmorIDs.HandOn.Count = total; break;
-            case EquipType.HandOff: ArmorIDs.HandOff.Count = total; break;
+            case EquipType.HandsOn: ArmorIDs.HandOn.Count = total; break;
+            case EquipType.HandsOff: ArmorIDs.HandOff.Count = total; break;
             case EquipType.Back: ArmorIDs.Back.Count = total; break;
             case EquipType.Front: ArmorIDs.Front.Count = total; break;
             case EquipType.Shoes: ArmorIDs.Shoe.Count = total; break;
             case EquipType.Waist: ArmorIDs.Waist.Count = total; break;
-            case EquipType.Wing: ArmorIDs.Wing.Count = total; break;
+            case EquipType.Wings: ArmorIDs.Wing.Count = total; break;
             case EquipType.Shield: ArmorIDs.Shield.Count = total; break;
             case EquipType.Neck: ArmorIDs.Neck.Count = total; break;
             case EquipType.Balloon: ArmorIDs.Balloon.Count = total; break;
@@ -731,8 +859,8 @@ internal static class EquipTables
         var flags = part switch
         {
             EquipType.Body => ArmorIDs.Body.Sets.UsesNewFramingCode,
-            EquipType.HandOn => ArmorIDs.HandOn.Sets.UsesNewFramingCode,
-            EquipType.HandOff => ArmorIDs.HandOff.Sets.UsesNewFramingCode,
+            EquipType.HandsOn => ArmorIDs.HandOn.Sets.UsesNewFramingCode,
+            EquipType.HandsOff => ArmorIDs.HandOff.Sets.UsesNewFramingCode,
             _ => null,
         };
 

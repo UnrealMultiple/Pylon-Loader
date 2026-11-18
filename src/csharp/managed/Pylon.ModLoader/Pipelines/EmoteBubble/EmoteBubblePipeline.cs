@@ -26,7 +26,6 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.GameContent.UI.EmoteBubble.UpdateAll += UpdateAll;
         On.Terraria.GameContent.UI.EmoteBubble.Draw += Draw;
         On.GUIEmotesWindow.EmoteDraw += EmoteDraw;
-        On.Terraria.GameContent.UI.EmoteBubble.CheckForNPCsToReactToEmoteBubble += CheckNpcReactions;
         On.Terraria.GameContent.UI.EmoteBubble.PickNPCEmote += PickNpcEmote;
         On.Terraria.GameContent.UI.EmoteBubble.GetPosition += GetPosition;
         On.Terraria.GameContent.UI.EmoteBubble.ShouldFilterPlayerEmote += ShouldFilter;
@@ -38,7 +37,6 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
         On.GUIEmotesWindow.GetEmotesCritters += Critters;
         On.GUIEmotesWindow.GetEmotesBosses += Bosses;
         On.GUIEmotesWindow.GetFrame += MenuFrame;
-        On.GUIEmotesWindow.EmoteOver += Hover;
 
         Log.Info("[emotebubble] 已挂（建泡 / 帧 / 自绘 / 两道下标守卫 / 菜单分类与帧）；同步本版不接");
         return true;
@@ -104,26 +102,6 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
     {
         orig(self, emotes);
         EmoteBubbleTable.AppendCategory(6, emotes);
-    }
-
-    private static void Hover(On.GUIEmotesWindow.orig_EmoteOver orig, GUIEmotesWindow self, int index)
-    {
-        orig(self, index);
-
-        try
-        {
-            EmoteBubbleTable.EnsureLocalized();
-            var entries = self?._emoteEntries;
-            if (entries is null || (uint)index >= (uint)entries.Count) return;
-
-            if (EmoteBubbleTable.Of(entries[index]) is not { } emote) return;
-
-            Main.hoverItemName = emote.DisplayName ?? emote.Name;
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report("[emotebubble] 悬停名字异常：" + Safe.Describe(e));
-        }
     }
 
     private static void EmoteDraw(On.GUIEmotesWindow.orig_EmoteDraw orig, GUIEmotesWindow self,
@@ -803,70 +781,6 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
         }
 
         return position;
-    }
-
-    private static void CheckNpcReactions(On.Terraria.GameContent.UI.EmoteBubble.orig_CheckForNPCsToReactToEmoteBubble orig,
-                                          int emoteID, Player player)
-    {
-        if (EmoteBubbleTable.Of(emoteID) is not { } emote)
-        {
-            orig(emoteID, player);
-            return;
-        }
-
-        ReactNpcs(emote, player);
-    }
-
-    private static void ReactNpcs(ModEmoteBubble emote, Player player)
-    {
-        int reaction;
-        try
-        {
-            reaction = emote.NPCReaction;
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report($"[emotebubble] {emote.Name}.NPCReaction 异常：{Safe.Describe(e)}");
-            return;
-        }
-
-        if (reaction < 0) return;
-
-        var npc = NearestTownNpc(player);
-        if (npc is null) return;
-
-        try
-        {
-            EmoteBubble.NewBubble(reaction, new WorldUIAnchor(npc), 180);
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report("[emotebubble] NPC 反应建泡失败：" + Safe.Describe(e));
-        }
-    }
-
-    private static NPC? NearestTownNpc(Player player)
-    {
-        const float range = 40f * 16f;
-
-        NPC? best = null;
-        var bestDistance = range * range;
-        var npcs = Main.npc;
-
-        for (var index = 0; index < npcs.Length; index++)
-        {
-            var npc = npcs[index];
-            if (npc is null || !npc.active || !npc.townNPC) continue;
-
-            var delta = npc.Center - player.Center;
-            var distance = delta.X * delta.X + delta.Y * delta.Y;
-            if (distance >= bestDistance) continue;
-
-            best = npc;
-            bestDistance = distance;
-        }
-
-        return best;
     }
 
     private static bool ShouldFilter(On.Terraria.GameContent.UI.EmoteBubble.orig_ShouldFilterPlayerEmote orig,

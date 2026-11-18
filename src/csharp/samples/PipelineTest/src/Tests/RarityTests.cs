@@ -25,6 +25,14 @@ internal static class RarityTests
         // R2 两个稀有度不同号
         PT.Case("RARITY-R2", c => c.True(type != type2, $"type1={type} type2={type2} 撞号"));
 
+        PT.Case("RARITY-R3", c =>
+        {
+            c.Eq(RarityLoader.VanillaCount, 12, "VanillaCount");
+            c.True(RarityLoader.RarityCount >= RarityLoader.VanillaCount + 2, $"RarityCount={RarityLoader.RarityCount}");
+            c.True(RarityLoader.GetRarity(type) == ModContent.GetInstance<Content.TestRarity>(), "GetRarity 反查");
+            c.True(RarityLoader.GetRarity(5) is null, "原版号 GetRarity = null");
+        });
+
         // S1 SetStaticDefaults 被调（安装期 RarityTable.StaticDefaults 跑过；这里若未置位则主动触发一次重建再验）
         PT.Case("RARITY-S1", c =>
         {
@@ -59,19 +67,19 @@ internal static class RarityTests
         PT.Case("RARITY-H1", c =>
         {
             var item = new Item();
-            item.SetDefaults(ModContent.TypeOf<Content.TestRarityItem>(), null);
+            item.SetDefaults(ModContent.ItemType<Content.TestRarityItem>(), null);
             c.Eq(item.rare, type, "item.rare");
         });
 
         // E1 功能：越界/未注册的 mod 稀有度号查表返回 null 不抛；前缀升降 clamp 到合法区间
         PT.Case("RARITY-E1", c =>
         {
-            c.NotNull(ModContent.Find(ContentKind.Rarity, type), "Find(已注册号)");
-            c.True(ModContent.Find(ContentKind.Rarity, 9999) is null, "Find(9999) 应回 null");
+            var rarity = ModContent.GetInstance<Content.TestRarity>();
+            c.NotNull(rarity, "Rarity 实例已注册");
+            c.Eq(rarity!.Type, type, "Rarity 号");
             c.NoThrow(static () => Item.GetPopupRarityColor(9999), "GetPopupRarityColor(9999) 不抛");
 
             // GetPrefixedRarity：offset=+2 时应返回 Type+2，且 Prefixed 链 clamp 不越界
-            var rarity = ModContent.GetInstance<Content.TestRarity>();
             c.Eq(rarity.GetPrefixedRarity(2, 1.5f), type + 2, "GetPrefixedRarity(+2)");
         });
     }

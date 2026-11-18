@@ -47,19 +47,24 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         return true;
     }
 
+    private static readonly int[] VanillaBackgrounds = { 1, 2, 3, 4, 5, 6, 7, 8, 13, 14 };
+
     private static int ChooseWaterStyle(On.Terraria.Main.orig_CalculateWaterStyle orig, bool ignoreFountains)
     {
         var vanilla = orig(ignoreFountains);
 
-        var effect = SceneEffectPipeline.Current;
+        var effect = SceneEffectPipeline.WaterEffect;
         if (effect is null) return vanilla;
 
         try
         {
-            if (!SceneEffectPipeline.AllowsVisuals(effect)) return vanilla;
-
             var style = effect.WaterStyle;
             if (style is null || !style.Registered) return vanilla;
+            if (effect.Priority < VanillaSceneTier.BiomeLow) return vanilla;
+
+            if (!ignoreFountains && Main.SceneMetrics.ActiveFountainColor >= 0) return vanilla;
+            if (Main.bloodMoon && !Main.dayTime) return vanilla;
+            if (Array.IndexOf(VanillaBackgrounds, Main.bgStyle) >= 0) return vanilla;
 
             return style.Type;
         }
@@ -147,6 +152,8 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
+    private const float LightFactor = 0.91f;
+
     private static Il2CppMicrosoft.Xna.Framework.Vector3? Decay()
     {
         var water = Current();
@@ -162,6 +169,9 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
             ContentErrors.Report($"[water] {water.Name}.LightColorMultiplier 异常：{Safe.Describe(e)}");
             return null;
         }
+        r *= LightFactor;
+        g *= LightFactor;
+        b *= LightFactor;
         return new Il2CppMicrosoft.Xna.Framework.Vector3(r, g, b);
     }
 
@@ -430,44 +440,22 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
     {
         if (WaterfallTable.Of(waterfallType) is { } fall)
         {
-            var r = 1f;
-            var g = 1f;
-            var b = 1f;
-            var a = 1f;
+            var r = (float)color.R;
+            var g = (float)color.G;
+            var b = (float)color.B;
 
             try
             {
-                fall.ColorMultiplier(ref r, ref g, ref b, ref a);
+                fall.ColorMultiplier(ref r, ref g, ref b, opacity);
+                color = new Il2CppMicrosoft.Xna.Framework.Graphics.Color((int)r, (int)g, (int)b, color.A);
             }
             catch (Exception e)
             {
                 ContentErrors.Report("[water] " + fall.Name + ".ColorMultiplier 异常：" + Safe.Describe(e));
-                r = g = b = a = 1f;
-            }
-
-            if (r != 1f || g != 1f || b != 1f || a != 1f)
-            {
-                color = new Il2CppMicrosoft.Xna.Framework.Graphics.Color(
-                    Tint(color.R, r), Tint(color.G, g), Tint(color.B, b), Tint(color.A, a));
-            }
-
-            try
-            {
-                fall.AddLight(x, y);
-            }
-            catch (Exception e)
-            {
-                ContentErrors.Report("[water] " + fall.Name + ".AddLight 异常：" + Safe.Describe(e));
             }
         }
 
         orig(self, waterfallType, x, y, opacity, position, ref sourceRect, ref color, effects);
-    }
-
-    private static byte Tint(byte channel, float multiplier)
-    {
-        var value = channel * multiplier;
-        return value <= 0f ? (byte)0 : value >= 255f ? (byte)255 : (byte)value;
     }
 
     private static Il2CppMicrosoft.Xna.Framework.Graphics.Color HairColor(
@@ -544,10 +532,33 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         try
         {
             self.DrawWaterfall(spriteBatch, style, alpha);
+            LightWaterfalls(self, fall);
         }
         catch (Exception e)
         {
             ContentErrors.Report($"[water] 瀑布 {fall.Name} 绘制失败：{Safe.Describe(e)}");
+        }
+    }
+
+    private static void LightWaterfalls(WaterfallManager self, ModWaterfallStyle fall)
+    {
+        var list = self.waterfalls;
+        if (list is null || list.Length == 0) return;
+
+        var count = Math.Min(self.currentMax, list.Length);
+        try
+        {
+            for (var k = 0; k < count; k++)
+            {
+                var w = list[k];
+                if (w.type != 0) continue;
+                var steps = Math.Min(w.stopAtStep, 24);
+                for (var s = 0; s <= steps; s += 3) fall.AddLight(w.x, w.y + s);
+            }
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report("[water] " + fall.Name + ".AddLight 异常：" + Safe.Describe(e));
         }
     }
 
@@ -566,32 +577,6 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
 
         if (_fallAlpha < 1f) _fallAlpha = Math.Min(1f, _fallAlpha + FallFadeStep);
         return _fallAlpha;
-    }
-
-    internal void Apply(ModSceneEffect? effect, bool allowed)
-    {
-        if (effect is null || !allowed) return;
-
-        ModWaterStyle? style;
-        try
-        {
-            style = effect.WaterStyle;
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report($"[water] {effect.Name}.WaterStyle 异常：{Safe.Describe(e)}");
-            return;
-        }
-
-        if (style is null) return;
-
-        if (!style.Registered)
-        {
-            ContentErrors.Report($"[water] {effect.Name} 的 WaterStyle 没注册：{style.Name}");
-            return;
-        }
-
-        Main.waterStyle = style.Type;
     }
 }
 

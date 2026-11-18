@@ -68,6 +68,7 @@ internal static class GoreTable
             gore.Plan = mask;
             gore.Type = Base + index;
             gore.Registered = true;
+            WriteVanillaDefaults(gore.Type);
 
             ByKey[gore.Mod.Name + "/" + gore.Name] = gore;
             // 裸类名只保留"唯一"的：第二个同名的把这一格清成 null，之后按名字查一律当没有。
@@ -76,6 +77,14 @@ internal static class GoreTable
 
             _next = index + 1;
         }
+    }
+
+    private static void WriteVanillaDefaults(int type)
+    {
+        var speed = Terraria.ID.GoreID.Sets.DisappearSpeed;
+        var alpha = Terraria.ID.GoreID.Sets.DisappearSpeedAlpha;
+        if (speed is not null && (uint)type < (uint)speed.Length) speed[type] = 1;
+        if (alpha is not null && (uint)type < (uint)alpha.Length) alpha[type] = 1;
     }
 
     private static void Ensure(int size)

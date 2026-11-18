@@ -24,7 +24,6 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
     {
         On.Terraria.Main.Update += Update;
         On.GUILogo.Draw += DrawLogo;
-        On.Terraria.Main.DrawMenu += DrawThemeButton;
         On.Terraria.Main.UpdateBGVisibility_BackLayer += UpdateBackLayer;
 
         // 之前，MenuTable 还是空的，按注册内容判断永远判不到——所以这里无条件挂载，
@@ -63,7 +62,7 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
                                         Il2CppSystem.Nullable<int> targetBiomeOverride,
                                         Il2CppSystem.Nullable<float> transitionAmountOverride)
     {
-        if (Main.gameMenu)
+        if (Main.gameMenu && !targetBiomeOverride.HasValue)
         {
             var slot = MenuBackgroundSlot();
             if (slot >= 0)
@@ -105,17 +104,6 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
         if (style is null || !style.Registered) return -1;
         return style.Slot;
     }
-
-    // ===================== 切换按钮 =====================
-
-    /// <summary>
-    /// 只在 menuMode==0 时保留每帧钩位（未来接 UI 用）；点击逻辑随按钮一起去掉。
-    /// </summary>
-    private static void DrawThemeButton(On.Terraria.Main.orig_DrawMenu orig, Main self, Il2CppMicrosoft.Xna.Framework.GameTime gameTime)
-    {
-        orig(self, gameTime);
-    }
-
 
     // ===================== 持久化 =====================
 
@@ -180,7 +168,7 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
     }
 
     /// <summary>换主题：先让旧的失效，再让新的生效；null = 回到游戏原值。</summary>
-    internal void Select(ModMenu? menu)
+    internal static void Select(ModMenu? menu)
     {
         if (ReferenceEquals(menu, _current)) return;
 
@@ -324,7 +312,10 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
     /// </summary>
     private static void DrawLogo(On.GUILogo.orig_Draw orig, GUILogo self)
     {
-        if (_current is not { } menu)
+        Tick();
+        var menu = _current;
+
+        if (menu is null)
         {
             orig(self);
             return;
@@ -409,10 +400,8 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
 
     // ===================== 每帧 =====================
 
-    private void Update(On.Terraria.Main.orig_Update orig, Main self, Il2CppMicrosoft.Xna.Framework.GameTime gameTime)
+    private static void Tick()
     {
-        orig(self, gameTime);
-
         if (MenuTable.Count == 0) return;
 
         // 选中的主题不可用了（例如按日期开放的写法）：换回默认。
@@ -421,18 +410,22 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
 
         if (_current is not { } menu) return;
 
-        var title = !Main.gameMenu || Main.menuMode == 0;
-
         try
         {
-            menu.Update(title);
+            menu.Update(Main.menuMode == 0);
         }
         catch (Exception e)
         {
             ContentErrors.Report($"[menu] {menu.Name}.Update 异常：{Safe.Describe(e)}");
         }
+    }
 
-        if (!title) return;
+    private void Update(On.Terraria.Main.orig_Update orig, Main self, Il2CppMicrosoft.Xna.Framework.GameTime gameTime)
+    {
+        orig(self, gameTime);
+
+        if (!Main.gameMenu || _current is not { } menu) return;
+        if (WorldGen.drunkWorldGen || WorldGen.remixWorldGen || WorldGen.tenthAnniversaryWorldGen || Main.menuMode == 3000) return;
 
         int music;
         try
@@ -445,6 +438,21 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
             return;
         }
 
-        if (music >= 0) Main.newMusic = music;
+        if (music < 0) return;
+        if (IsDefaultTitleTrack(music)) return;
+
+        Main.newMusic = music;
+    }
+
+    private static bool IsDefaultTitleTrack(int music)
+    {
+        try
+        {
+            return music == Terraria.ID.MusicID.TitleJourneysBeginningWithIntro || music == Terraria.ID.MusicID.TitleJourneysBeginning;
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

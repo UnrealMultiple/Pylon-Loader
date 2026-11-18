@@ -68,6 +68,16 @@ internal static class MountTests
             c.NotNull(item, "TestMountItem 模板");
             c.Eq(item?.mountType ?? -1, ModContent.MountType<Content.TestMount>(), "item.mountType");
         });
+
+        PT.Case("MOUNT-R6", c =>
+        {
+            var mountType = ModContent.MountType<Content.TestMount>();
+            c.Eq(MountLoader.MountCount, Terraria.ID.MountID.Count, "MountCount = MountID.Count");
+            c.True(MountLoader.GetMount(mountType) == ModContent.GetInstance<Content.TestMount>(), "GetMount 反查");
+            c.True(MountLoader.GetMount(1) is null, "原版号 GetMount = null");
+            c.True(MountLoader.IsModMount(ModContent.GetInstance<Content.TestMount>().MountData), "IsModMount(mod)");
+            c.True(!MountLoader.IsModMount(Terraria.Mount.mounts[1]), "IsModMount(原版) = false");
+        });
     }
 
     private static void RunWorld()
@@ -113,6 +123,18 @@ internal static class MountTests
                 cc.True(Calls("Draw0") >= 30, $"Draw Back 层={Calls("Draw0")}");
                 cc.True(Calls("Draw2") >= 30, $"Draw Front 层={Calls("Draw2")}");
             });
+        });
+
+        PT.Case("MOUNT-W4", c =>
+        {
+            Il2CppSystem.String payload = "作者数据";
+            player.mount._mountSpecificData = payload;
+
+            var sameFrame = player.mount._mountSpecificData;
+            PT.Info($"MOUNT-W4 探针：写后同帧读 = {sameFrame?.ToString() ?? "<null>"}");
+
+            c.True(sameFrame?.ToString() == "作者数据", "_mountSpecificData 同帧往返");
+            player.mount._mountSpecificData = null;
         });
 
         PT.Case("MOUNT-W3", c =>

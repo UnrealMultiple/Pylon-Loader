@@ -119,11 +119,11 @@ internal sealed class InterfaceLayerPipeline : ILoaderModule, ILoaderModuleRefre
     {
         if (self is null) return true;
 
-        if (ByPointer.TryGetValue(self.Pointer, out var layer) && layer.Draw is { } draw)
+        if (ByPointer.TryGetValue(self.Pointer, out var layer))
         {
             try
             {
-                return draw();
+                return layer.Draw();
             }
             catch (Exception e)
             {
@@ -181,8 +181,6 @@ internal sealed class InterfaceLayerPipeline : ILoaderModule, ILoaderModuleRefre
                 final.Add(layer.Native);
                 continue;
             }
-
-            if (layer.Draw is null) continue;
 
             var pointer = ShellOf(layer, seen);
             ByPointer[pointer] = layer;

@@ -24,8 +24,10 @@ public sealed class TestWaterfallStyle : ModWaterfallStyle
 {
     public override string TexturePath => "assets/water/TestWaterfallStyle.png";
 
-    public override void ColorMultiplier(ref float r, ref float g, ref float b, ref float a)
+    public override void ColorMultiplier(ref float r, ref float g, ref float b, float a)
     {
-        r = 1.2f; g = 0.6f; b = 1.1f; a = 0.9f;
+        r *= 1.2f;
+        g *= 0.6f;
+        b *= 1.1f;
     }
 }

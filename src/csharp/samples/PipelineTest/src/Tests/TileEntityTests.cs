@@ -175,5 +175,22 @@ internal static class TileEntityTests
                 cc.True(text.Contains("TestTileEntity"), "侧车存档里记了实体键");
             });
         });
+
+        PT.Case("TE-8", c =>
+        {
+            _ = c;
+
+            PT.Later("TE-8", 85, cc =>
+            {
+                WorldGen.PlaceTile(x, y, tileType, true, true, -1, 0);
+                var id = entity.Find(x, y);
+                cc.True(id >= 0, $"实体已放 id={id}");
+                if (id < 0) return;
+
+                cc.True(TileEntityTml.TryGet<Content.TestTileEntity>(x, y, out var found), "TryGet 取回实体");
+                cc.True(found is not null && found.ID == id, $"TryGet 的 ID={found?.ID} 与 Find 一致");
+                entity.Kill(x, y);
+            });
+        });
     }
 }

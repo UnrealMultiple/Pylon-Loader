@@ -35,6 +35,22 @@ internal static class BannerTable
 
     internal static int BannerForItem(int item) => BannerOfItem.TryGetValue(item, out var banner) ? banner : 0;
 
+    internal static bool TryGetBannerForItem(int item, out int banner) => BannerOfItem.TryGetValue(item, out banner);
+
+    internal static void Fit(SceneMetrics metrics)
+    {
+        if (metrics is null) return;
+
+        var size = MaxBanner + 1;
+        if (size <= 0) return;
+        var buffs = metrics.NPCBannerBuff;
+        if (buffs is not null && buffs.Length >= size) return;
+
+        var longer = new bool[size];
+        if (buffs is not null) Array.Copy(buffs, longer, buffs.Length);
+        metrics.NPCBannerBuff = longer;
+    }
+
     /// <summary>所有登记的旗子号（点亮 buff 时遍历用）。</summary>
     internal static IEnumerable<int> Banners => ItemOfBanner.Keys;
 
@@ -147,13 +163,6 @@ internal static class BannerTable
         }
     }
 
-    /// <summary>(旗子方块类型, 样式) → 旗子号：附近点亮 buff 时按方块反查。</summary>
-    private static readonly Dictionary<(int Tile, int Style), int> BannerOfTile = [];
-
-    /// <summary>方块 → 旗子号；没登记返回 0。</summary>
-    internal static int BannerOfTileAt(int tileType, int style) =>
-        BannerOfTile.TryGetValue((tileType, style), out var banner) ? banner : 0;
-
     /// <summary>
     /// 给 mod 旗子物品补上默认值：<c>BannerStrength = Reduced</c>（Enabled）、
     /// <c>KillsToBanner = 50</c>。作者在 SetStaticDefaults 里改过的值不覆盖。
@@ -223,7 +232,6 @@ internal static class BannerTable
         ItemOfBanner.Clear();
         BannerOfItem.Clear();
         KeyOfBanner.Clear();
-        BannerOfTile.Clear();
         _kills = [];
         _fresh = [];
         _claimable = [];
@@ -264,10 +272,6 @@ internal static class BannerTable
 
             var slot = banner - Base + 1;
             if (slot > size) size = slot;
-
-            // 旗子方块反查：物品的 createTile + placeStyle 就是"这一面旗"的方块外观。
-            var sample = ContentSamples.ItemsByType[item];
-            if (sample is not null && sample.createTile > 0) BannerOfTile[(sample.createTile, sample.placeStyle)] = banner;
 
             EnsureItemTables(item);
         }

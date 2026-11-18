@@ -2,7 +2,10 @@ using Terraria;
 
 namespace Pylon.ModLoader;
 
-/// <summary>伤害类别管线：把物品声明的类别挂到武器的伤害 / 暴击 / 击退 / 体积入口上。</summary>
+/// <summary>
+/// 伤害职业管线：安装期把 Mod 职业加进职业表（引擎入口随第一个 mod 职业激活）；
+/// 武器数值入口（伤害/暴击/击退/体积）上派发 ModItem/GlobalItem/ModPlayer 的修改钩。
+/// </summary>
 internal sealed class DamageClassPipeline : ILoaderModule, ILoaderModuleRefresh
 {
     public static DamageClassPipeline Instance { get; } = new();
@@ -18,7 +21,7 @@ internal sealed class DamageClassPipeline : ILoaderModule, ILoaderModuleRefresh
         On.Terraria.Player.GetWeaponKnockback += WeaponKnockback;
         On.Terraria.Player.GetAdjustedItemScale += ItemScale;
 
-        Log.Info("[damageclass] 已挂（伤害 / 暴击 / 击退 / 体积；类别乘区 + 作者钩子）");
+        Log.Info("[damageclass] 已挂（武器伤害/暴击/击退/体积派发 + 类别引擎随注册激活）");
         return true;
     }
 
@@ -27,10 +30,19 @@ internal sealed class DamageClassPipeline : ILoaderModule, ILoaderModuleRefresh
     internal void Build()
     {
         var count = 0;
-        foreach (var cls in ModContent.GetContent<ModDamageClass>())
+        foreach (var cls in ModContent.GetContent<DamageClass>())
         {
-            cls.SetStaticDefaults();
-            count++;
+            try
+            {
+                cls.Type = DamageClassLoader.Add(cls);
+                _ = cls.DisplayName;
+                cls.SetStaticDefaults();
+                count++;
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[damageclass] {cls.Name} 安装异常：{Safe.Describe(e)}");
+            }
         }
 
         if (count > 0) Log.Info($"[damageclass] 安装：{count} 个类别");

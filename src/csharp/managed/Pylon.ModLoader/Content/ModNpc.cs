@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
+using Pylon.ModLoader.Textures;
 using Terraria;
 using Terraria.DataStructures;
 using Terraria.GameContent;
@@ -22,6 +23,9 @@ public abstract class ModNpc : ModType
     /// <summary>贴图是竖排帧条，帧数写进 <c>Main.npcFrameCount[Type]</c>。</summary>
     public override string TexturePath => $"assets/npcs/{Name}.png";
 
+    /// <summary>本地化键的分类目录；缺省 "NPCs"。</summary>
+    public virtual string LocalizationCategory => "NPCs";
+
     /// <summary>只在跑游戏 AI 期间把 npc.type 换成它；<c>npc.aiStyle</c> 要另设（只读属性，按类固定）。</summary>
     public virtual int AIType => 0;
 
@@ -33,9 +37,6 @@ public abstract class ModNpc : ModType
 
     /// <summary>旗帜解锁的物品 ID；0 = 关。与 <see cref="Banner"/> 必须成对填写。</summary>
     public virtual int BannerItem => 0;
-
-    /// <summary>血条；null = 用游戏那条。要在 <see cref="SetDefaults"/> 里给。</summary>
-    public virtual ModBossBar BossBar => null!;
 
     /// <summary>显示名；空 = 用 <c>NPCName.&lt;Name&gt;</c>（ContentInstaller 写 Lang）。</summary>
     public virtual string DisplayName => "";
@@ -63,6 +64,12 @@ public abstract class ModNpc : ModType
 
     /// <summary>只放共享数值，不要碰游戏对象。</summary>
     public override void SetStaticDefaults() { }
+
+    /// <summary>静态默认值之前：把本类型的贴图写进 <c>TextureAssets.Npc</c>；默认已由安装管线写入，覆写可换贴图来源。</summary>
+    public virtual void AutoStaticDefaults()
+    {
+        TextureSlots.TryWrite(TextureTable.Npc, Type, Texture);
+    }
 
     /// <summary>这个类型的每个 NPC 生成时；专家/大师缩放在这之后（finishModNpc）。</summary>
     public virtual void SetDefaults() { }
@@ -104,6 +111,10 @@ public abstract class ModNpc : ModType
 
     /// <summary>微光平台：null 交给游戏，false 不穿。</summary>
     public virtual bool? CanFallThroughPlatforms() => null;
+
+    /// <summary>近战命中盒与受伤冷却/伤害倍率的最后一道修饰；false 直接跳过原版命中判定。</summary>
+    public virtual bool ModifyCollisionData(Rectangle victimHitbox, ref int immunityCooldownSlot,
+                                            ref MultipliableFloat damageMultiplier, ref Rectangle npcHitbox) => true;
 
     // ===================== 受击与命中 =====================
 
@@ -305,7 +316,13 @@ public abstract class ModNpc : ModType
     public virtual bool CanChat() => NPC.townNPC;
 
     /// <summary>聊天时说的话；<c>null</c> 用游戏的。Global 之后还能再改（ref）。</summary>
-    public virtual string GetChat() => null!;
+    public virtual string GetChat() => Terraria.Localization.Language.GetTextValue("LegacyDialog.1") ?? "";
+
+    /// <summary>注册交互按钮（新形态）：往列表里加 <see cref="NPCInteraction"/>，前两个会显示。</summary>
+    public virtual void RegisterChatButtons(NPCInteractionList interactions) { }
+
+    /// <summary>点了新形态的交互按钮（<see cref="RegisterChatButtons"/> 注册的）。</summary>
+    public virtual void OnChatButtonClicked(NPCInteraction interaction) { }
 
     /// <summary>聊天的两个按钮文字；留空 = 没这个按钮（手机最多显示两个）。</summary>
     public virtual void SetChatButtons(ref string button, ref string button2) { }
@@ -350,8 +367,3 @@ public abstract class ModNpc : ModType
     public virtual void DrawTownAttackSwing(ref Texture2D item, ref Rectangle itemFrame, ref int itemSize,
                                             ref float scale, ref Vector2 offset) { }
 }
-
-// 分派未接的声明钩子见各方法注释；接分派时同步 HookId（追加区）与调用点。
-// 暂缓：ModifyCollisionData（要的 MultipliableFloat 不在本构建游戏元数据里）、
-// RegisterChatButtons/OnChatButtonClicked(NPCInteraction)（要的 NPCInteractionList 是对侧自造类，本构建只有 NPCInteraction）。
-// AutoStaticDefaults 的贴图登记走 Pylon 的安装管线，不另设钩子。

@@ -370,7 +370,7 @@ internal static class ItemPickupHooks
         orig(self, itemToPickUp);
     }
 
-    private static WorldItem? WorldItemOf(Item item)
+    internal static WorldItem? WorldItemOf(Item item)
     {
         var cachedItem = _cachedItem;
         var cachedWorld = _cachedWorld;

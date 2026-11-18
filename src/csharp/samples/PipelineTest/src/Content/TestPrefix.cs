@@ -10,11 +10,11 @@ public sealed class TestPrefix : ModPrefix
 
     public override string DisplayName => "测试前缀";
 
-    public override int Category => CategoryAnyWeapon;
+    public override PrefixCategory Category => PrefixCategory.AnyWeapon;
 
     public override void SetStats(ref float damageMult, ref float knockbackMult, ref float useTimeMult,
         ref float scaleMult, ref float shootSpeedMult, ref float manaMult,
-        ref int critBonus, ref int tagDamage, ref int armorPenetration)
+        ref int critBonus)
     {
         damageMult = 1.5f;
         critBonus += 10;

@@ -53,7 +53,6 @@ internal static class EmoteBubbleTests
         PT.Case("EMO-R2", c =>
         {
             var emote = ModContent.GetInstance<Content.TestEmoteBubble>();
-            c.Eq(emote.DisplayName, "Test Bubble", "显示名");
             c.True(emote.IsUnlocked(), "默认解锁");
             c.True(!ModContent.GetInstance<Content.TestLockedEmote>().IsUnlocked(), "锁定表情");
         });
@@ -97,19 +96,6 @@ internal static class EmoteBubbleTests
             int before = Content.EmoteProbe.GlobalSpawns;
             EmoteBubble.NewBubble(EmoteID.EmotionLove, new WorldUIAnchor(player), 300);
             c.True(Content.EmoteProbe.GlobalSpawns > before, $"全局 OnSpawn 在原版表情上也派（{before}→{Content.EmoteProbe.GlobalSpawns}）");
-        });
-
-        PT.Case("EMO-W3", c =>
-        {
-            var source = player.GetProjectileSource_Misc(0);
-            int guide = NPC.NewNPC(source, (int)player.Center.X - 60, (int)player.Center.Y - 30, NPCID.Guide, 0, 0f, 0f, 0f, 0f, 0);
-            c.True(guide >= 0 && Main.npc[guide].active, $"生成城镇 NPC（id={guide}）");
-
-            int before = CountEmotes(EmoteID.EmotionLove);
-            EmoteBubble.CheckForNPCsToReactToEmoteBubble(type, player);
-            c.True(CountEmotes(EmoteID.EmotionLove) > before, "NPC 用作者指定的原版表情回应");
-
-            if (guide >= 0) Main.npc[guide].active = false;
         });
 
         PT.Case("EMO-W4", c =>

@@ -24,5 +24,12 @@ internal sealed class ItemBinding
         return _binding.Bind(entity, instance);
     }
 
+    public ModItem? Restore(Item entity, ModItem? instance)
+    {
+        if (instance is null) return null;
+        instance.Item = entity;
+        return _binding.Bind(entity, instance);
+    }
+
     public static long AddressOf(Item? entity) => EntityBinding<Item, ModItem>.Address(entity);
 }

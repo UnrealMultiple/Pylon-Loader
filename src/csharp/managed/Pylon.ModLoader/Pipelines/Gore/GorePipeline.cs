@@ -2,6 +2,7 @@ using Pylon.ModLoader.Tables;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Textures;
 using Terraria;
+using Terraria.DataStructures;
 
 namespace Pylon.ModLoader;
 
@@ -11,6 +12,9 @@ internal sealed class GorePipeline : ILoaderModule, ILoaderModuleRefresh
     public static GorePipeline Instance { get; } = new();
 
     private readonly HashSet<long> _reported = [];
+
+    [ThreadStatic]
+    internal static IEntitySource? PendingSource;
 
     public string Name => "gore";
 
@@ -32,7 +36,6 @@ internal sealed class GorePipeline : ILoaderModule, ILoaderModuleRefresh
 
     public void Refresh() => GoreTable.Assign();
 
-    /// <summary>安装期：扩平行表 → 发号 → 逐类型 SetStaticDefaults。</summary>
     internal void Build()
     {
         Grow();
@@ -48,7 +51,20 @@ internal sealed class GorePipeline : ILoaderModule, ILoaderModuleRefresh
             count++;
         }
 
+        WriteVanillaDefaults();
+
         if (count > 0) Log.Info($"[gore] 安装：{count} 个（类型 {GoreTable.Base}..{GoreTable.Total - 1}）");
+    }
+
+    private static void WriteVanillaDefaults()
+    {
+        var speed = Terraria.ID.GoreID.Sets.DisappearSpeed;
+        var alpha = Terraria.ID.GoreID.Sets.DisappearSpeedAlpha;
+        for (var type = GoreTable.Base; type < GoreTable.Total; type++)
+        {
+            if (speed is not null && (uint)type < (uint)speed.Length) speed[type] = 1;
+            if (alpha is not null && (uint)type < (uint)alpha.Length) alpha[type] = 1;
+        }
     }
 
     /// <summary>TextureAssets.Gore 与 GoreID.Sets 那几张平行表一次扩到位；扩表器留在 Active 里供维护期补扩。</summary>
@@ -70,6 +86,8 @@ internal sealed class GorePipeline : ILoaderModule, ILoaderModuleRefresh
     private int NewGore(On.Terraria.Gore.orig_NewGore orig, Il2CppMicrosoft.Xna.Framework.Vector2 position,
                         Il2CppMicrosoft.Xna.Framework.Vector2 velocity, int type, float scale)
     {
+        var source = PendingSource;
+        PendingSource = null;
         var index = orig(position, velocity, type, scale);
 
         var gore = GoreTable.Of(type);
@@ -81,7 +99,7 @@ internal sealed class GorePipeline : ILoaderModule, ILoaderModuleRefresh
 
         try
         {
-            gore.OnSpawn(spawned);
+            gore.OnSpawn(spawned, source);
         }
         catch (Exception e)
         {

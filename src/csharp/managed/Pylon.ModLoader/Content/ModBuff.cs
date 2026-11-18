@@ -9,6 +9,9 @@ public abstract class ModBuff : ModType
     /// <summary>贴图相对 Mod 目录的路径（默认 assets/buffs/&lt;Name&gt;.png）。</summary>
     public override string TexturePath => $"assets/buffs/{Name}.png";
 
+    /// <summary>本地化分类名。</summary>
+    public virtual string LocalizationCategory => "Buffs";
+
     /// <summary>显示名。</summary>
     public virtual string DisplayName { get; set; } = "";
 

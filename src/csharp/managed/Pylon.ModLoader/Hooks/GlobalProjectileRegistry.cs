@@ -27,4 +27,6 @@ internal static class GlobalProjectileRegistry
     internal static List<GlobalProjectile> Of(Projectile? entity) => Registry.Of(entity);
 
     internal static void Attach(Projectile? entity, bool lateInstantiation) => Registry.Attach(entity, lateInstantiation);
+
+    internal static void Restore(Projectile? entity, List<GlobalProjectile>? previous) => Registry.Restore(entity, previous);
 }

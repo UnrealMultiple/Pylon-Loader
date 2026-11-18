@@ -5,7 +5,7 @@ namespace Pylon.ModLoader;
 
 /// <summary>
 /// 行命名：先看角色（位置标记直接给出），再看词缀，再看物品自己的 ToolTip 顺序，最后按原版文本比对。
-/// 没有静态的原版文本表——那样每跟一次游戏版本就要重对几百行。
+/// 原版文本直接读游戏的语言数组（tip/inter/misc），没有静态的原版文本表——那样每跟一次游戏版本就要重对几百行。
 /// </summary>
 internal sealed class TooltipNames
 {
@@ -31,11 +31,19 @@ internal sealed class TooltipNames
         }
     }
 
-    private static string Tip(int index)
+    private static string Tip(int index) => At(Lang.tip, index);
+
+    private static string Inter(int index) => At(Lang.inter, index);
+
+    private static string Misc(int index) => At(Lang.misc, index);
+
+    private static string At(Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppReferenceArray<LocalizedText>? texts, int index)
     {
         try
         {
-            return Language.GetTextValue("LegacyTooltip." + index);
+            if (texts is null || index < 0 || index >= texts.Length) return "";
+            var text = texts[index];
+            return text is null ? "" : text.Value ?? "";
         }
         catch
         {
@@ -47,7 +55,7 @@ internal sealed class TooltipNames
     {
         try
         {
-            return Language.GetTextValue(key);
+            return Language.GetTextValue(key) ?? "";
         }
         catch
         {
@@ -74,7 +82,6 @@ internal sealed class TooltipNames
                text.EndsWith(tail, StringComparison.Ordinal);
     }
 
-    /// <summary>给一行定名字；role 非空时直接按角色命名。</summary>
     internal string Of(string text, string role, bool modifier)
     {
         switch (role)
@@ -98,6 +105,39 @@ internal sealed class TooltipNames
             return "Tooltip" + i;
         }
 
+        if (Is(text, Tip(56))) return "Favorite";
+        if (Is(text, Tip(57))) return "FavoriteDesc";
+        if (Is(text, Tip(61))) return "NoSocial";
+        for (var t = 6; t <= 13; t++)
+        {
+            if (Is(text, Tip(t))) return "Speed";
+        }
+        for (var t = 14; t <= 22; t++)
+        {
+            if (Is(text, Tip(t))) return "Knockback";
+        }
+        if (Is(text, Tip(23)) || Is(text, Tip(60))) return "Equipable";
+        if (Is(text, Tip(24))) return "Vanity";
+        if (Is(text, Tip(33))) return "Placeable";
+        if (Is(text, Tip(34))) return "Ammo";
+        if (Is(text, Tip(35))) return "Consumable";
+        if (Is(text, Tip(36))) return "Material";
+        if (Is(text, Tip(59))) return "Tooltip0";
+        if (Is(text, Inter(65))) return "Quest";
+        if (Is(text, Misc(104))) return "EtherianManaWarning";
+        if (Is(text, Misc(40))) return "WellFedExpert";
+        if (Is(text, Key("GameUI.Expert"))) return "Expert";
+        if (Is(text, Key("GameUI.Master"))) return "Master";
+        if (Is(text, Key("GameUI.BaitRequired"))) return "NeedsBait";
+        if (Is(text, Key("CommonItemTooltip.Wireable"))) return "Wireable";
+        if (Is(text, Key("CommonItemTooltip.Container"))) return "Container";
+        if (Is(text, Key("UI.ItemLoadoutShared"))) return "Shared";
+        if (Is(text, Key("UI.ItemCannotBePlacedInsideItself"))) return "NoTransfer";
+        if (Is(text, Key("CommonItemTooltip.WizardHatDuringAnniversary"))) return "WizardHatDuringAnniversary";
+        if (Is(text, Key("CommonItemTooltip.BurningBlock"))) return "BurningBlock";
+        if (Is(text, Key("CommonItemTooltip.MechSummonDuringEverything"))) return "MechSummonDuringEverything";
+        if (Is(text, Key("CommonItemTooltip.MechdusaSummonNotDuringEverything"))) return "MechdusaSummonNotDuringEverything";
+
         if (Ends(text, Tip(5)) && _item.damage > 0) return "CritChance";
 
         var damage = new[] { 2, 3, 4, 53, 55 };
@@ -111,18 +151,15 @@ internal sealed class TooltipNames
         if (Ends(text, Tip(27))) return "AxePower";
         if (Ends(text, Tip(28))) return "HammerPower";
         if (Ends(text, Tip(54))) return "TileBoost";
-        if (Ends(text, Tip(23)) || Ends(text, Tip(60))) return "Equipable";
-        if (Ends(text, Tip(24))) return "Vanity";
-        if (Ends(text, Tip(33))) return "Placeable";
-        if (Ends(text, Tip(34))) return "Ammo";
-        if (Ends(text, Tip(35))) return "Consumable";
-        if (Ends(text, Tip(36))) return "Material";
-        if (Is(text, Key("GameUI.Expert"))) return "Expert";
-        if (Is(text, Key("GameUI.Master"))) return "Master";
+        if (Tip(52).Length > 0 && text.StartsWith(Tip(52), StringComparison.Ordinal)) return "WandConsumes";
+        if (Fits(text, Key("GameUI.PrecentFishingPower"))) return "FishingPower";
+        if (Fits(text, Key("GameUI.BaitPower"))) return "BaitPower";
         if (Fits(text, Key("CommonItemTooltip.RestoresLife")) || Fits(text, Key("CommonItemTooltip.RestoresLifeRange"))) return "HealLife";
         if (Fits(text, Key("CommonItemTooltip.RestoresMana"))) return "HealMana";
         if (Fits(text, Key("CommonItemTooltip.UsesMana"))) return "UseMana";
         if (Fits(text, Key("CommonItemTooltip.SecondDuration")) || Fits(text, Key("CommonItemTooltip.MinuteDuration"))) return "BuffTime";
+        if (Fits(text, Key("UI.ItemLoadoutSharedFrom"))) return "SharedFrom";
+        if (Fits(text, Key("CommonItemTooltip.WireTrigger"))) return "WireTrigger";
 
         return "BestiaryNotes";
     }
@@ -143,6 +180,8 @@ internal sealed class TooltipNames
         if (Ends(text, Tip(5))) return "PrefixAccCritChance";
         if (Ends(text, Tip(46))) return "PrefixAccMoveSpeed";
         if (Ends(text, Tip(47))) return "PrefixAccMeleeSpeed";
+        if (Fits(text, Key("CommonItemTooltip.PrefixArmorPenetration"))) return "PrefixArmorPenetration";
+        if (Fits(text, Key("CommonItemTooltip.PrefixTagDamage"))) return "PrefixTagDamage";
 
         return "Prefix";
     }

@@ -32,6 +32,7 @@ internal sealed class ItemPipeline : ILoaderModule
     {
         _globalShoot = GlobalItemRegistry.AnyWith(HookId.CanShoot, HookId.ModifyShootStats, HookId.Shoot);
         _defaults.Install();
+        ItemTml.Install();
         ItemAnglerQuest.Install();
         ItemAmmoHooks.Install();
         ItemHealHooks.Install();
@@ -67,6 +68,8 @@ internal sealed class ItemPipeline : ILoaderModule
     private ModItem? ModOf(Item item) => _binding.InstanceOf(item);
 
     internal ModItem? InstanceOf(Item item) => _binding.InstanceOf(item);
+
+    internal void Restore(Item item, ModItem? mod) => _binding.Restore(item, mod);
 
     private static Color GetAlpha(On.Terraria.Item.orig_GetAlpha orig, Item self, Color newColor)
     {
@@ -267,27 +270,32 @@ internal sealed class ItemPipeline : ILoaderModule
                                  Player self, int itemSlot, Item currentItem)
     {
         orig(self, itemSlot, currentItem);
-        UpdateEquip(self, currentItem);
-    }
 
-    private void GrantArmorBenefits(On.Terraria.Player.orig_GrantArmorBenefits orig, Player self, Item armorPiece)
-    {
-        orig(self, armorPiece);
-        UpdateEquip(self, armorPiece);
-    }
-
-    private void UpdateEquip(Player player, Item item)
-    {
         try
         {
-            if (!IsModItem(item)) return;
+            if (currentItem is null || currentItem.IsAir) return;
 
-            var mod = ModOf(item);
-            if (mod is not null && mod.Plan.Has(HookId.UpdateEquip)) mod.UpdateEquip(player);
+            var hidden = self.hideVisibleAccessory;
+            var hide = hidden is not null && itemSlot >= 0 && itemSlot < hidden.Length && hidden[itemSlot];
 
-            foreach (var global in GlobalItemRegistry.For(item, HookId.UpdateEquip))
+            var mod = IsModItem(currentItem) ? ModOf(currentItem) : null;
+            if (mod is not null)
             {
-                if (global.Plan.Has(HookId.UpdateEquip)) global.UpdateEquip(item, player);
+                if (mod.Plan.Has(HookId.UpdateEquip)) mod.UpdateEquip(self);
+                if (currentItem.accessory && mod.Plan.Has(HookId.UpdateAccessory)) mod.UpdateAccessory(self, hide);
+            }
+
+            foreach (var global in GlobalItemRegistry.For(currentItem, HookId.UpdateEquip))
+            {
+                if (global.Plan.Has(HookId.UpdateEquip)) global.UpdateEquip(currentItem, self);
+            }
+
+            if (currentItem.accessory)
+            {
+                foreach (var global in GlobalItemRegistry.For(currentItem, HookId.UpdateAccessory))
+                {
+                    if (global.Plan.Has(HookId.UpdateAccessory)) global.UpdateAccessory(currentItem, self, hide);
+                }
             }
         }
         catch (Exception e)
@@ -296,30 +304,51 @@ internal sealed class ItemPipeline : ILoaderModule
         }
     }
 
-    private void EquipVanity(On.Terraria.Player.orig_ApplyEquipVanity orig,
-                             Player self, int itemSlot, Item currentItem)
+    private void GrantArmorBenefits(On.Terraria.Player.orig_GrantArmorBenefits orig, Player self, Item armorPiece)
     {
-        orig(self, itemSlot, currentItem);
+        orig(self, armorPiece);
 
         try
         {
-            if (!IsModItem(currentItem)) return;
+            if (armorPiece is null || armorPiece.IsAir) return;
 
-            var mod = ModOf(currentItem);
-            if (mod is not null)
-            {
-                if (mod.Plan.Has(HookId.UpdateAccessory)) mod.UpdateAccessory(self, hideVisual: false);
-                if (mod.Plan.Has(HookId.UpdateVanity)) mod.UpdateVanity(self);
-            }
+            var mod = IsModItem(armorPiece) ? ModOf(armorPiece) : null;
+            if (mod is not null && mod.Plan.Has(HookId.UpdateEquip)) mod.UpdateEquip(self);
 
-            foreach (var global in GlobalItemRegistry.For(currentItem, HookId.UpdateAccessory))
+            foreach (var global in GlobalItemRegistry.For(armorPiece, HookId.UpdateEquip))
             {
-                if (global.Plan.Has(HookId.UpdateAccessory)) global.UpdateAccessory(currentItem, self, hideVisual: false);
+                if (global.Plan.Has(HookId.UpdateEquip)) global.UpdateEquip(armorPiece, self);
             }
         }
         catch (Exception e)
         {
-            Log.Warn("[item] UpdateAccessory 异常：" + e.Message);
+            Log.Warn("[item] UpdateEquip 异常：" + e.Message);
+        }
+    }
+
+    internal static int ApplyEquipVanityCalls;
+
+    private void EquipVanity(On.Terraria.Player.orig_ApplyEquipVanity orig,
+                             Player self, int itemSlot, Item currentItem)
+    {
+        ApplyEquipVanityCalls++;
+        orig(self, itemSlot, currentItem);
+
+        try
+        {
+            if (currentItem is null || currentItem.IsAir) return;
+
+            var mod = IsModItem(currentItem) ? ModOf(currentItem) : null;
+            if (mod is not null && mod.Plan.Has(HookId.UpdateVanity)) mod.UpdateVanity(self);
+
+            foreach (var global in GlobalItemRegistry.For(currentItem, HookId.UpdateVanity))
+            {
+                if (global.Plan.Has(HookId.UpdateVanity)) global.UpdateVanity(currentItem, self);
+            }
+        }
+        catch (Exception e)
+        {
+            Log.Warn("[item] UpdateVanity 异常：" + e.Message);
         }
     }
 

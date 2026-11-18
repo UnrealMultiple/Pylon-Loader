@@ -36,6 +36,7 @@ internal sealed class NpcDefaults(NpcBinding binding)
         if (self is null || type < 0) return;
 
         if (ModContent.Find(ContentKind.Npc, type) is ModNpc) Custom(self, type);
+        else NpcImmunity.Apply(self);
         DispatchGlobals(self);
     }
 
@@ -49,6 +50,7 @@ internal sealed class NpcDefaults(NpcBinding binding)
             var mod = binding.Rebind(npc);
             if (mod is null) return;
 
+            NpcImmunity.Apply(npc);
             mod.SetDefaults();
             Finish(npc, mod);
         }

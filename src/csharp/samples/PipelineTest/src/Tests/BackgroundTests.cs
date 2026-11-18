@@ -72,13 +72,14 @@ internal static class BackgroundTests
             PT.Info("肉眼验收：世界背景应变成 TestSurfaceClose 那张图（BG-W2 之前一直保持）");
         });
 
-        // BG-W2：关掉场景效果，背景应回到原版（bgStyle 不再是 mod 槽位）。
+        // BG-W2：关掉场景效果，背景应回到原版（bgStyle 不再是 mod 槽位）；
+        // 原生切回随背景过渡走（淡出全程约 0.005/帧），窗口给足 240 帧。
         PT.Later("BG-W2", 420, c =>
         {
             Content.TestSceneEffectProbe.UseBackground = false;
             Content.TestSceneEffectProbe.AActive = false;
 
-            PT.Later("BG-W2b", 90, c2 =>
+            PT.Later("BG-W2b", 240, c2 =>
             {
                 c2.True(Main.bgStyle != style.Slot, $"关掉后 bgStyle={Main.bgStyle}（不再是 mod 槽位 {style.Slot}）");
                 PT.Info("肉眼验收：背景应回到原版");

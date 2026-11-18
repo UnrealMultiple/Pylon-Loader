@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Pylon.ModLoader;
 using Terraria;
 using Terraria.GameContent;
@@ -16,6 +17,7 @@ internal static class BannerTests
     private static int _npcType;
     private static int _kinType;
     private static int _itemType;
+    private static int _bannerX = -1, _bannerY = -1;
 
     public static void Register()
     {
@@ -27,8 +29,8 @@ internal static class BannerTests
     {
         PT.Case("BANNER-R1", c =>
         {
-            _npcType = ModContent.NpcType<Content.TestZBannerNpc>();
-            _kinType = ModContent.NpcType<Content.TestZBannerKin>();
+            _npcType = ModContent.NPCType<Content.TestZBannerNpc>();
+            _kinType = ModContent.NPCType<Content.TestZBannerKin>();
             _itemType = ModContent.ItemType<Content.TestZBannerItem>();
 
             c.True(_npcType >= NPCID.Count, $"代表 NPC type={_npcType}");
@@ -36,8 +38,8 @@ internal static class BannerTests
 
             var tileType = ModContent.TileType<Content.TestZBannerTile>();
             c.True(tileType >= TileID.Count, $"旗子方块 type={tileType}");
-            c.True(ModContent.GetContent<ModTile>().Count > 0,
-                $"ModTile 数量={ModContent.GetContent<ModTile>().Count}");
+            c.True(PipelineTestMod.Instance.GetContent<ModTile>().Count() > 0,
+                $"ModTile 数量={PipelineTestMod.Instance.GetContent<ModTile>().Count()}");
             c.Eq(BannerSystem.NPCtoBanner(_npcType), _npcType, "NPCtoBanner(代表)");
             c.Eq(BannerSystem.NPCtoBanner(_kinType), _npcType, "NPCtoBanner(同族)");
             c.Eq(BannerSystem.BannerToItem(_npcType), _itemType, "BannerToItem");
@@ -111,32 +113,48 @@ internal static class BannerTests
         PT.Case("BANNER-W3", c =>
         {
             var center = player.Center;
-            var bx = (int)(center.X / 16f) + 3;
-            var by = (int)(player.Top.Y / 16f) - 1;
+            _bannerX = (int)(center.X / 16f) - 8;
+            _bannerY = (int)(player.Top.Y / 16f) - 1;
             var tileType = ModContent.TileType<Content.TestZBannerTile>();
 
-            // Banner 管线只按 (tile.type, frameX / 18) 反查旗子，所以这里直接写 3 格。
-            // 不调用 WorldGen.PlaceObject：它依赖 TileObjectData，而方块管线的 SetStaticDefaults
-            // 在安装期跑（TileObjectData 已锁）——那是 Tile 管线的独立缺陷，不阻塞 Banner 的 buff 验证。
-            for (var dy = 0; dy < 3; dy++)
-            {
-                var tile = Main.tile[bx, by + dy];
-                tile.active(true);
-                tile.type = (ushort)tileType;
-                tile.frameX = 0;
-                tile.frameY = (short)(dy * 18);
-            }
+            var data = Terraria.ObjectData.TileObjectData.GetTileData(tileType, 0, 0);
+            c.NotNull(data, "旗子形状");
+            if (data is null) return;
 
-            var top = Main.tile[bx, by];
-            c.True(top.active() && top.type == tileType, $"旗子方块已写入 tile={top.type} frameY={top.frameY}");
+            for (var dy = 0; dy < data.Height; dy++)
+                for (var dx = 0; dx < data.Width; dx++)
+                    WorldGen.KillTile(_bannerX + dx, _bannerY + dy, false, false, true);
+
+            WorldGen.PlaceTile(_bannerX, _bannerY - 1, TileID.Stone, true, true, -1, 0);
+            c.True(Main.tile[_bannerX, _bannerY - 1].active() && Main.tile[_bannerX, _bannerY - 1].type == TileID.Stone,
+                "锚石放下");
+
+            var cursorX = _bannerX + data.Origin.X;
+            var cursorY = _bannerY + data.Origin.Y;
+            var can = Terraria.TileObject.CanPlace(cursorX, cursorY, tileType, 0, 1, out var objectData, false,
+                new Il2CppSystem.Nullable<int>());
+            var placed = can && Terraria.TileObject.Place(objectData);
+            if (placed)
+                Terraria.ObjectData.TileObjectData.CallPostPlacementPlayerHook(cursorX, cursorY, tileType, 0, 1, 0, objectData);
+
+            var top = Main.tile[_bannerX, _bannerY];
+            c.True(placed && top.active() && top.type == tileType,
+                $"旗子经放置对象放下 placed={placed} tile={top.type}");
         });
 
-        // 场景扫描每 20 帧一次；给 60 帧再查 buff。
         PT.Later("BANNER-W4", 60, c =>
         {
             var metrics = Main.SceneMetrics;
             c.NotNull(metrics, "Main.SceneMetrics");
             if (metrics is null) return;
+
+            var tileType = ModContent.TileType<Content.TestZBannerTile>();
+            var bx = _bannerX;
+            var by = _bannerY;
+            PT.Info($"旗子现场（{bx},{by}）：tile(0)={Main.tile[bx, by].type}(期望 {tileType}) " +
+                    $"tile(1)={Main.tile[bx, by + 1].type} tile(2)={Main.tile[bx, by + 2].type} " +
+                    $"锚石={Main.tile[bx, by - 1].type} buff表长={metrics.NPCBannerBuff?.Length} " +
+                    $"击杀数={BannerSystem.GetKillCount(_npcType)} 玩家=({(int)(player.Center.X / 16f)},{(int)(player.Center.Y / 16f)})");
 
             var buff = metrics.NPCBannerBuff;
             c.True(buff is not null && _npcType < buff.Length && buff[_npcType], "NPCBannerBuff 点亮");
@@ -148,7 +166,7 @@ internal static class BannerTests
         {
             // 世界加载会重建 Lang._npcNameCache；名字必须在世界内仍然读得到。
             c.Eq(Lang.GetNPCNameValue(_npcType), "测试旗子史莱姆", "旗帜 NPC 名字");
-            c.Eq(Lang.GetNPCNameValue(ModContent.NpcType<Content.TestTownNpc>()), "测试商人", "城镇 NPC 名字");
+            c.Eq(Lang.GetNPCNameValue(ModContent.NPCType<Content.TestTownNpc>()), "测试商人", "城镇 NPC 名字");
         });
     }
 

@@ -26,13 +26,13 @@ public static class PlayerDrawLayers
     /// <summary>坐骑组：在躯干组之外再套一层。</summary>
     public static readonly Transformation MountGroup = new VanillaPlayerDrawTransform(MountPlus, MountMinus, TorsoGroup);
 
-        public static readonly PlayerDrawLayer BackHair = new VanillaPlayerDrawLayer(nameof(BackHair), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_01_BackHair(i), TorsoGroup, isHeadLayer: true);
-        public static readonly PlayerDrawLayer MountBehindPlayer = new VanillaPlayerDrawLayer(nameof(MountBehindPlayer), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_02_MountBehindPlayer(i));
+        public static readonly PlayerDrawLayer HairBack = new VanillaPlayerDrawLayer(nameof(HairBack), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_01_BackHair(i), TorsoGroup, isHeadLayer: true);
+        public static readonly PlayerDrawLayer MountBack = new VanillaPlayerDrawLayer(nameof(MountBack), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_02_MountBehindPlayer(i));
         public static readonly PlayerDrawLayer Carpet = new VanillaPlayerDrawLayer(nameof(Carpet), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_03_Carpet(i));
         public static readonly PlayerDrawLayer PortableStool = new VanillaPlayerDrawLayer(nameof(PortableStool), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_03_PortableStool(i));
         public static readonly PlayerDrawLayer ElectrifiedDebuffBack = new VanillaPlayerDrawLayer(nameof(ElectrifiedDebuffBack), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_04_ElectrifiedDebuffBack(i), TorsoGroup);
         public static readonly PlayerDrawLayer ForbiddenSetRing = new VanillaPlayerDrawLayer(nameof(ForbiddenSetRing), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_05_ForbiddenSetRing(i), TorsoGroup);
-        public static readonly PlayerDrawLayer BackHead = new VanillaPlayerDrawLayer(nameof(BackHead), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_01_3_BackHead(i), TorsoGroup, isHeadLayer: true);
+        public static readonly PlayerDrawLayer HeadBack = new VanillaPlayerDrawLayer(nameof(HeadBack), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_01_3_BackHead(i), TorsoGroup, isHeadLayer: true);
         public static readonly PlayerDrawLayer JimsCloak = new VanillaPlayerDrawLayer(nameof(JimsCloak), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_01_2_JimsCloak(i), TorsoGroup);
         public static readonly PlayerDrawLayer SafemanSun = new VanillaPlayerDrawLayer(nameof(SafemanSun), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_05_2_SafemanSun(i), TorsoGroup);
         public static readonly PlayerDrawLayer WebbedDebuffBack = new VanillaPlayerDrawLayer(nameof(WebbedDebuffBack), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_06_WebbedDebuffBack(i), TorsoGroup);
@@ -41,24 +41,25 @@ public static class PlayerDrawLayers
         public static readonly PlayerDrawLayer Tails = new VanillaPlayerDrawLayer(nameof(Tails), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_08_1_Tails(i), TorsoGroup);
         public static readonly PlayerDrawLayer BackAcc = new VanillaPlayerDrawLayer(nameof(BackAcc), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_10_BackAcc(i), TorsoGroup);
         public static readonly PlayerDrawLayer Wings = new VanillaPlayerDrawLayer(nameof(Wings), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_09_Wings(i));
-        public static readonly PlayerDrawLayer BalloonFronts = new VanillaPlayerDrawLayer(nameof(BalloonFronts), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_12_1_BalloonFronts(i));
-        public static readonly PlayerDrawLayer Balloons = new VanillaPlayerDrawLayer(nameof(Balloons), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_11_Balloons(i));
+        internal static readonly PlayerDrawLayer BalloonFronts = new VanillaPlayerDrawLayer(nameof(BalloonFronts), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_12_1_BalloonFronts(i));
+        public static readonly PlayerDrawLayer BalloonAcc = new VanillaPlayerDrawLayer(nameof(BalloonAcc), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_11_Balloons(i));
         public static readonly PlayerDrawLayer Skin = new VanillaPlayerDrawLayer(nameof(Skin), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_12_Skin(i));
-        public static readonly PlayerDrawLayer SkinComposite = new VanillaPlayerDrawLayer(nameof(SkinComposite), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_12_Skin_Composite(i));
-        public static readonly PlayerDrawLayer SkinCompositeBackArmShirt = new VanillaPlayerDrawLayer(nameof(SkinCompositeBackArmShirt), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_12_SkinComposite_BackArmShirt(i));
+        internal static readonly PlayerDrawLayer SkinComposite = new VanillaPlayerDrawLayer(nameof(SkinComposite), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_12_Skin_Composite(i));
+        internal static readonly PlayerDrawLayer SkinCompositeBackArmShirt = new VanillaPlayerDrawLayer(nameof(SkinCompositeBackArmShirt), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_12_SkinComposite_BackArmShirt(i));
         public static readonly PlayerDrawLayer ArmorBackCoat = new VanillaPlayerDrawLayer(nameof(ArmorBackCoat), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_13_ArmorBackCoat(i));
         public static readonly PlayerDrawLayer Leggings = new VanillaPlayerDrawLayer(nameof(Leggings), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_13_Leggings(i), condition: i => !Robed(i));
+        public static readonly PlayerDrawLayer Robe = Leggings;
         public static readonly PlayerDrawLayer Shoes = new VanillaPlayerDrawLayer(nameof(Shoes), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_14_Shoes(i));
         public static readonly PlayerDrawLayer SkinLongCoat = new VanillaPlayerDrawLayer(nameof(SkinLongCoat), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_15_SkinLongCoat(i), TorsoGroup);
         public static readonly PlayerDrawLayer ArmorLongCoat = new VanillaPlayerDrawLayer(nameof(ArmorLongCoat), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_16_ArmorLongCoat(i), TorsoGroup);
         public static readonly PlayerDrawLayer Torso = new VanillaPlayerDrawLayer(nameof(Torso), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_17_Torso(i), TorsoGroup);
-        public static readonly PlayerDrawLayer TorsoComposite = new VanillaPlayerDrawLayer(nameof(TorsoComposite), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_17_TorsoComposite(i), TorsoGroup);
+        internal static readonly PlayerDrawLayer TorsoComposite = new VanillaPlayerDrawLayer(nameof(TorsoComposite), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_17_TorsoComposite(i), TorsoGroup);
         public static readonly PlayerDrawLayer OffhandAcc = new VanillaPlayerDrawLayer(nameof(OffhandAcc), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_18_OffhandAcc(i), TorsoGroup);
         public static readonly PlayerDrawLayer WaistAcc = new VanillaPlayerDrawLayer(nameof(WaistAcc), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_19_WaistAcc(i), TorsoGroup);
         public static readonly PlayerDrawLayer NeckAcc = new VanillaPlayerDrawLayer(nameof(NeckAcc), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_20_NeckAcc(i), TorsoGroup);
         public static readonly PlayerDrawLayer Head = new VanillaPlayerDrawLayer(nameof(Head), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_21_Head(i), TorsoGroup, isHeadLayer: true, condition: i => !i.mountHandlesHeadDraw);
-        public static readonly PlayerDrawLayer HeadTheFace = new VanillaPlayerDrawLayer(nameof(HeadTheFace), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_21_Head_TheFace(i));
-        public static readonly PlayerDrawLayer HeadTheFaceEyelid = new VanillaPlayerDrawLayer(nameof(HeadTheFaceEyelid), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_21_Head_TheFace_Eyelid(i));
+        internal static readonly PlayerDrawLayer HeadTheFace = new VanillaPlayerDrawLayer(nameof(HeadTheFace), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_21_Head_TheFace(i));
+        internal static readonly PlayerDrawLayer HeadTheFaceEyelid = new VanillaPlayerDrawLayer(nameof(HeadTheFaceEyelid), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_21_Head_TheFace_Eyelid(i));
         public static readonly PlayerDrawLayer Magiluminescence = new VanillaPlayerDrawLayer(nameof(Magiluminescence), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_21_1_Magiluminescence(i), TorsoGroup);
         public static readonly PlayerDrawLayer FaceAcc = new VanillaPlayerDrawLayer(nameof(FaceAcc), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_22_FaceAcc(i), TorsoGroup, isHeadLayer: true, condition: i => !i.mountHandlesHeadDraw);
         public static readonly PlayerDrawLayer MountFront = new VanillaPlayerDrawLayer(nameof(MountFront), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_23_MountFront(i), TorsoGroup);
@@ -67,30 +68,30 @@ public static class PlayerDrawLayers
         public static readonly PlayerDrawLayer SolarShield = new VanillaPlayerDrawLayer(nameof(SolarShield), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_26_SolarShield(i), MountGroup);
         public static readonly PlayerDrawLayer HeldItem = new VanillaPlayerDrawLayer(nameof(HeldItem), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_27_HeldItem(i));
         public static readonly PlayerDrawLayer ArmOverItem = new VanillaPlayerDrawLayer(nameof(ArmOverItem), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_28_ArmOverItem(i), TorsoGroup);
-        public static readonly PlayerDrawLayer ArmOverItemComposite = new VanillaPlayerDrawLayer(nameof(ArmOverItemComposite), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_28_ArmOverItemComposite(i), TorsoGroup);
-        public static readonly PlayerDrawLayer OnhandAcc = new VanillaPlayerDrawLayer(nameof(OnhandAcc), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_29_OnhandAcc(i), TorsoGroup);
+        internal static readonly PlayerDrawLayer ArmOverItemComposite = new VanillaPlayerDrawLayer(nameof(ArmOverItemComposite), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_28_ArmOverItemComposite(i), TorsoGroup);
+        public static readonly PlayerDrawLayer HandOnAcc = new VanillaPlayerDrawLayer(nameof(HandOnAcc), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_29_OnhandAcc(i), TorsoGroup);
         public static readonly PlayerDrawLayer BladedGlove = new VanillaPlayerDrawLayer(nameof(BladedGlove), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_30_BladedGlove(i), TorsoGroup);
         public static readonly PlayerDrawLayer ProjectileOverArm = new VanillaPlayerDrawLayer(nameof(ProjectileOverArm), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_31_ProjectileOverArm(i));
-        public static readonly PlayerDrawLayer FrontAcc = new VanillaPlayerDrawLayer(nameof(FrontAcc), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_32_FrontAcc(i));
-        public static readonly PlayerDrawLayer FrontAccFrontPart = new VanillaPlayerDrawLayer(nameof(FrontAccFrontPart), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_32_FrontAcc_FrontPart(i));
-        public static readonly PlayerDrawLayer FrontAccBackPart = new VanillaPlayerDrawLayer(nameof(FrontAccBackPart), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_32_FrontAcc_BackPart(i));
+        internal static readonly PlayerDrawLayer FrontAcc = new VanillaPlayerDrawLayer(nameof(FrontAcc), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_32_FrontAcc(i));
+        public static readonly PlayerDrawLayer FrontAccFront = new VanillaPlayerDrawLayer(nameof(FrontAccFront), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_32_FrontAcc_FrontPart(i));
+        public static readonly PlayerDrawLayer FrontAccBack = new VanillaPlayerDrawLayer(nameof(FrontAccBack), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_32_FrontAcc_BackPart(i));
         public static readonly PlayerDrawLayer FrozenOrWebbedDebuff = new VanillaPlayerDrawLayer(nameof(FrozenOrWebbedDebuff), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_33_FrozenOrWebbedDebuff(i));
         public static readonly PlayerDrawLayer ElectrifiedDebuffFront = new VanillaPlayerDrawLayer(nameof(ElectrifiedDebuffFront), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_34_ElectrifiedDebuffFront(i));
         public static readonly PlayerDrawLayer IceBarrier = new VanillaPlayerDrawLayer(nameof(IceBarrier), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_35_IceBarrier(i));
-        public static readonly PlayerDrawLayer CTG = new VanillaPlayerDrawLayer(nameof(CTG), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_36_CTG(i));
+        public static readonly PlayerDrawLayer CaptureTheGem = new VanillaPlayerDrawLayer(nameof(CaptureTheGem), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_36_CTG(i));
         public static readonly PlayerDrawLayer BeetleBuff = new VanillaPlayerDrawLayer(nameof(BeetleBuff), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_37_BeetleBuff(i));
         public static readonly PlayerDrawLayer EyebrellaCloud = new VanillaPlayerDrawLayer(nameof(EyebrellaCloud), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_38_EyebrellaCloud(i));
 
     /// <summary>全部原版层，顺序就是游戏调用顺序。</summary>
     public static readonly IReadOnlyList<PlayerDrawLayer> VanillaLayers =
     [
-        BackHair,
-        MountBehindPlayer,
+        HairBack,
+        MountBack,
         Carpet,
         PortableStool,
         ElectrifiedDebuffBack,
         ForbiddenSetRing,
-        BackHead,
+        HeadBack,
         JimsCloak,
         SafemanSun,
         WebbedDebuffBack,
@@ -100,7 +101,7 @@ public static class PlayerDrawLayers
         BackAcc,
         Wings,
         BalloonFronts,
-        Balloons,
+        BalloonAcc,
         Skin,
         SkinComposite,
         SkinCompositeBackArmShirt,
@@ -126,16 +127,16 @@ public static class PlayerDrawLayers
         HeldItem,
         ArmOverItem,
         ArmOverItemComposite,
-        OnhandAcc,
+        HandOnAcc,
         BladedGlove,
         ProjectileOverArm,
         FrontAcc,
-        FrontAccFrontPart,
-        FrontAccBackPart,
+        FrontAccFront,
+        FrontAccBack,
         FrozenOrWebbedDebuff,
         ElectrifiedDebuffFront,
         IceBarrier,
-        CTG,
+        CaptureTheGem,
         BeetleBuff,
         EyebrellaCloud,
     ];

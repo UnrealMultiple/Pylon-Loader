@@ -6,11 +6,10 @@ using Terraria;
 
 namespace PipelineTest.Content;
 
-/// <summary>测试血条：计数每个回调，并故意在 GetIconTexture 里读 Life（验证 Collected 的时机）。</summary>
+/// <summary>测试血条：计数每个回调，并故意在 GetIconTexture 里读 Life（验证收集时机）。</summary>
 public sealed class TestBossBar : ModBossBar
 {
-    public static int CollectedCalls, IconCalls, InfoCalls, PreCalls, PostCalls, DrawCalls;
-    public static float CollectedLife, CollectedLifeMax;
+    public static int IconCalls, InfoCalls, PreCalls, PostCalls, DrawCalls;
     public static float IconSeenLife;
     public static Rectangle LastFrame;
     public static bool Hide;
@@ -20,7 +19,7 @@ public sealed class TestBossBar : ModBossBar
         IconCalls++;
         IconSeenLife = Life;
         iconFrame = new Rectangle(0, 0, 16, 16);
-        return ModContent.Request(Mod, "assets/bossbars/TestBossBar.png");
+        return Mod.Assets.Request<Texture2D>("assets/bossbars/TestBossBar.png");
     }
 
     public override bool? ModifyInfo(BossBarInfo info, ref float life, ref float lifeMax, ref float shield, ref float shieldMax)
@@ -37,12 +36,4 @@ public sealed class TestBossBar : ModBossBar
     }
 
     public override void PostDraw(SpriteBatch spriteBatch, NPC npc, BossBarDrawParams drawParams) => PostCalls++;
-
-    public override void Collected(float life, float lifeMax, float shield, float shieldMax)
-    {
-        CollectedCalls++;
-        CollectedLife = life;
-        CollectedLifeMax = lifeMax;
-        base.Collected(life, lifeMax, shield, shieldMax);
-    }
 }

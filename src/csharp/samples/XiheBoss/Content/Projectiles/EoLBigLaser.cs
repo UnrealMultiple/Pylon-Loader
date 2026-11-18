@@ -112,7 +112,7 @@ namespace XiheBoss
                     }
 
                     var npc = Main.npc[owner];
-                    if (!npc.active || npc.type != ModContent.NpcType<XiheBossNpc>())
+                    if (!npc.active || npc.type != ModContent.NPCType<XiheBossNpc>())
                     {
                         proj.Kill();
                         return;

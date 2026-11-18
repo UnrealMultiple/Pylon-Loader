@@ -10,15 +10,15 @@ public class EquipTexture
 
     public string Name { get; internal set; } = "";
 
-    public int Type { get; internal set; }
+    public EquipType Type { get; internal set; }
 
     public int Slot { get; internal set; } = -1;
 
     public ModItem Item { get; internal set; } = null!;
 
-    public virtual void FrameEffects(Player player, int type)
+    public virtual void FrameEffects(Player player, EquipType type)
     {
-        if (Item != null) Item.EquipFrameEffects(player, (EquipType)type);
+        if (Item != null) Item.EquipFrameEffects(player, type);
     }
 
     public virtual bool IsVanitySet(int head, int body, int legs) =>

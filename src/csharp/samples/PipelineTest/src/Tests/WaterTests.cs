@@ -23,7 +23,32 @@ internal static class WaterTests
 
         PT.Case("WATER-W1", c =>
         {
-            c.Eq(Main.waterStyle, water.Type, "场景效果把 Main.waterStyle 换成 mod 水");
+            var metrics = Main.SceneMetrics;
+            var gated = (Main.bloodMoon && !Main.dayTime)
+                        || (metrics is not null && metrics.ActiveFountainColor >= 0)
+                        || Main.bgStyle is >= 1 and <= 8 or 13 or 14;
+            PT.Info($"现场：waterStyle={Main.waterStyle} bgStyle={Main.bgStyle} " +
+                    $"bloodMoon={Main.bloodMoon} dayTime={Main.dayTime} fountain={metrics?.ActiveFountainColor}");
+
+            if (gated)
+            {
+                PT.SkipCase("WATER-W1", "原版水样式门生效（血月夜/喷泉/原版背景名单），水样式回原版是正确行为");
+                return;
+            }
+
+            c.Eq(Main.CalculateWaterStyle(false), water.Type, "场景效果把水样式换算成 mod 水（渲染取这个值）");
+        });
+
+        PT.Case("WATER-W5", c =>
+        {
+            Content.TestWaterScene.Off = true;
+            PT.Info("场景效果已关（WATER-W5）：水样式应回原版");
+
+            PT.Later("WATER-W5B", 90, cc =>
+            {
+                cc.True(Main.CalculateWaterStyle(false) != water.Type,
+                    $"关闭后水样式换算={Main.CalculateWaterStyle(false)}（不再是 mod 水）");
+            });
         });
 
         PT.Case("WATER-W3", c =>
@@ -78,6 +103,21 @@ internal static class WaterTests
             PT.Info("玩家右前方应有亮蓝色水坑（TestWaterStyle 主贴图）");
             c.True(true, "水坑已灌好");
         });
+
+        PT.Case("WATER-W4", c =>
+        {
+            var savedBg = Main.bgStyle;
+            try
+            {
+                Main.bgStyle = 3;
+                var gated = Main.CalculateWaterStyle(false);
+                c.True(gated != water.Type, $"bgStyle 在原版名单内时水样式回原版（got {gated}，mod {water.Type}）");
+            }
+            finally
+            {
+                Main.bgStyle = savedBg;
+            }
+        });
     }
 
     private static void Run()
@@ -93,11 +133,11 @@ internal static class WaterTests
 
         PT.Case("WATER-R2", c =>
         {
-            // 槽门面未公开：验证声明值可读、类型号唯一即可（场景接入在 B4 联动验）
+            c.Eq(water.Slot, water.Type, "Slot 与类型号一致");
+            c.Eq(fall.Slot, fall.Type, "瀑布 Slot 与类型号一致");
             c.True(water.ChooseWaterfallStyle() >= 0, $"ChooseWaterfallStyle={water.ChooseWaterfallStyle()}");
         });
 
-        // H1：作者回调直接验证（LightColorMultiplier / ColorMultiplier 的 ref 语义）
         PT.Case("WATER-H1", c =>
         {
             c.NoThrow(() =>
@@ -106,9 +146,9 @@ internal static class WaterTests
                 water.LightColorMultiplier(ref r, ref g, ref b);
                 c.True(r > 0.8f && r < 1f, $"LightColorMultiplier r={r}");
 
-                float fr = 1f, fg = 1f, fb = 1f, fa = 1f;
-                fall.ColorMultiplier(ref fr, ref fg, ref fb, ref fa);
-                c.True(fr > 1.1f, $"ColorMultiplier r={fr}（声明 1.2）");
+                float fr = 100f, fg = 100f, fb = 100f;
+                fall.ColorMultiplier(ref fr, ref fg, ref fb, 0.5f);
+                c.True(fr > 110f, $"ColorMultiplier r={fr}（声明 1.2 倍）");
             }, "水样式回调");
         });
     }

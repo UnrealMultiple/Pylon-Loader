@@ -6,12 +6,11 @@ using Terraria.DataStructures;
 
 namespace Pylon.ModLoader;
 
-/// <summary>坐骑管线：骑上 / 下来 / 每帧 / 跳 / 能力 / 绘制；坐骑是玩家身上的 Mount 对象，除类型表外还按玩家记一份作者数据。</summary>
+/// <summary>坐骑管线：骑上 / 下来 / 每帧 / 跳 / 能力 / 绘制；坐骑是玩家身上的 Mount 对象，作者的挂载数据走 Mount 自带的 _mountSpecificData。</summary>
 internal sealed class MountPipeline : ILoaderModule
 {
     public static MountPipeline Instance { get; } = new();
 
-    private readonly Dictionary<int, object> _specific = [];
     private readonly HashSet<int> _reported = [];
 
     private MountCall? _setting;
@@ -39,21 +38,6 @@ internal sealed class MountPipeline : ILoaderModule
         return true;
     }
 
-    #region 作者数据
-
-    internal object SpecificData(Player player) =>
-        player is not null && _specific.TryGetValue(player.whoAmI, out var value) ? value : null!;
-
-    internal void SetSpecificData(Player player, object value)
-    {
-        if (player is null) return;
-
-        if (value is null) _specific.Remove(player.whoAmI);
-        else _specific[player.whoAmI] = value;
-    }
-
-    #endregion
-
     #region 骑乘
 
     /// <summary>一次 SetMount 的上下文：轮到哪匹、作者的 SetMount 跑过没有。</summary>
@@ -71,7 +55,7 @@ internal sealed class MountPipeline : ILoaderModule
         var mod = MountTable.Of(m);
         if (mod is not null && self._type != m)
         {
-            _specific.Remove(mountedPlayer.whoAmI);
+            self._mountSpecificData = null;
             _setting = new MountCall { Mod = mod };
         }
 
@@ -141,7 +125,7 @@ internal sealed class MountPipeline : ILoaderModule
         orig(self, mountedPlayer, ignoreEffect);
         _dismountSkipDust = false;
 
-        if (mountedPlayer is not null) _specific.Remove(mountedPlayer.whoAmI);
+        self._mountSpecificData = null;
     }
 
     #endregion
@@ -272,11 +256,6 @@ internal sealed class MountPipeline : ILoaderModule
 
     #region 绘制
 
-    /// <summary>交给作者的那批绘制值：改成值类型快照，比完之后没变化就交回原版画。</summary>
-    private readonly record struct DrawState(Texture2D? Texture, Texture2D? Glow, Vector2 Position, Rectangle Frame,
-                                             Color Color, Color GlowColor, float Rotation, SpriteEffects Effect,
-                                             Vector2 Origin, float Scale);
-
     private void Draw(On.Terraria.Mount.orig_Draw orig, Mount self, PlayerDrawSet playerDrawData, int drawType,
                       Player drawPlayer, Vector2 position, Color drawColor, SpriteEffects playerEffect, float shadow)
     {
@@ -315,7 +294,7 @@ internal sealed class MountPipeline : ILoaderModule
         var screen = Main.screenPosition;
         var xOffset = mount.XOffset * (player.direction <= 0 ? -1 : 1);
         var yOffset = mount.YOffset + mount.PlayerOffset;
-        var frameHeight = (int)((float)data.textureHeight / data.totalFrames);
+        var frameHeight = data.totalFrames > 0 ? data.textureHeight / data.totalFrames : data.textureHeight;
 
         var glowColor = new Color(drawColor.R * 0.25f + 191.25f, drawColor.G * 0.25f + 191.25f,
                                   drawColor.B * 0.25f + 191.25f, drawColor.A * 0.25f + 191.25f);
@@ -336,17 +315,20 @@ internal sealed class MountPipeline : ILoaderModule
         var drawOrigin = mount.Origin;
         var drawScale = 1f;
 
-        var before = new DrawState(drawTexture, glow, drawPosition, frame, color, glowDrawColor, rotation,
-            spriteEffects, drawOrigin, drawScale);
-
-        var keep = mod.Draw(set, drawType, player, ref drawTexture, ref drawGlow, ref drawPosition, ref frame,
+        var extra = new List<DrawData>();
+        var keep = mod.Draw(extra, drawType, player, ref drawTexture, ref drawGlow, ref drawPosition, ref frame,
             ref color, ref glowDrawColor, ref rotation, ref spriteEffects, ref drawOrigin, ref drawScale, shadow);
+
+        var cache = set.DrawDataCache;
+        foreach (var added in extra)
+        {
+            var count = set.DrawDataCacheCount;
+            if (cache is null || count < 0 || count >= cache.Length) break;
+            cache[count] = added;
+            set.DrawDataCacheCount = count + 1;
+        }
+
         if (!keep) return true;
-
-        var after = new DrawState(drawTexture, glow, drawPosition, frame, color, glowDrawColor, rotation, spriteEffects,
-            drawOrigin, drawScale);
-
-        if (after.Equals(before)) return false;
 
         if (drawTexture is not null) Push(set, drawTexture, drawPosition, frame, color, rotation, drawOrigin, drawScale, spriteEffects);
         if (glow is not null)

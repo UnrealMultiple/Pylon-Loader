@@ -12,6 +12,8 @@ namespace PipelineTest.Tests;
 /// </summary>
 internal static class PlayerTests
 {
+    private static bool _savedGodMode;
+
     public static void Register()
     {
         PT.Group("player", Phase.Ready, RunReady);
@@ -56,9 +58,13 @@ internal static class PlayerTests
         });
 
         // 放岩浆等玩家掉进去太不可控（位置/液体物理都不一定配合）。
+        // 旅程模式的神模式会让 KillMe 走 creativeGodMode 短路（基线同形状），测试期间先关掉。
         PT.Later("PL-W2", 40, c =>
         {
             var p = Main.player[Main.myPlayer];
+            _savedGodMode = p.creativeGodMode;
+            p.creativeGodMode = false;
+            p.dead = false;
             var reason = PlayerDeathReason.ByCustomReason("管线测试：自杀");
             p.statLife = 1;
             p.immune = false;
@@ -73,6 +79,7 @@ internal static class PlayerTests
             c.True(TestPlayerLifecycle.CtKill > 0, $"Kill 被触发（{TestPlayerLifecycle.CtKill} 次）");
             var p = Main.player[Main.myPlayer];
             PT.Info($"死亡状态：dead={p.dead} 生命={p.statLife}/{p.statLifeMax2}");
+            if (Main.player[Main.myPlayer] is { } me) me.creativeGodMode = _savedGodMode;
         });
 
         // W4：复活后 OnRespawn 触发。复活倒计时约 11 秒；实测推进频率约 180 帧/秒（每帧多个入口），

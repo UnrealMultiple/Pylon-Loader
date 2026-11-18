@@ -15,8 +15,6 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private readonly HashSet<long> _reported = [];
 
-    private int[] _intervals = [];
-
     private NetPipeline _net = null!;
     private byte _kind;
 
@@ -103,10 +101,11 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
 
         if (TileEntityTable.Count == 0 || Main.netMode == 1) return placed;
 
-        var all = TileEntityBinding.All;
-        for (var index = 0; index < all.Count; index++)
+        var count = TileEntityTable.Count;
+        for (var index = 0; index < count; index++)
         {
-            var template = all[index];
+            var template = TileEntityTable.Template(index);
+            if (template is null) continue;
 
             if (TileEntityBinding.Find(template, i, j) >= 0) continue;
 
@@ -170,26 +169,11 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
     public void Refresh()
     {
         TileEntityTable.Assign();
-        RebuildIntervals();
-    }
-
-    private void RebuildIntervals()
-    {
-        var count = TileEntityTable.Count;
-        if (_intervals.Length < count) _intervals = new int[Math.Max(count, 8)];
-
-        for (var type = 0; type < count; type++)
-        {
-            var template = TileEntityTable.Template(type);
-            var interval = template is null ? 0 : template.NetUpdateInterval;
-            _intervals[type] = interval > 0 ? interval : 0;
-        }
     }
 
     internal void Build()
     {
         TileEntityTable.Assign();
-        RebuildIntervals();
 
         var count = 0;
         for (var type = 0; type < TileEntityTable.Count; type++)
@@ -273,31 +257,6 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
         count = list.Count;
         for (var i = 0; i < count && i < list.Count; i++)
             Call(list[i], HookId.PostGlobalUpdate, static e => e.PostGlobalUpdate());
-
-        if (Main.netMode == 2) PeriodicSync();
-    }
-
-    private void PeriodicSync()
-    {
-        var all = TileEntityBinding.All;
-        if (all.Count == 0) return;
-
-        var frame = Main.GameUpdateCount;
-
-        for (var i = 0; i < all.Count; i++)
-        {
-            var entity = all[i];
-
-            var type = entity.Type;
-            if ((uint)type >= (uint)_intervals.Length) continue;
-
-            var interval = _intervals[type];
-            if (interval <= 0) continue;
-
-            if (frame % (ulong)interval != (ulong)(entity.ID & 0x7FFFFFFF) % (ulong)interval) continue;
-
-            SendEntity(entity.ID, -1);
-        }
     }
 
     private void Call(ModTileEntity entity, HookId hook, Action<ModTileEntity> call)

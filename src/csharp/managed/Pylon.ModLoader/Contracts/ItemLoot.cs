@@ -1,9 +1,10 @@
+using Terraria;
 using Terraria.GameContent.ItemDropRules;
 
 namespace Pylon.ModLoader;
 
 /// <summary>打开一个物品（Boss 袋、箱子）吐什么，像 tModLoader 的 ItemLoot；游戏没有按物品的掉落表（ItemDropDatabase 只认识 NPC），规则按类型存在这。</summary>
-public class ItemLoot
+public class ItemLoot : ILoot
 {
     // ByType 是跨实例共享的规则表：For 的"第一次"判定与构造函数拿到的是同一份。
     private static readonly Dictionary<int, List<IItemDropRule>> ByType = [];
@@ -26,9 +27,59 @@ public class ItemLoot
     public static List<IItemDropRule> For(ModItem m)
     {
         var type = m.Type;
-        if (!ByType.ContainsKey(type)) m.ModifyItemLoot(new ItemLoot(type));
+        if (!ByType.ContainsKey(type)) Populate(type, Sample(type), m);
 
         return ByType[type];
+    }
+
+    public static List<IItemDropRule> For(Item item)
+    {
+        var type = item.type;
+        if (!ByType.ContainsKey(type))
+        {
+            var mod = ItemPipeline.Instance.InstanceOf(item);
+            Populate(type, item, mod);
+        }
+
+        return ByType[type];
+    }
+
+    private static void Populate(int type, Item item, ModItem? mod)
+    {
+        var loot = new ItemLoot(type);
+
+        if (mod is not null && mod.Plan.Has(HookId.ModifyItemLoot))
+        {
+            try
+            {
+                mod.ModifyItemLoot(loot);
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[loot] {mod.Name}.ModifyItemLoot 异常：{Safe.Describe(e)}");
+            }
+        }
+
+        foreach (var global in GlobalItemRegistry.Of(item))
+        {
+            if (!global.Plan.Has(HookId.ModifyItemLoot)) continue;
+
+            try
+            {
+                global.ModifyItemLoot(item, loot);
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[loot] {global.FullKey}.ModifyItemLoot 异常：{Safe.Describe(e)}");
+            }
+        }
+    }
+
+    private static Item Sample(int type)
+    {
+        var item = new Item();
+        item.SetDefaults(type, null);
+        return item;
     }
 
     /// <summary>加一条规则；返回 rule 好接着链用。</summary>
@@ -45,20 +96,14 @@ public class ItemLoot
         return rule;
     }
 
-    /// <summary>规则表的快照（外头随便改，不影响表）。</summary>
-    public List<IItemDropRule> Get() => new(Rules);
+    public List<IItemDropRule> Get(bool includeGlobalDrops = true) => new(Rules);
 
-    /// <summary>把满足 predicate 的规则全撤掉（对着快照轮）；返回撤了几条。</summary>
-    public int RemoveWhere(Func<IItemDropRule, bool> predicate)
+    public void RemoveWhere(Func<IItemDropRule, bool> predicate, bool includeGlobalDrops = true)
     {
-        var removed = 0;
+        ArgumentNullException.ThrowIfNull(predicate);
         foreach (var rule in Get())
         {
-            if (!predicate(rule)) continue;
-
-            Remove(rule);
-            removed++;
+            if (predicate(rule)) Remove(rule);
         }
-        return removed;
     }
 }

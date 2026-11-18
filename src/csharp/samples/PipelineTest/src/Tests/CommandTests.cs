@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Pylon.ModLoader;
 using PipelineTest.Content;
 using Terraria;
@@ -6,10 +7,8 @@ using Terraria.Chat;
 namespace PipelineTest.Tests;
 
 /// <summary>
-/// 管线：Command —— 真机验证。
-/// Ready：五条测试命令的 API 面（名字/别名/大小写/用法/描述默认值）。
-/// World：用真实聊天入口分派（ChatHelper 走原版客户端发送链，服务端钩子吃掉命令）；
-/// MIUI 输入注入被拒，所以直接构造聊天消息调 ChatCommandProcessor.ProcessIncomingMessage。
+/// 命令：Ready 验证作者 API 形状、默认值与类型匹配；
+/// World 用原版聊天处理入口分派（与真机打字同一入口），命中时消息被吃掉。
 /// </summary>
 internal static class CommandTests
 {
@@ -23,27 +22,33 @@ internal static class CommandTests
     {
         PT.Case("CMD-R1", c =>
         {
-            // API 面：名字、默认 Usage、描述默认回退。
             c.Eq(new TestCommandNormal().Command, "ptcmd", "命令名");
             c.Eq(new TestCommandNormal().Usage, "/ptcmd", "默认 Usage = /名字");
+            c.Eq(new TestCommandCase().Usage, "/PTCase", "Usage 用原样命令名");
             c.True(!new TestCommandNormal().IsCaseSensitive, "默认大小写不敏感");
             c.True(new TestCommandCase().IsCaseSensitive, "IsCaseSensitive 可开");
-            c.Eq(new TestCommandNormal().Description, "管线测试命令", "描述（本地化键缺失回退到类里的默认）");
+            c.Eq(new TestCommandNormal().Description, "管线测试命令", "作者描述");
+            c.Eq(new TestCommandCase().Description, "", "描述默认空串");
         });
 
         PT.Case("CMD-R2", c =>
         {
-            // 别名声明。
-            var aliases = new TestCommandAlias().Aliases;
-            c.True(aliases is { Length: 1 } && aliases[0] == "pta", "别名 pta 已声明");
-            c.Eq(new TestCommandNormal().Type, CommandType.Chat, "默认 Type = Chat");
+            c.Eq(new TestCommandNormal().Type, CommandType.Chat, "作者的 Type");
+            c.Eq((int)CommandType.World, 8, "CommandType.World 值");
+            c.True(CommandLoader.Matches(CommandType.World, CommandType.Chat) || Main.netMode != 0,
+                "World 在单人映射到 Chat");
+            c.True(CommandLoader.Matches(CommandType.Chat, CommandType.Chat), "Chat 匹配 Chat");
+            c.True(!CommandLoader.Matches(CommandType.Server, CommandType.Chat), "Server 不匹配 Chat");
         });
 
         PT.Case("CMD-R3", c =>
         {
-            // ResponseColor 是 /help 那个黄。
-            var color = ModCommand.ResponseColor;
-            c.True(color.R == 255 && color.G == 240 && color.B == 20, $"ResponseColor = (255,240,20)（实际 {color.R},{color.G},{color.B}）");
+            var help = CommandLoader.GetHelp(CommandType.Chat);
+            var names = new HashSet<string>();
+            foreach (var item in help) names.Add(item.Item1);
+            c.True(names.Contains("ptcmd") && names.Contains("PTCase") && names.Contains("ptusage") && names.Contains("ptbare"),
+                $"GetHelp 含 mod 命令（{names.Count} 条）");
+            c.True(CommandLoader.GetHelp(CommandType.Console).Count == 0, "Console 下没有这些聊天命令");
         });
     }
 
@@ -57,80 +62,73 @@ internal static class CommandTests
         }
 
         TestCommandNormal.Calls = 0;
-        TestCommandAlias.Calls = 0;
-        TestCommandAlias.ViaAlias = 0;
         TestCommandCase.Calls = 0;
-        TestCommandDenied.Calls = 0;
-        TestCommandDenied.DenyChecks = 0;
+        TestCommandWorld.Calls = 0;
         TestCommandUsage.Calls = 0;
+        TestCommandUsageBare.Calls = 0;
 
-        // W1：真分派 —— 构造聊天消息走原版处理链（与真机打字同一入口）。
         PT.Later("CMD-W1", 5, c =>
         {
             Dispatch("/ptcmd 42 hello");
-            c.True(TestCommandNormal.Calls > 0,
-                $"/ptcmd 被分派（{TestCommandNormal.Calls} 次）");
+            c.True(TestCommandNormal.Calls > 0, $"/ptcmd 被分派（{TestCommandNormal.Calls} 次）");
             c.Eq(TestCommandNormal.LastArgs, "42,hello", "参数解析（空格切分）");
+            c.Eq(TestCommandNormal.LastInput, "/ptcmd 42 hello", "input 是整段原文（含命令名）");
         });
 
-        // W2：别名命中。
         PT.Later("CMD-W2", 15, c =>
         {
-            Dispatch("/pta");
-            c.True(TestCommandAlias.Calls > 0, $"别名分派到同一命令（{TestCommandAlias.Calls} 次）");
+            var before = TestCommandCase.Calls;
+            Dispatch("/ptcase");
+            c.True(TestCommandCase.Calls > before, "匹配始终不分大小写（基线形状）");
+            Dispatch("/PTCase");
+            c.True(TestCommandCase.Calls > before + 1, "原样大小写也命中");
         });
 
-        // W3：大小写敏感命令：小写不命中（落到原版 → 无回显），原样大小写命中。
         PT.Later("CMD-W3", 25, c =>
         {
-            var before = TestCommandCase.Calls;
-            Dispatch("/ptcase"); // 全小写：不应命中
-            c.Eq(TestCommandCase.Calls, before, "小写输入不命中大小写敏感命令");
-            Dispatch("/PTCase");
-            c.True(TestCommandCase.Calls > before, "原样大小写命中");
+            var before = TestCommandNormal.Calls;
+            Dispatch("/PTCMD");
+            c.True(TestCommandNormal.Calls > before, "默认大小写不敏感（大写也命中）");
         });
 
-        // W4：AllowedBy 拒绝 → Action 不跑，走权限拒绝回显。
         PT.Later("CMD-W4", 35, c =>
         {
-            Dispatch("/ptdeny");
-            c.True(TestCommandDenied.DenyChecks > 0, "AllowedBy 被问过");
-            c.Eq(TestCommandDenied.Calls, 0, "被拒绝的命令 Action 不执行");
+            var before = TestCommandWorld.Calls;
+            Dispatch("/ptworld");
+            c.True(TestCommandWorld.Calls > before, "World 类型在单人聊天里可调用");
         });
 
-        // W5：UsageException → Action 计数到了，异常被吃、回显错误文本（不崩）。
         PT.Later("CMD-W5", 45, c =>
         {
+            var before = TestCommandUsage.Calls;
             Dispatch("/ptusage");
-            c.True(TestCommandUsage.Calls > 0, "UsageException 前的 Action 已跑");
+            c.True(TestCommandUsage.Calls > before, "UsageException 前的 Action 已跑");
+
+            var bareBefore = TestCommandUsageBare.Calls;
+            Dispatch("/ptbare");
+            c.True(TestCommandUsageBare.Calls > bareBefore, "无消息的 UsageException 也不崩");
         });
 
-        // W6：/help 补 mod 命令（回显计数在 Normal 命令里看不见；靠不崩 + 后续日志）。
         PT.Later("CMD-W6", 55, c =>
         {
-            Dispatch("/help 1");
-            PT.Info("已发 /help 1：聊天框应在原版列表后补 5 条 mod 命令（ptcmd/ptalias/PTCase/ptdeny/ptusage）");
-            c.True(true, "/help 不崩（回显内容肉眼核对）");
+            var msg = new ChatMessage("/ptcmd 7");
+            var processor = new ChatCommandProcessor();
+            processor.ProcessIncomingMessage(msg, Main.myPlayer);
+            c.True(msg.IsConsumed, "命中 mod 命令的消息被吃掉");
+            c.Eq(TestCommandNormal.LastArgs, "7", "被吃掉前命令已执行");
         });
 
-        // W7：收尾：重置计数。
         PT.Later("CMD-W7", 65, c =>
         {
-            TestCommandNormal.Calls = 0;
-            TestCommandAlias.Calls = 0;
-            TestCommandCase.Calls = 0;
-            TestCommandDenied.Calls = 0;
-            TestCommandUsage.Calls = 0;
+            var msg = new ChatMessage("/definitelynotacommand");
+            var processor = new ChatCommandProcessor();
+            processor.ProcessIncomingMessage(msg, Main.myPlayer);
+            c.True(!msg.IsConsumed, "未命中消息不被吃");
         });
     }
 
-    /// <summary>
-    /// 构造一条聊天消息走原版 ChatCommandProcessor：与真机打字同一个入口，
-    /// 命令命中时会被管线的 On 钩子吃掉。
-    /// </summary>
     private static void Dispatch(string text)
     {
-        // ChatMessage 的托管构造在手机版代理上是最简单的文本 ctor；clientId 用本地玩家。
         var message = new ChatMessage(text);
         var processor = new ChatCommandProcessor();
         processor.ProcessIncomingMessage(message, Main.myPlayer);

@@ -1,9 +1,13 @@
+using Il2CppMicrosoft.Xna.Framework.Input;
+
 namespace Pylon.ModLoader;
 
 /// <summary>tModLoader 兼容的按键注册（拿到的是同一个 ModTouchButton，玩家在游戏控制编辑器里放它）。</summary>
 public static class KeybindLoader
 {
-    /// <summary>注册一个"按键"；默认键接受但不生效（手机版按钮在控制编辑器里放置）。</summary>
-    public static ModTouchButton RegisterKeybind(Mod mod, string name, string defaultKey = "") =>
-        KeybindPipeline.Instance.Register(mod, name, defaultKey);
+    public static ModKeybind RegisterKeybind(Mod mod, string name, Keys defaultBinding) =>
+        RegisterKeybind(mod, name, defaultBinding.ToString());
+
+    public static ModKeybind RegisterKeybind(Mod mod, string name, string defaultBinding) =>
+        KeybindPipeline.Instance.Register(mod, name, defaultBinding);
 }

@@ -86,13 +86,13 @@ namespace RegressionTest.Content
     {
         public override string DisplayName => "试炼之印";
 
-        public override int Category => CategoryAnyWeapon;
+        public override PrefixCategory Category => PrefixCategory.AnyWeapon;
 
         public override float RollChance(Item item) => 3f;
 
         public override void SetStats(ref float damageMult, ref float knockbackMult, ref float useTimeMult,
                                       ref float scaleMult, ref float shootSpeedMult, ref float manaMult,
-                                      ref int critBonus, ref int tagDamage, ref int armorPenetration)
+                                      ref int critBonus)
         {
             damageMult *= 1.1f;
         }

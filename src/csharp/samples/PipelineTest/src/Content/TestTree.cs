@@ -20,13 +20,13 @@ public sealed class TestTree : ModTree
         GrowsOnTileId = [ModContent.TileType<TestTreeGround>()];
     }
 
-    public override Asset<Texture2D> GetTexture() => ModContent.Request(Mod, "assets/trees/TestTree.png");
+    public override Asset<Texture2D> GetTexture() => Mod.Assets.Request<Texture2D>("assets/trees/TestTree.png");
 
     public override Asset<Texture2D>[] GetTopTextures() =>
-        [ModContent.Request(Mod, "assets/trees/TestTree_Tops.png")];
+        [Mod.Assets.Request<Texture2D>("assets/trees/TestTree_Tops.png")];
 
     public override Asset<Texture2D>[] GetBranchTextures() =>
-        [ModContent.Request(Mod, "assets/trees/TestTree_Branches.png")];
+        [Mod.Assets.Request<Texture2D>("assets/trees/TestTree_Branches.png")];
 
     // 橡果种在这树的地上换成自己的苗。
     public override int SaplingGrowthType(ref int style)

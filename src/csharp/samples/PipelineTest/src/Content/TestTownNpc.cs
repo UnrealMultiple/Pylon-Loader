@@ -8,7 +8,18 @@ namespace PipelineTest.Content;
 /// <summary>测试商人：城镇 NPC，聊天有「商店」按钮，店里卖 测试物品(50金) 与 凝胶(5金)。</summary>
 public sealed class TestTownNpc : ModNpc
 {
+    public static int StrengthCalls, CooldownCalls, ProjCalls, SpeedCalls;
+
     public override string DisplayName => "测试商人";
+
+    public override void SetStaticDefaults()
+    {
+        NPCID.Sets.AttackType[Type] = 0;
+        NPCID.Sets.AttackTime[Type] = 30;
+        NPCID.Sets.AttackAverageChance[Type] = 10;
+        NPCID.Sets.DangerDetectRange[Type] = 400;
+        NPCID.Sets.AttackFrameCount[Type] = 4;
+    }
 
     public override void SetDefaults()
     {
@@ -55,8 +66,11 @@ public sealed class TestTownNpc : ModNpc
     public override void AddShops()
     {
         var shop = new NpcShop(Type, "TestShop");
-        shop.Add(ModContent.TypeOf<TestItem>(), null, 50);
-        shop.Add(ItemID.Gel, null, 5);
+        var first = new NpcShop.Entry(ModContent.ItemType<TestItem>());
+        first.Item.shopCustomPrice = new Il2CppSystem.Nullable<int>(50);
+        var gel = new NpcShop.Entry(ItemID.Gel);
+        gel.Item.shopCustomPrice = new Il2CppSystem.Nullable<int>(5);
+        shop.Add(first, gel);
         shop.Register();
     }
 
@@ -64,6 +78,7 @@ public sealed class TestTownNpc : ModNpc
 
     public override void TownNPCAttackStrength(ref int damage, ref float knockback)
     {
+        StrengthCalls++;
         PT.Info($"TownNPCAttackStrength(damage={damage}, knockback={knockback})");
         damage = 15;
         knockback = 4f;
@@ -71,18 +86,21 @@ public sealed class TestTownNpc : ModNpc
 
     public override void TownNPCAttackCooldown(ref int cooldown, ref int randExtraCooldown)
     {
+        CooldownCalls++;
         cooldown = 30;
         randExtraCooldown = 30;
     }
 
     public override void TownNPCAttackProj(ref int projType, ref int attackDelay)
     {
+        ProjCalls++;
         projType = ProjectileID.MagicDagger;
         attackDelay = 1;
     }
 
     public override void TownNPCAttackProjSpeed(ref float multiplier, ref float gravityCorrection, ref float randomOffset)
     {
+        SpeedCalls++;
         multiplier = 12f;
         gravityCorrection = 0f;
         randomOffset = 2f;

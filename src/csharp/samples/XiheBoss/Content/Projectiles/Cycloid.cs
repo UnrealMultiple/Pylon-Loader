@@ -71,7 +71,7 @@ namespace XiheBoss
                 return;
             }
             var owner = Main.npc[_ownerIndex];
-            if (owner == null || !owner.active || owner.type != ModContent.NpcType<XiheBossNpc>())
+            if (owner == null || !owner.active || owner.type != ModContent.NPCType<XiheBossNpc>())
             {
                 proj.Kill();
                 return;

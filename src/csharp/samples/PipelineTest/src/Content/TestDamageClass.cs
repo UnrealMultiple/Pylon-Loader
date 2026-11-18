@@ -1,11 +1,25 @@
 using Pylon.ModLoader;
+using Terraria;
 
 namespace PipelineTest.Content;
 
-/// <summary>测试伤害类别：2 倍伤害、+15 暴击、1.5 倍击退——数值刻意非常规。</summary>
-public sealed class TestDamageClass : ModDamageClass
+/// <summary>测试伤害职业：算作近战和魔法、继承全属性、必带 +4 暴击与 +10 破防、藏 Speed 行。</summary>
+public sealed class TestDamageClass : DamageClass
 {
-    public override float DamageMultiplier => 2f;
-    public override int CritBonus => 15;
-    public override float KnockbackMultiplier => 1.5f;
+    public static int StaticDefaults;
+
+    public override StatInheritanceData GetModifierInheritance(DamageClass damageClass) =>
+        damageClass == Generic ? StatInheritanceData.Full : StatInheritanceData.None;
+
+    public override bool GetEffectInheritance(DamageClass damageClass) => damageClass == Melee || damageClass == Magic;
+
+    public override void SetStaticDefaults() => StaticDefaults++;
+
+    public override void SetDefaultStats(Player player)
+    {
+        player.GetCritChance<TestDamageClass>() += 4;
+        player.GetArmorPenetration<TestDamageClass>() += 10;
+    }
+
+    public override bool ShowStatTooltipLine(Player player, string lineName) => lineName != "Speed";
 }

@@ -21,10 +21,23 @@ namespace Pylon.ModLoader;
 public abstract class ModPylon : ModTile
 {
     /// <summary>这边的晶塔类型号；注册时排到游戏的 TeleportPylonType.Count（11）之后。</summary>
-    public virtual int PylonType { get; set; } = -1;
+    public virtual int PylonType { get; internal set; } = -1;
 
     /// <summary>能不能再放一个（游戏默认：一个类型在世界里只有一个）。</summary>
     public virtual bool CanPlacePylon() => !Main.PylonSystem.HasPylonOfType((TeleportPylonType)PylonType);
+
+    public virtual NpcShop.Entry? GetNPCShopEntry()
+    {
+        var drops = ItemDrops;
+        int drop = 0;
+        for (var i = 0; i < drops.Count && drop == 0; i++)
+            if (drops[i].Style == 0) drop = drops[i].ItemType;
+        for (var i = 0; i < drops.Count && drop == 0; i++)
+            if (drops[i].Style == -1) drop = drops[i].ItemType;
+        if (drop == 0) return null;
+
+        return new NpcShop.Entry(drop, Condition.AnotherTownNPCNearby, Condition.NotInEvilBiome);
+    }
 
     /// <summary>目的地/出发地的村民够不够（默认 2 个：在附近、在房子里）。</summary>
     public virtual bool ValidTeleportCheck_NPCCount(TeleportPylonInfo pylonInfo, int defaultNecessaryNPCCount) =>
@@ -101,7 +114,6 @@ public abstract class ModPylon : ModTile
         var offscreen = Main.drawToScreen ? Vector2.Zero : new Vector2(Main.offScreenRange);
         var tile = Main.tile[i, j];
 
-        // 放下之后用这一格自己的 TileObjectData；预览时那格还是空气，用类型默认的数据。
         var tileData = tile.active() ? TileObjectData.GetTileData(tile) : TileObjectData.GetTileData(Type, 0);
         if (tileData is null) return;
 

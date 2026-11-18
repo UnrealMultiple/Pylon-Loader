@@ -29,9 +29,9 @@ public sealed class TestMenu : ModMenu
 
     public override void SetStaticDefaults()
     {
-        _logo = PipelineTestMod.Instance.LoadAsset("assets/items/ExampleModTitle.png");
-        _sun = PipelineTestMod.Instance.LoadAsset("assets/items/ExampleSun.png");
-        _moon = PipelineTestMod.Instance.LoadAsset("assets/items/ExampliumMoon.png");
+        _logo = PipelineTestMod.Instance.Assets.Request<Texture2D>("assets/items/ExampleModTitle.png");
+        _sun = PipelineTestMod.Instance.Assets.Request<Texture2D>("assets/items/ExampleSun.png");
+        _moon = PipelineTestMod.Instance.Assets.Request<Texture2D>("assets/items/ExampliumMoon.png");
     }
 
     public override Asset<Texture2D>? Logo => _logo;

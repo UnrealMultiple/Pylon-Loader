@@ -52,9 +52,5 @@ public class TooltipLine
     /// <summary>把这行从 tooltip 里拿掉。</summary>
     public void Hide() => Visible = false;
 
-    /// <summary>把一段文字染成 [c/RRGGBB:...] 标签（游戏自己认得这个标签）。</summary>
-    public static string ColorTag(string text, Color color) =>
-        "[c/" + $"{color.R:X2}{color.G:X2}{color.B:X2}" + ":" + text + "]";
-
     public override string ToString() => FullName + ": " + Text;
 }

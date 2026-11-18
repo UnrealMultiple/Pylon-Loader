@@ -30,6 +30,14 @@ internal sealed class ProjectileBinding
             : null;
     }
 
+    /// <summary>CloneDefaults 后把原实例绑回去。</summary>
+    public ModProjectile? Restore(Projectile entity, ModProjectile? instance)
+    {
+        if (instance is null) return null;
+        instance.BoundEntity = entity;
+        return _binding.Bind(entity, instance);
+    }
+
     public static long Address(Projectile? entity) => EntityBinding<Projectile, ModProjectile>.Address(entity);
 
     private ModProjectile Bind(ModProjectile template, Projectile entity)

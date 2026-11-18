@@ -25,7 +25,10 @@ internal sealed class ItemDefaults(ItemBinding binding)
         if (ModContent.Find(ContentKind.Item, type) is null)
         {
             orig(self, type, variant);
-            DispatchGlobals(self);
+            var vanillaOuter = DamageClassLoader.Defaulting;
+            DamageClassLoader.Defaulting = self.Pointer;
+            try { DispatchGlobals(self); }
+            finally { DamageClassLoader.Defaulting = vanillaOuter; }
             return;
         }
 
@@ -39,14 +42,23 @@ internal sealed class ItemDefaults(ItemBinding binding)
             item.ResetStats(type);
             item.type = type;
 
-            var mod = binding.InstanceOf(item);
-            if (mod is not null)
+            var outer = DamageClassLoader.Defaulting;
+            DamageClassLoader.Defaulting = item.Pointer;
+            try
             {
-                mod.SetDefaults();
-            }
+                var mod = binding.InstanceOf(item);
+                if (mod is not null)
+                {
+                    mod.SetDefaults();
+                }
 
-            ApplyEquipSlots(item);
-            DispatchGlobals(item);
+                ApplyEquipSlots(item);
+                DispatchGlobals(item);
+            }
+            finally
+            {
+                DamageClassLoader.Defaulting = outer;
+            }
         }
         catch (Exception e)
         {
@@ -87,13 +99,13 @@ internal sealed class ItemDefaults(ItemBinding binding)
                 case EquipType.Head: item.headSlot = slot; break;
                 case EquipType.Body: item.bodySlot = slot; break;
                 case EquipType.Legs: item.legSlot = slot; break;
-                case EquipType.HandOn when slot <= sbyte.MaxValue: item.handOnSlot = (sbyte)slot; break;
-                case EquipType.HandOff when slot <= sbyte.MaxValue: item.handOffSlot = (sbyte)slot; break;
+                case EquipType.HandsOn when slot <= sbyte.MaxValue: item.handOnSlot = (sbyte)slot; break;
+                case EquipType.HandsOff when slot <= sbyte.MaxValue: item.handOffSlot = (sbyte)slot; break;
                 case EquipType.Back when slot <= sbyte.MaxValue: item.backSlot = (sbyte)slot; break;
                 case EquipType.Front when slot <= sbyte.MaxValue: item.frontSlot = (sbyte)slot; break;
                 case EquipType.Shoes when slot <= sbyte.MaxValue: item.shoeSlot = (sbyte)slot; break;
                 case EquipType.Waist when slot <= sbyte.MaxValue: item.waistSlot = (sbyte)slot; break;
-                case EquipType.Wing when slot <= sbyte.MaxValue: item.wingSlot = (sbyte)slot; break;
+                case EquipType.Wings when slot <= sbyte.MaxValue: item.wingSlot = (sbyte)slot; break;
                 case EquipType.Shield when slot <= sbyte.MaxValue: item.shieldSlot = (sbyte)slot; break;
                 case EquipType.Neck when slot <= sbyte.MaxValue: item.neckSlot = (sbyte)slot; break;
                 case EquipType.Face when slot <= sbyte.MaxValue: item.faceSlot = (sbyte)slot; break;

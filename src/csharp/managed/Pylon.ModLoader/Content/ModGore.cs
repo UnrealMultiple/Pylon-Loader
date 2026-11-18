@@ -1,6 +1,7 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Terraria;
+using Terraria.DataStructures;
 
 namespace Pylon.ModLoader;
 
@@ -13,8 +14,7 @@ public abstract class ModGore : ModType
     /// <summary>贴图相对 Mod 目录的路径（默认 assets/gores/&lt;类名&gt;.png）。</summary>
     public override string TexturePath => $"assets/gores/{Name}.png";
 
-    /// <summary>粒子生成之后一次（位置与速度已经定好）。</summary>
-    public virtual void OnSpawn(Gore gore) { }
+    public virtual void OnSpawn(Gore gore, IEntitySource? source) { }
 
     /// <summary>每帧；返回 false = 作者接管这一粒，游戏不再跑原版更新。</summary>
     public virtual bool Update(Gore gore) => true;
@@ -28,11 +28,6 @@ public abstract class ModGore : ModType
     /// 只在 <see cref="Update"/> 返回 true（没接管）时生效；0 = 不借。
     /// </summary>
     public virtual int UpdateType => 0;
-
-    /// <summary>
-    /// 按名字取 gore 编号：支持 <c>Mod名/类名</c> 与"全工程唯一"的裸类名；找不到或重名返回 0（不抛）。
-    /// </summary>
-    public static int GetTypeByName(string name) => GoreTable.Find(name);
 }
 
 // Gores/*.png 自动发现（只放图片不会产生类型）、网络同步（粒子是纯表现）。

@@ -18,6 +18,7 @@ internal sealed class TileDrawPipeline : ILoaderModule
     public string Name => "tiledraw";
 
     private static readonly List<Point> Special = [];
+    private static readonly List<Point> Vines = [];
     private static readonly HashSet<string> Reported = new(StringComparer.Ordinal);
     private static bool _drawing;
 
@@ -89,10 +90,11 @@ internal sealed class TileDrawPipeline : ILoaderModule
         Main.drawToScreen = true;
         _drawing = true;
         Special.Clear();
+        Vines.Clear();
 
         try
         {
-            DrawVisible(batch);
+            DrawVisible(batch, self);
         }
         finally
         {
@@ -105,13 +107,22 @@ internal sealed class TileDrawPipeline : ILoaderModule
         }
     }
 
-    private static void DrawVisible(SpriteBatch batch)
+    internal static void AddVine(int i, int j)
+    {
+        if (_drawing) Vines.Add(new Point(i, j));
+    }
+
+    private static void DrawVisible(SpriteBatch batch, TileDrawing self)
     {
         var screen = Main.screenPosition;
         var left = Math.Max(0, (int)(screen.X / 16f) - 3);
         var top = Math.Max(0, (int)(screen.Y / 16f) - 3);
         var right = Math.Min(Main.maxTilesX, left + Main.screenWidth / 16 + 8);
         var bottom = Math.Min(Main.maxTilesY, top + Main.screenHeight / 16 + 8);
+
+        var preDrawGlobals = GlobalTileRegistry.For(HookId.PreDraw);
+        var drawEffectsGlobals = GlobalTileRegistry.For(HookId.DrawEffects);
+        var postDrawGlobals = GlobalTileRegistry.For(HookId.PostDraw);
 
         for (var i = left; i < right; i++)
         {
@@ -120,24 +131,82 @@ internal sealed class TileDrawPipeline : ILoaderModule
                 var tile = Main.tile[i, j];
                 if (!tile.active()) continue;
 
-                var mod = TileTable.At(i, j);
-                if (mod is null || !mod.HookEnabled(HookId.DrawEffects)) continue;
+                var type = tile.type;
+                var mod = TileTable.Of(type);
+                var hasDrawHooks = preDrawGlobals.Count > 0 || drawEffectsGlobals.Count > 0 ||
+                                   (mod is not null &&
+                                    (mod.HookEnabled(HookId.PreDraw) || mod.HookEnabled(HookId.DrawEffects)));
 
-                try
+                if (!hasDrawHooks)
                 {
-                    var data = new TileDrawData
+                    if (mod is not null && mod.HookEnabled(HookId.PostDraw))
                     {
-                        tileFrameX = tile.frameX,
-                        tileFrameY = tile.frameY,
-                        typeCache = tile.type,
-                        tileLight = Lighting.GetColor(i, j),
-                        tileCache = tile,
-                    };
-                    mod.DrawEffects(i, j, batch, data);
+                        try { mod.PostDraw(i, j, batch); }
+                        catch (Exception e) { Report(mod.FullKey, $"[tiledraw] {mod.Name}.PostDraw 异常", e); }
+                    }
+
+                    for (var g = 0; g < postDrawGlobals.Count; g++)
+                    {
+                        try { postDrawGlobals[g].PostDraw(i, j, type, batch); }
+                        catch (Exception e) { Report(null, "[tiledraw] GlobalTile.PostDraw 异常", e); }
+                    }
+
+                    continue;
                 }
-                catch (Exception e)
+
+                var draw = true;
+                for (var g = 0; g < preDrawGlobals.Count; g++)
                 {
-                    Report(mod.FullKey + ".DrawEffects", $"[tiledraw] {mod.Name}.DrawEffects 异常", e);
+                    try
+                    {
+                        if (!preDrawGlobals[g].PreDraw(i, j, type, batch)) draw = false;
+                    }
+                    catch (Exception e) { Report(null, "[tiledraw] GlobalTile.PreDraw 异常", e); }
+                }
+
+                if (draw && mod is not null && mod.HookEnabled(HookId.PreDraw))
+                {
+                    try
+                    {
+                        if (!mod.PreDraw(i, j, batch)) draw = false;
+                    }
+                    catch (Exception e) { Report(mod.FullKey, $"[tiledraw] {mod.Name}.PreDraw 异常", e); }
+                }
+
+                var data = new TileDrawData
+                {
+                    tileFrameX = tile.frameX,
+                    tileFrameY = tile.frameY,
+                    typeCache = type,
+                    tileLight = Lighting.GetColor(i, j),
+                    tileCache = tile,
+                };
+
+                for (var g = 0; g < drawEffectsGlobals.Count; g++)
+                {
+                    try { drawEffectsGlobals[g].DrawEffects(i, j, type, batch, ref data); }
+                    catch (Exception e) { Report(null, "[tiledraw] GlobalTile.DrawEffects 异常", e); }
+                }
+
+                if (mod is not null && mod.HookEnabled(HookId.DrawEffects))
+                {
+                    try { mod.DrawEffects(i, j, batch, data); }
+                    catch (Exception e) { Report(mod.FullKey, $"[tiledraw] {mod.Name}.DrawEffects 异常", e); }
+                }
+
+                if (draw && DrawTile(batch, self, i, j, type, data.tileLight))
+                {
+                    if (mod is not null && mod.HookEnabled(HookId.PostDraw))
+                    {
+                        try { mod.PostDraw(i, j, batch); }
+                        catch (Exception e) { Report(mod.FullKey, $"[tiledraw] {mod.Name}.PostDraw 异常", e); }
+                    }
+
+                    for (var g = 0; g < postDrawGlobals.Count; g++)
+                    {
+                        try { postDrawGlobals[g].PostDraw(i, j, type, batch); }
+                        catch (Exception e) { Report(null, "[tiledraw] GlobalTile.PostDraw 异常", e); }
+                    }
                 }
             }
         }
@@ -146,19 +215,66 @@ internal sealed class TileDrawPipeline : ILoaderModule
         {
             var point = Special[k];
             var mod = TileTable.At(point.X, point.Y);
-            if (mod is null || !mod.HookEnabled(HookId.SpecialDraw)) continue;
+            var type = Main.tile[point.X, point.Y].type;
 
-            try
+            if (mod is not null && mod.HookEnabled(HookId.SpecialDraw))
             {
-                mod.SpecialDraw(point.X, point.Y, batch);
+                try { mod.SpecialDraw(point.X, point.Y, batch); }
+                catch (Exception e) { Report(mod.FullKey, $"[tiledraw] {mod.Name}.SpecialDraw 异常", e); }
             }
-            catch (Exception e)
+
+            var specialGlobals = GlobalTileRegistry.For(HookId.SpecialDraw);
+            for (var g = 0; g < specialGlobals.Count; g++)
             {
-                Report(mod.FullKey + ".SpecialDraw", $"[tiledraw] {mod.Name}.SpecialDraw 异常", e);
+                try { specialGlobals[g].SpecialDraw(point.X, point.Y, type, batch); }
+                catch (Exception e) { Report(null, "[tiledraw] GlobalTile.SpecialDraw 异常", e); }
             }
         }
 
+        for (var k = 0; k < Vines.Count; k++)
+        {
+            var point = Vines[k];
+            var shape = Terraria.ObjectData.TileObjectData.GetTileData(Main.tile[point.X, point.Y]);
+            if (shape is null) continue;
+
+            try
+            {
+                self.DrawMultiTileVinesInWind(Main.screenPosition, Vector2.Zero, point.X, point.Y,
+                    shape.Width, shape.Height);
+            }
+            catch (Exception e) { Report(null, "[tiledraw] 藤蔓随风绘制异常", e); }
+        }
+
         DrawPreviewCrystal(batch);
+    }
+
+    private static bool DrawTile(SpriteBatch batch, TileDrawing self, int i, int j, int type, Color fallbackLight)
+    {
+        try
+        {
+            var tile = Main.tile[i, j];
+            short fx = tile.frameX, fy = tile.frameY;
+            self.GetTileDrawData(i, j, tile, (ushort)type, ref fx, ref fy, out var width, out var height, out var top,
+                out var halfBrick, out var addFrX, out var addFrY, out var effect, out _, out _, out _);
+
+            if (width <= 0 || height <= halfBrick) return false;
+
+            var source = new Rectangle(fx + addFrX, fy + addFrY, width, height - halfBrick);
+            var center = Terraria.ID.TileID.Sets.DoNotAdjustDrawPositionBasedOnTileWidth[type]
+                ? 0f
+                : (width - 16) * 0.5f;
+            var position = new Vector2(i * 16 - center - (int)Main.screenPosition.X,
+                j * 16 + top + halfBrick - (int)Main.screenPosition.Y);
+
+            batch.Draw(Terraria.GameContent.TextureAssets.Tile[type].Value, position,
+                new Il2CppSystem.Nullable<Rectangle>(source), fallbackLight, 0f, Vector2.Zero, 1f, effect, 0f);
+            return true;
+        }
+        catch (Exception e)
+        {
+            Report(null, "[tiledraw] 重画异常", e);
+            return false;
+        }
     }
 
     /// <summary>
@@ -184,9 +300,9 @@ internal sealed class TileDrawPipeline : ILoaderModule
         }
     }
 
-    private static void Report(string key, string what, Exception e)
+    private static void Report(string? key, string what, Exception e)
     {
-        if (!Reported.Add(key)) return;
+        if (key is not null && !Reported.Add(key)) return;
         ContentErrors.Report($"{what}：{Safe.Describe(e)}");
     }
 }

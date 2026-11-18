@@ -10,6 +10,8 @@ public abstract class ModBiome : ModSceneEffect
     /// <summary>群落名（菜单/图鉴显示用）；默认类名，作者可覆盖。</summary>
     public virtual string DisplayName => Name;
 
+    public virtual string LocalizationCategory => "Biomes";
+
     /// <summary>每帧一次（游戏数完周围方块之后）；玩家在不在这个群落里，这一帧抛异常算 false。</summary>
     public virtual bool IsBiomeActive(Player player) => false;
 

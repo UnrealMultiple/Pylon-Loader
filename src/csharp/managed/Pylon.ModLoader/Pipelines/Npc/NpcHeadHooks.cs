@@ -19,6 +19,8 @@ internal static class NpcHeadHooks
     private static Heads[] _heads = [];
     private static readonly List<Asset<Texture2D>> TownAssets = [];
     private static readonly List<Asset<Texture2D>> BossAssets = [];
+    private static readonly Dictionary<int, int> ExplicitTownSlots = [];
+    private static readonly Dictionary<int, int> ExplicitBossSlots = [];
     private static int _townBase = -1;
     private static int _bossBase = -1;
     private static bool _profileInstalled;
@@ -53,14 +55,43 @@ internal static class NpcHeadHooks
                 try
                 {
                     ref var heads = ref _heads[mod.Type];
-                    if (kind == 0) Load(mod, mod.HeadTexture, "_Head", TownAssets, _townBase, ref heads.Town);
+                    if (kind == 0)
+                    {
+                        if (!ExplicitTownSlots.ContainsKey(mod.Type))
+                            Load(mod, mod.HeadTexture, "_Head", TownAssets, _townBase, ref heads.Town);
+                    }
                     else if (kind == 1) Load(mod, mod.ShimmerHeadTexture, "_Shimmer_Head", TownAssets, _townBase, ref heads.Shimmer);
-                    else Load(mod, mod.BossHeadTexture, "_Head_Boss", BossAssets, _bossBase, ref heads.Boss);
+                    else
+                    {
+                        if (!ExplicitBossSlots.ContainsKey(mod.Type))
+                            Load(mod, mod.BossHeadTexture, "_Head_Boss", BossAssets, _bossBase, ref heads.Boss);
+                    }
                 }
                 catch (Exception e) { Safe.Report($"[npc] {mod.Name}.HeadTexture[{kind}]", e); }
             }
         }
         Maintain();
+    }
+
+    internal static int AddTownHead(Mod mod, int npcType, string texture)
+    {
+        if (ModContent.GetModNPC(npcType) is null) return -1;
+        if (_townBase < 0) _townBase = TextureAssets.NpcHead.Length;
+
+        var slot = _townBase + TownAssets.Count;
+        TownAssets.Add(mod.LoadAsset(texture));
+        ExplicitTownSlots[npcType] = slot;
+        return slot;
+    }
+
+    internal static int AddBossHead(Mod mod, string texture, int npcType)
+    {
+        if (_bossBase < 0) _bossBase = TextureAssets.NpcHeadBoss.Length;
+
+        var slot = _bossBase + BossAssets.Count;
+        BossAssets.Add(mod.LoadAsset(texture));
+        if (npcType >= 0) ExplicitBossSlots[npcType] = slot;
+        return slot;
     }
 
     private static void Load(ModNpc mod, string path, string suffix, List<Asset<Texture2D>> assets, int first, ref int slot)
@@ -82,12 +113,15 @@ internal static class NpcHeadHooks
 
     internal static int TownSlot(int type, bool shimmer = false)
     {
+        if (!shimmer && ExplicitTownSlots.TryGetValue(type, out var explicitSlot)) return explicitSlot;
         if ((uint)type >= (uint)_heads.Length) return -1;
         var heads = _heads[type];
         return shimmer && heads.Shimmer >= 0 ? heads.Shimmer : heads.Town;
     }
 
-    internal static int BossSlot(int type) => (uint)type < (uint)_heads.Length ? _heads[type].Boss : -1;
+    internal static int BossSlot(int type) =>
+        ExplicitBossSlots.TryGetValue(type, out var slot) ? slot :
+        (uint)type < (uint)_heads.Length ? _heads[type].Boss : -1;
 
     private static int DefaultHead(On.Terraria.NPC.orig_TypeToDefaultHeadIndex orig, int type)
     {
@@ -110,6 +144,8 @@ internal static class NpcHeadHooks
         var indices = Terraria.ID.NPCID.Sets.BossHeadTextures;
         for (var i = 0; i < _heads.Length && i < indices.Length; i++)
             if (_heads[i].Boss >= 0) indices[i] = _heads[i].Boss;
+        foreach (var pair in ExplicitBossSlots)
+            if ((uint)pair.Key < (uint)indices.Length) indices[pair.Key] = pair.Value;
     }
 
     private static Il2CppReferenceArray<Asset<Texture2D>> Apply(

@@ -18,6 +18,8 @@ internal static class WallTable
 
     internal static int Count => _count;
 
+    internal static ModWall?[] All => _walls;
+
     internal static void Build(IModLog log)
     {
         foreach (var wall in ModContent.GetContent<ModWall>())
@@ -43,7 +45,6 @@ internal static class WallTable
             meta.Masks = HookScan.Of(wall.GetType(), typeof(ModWall));
             wall.Hooks = meta.Masks;
             if (wall.RegisteredDrop > 0) meta.DropItem = wall.RegisteredDrop;
-            else if (wall.ItemDrop > 0) meta.DropItem = wall.ItemDrop;
         }
 
         // 反查：放置这面墙的物品就是默认掉落，先到先得（保证确定性）。

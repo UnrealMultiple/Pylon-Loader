@@ -9,8 +9,8 @@ namespace PipelineTest.Tests;
 
 /// <summary>
 /// 管线 26：Net 三件套（内容指纹 / SyncPlayer 摘要 / BannerNet 与 EmoteNet 的单机可验面）。
-/// Ready：NetWriter→NetReader 值往返、ModPacket 单机 no-op、表情锚序列化往返、联机入口方法面。
-/// World：PlayerNet 钩子派发计数、ApplyRemote 重建 mod 泡泡、单机发包 no-op。
+/// Ready：NetWriter→NetReader 值往返、ModPacket 是 BinaryWriter 且单机 Send 抛、表情锚序列化往返、Mod 包入口面。
+/// World：PlayerNet 钩子派发计数、ApplyRemote 重建 mod 泡泡、单机发包抛。
 /// </summary>
 internal static class NetTests
 {
@@ -48,14 +48,19 @@ internal static class NetTests
             c.True(!r.HasMore, "读完即止");
         });
 
-        // N-R2：ModPacket 单机 Send 是 no-op，不能抛（单人游戏走不到网络层）。
+        // N-R2：ModPacket 是 BinaryWriter；单机 Send 抛（基线的失败语义）。
         PT.Case("NET-R2", c =>
         {
             var packet = PipelineTestMod.Instance.GetPacket();
+            c.True(packet is System.IO.BinaryWriter, "ModPacket : BinaryWriter");
             packet.Write(1);
             packet.Write("单人");
-            c.True(packet.Values.Count == 2, "ModPacket 存值");
-            c.NoThrow(() => packet.Send(), "ModPacket.Send 单机 no-op");
+            c.True(packet.BaseStream.Position > 0, "写入进包");
+
+            var threw = false;
+            try { packet.Send(); }
+            catch (InvalidOperationException) { threw = true; }
+            c.True(threw, "单机 Send 抛 InvalidOperationException");
         });
 
         // N-R3：表情锚序列化往返（EmoteNet 同步载荷里那对函数）：玩家锚 → 序列化 → 反序列化。
@@ -77,14 +82,16 @@ internal static class NetTests
             c.NotNull(rebuilt, "反序列化回锚");
         });
 
-        // N-R4：联机数据三件套的入口方法面（Mod.NetSend / NetReceive / HandlePacket / GetPacket）。
+        // N-R4：Mod 包入口面（HandlePacket(BinaryReader, int) / GetPacket）。
         PT.Case("NET-R4", c =>
         {
             var type = typeof(Mod);
-            c.NotNull(type.GetMethod("NetSend"), "Mod.NetSend");
-            c.NotNull(type.GetMethod("NetReceive"), "Mod.NetReceive");
-            c.NotNull(type.GetMethod("HandlePacket"), "Mod.HandlePacket");
+            var handle = type.GetMethod("HandlePacket");
+            c.NotNull(handle, "Mod.HandlePacket");
+            c.True(handle!.GetParameters() is [{ ParameterType: var reader }, _] && reader == typeof(System.IO.BinaryReader),
+                "HandlePacket(BinaryReader, int)");
             c.NotNull(type.GetMethod("GetPacket"), "Mod.GetPacket");
+            c.True(type.GetMethod("NetSend") is null && type.GetMethod("NetReceive") is null, "没有 Mod.NetSend/NetReceive");
         });
     }
 
@@ -127,10 +134,13 @@ internal static class NetTests
             c.NotNull(mp.GetMethod("SendClientChanges"), "ModPlayer.SendClientChanges");
         });
 
-        // N-W3：单机发 ModPacket 仍然 no-op（NetPipeline.SendChannel 对 netMode=0 直接返回）。
+        // N-W3：世界中单机发 ModPacket 同样抛（与基线一致）。
         PT.Case("NET-W3", c =>
         {
-            c.NoThrow(() => PipelineTestMod.Instance.GetPacket().Send(), "World 阶段单机发 ModPacket 仍 no-op");
+            var threw = false;
+            try { PipelineTestMod.Instance.GetPacket().Send(); }
+            catch (InvalidOperationException) { threw = true; }
+            c.True(threw, "World 阶段单机发 ModPacket 抛 InvalidOperationException");
         });
     }
 }

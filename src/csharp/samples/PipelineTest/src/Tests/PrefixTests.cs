@@ -1,3 +1,4 @@
+using System.Linq;
 using Pylon.ModLoader;
 using Terraria;
 using Terraria.ID;
@@ -18,7 +19,7 @@ internal static class PrefixTests
     /// <summary>进世界后：把测试前缀真装到热键栏第 1 格的测试物品上（游戏内能看到改名与数值变化）。</summary>
     private static void RunWorld()
     {
-        var type = ModContent.PrefixType<Content.TestPrefix>();
+        var type = ModContent.GetInstance<Content.TestPrefix>()!.Type;
         var player = Main.player[Main.myPlayer];
         if (player is null || !player.active)
         {
@@ -29,7 +30,7 @@ internal static class PrefixTests
         PT.Case("PREFIX-W1", c =>
         {
             var item = player.inventory[0];
-            if (item is null || item.type != ModContent.TypeOf<Content.TestItem>())
+            if (item is null || item.type != ModContent.ItemType<Content.TestItem>())
             {
                 c.Fail("热键栏第 1 格不是测试物品");
                 return;
@@ -48,7 +49,7 @@ internal static class PrefixTests
 
     private static void Run()
     {
-        var type = ModContent.PrefixType<Content.TestPrefix>();
+        var type = ModContent.GetInstance<Content.TestPrefix>()!.Type;
 
         PT.Case("PREFIX-R1", c =>
         {
@@ -56,17 +57,32 @@ internal static class PrefixTests
             // 判据改成：号在合法区间、能按号反查回本前缀、名字表里是它。
             c.InRange(type, 0, 255, "type");
             c.True(Terraria.ID.PrefixID.Count > type, $"PrefixID.Count={Terraria.ID.PrefixID.Count} 应 > type={type}");
-            c.True(ModContent.Find(ContentKind.Prefix, type) is Content.TestPrefix, "按号反查");
+            c.True(ModContent.GetInstance<Content.TestPrefix>() is { } prefix && prefix.Type == type, "按号反查");
             c.NotNull(ModContent.GetInstance<Content.TestPrefix>(), "GetInstance");
+        });
+
+        PT.Case("PREFIX-R2", c =>
+        {
+            var item = new Item();
+            item.SetDefaults(ItemID.Swordfish, null);
+            var prefix = ModContent.GetInstance<Content.TestPrefix>();
+            c.NotNull(prefix, "TestPrefix 实例");
+            c.Eq(prefix.LocalizationCategory, "Prefixes", "LocalizationCategory");
+            c.Eq(prefix.Category, PrefixCategory.AnyWeapon, "Category 枚举值");
+            c.True(PrefixLoader.GetPrefix(prefix.Type) == prefix, "PrefixLoader.GetPrefix 反查");
+            c.True(PrefixLoader.GetPrefixesInCategory(PrefixCategory.AnyWeapon).Contains(prefix), "GetPrefixesInCategory(AnyWeapon) 含 TestPrefix");
+            c.True(PrefixLoader.GetPrefixesInCategory(PrefixCategory.Accessory).Count == 0 || !PrefixLoader.GetPrefixesInCategory(PrefixCategory.Accessory).Contains(prefix), "Accessory 分类不含武器前缀");
+            c.True(prefix.CanRoll(item), "CanRoll 默认 true");
+            PT.Info($"PrefixLoader: Vanilla={PrefixLoader.VanillaCount} Count={PrefixLoader.PrefixCount}");
         });
 
         // H1 功能：SetStats 直接调 → 数值按声明修正
         PT.Case("PREFIX-H1", c =>
         {
             float dmg = 1f, kb = 1f, ut = 1f, scale = 1f, ss = 1f, mana = 1f;
-            int crit = 0, tag = 0, ap = 0;
+            int crit = 0;
             ModContent.GetInstance<Content.TestPrefix>()
-                .SetStats(ref dmg, ref kb, ref ut, ref scale, ref ss, ref mana, ref crit, ref tag, ref ap);
+                .SetStats(ref dmg, ref kb, ref ut, ref scale, ref ss, ref mana, ref crit);
             c.Eq(dmg, 1.5f, "damageMult");
             c.Eq(crit, 10, "crit");
         });
@@ -83,7 +99,7 @@ internal static class PrefixTests
         PT.Case("PREFIX-H3", c =>
         {
             var item = new Item();
-            item.SetDefaults(ModContent.TypeOf<Content.TestItem>(), null);
+            item.SetDefaults(ModContent.ItemType<Content.TestItem>(), null);
             ModContent.GetInstance<Content.TestPrefix>().Apply(item);
             c.True(Content.TestPrefix.Applied, "Apply 未被调");
         });

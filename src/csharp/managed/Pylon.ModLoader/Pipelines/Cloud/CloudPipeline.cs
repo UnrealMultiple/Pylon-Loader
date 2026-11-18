@@ -116,8 +116,8 @@ internal sealed class CloudPipeline : ILoaderModule, ILoaderModuleRefresh
         if (picked.Texture?.Value is not { } texture) return;
 
         cloud.type = type;
-        cloud.width = texture.Width;
-        cloud.height = texture.Height;
+        cloud.width = (int)(texture.Width * cloud.scale);
+        cloud.height = (int)(texture.Height * cloud.scale);
 
         try
         {

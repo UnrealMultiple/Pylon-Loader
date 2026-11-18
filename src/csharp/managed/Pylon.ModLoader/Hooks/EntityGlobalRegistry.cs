@@ -131,6 +131,17 @@ internal sealed class EntityGlobalRegistry<TGlobal, TEntity>
         _attached[address] = Build(entity, lateInstantiation);
     }
 
+    public void Restore(TEntity? entity, List<TGlobal>? previous)
+    {
+        if (!_needsPerEntity || entity is null) return;
+
+        var address = _address(entity);
+        if (address == 0) return;
+
+        if (previous is null) _attached.Remove(address);
+        else _attached[address] = previous;
+    }
+
     private List<TGlobal> Attached(TEntity entity)
     {
         var address = _address(entity);

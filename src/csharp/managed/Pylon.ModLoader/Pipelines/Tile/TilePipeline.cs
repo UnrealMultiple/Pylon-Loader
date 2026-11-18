@@ -30,12 +30,20 @@ internal sealed class TilePipeline : ILoaderModule
         On.Terraria.WorldGen.KillTile_PlaySounds += PlaySounds;
         On.Terraria.WorldGen.KillTile_MakeTileDust += MakeDust;
         On.Terraria.WorldGen.KillTile_DropItems += DropItems;
+        On.Terraria.WorldGen.KillTile_GetItemDrops += GetItemDrops;
         On.Terraria.WorldGen.TileFrame += Frame;
+        On.Terraria.WorldGen.TileFrameImportant += FrameImportant;
         On.Terraria.Wiring.HitWireSingle += Wire;
         On.Terraria.Player.AdjTiles += Stations;
         On.Terraria.Player.GetPickaxeDamage += PickaxeDamage;
         On.Terraria.Player.TileInteractionsUse += Interact;
         On.Terraria.Player.TileInteractionsMouseOver += MouseOver;
+        On.Terraria.Player.TileInteractionsCheckLongDistance += MouseOverFar;
+        On.Terraria.Player.PlaceThing_Tiles_BlockPlacementForAssortedThings += CanPlace;
+        On.Terraria.Projectile.CanExplodeTile += Explode;
+        On.Terraria.WorldGen.ReplaceTile += Replace;
+        On.Terraria.GameContent.Drawing.TileDrawing.IsTileDangerous += Danger;
+        On.Terraria.Main.IsTileSpelunkable_ushort_short_short += Spelunk;
         On.Terraria.WorldGen.UpdateWorld_OvergroundTile += RandomUpdateOver;
         On.Terraria.WorldGen.UpdateWorld_UndergroundTile += RandomUpdateUnder;
         TileMergeFix.Install();
@@ -92,7 +100,7 @@ internal sealed class TilePipeline : ILoaderModule
             var data = TileObjectData._data;
             if (data is not null && data.Count < total)
             {
-                while (data.Count < total) data.Add(TileObjectData.Style1x1);
+                while (data.Count < total) data.Add(null);
 
                 var shapes = TileTable.Shapes;
                 var restored = 0;
@@ -118,80 +126,122 @@ internal sealed class TilePipeline : ILoaderModule
                          WorldGen.SpecialKillTileContext context)
     {
         var tile = TileTable.At(i, j);
-        if (tile is null || !tile.HookEnabled(HookId.CanKillTile)) return orig(i, j, context);
-
+        var type = Main.tile[i, j].type;
         var damaged = false;
 
-        try
+        if (tile is not null && tile.HookEnabled(HookId.CanKillTile))
         {
-            return tile.CanKillTile(i, j, ref damaged) && orig(i, j, context);
+            try
+            {
+                if (!tile.CanKillTile(i, j, ref damaged)) return false;
+            }
+            catch (Exception e)
+            {
+                Fail(tile, HookId.CanKillTile, e);
+            }
         }
-        catch (Exception e)
+
+        var globals = GlobalTileRegistry.For(HookId.CanKillTile);
+        for (var index = 0; index < globals.Count; index++)
         {
-            Fail(tile, HookId.CanKillTile, e);
-            return orig(i, j, context);
+            try
+            {
+                if (!globals[index].CanKillTile(i, j, type, ref damaged)) return false;
+            }
+            catch (Exception e)
+            {
+                Fail(null, HookId.CanKillTile, e);
+            }
         }
+
+        return orig(i, j, context);
     }
 
     private bool CanKillFast(On.Terraria.WorldGen.orig_CanKillTile_int_int orig, int i, int j)
     {
         var tile = TileTable.At(i, j);
-        if (tile is null || !tile.HookEnabled(HookId.CanKillTile)) return orig(i, j);
-
+        var type = Main.tile[i, j].type;
         var damaged = false;
 
-        try
+        if (tile is not null && tile.HookEnabled(HookId.CanKillTile))
         {
-            return tile.CanKillTile(i, j, ref damaged) && orig(i, j);
+            try
+            {
+                if (!tile.CanKillTile(i, j, ref damaged)) return false;
+            }
+            catch (Exception e)
+            {
+                Fail(tile, HookId.CanKillTile, e);
+            }
         }
-        catch (Exception e)
-        {
-            Fail(tile, HookId.CanKillTile, e);
-            return orig(i, j);
-        }
-    }
 
-    private static bool _removingMulti;
+        var globals = GlobalTileRegistry.For(HookId.CanKillTile);
+        for (var index = 0; index < globals.Count; index++)
+        {
+            try
+            {
+                if (!globals[index].CanKillTile(i, j, type, ref damaged)) return false;
+            }
+            catch (Exception e)
+            {
+                Fail(null, HookId.CanKillTile, e);
+            }
+        }
+
+        return orig(i, j);
+    }
 
     private bool CanKillOut(On.Terraria.WorldGen.orig_CanKillTile_int_int_boolRef orig, int i, int j, out bool blockDamaged)
     {
         var tile = TileTable.At(i, j);
-        if (tile is null || !tile.HookEnabled(HookId.CanKillTile))
-            return orig(i, j, out blockDamaged);
-
+        var type = Main.tile[i, j].type;
         var damaged = false;
-        try
+
+        if (tile is not null && tile.HookEnabled(HookId.CanKillTile))
         {
-            var allowed = tile.CanKillTile(i, j, ref damaged);
-            var result = orig(i, j, out var originalDamaged);
-            blockDamaged = damaged || originalDamaged;
-            return allowed && result;
+            try
+            {
+                if (!tile.CanKillTile(i, j, ref damaged))
+                {
+                    blockDamaged = damaged;
+                    return false;
+                }
+            }
+            catch (Exception e)
+            {
+                Fail(tile, HookId.CanKillTile, e);
+            }
         }
-        catch (Exception e)
+
+        var globals = GlobalTileRegistry.For(HookId.CanKillTile);
+        for (var index = 0; index < globals.Count; index++)
         {
-            Fail(tile, HookId.CanKillTile, e);
-            return orig(i, j, out blockDamaged);
+            try
+            {
+                if (!globals[index].CanKillTile(i, j, type, ref damaged))
+                {
+                    blockDamaged = damaged;
+                    return false;
+                }
+            }
+            catch (Exception e)
+            {
+                Fail(null, HookId.CanKillTile, e);
+            }
         }
+
+        var result = orig(i, j, out var originalDamaged);
+        blockDamaged = damaged || originalDamaged;
+        return result;
     }
+
+    [ThreadStatic] private static int _dustBudget;
+    [ThreadStatic] private static int _killing;
 
     private void Kill(On.Terraria.WorldGen.orig_KillTile orig, int i, int j, bool fail, bool effectOnly, bool noItem)
     {
         var tile = TileTable.At(i, j);
-        var cache = Main.tile[i, j];
-        var type = cache.type;
-        var frameX = cache.frameX;
-        var frameY = cache.frameY;
-
-        var data = type > 0 ? TileObjectData.GetTileData(type, 0) : null;
-        var multi = data is not null && data.Width * data.Height > 1;
-        var left = i;
-        var top = j;
-
-        if (multi)
-        {
-            left -= (frameX / 18) % data!.Width;
-            top -= (frameY / 18) % data.Height;
-        }
+        var type = Main.tile[i, j].type;
 
         if (tile is not null && tile.HookEnabled(HookId.KillTile))
         {
@@ -205,45 +255,58 @@ internal sealed class TilePipeline : ILoaderModule
             }
         }
 
-        orig(i, j, fail, effectOnly, noItem);
-
-        if (tile is null || !multi || fail || effectOnly || _removingMulti || !tile.HookEnabled(HookId.KillMultiTile)) return;
-
-        var tiles = Main.tile;
-        var objectData = data!;
-
-        if (tiles[i, j].active() && tiles[i, j].type == type) return;
-
-        for (var x = left; x < left + objectData.Width; x++)
+        var globals = GlobalTileRegistry.For(HookId.KillTile);
+        for (var index = 0; index < globals.Count; index++)
         {
-            for (var y = top; y < top + objectData.Height; y++)
+            try
             {
-                if (x == i && y == j) continue;
-
-                var part = tiles[x, y];
-                if (!part.active() || part.type != type) continue;
-
-                _removingMulti = true;
-                try
-                {
-                    WorldGen.KillTile(x, y, false, false, true);
-                }
-                finally
-                {
-                    _removingMulti = false;
-                }
+                globals[index].KillTile(i, j, type, ref fail, ref effectOnly, ref noItem);
+            }
+            catch (Exception e)
+            {
+                Fail(null, HookId.KillTile, e);
             }
         }
 
+        var count = fail ? 3 : 10;
+        if (tile is not null && tile.HookEnabled(HookId.NumDust))
+        {
+            try
+            {
+                tile.NumDust(i, j, fail, ref count);
+            }
+            catch (Exception e)
+            {
+                Fail(tile, HookId.NumDust, e);
+            }
+        }
+
+        var dustGlobals = GlobalTileRegistry.For(HookId.NumDust);
+        for (var index = 0; index < dustGlobals.Count; index++)
+        {
+            try
+            {
+                dustGlobals[index].NumDust(i, j, type, fail, ref count);
+            }
+            catch (Exception e)
+            {
+                Fail(null, HookId.NumDust, e);
+            }
+        }
+
+        var previousBudget = _dustBudget;
+        var previousKilling = _killing;
+        _dustBudget = Math.Max(0, count);
+        _killing++;
+
         try
         {
-            tile.KillMultiTile(left, top,
-                (short)(frameX - ((frameX / 18) % objectData.Width) * 18),
-                (short)(frameY - ((frameY / 18) % objectData.Height) * 18));
+            orig(i, j, fail, effectOnly, noItem);
         }
-        catch (Exception e)
+        finally
         {
-            Fail(tile, HookId.KillMultiTile, e);
+            _dustBudget = previousBudget;
+            _killing = previousKilling;
         }
     }
 
@@ -295,11 +358,8 @@ internal sealed class TilePipeline : ILoaderModule
                 Fail(tile, HookId.KillSound, e);
             }
 
-            if (sound >= 0)
-            {
-                Terraria.Audio.SoundEngine.PlaySound(sound, i * 16, j * 16, 1, 1f, 0f);
-                return;
-            }
+            if (sound >= 0) Terraria.Audio.SoundEngine.PlaySound(sound, i * 16, j * 16, 1, 1f, 0f);
+            return;
         }
 
         orig(i, j, fail, tileCache);
@@ -307,61 +367,99 @@ internal sealed class TilePipeline : ILoaderModule
 
     private int MakeDust(On.Terraria.WorldGen.orig_KillTile_MakeTileDust orig, int i, int j, Tile tileCache)
     {
-        var tile = TileTable.At(i, j);
-        if (tile is null || !tile.HookEnabled(HookId.CreateDust)) return orig(i, j, tileCache);
+        if (_killing > 0 && _dustBudget <= 0) return 6000;
+        if (_killing > 0) _dustBudget--;
 
-        var type = tile.DustType > 0 ? tile.DustType : 0;
+        var type = tileCache.type;
+        var tile = TileTable.Of(type);
 
+        if (tile is null)
+        {
+            var index = orig(i, j, tileCache);
+            if ((uint)index >= 6000u) return index;
+
+            var d = Main.dust[index];
+            var dust = d.type;
+            var globals = GlobalTileRegistry.For(HookId.CreateDust);
+            for (var k = 0; k < globals.Count; k++)
+            {
+                try
+                {
+                    if (!globals[k].CreateDust(i, j, type, ref dust))
+                    {
+                        d.active = false;
+                        return 6000;
+                    }
+                }
+                catch (Exception e)
+                {
+                    Fail(null, HookId.CreateDust, e);
+                }
+            }
+
+            d.type = dust;
+            return index;
+        }
+
+        var kind = tile.DustType;
         try
         {
-            if (!tile.CreateDust(i, j, ref type)) return 0;
-
-            return orig(i, j, tileCache);
+            if (!tile.CreateDust(i, j, ref kind)) return 6000;
         }
         catch (Exception e)
         {
             Fail(tile, HookId.CreateDust, e);
-            return orig(i, j, tileCache);
+            return 6000;
         }
+
+        var dustGlobals = GlobalTileRegistry.For(HookId.CreateDust);
+        for (var k = 0; k < dustGlobals.Count; k++)
+        {
+            try
+            {
+                if (!dustGlobals[k].CreateDust(i, j, type, ref kind)) return 6000;
+            }
+            catch (Exception e)
+            {
+                Fail(null, HookId.CreateDust, e);
+            }
+        }
+
+        return Terraria.Dust.NewDust(new Il2CppMicrosoft.Xna.Framework.Vector2(i * 16, j * 16), 16, 16, kind, 0, 0, 0, default, 1);
     }
 
     private void DropItems(On.Terraria.WorldGen.orig_KillTile_DropItems orig, int x, int y, Tile tileCache,
                            bool includeLargeObjectDrops)
     {
-        if (_removingMulti)
+        var type = tileCache.type;
+        var tile = TileTable.Of(type);
+        if (tile is null)
         {
             orig(x, y, tileCache, includeLargeObjectDrops);
             return;
         }
 
-        var tile = TileTable.At(x, y);
-
-        if (tile is null || !tile.HookEnabled(HookId.CanDrop) && !tile.HookEnabled(HookId.GetItemDrops))
+        if (!AllowDrop(x, y, type, tile)) return;
+        if (!includeLargeObjectDrops)
         {
-            DropDefault(tileCache, x, y);
-            orig(x, y, tileCache, includeLargeObjectDrops);
-            return;
+            var shape = Terraria.ObjectData.TileObjectData.GetTileData(type, 0);
+            if (shape is not null && shape.Width * shape.Height > 1) return;
         }
 
         try
         {
-            if (!tile.CanDrop(x, y))
-            {
-                orig(x, y, tileCache, includeLargeObjectDrops);
-                return;
-            }
-
             var drops = tile.GetItemDrops(x, y);
             if (drops is not null && drops.Length > 0)
             {
                 for (var k = 0; k < drops.Length; k++)
                 {
-                    var type = drops[k];
-                    if (type > 0) Item.NewItem(x * 16, y * 16, 16, 16, type);
+                    if (drops[k] > 0) Item.NewItem(x * 16, y * 16, 16, 16, drops[k]);
                 }
-
-                orig(x, y, tileCache, includeLargeObjectDrops);
-                return;
+            }
+            else
+            {
+                var item = TileTable.DropOf(type, StyleOf(tileCache));
+                if (item > 0) Item.NewItem(x * 16, y * 16, 16, 16, item);
             }
         }
         catch (Exception e)
@@ -369,27 +467,107 @@ internal sealed class TilePipeline : ILoaderModule
             Fail(tile, HookId.GetItemDrops, e);
         }
 
-        DropDefault(tileCache, x, y);
-        orig(x, y, tileCache, includeLargeObjectDrops);
+        var globals = GlobalTileRegistry.For(HookId.Drop);
+        for (var k = 0; k < globals.Count; k++)
+        {
+            try
+            {
+                globals[k].Drop(x, y, type);
+            }
+            catch (Exception e)
+            {
+                Fail(null, HookId.Drop, e);
+            }
+        }
     }
 
-    private void DropDefault(Tile tileCache, int i, int j)
+    private bool AllowDrop(int x, int y, int type, ModTile tile)
     {
-        var item = TileTable.DropOf(tileCache.type, StyleOf(tileCache));
-        if (item > 0) Item.NewItem(i * 16, j * 16, 16, 16, item);
+        if (tile.HookEnabled(HookId.CanDrop))
+        {
+            try
+            {
+                if (!tile.CanDrop(x, y)) return false;
+            }
+            catch (Exception e)
+            {
+                Fail(tile, HookId.CanDrop, e);
+            }
+        }
+
+        var globals = GlobalTileRegistry.For(HookId.CanDrop);
+        for (var k = 0; k < globals.Count; k++)
+        {
+            try
+            {
+                if (!globals[k].CanDrop(x, y, type)) return false;
+            }
+            catch (Exception e)
+            {
+                Fail(null, HookId.CanDrop, e);
+            }
+        }
+
+        return true;
     }
 
-    private static int StyleOf(Tile tile)
+    private void GetItemDrops(On.Terraria.WorldGen.orig_KillTile_GetItemDrops orig, int x, int y, Tile tileCache,
+                              out int dropItem, out int dropItemStack, out int secondaryItem, out int secondaryItemStack,
+                              out bool noPrefix, bool includeLargeObjectDrops)
+    {
+        orig(x, y, tileCache, out dropItem, out dropItemStack, out secondaryItem, out secondaryItemStack, out noPrefix,
+             includeLargeObjectDrops);
+
+        var type = tileCache.type;
+        var tile = TileTable.Of(type);
+        if (tile is null) return;
+
+        if (!AllowDrop(x, y, type, tile))
+        {
+            dropItem = secondaryItem = 0;
+            return;
+        }
+
+        dropItem = secondaryItem = 0;
+        dropItemStack = secondaryItemStack = 1;
+        if (!includeLargeObjectDrops)
+        {
+            var shape = Terraria.ObjectData.TileObjectData.GetTileData(type, 0);
+            if (shape is not null && shape.Width * shape.Height > 1) return;
+        }
+
+        try
+        {
+            var drops = tile.GetItemDrops(x, y);
+            if (drops is not null && drops.Length > 0)
+            {
+                if (drops[0] > 0) dropItem = drops[0];
+                if (drops.Length > 1 && drops[1] > 0) secondaryItem = drops[1];
+            }
+            else
+            {
+                var item = TileTable.DropOf(type, StyleOf(tileCache));
+                if (item > 0) dropItem = item;
+            }
+        }
+        catch (Exception e)
+        {
+            Fail(tile, HookId.GetItemDrops, e);
+        }
+    }
+
+    internal static int StyleOf(Tile tile)
     {
         var data = Terraria.ObjectData.TileObjectData.GetTileData(tile.type, 0);
         if (data is null) return 0;
 
-        var styleX = tile.frameX / 18 / data.CoordinateFullWidth;
-        var styleY = tile.frameY / 18 / data.CoordinateFullHeight;
+        var x = tile.frameX / Math.Max(1, data.CoordinateFullWidth);
+        var y = tile.frameY / Math.Max(1, data.CoordinateFullHeight);
 
-        if (data.StyleHorizontal) return data.StyleWrapLimit > 0 ? styleX % data.StyleWrapLimit : styleX;
-
-        return styleX + styleY;
+        var style = data.StyleHorizontal
+            ? y / Math.Max(1, data.StyleLineSkip) * Math.Max(1, data.StyleWrapLimit) + x
+            : x / Math.Max(1, data.StyleLineSkip) * Math.Max(1, data.StyleWrapLimit) + y;
+        return style / Math.Max(1, data.StyleMultiplier);
     }
 
     #endregion
@@ -399,12 +577,13 @@ internal sealed class TilePipeline : ILoaderModule
     private void Frame(On.Terraria.WorldGen.orig_TileFrame orig, int i, int j, bool resetFrame, bool noBreak)
     {
         var tile = TileTable.At(i, j);
+        var result = true;
 
         if (tile is not null && tile.HookEnabled(HookId.TileFrame))
         {
             try
             {
-                if (!tile.TileFrame(i, j, ref resetFrame, ref noBreak)) return;
+                result = tile.TileFrame(i, j, ref resetFrame, ref noBreak);
             }
             catch (Exception e)
             {
@@ -412,7 +591,32 @@ internal sealed class TilePipeline : ILoaderModule
             }
         }
 
+        var type = Main.tile[i, j].type;
+        var globals = GlobalTileRegistry.For(HookId.TileFrame);
+        for (var index = 0; index < globals.Count; index++)
+        {
+            try
+            {
+                result &= globals[index].TileFrame(i, j, type, ref resetFrame, ref noBreak);
+            }
+            catch (Exception e)
+            {
+                Fail(null, HookId.TileFrame, e);
+            }
+        }
+
+        if (!result) return;
+
         orig(i, j, resetFrame, noBreak);
+    }
+
+    private void FrameImportant(On.Terraria.WorldGen.orig_TileFrameImportant orig, int i, int j,
+                                int type, Tile tileCache, bool resetFrame)
+    {
+        if ((uint)type >= (uint)VanillaCounts.Tile && TileTable.Has(type) && TileObjectCheck.Check(i, j, type))
+            return;
+
+        orig(i, j, type, tileCache, resetFrame);
     }
 
     [ThreadStatic] private static int _wireDepth;
@@ -523,17 +727,39 @@ internal sealed class TilePipeline : ILoaderModule
         for (var n = 0; n < all.Length; n++)
         {
             var tile = all[n];
-            if (tile is null || !tile.HookEnabled(HookId.AdjTiles)) continue;
-
-            var extra = tile.AdjTiles;
-            if (extra is null || extra.Length == 0) continue;
+            if (tile is null) continue;
 
             var type = tile.Type;
-            if (!NearBy(self, tiles, type)) continue;
+            var extras = new List<int>();
 
-            for (var k = 0; k < extra.Length; k++)
+            if (tile.HookEnabled(HookId.AdjTiles) || GlobalTileRegistry.For(HookId.AdjTiles).Count > 0)
             {
-                var station = extra[k];
+                if (NearBy(self, tiles, type))
+                {
+                    if (tile.HookEnabled(HookId.AdjTiles))
+                    {
+                        var own = tile.AdjTiles;
+                        if (own is not null) extras.AddRange(own);
+                    }
+
+                    var globals = GlobalTileRegistry.For(HookId.AdjTiles);
+                    for (var g = 0; g < globals.Count; g++)
+                    {
+                        try
+                        {
+                            extras.AddRange(globals[g].AdjTiles(type));
+                        }
+                        catch (Exception e)
+                        {
+                            Fail(null, HookId.AdjTiles, e);
+                        }
+                    }
+                }
+            }
+
+            for (var k = 0; k < extras.Count; k++)
+            {
+                var station = extras[k];
                 if (station >= 0 && station < self.adjTile.Length) self.adjTile[station] = true;
             }
         }
@@ -623,10 +849,9 @@ internal sealed class TilePipeline : ILoaderModule
 
             if (tile is not null && tile.HookEnabled(HookId.RightClick) && !self.cursorItemIconEnabled)
             {
-                var style = (type >= 0 && type < TileObjectData._data.Count) ? (int)Main.tile[myX, myY].frameY / 36 : 0;
                 self.noThrow = 2;
                 self.cursorItemIconEnabled = true;
-                self.cursorItemIconID = TileTable.DropOf(type, style);
+                self.cursorItemIconID = TileTable.DropOf(type, StyleOf(Main.tile[myX, myY]));
             }
         }
         catch (Exception e)
@@ -682,6 +907,8 @@ internal sealed class TilePipeline : ILoaderModule
             }
         }
 
+        if (!fresh) return;
+
         var globals = GlobalTileRegistry.For(HookId.RightClick);
         for (var index = 0; index < globals.Count; index++)
         {
@@ -722,7 +949,7 @@ internal sealed class TilePipeline : ILoaderModule
         var tile = TileTable.At(i, j);
         if (tile is not null && tile.HookEnabled(HookId.RandomUpdate))
         {
-            try { tile.RandomUpdate(i, j); }
+            try { tile.RandomUpdate(i, j, underground); }
             catch (Exception e) { Fail(tile, HookId.RandomUpdate, e); }
         }
 
@@ -768,6 +995,237 @@ internal sealed class TilePipeline : ILoaderModule
         ref var meta = ref TileTable.Meta(type);
         if (power < meta.MinPick) return 0;
         return meta.MineResist > 0f ? (int)(damage / meta.MineResist) : damage;
+    }
+
+    private void MouseOverFar(On.Terraria.Player.orig_TileInteractionsCheckLongDistance orig, Player self, int i, int j)
+    {
+        orig(self, i, j);
+
+        try
+        {
+            if ((uint)i >= (uint)Main.maxTilesX || (uint)j >= (uint)Main.maxTilesY) return;
+
+            var tile = TileTable.At(i, j);
+            var type = Main.tile[i, j].type;
+
+            if (tile is not null && tile.HookEnabled(HookId.MouseOverFar))
+            {
+                try
+                {
+                    tile.MouseOverFar(i, j);
+                }
+                catch (Exception e)
+                {
+                    Fail(tile, HookId.MouseOverFar, e);
+                }
+            }
+
+            var globals = GlobalTileRegistry.For(HookId.MouseOverFar);
+            for (var index = 0; index < globals.Count; index++)
+            {
+                try
+                {
+                    globals[index].MouseOverFar(i, j, type);
+                }
+                catch (Exception e)
+                {
+                    Fail(tile, HookId.MouseOverFar, e);
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report("[tile] 远距光标判定异常：" + Safe.Describe(e));
+        }
+    }
+
+    private bool CanPlace(On.Terraria.Player.orig_PlaceThing_Tiles_BlockPlacementForAssortedThings orig,
+                          Player player, bool canPlace)
+    {
+        if (!orig(player, canPlace)) return false;
+
+        var type = player.HeldItem.createTile;
+        if (type < 0) return true;
+
+        var i = Player.tileTargetX;
+        var j = Player.tileTargetY;
+        var tile = TileTable.Of(type);
+
+        if (tile is not null && tile.HookEnabled(HookId.CanPlace))
+        {
+            try
+            {
+                if (!tile.CanPlace(i, j)) return false;
+            }
+            catch (Exception e)
+            {
+                Fail(tile, HookId.CanPlace, e);
+            }
+        }
+
+        var globals = GlobalTileRegistry.For(HookId.CanPlace);
+        for (var index = 0; index < globals.Count; index++)
+        {
+            try
+            {
+                if (!globals[index].CanPlace(i, j, type)) return false;
+            }
+            catch (Exception e)
+            {
+                Fail(null, HookId.CanPlace, e);
+            }
+        }
+
+        return true;
+    }
+
+    private bool Explode(On.Terraria.Projectile.orig_CanExplodeTile orig, Projectile projectile, int i, int j, bool ores)
+    {
+        if (!orig(projectile, i, j, ores)) return false;
+
+        var type = Main.tile[i, j].type;
+        var tile = TileTable.Of(type);
+
+        if (tile is not null && tile.HookEnabled(HookId.CanExplode))
+        {
+            try
+            {
+                if (!tile.CanExplode(i, j)) return false;
+            }
+            catch (Exception e)
+            {
+                Fail(tile, HookId.CanExplode, e);
+            }
+        }
+
+        var globals = GlobalTileRegistry.For(HookId.CanExplode);
+        for (var index = 0; index < globals.Count; index++)
+        {
+            try
+            {
+                if (!globals[index].CanExplode(i, j, type)) return false;
+            }
+            catch (Exception e)
+            {
+                Fail(null, HookId.CanExplode, e);
+            }
+        }
+
+        return true;
+    }
+
+    private bool Replace(On.Terraria.WorldGen.orig_ReplaceTile orig, int i, int j, int target, int style)
+    {
+        var type = Main.tile[i, j].type;
+        var tile = TileTable.Of(type);
+
+        if (tile is not null && tile.HookEnabled(HookId.CanReplace))
+        {
+            try
+            {
+                if (!tile.CanReplace(i, j, target)) return false;
+            }
+            catch (Exception e)
+            {
+                Fail(tile, HookId.CanReplace, e);
+            }
+        }
+
+        var globals = GlobalTileRegistry.For(HookId.CanReplace);
+        for (var index = 0; index < globals.Count; index++)
+        {
+            try
+            {
+                if (!globals[index].CanReplace(i, j, type, target)) return false;
+            }
+            catch (Exception e)
+            {
+                Fail(null, HookId.CanReplace, e);
+            }
+        }
+
+        return orig(i, j, target, style);
+    }
+
+    private bool Danger(On.Terraria.GameContent.Drawing.TileDrawing.orig_IsTileDangerous orig,
+                        Player player, short sTileHeader, ushort typeCache,
+                        short tileFrameX)
+    {
+        var result = orig(player, sTileHeader, typeCache, tileFrameX);
+
+        var (i, j, ok) = TileDrawHooks.TrackedCell();
+        if (!ok) return result;
+
+        bool? final = null;
+        var tile = TileTable.Of(typeCache);
+        if (tile is not null && tile.HookEnabled(HookId.IsTileDangerous))
+        {
+            try
+            {
+                if (tile.IsTileDangerous(i, j, player)) final = true;
+            }
+            catch (Exception e)
+            {
+                Fail(tile, HookId.IsTileDangerous, e);
+            }
+        }
+
+        var globals = GlobalTileRegistry.For(HookId.IsTileDangerous);
+        for (var index = 0; index < globals.Count; index++)
+        {
+            try
+            {
+                var own = globals[index].IsTileDangerous(i, j, typeCache, player);
+                if (own == false) return false;
+                if (own == true) final = true;
+            }
+            catch (Exception e)
+            {
+                Fail(null, HookId.IsTileDangerous, e);
+            }
+        }
+
+        return final == true || result;
+    }
+
+    private bool Spelunk(On.Terraria.Main.orig_IsTileSpelunkable_ushort_short_short orig, ushort typeCache,
+                         short tileFrameX, short tileFrameY)
+    {
+        var result = orig(typeCache, tileFrameX, tileFrameY);
+
+        var (i, j, ok) = TileDrawHooks.TrackedCell();
+        if (!ok) return result;
+
+        bool? final = null;
+        var tile = TileTable.Of(typeCache);
+        if (tile is not null && tile.HookEnabled(HookId.IsTileSpelunkable))
+        {
+            try
+            {
+                if (tile.IsTileSpelunkable(i, j)) final = true;
+            }
+            catch (Exception e)
+            {
+                Fail(tile, HookId.IsTileSpelunkable, e);
+            }
+        }
+
+        var globals = GlobalTileRegistry.For(HookId.IsTileSpelunkable);
+        for (var index = 0; index < globals.Count; index++)
+        {
+            try
+            {
+                var own = globals[index].IsTileSpelunkable(i, j, typeCache);
+                if (own == false) return false;
+                if (own == true) final = true;
+            }
+            catch (Exception e)
+            {
+                Fail(null, HookId.IsTileSpelunkable, e);
+            }
+        }
+
+        return final == true || result;
     }
 
     private void Fail(ModTile? tile, HookId hook, Exception exception)

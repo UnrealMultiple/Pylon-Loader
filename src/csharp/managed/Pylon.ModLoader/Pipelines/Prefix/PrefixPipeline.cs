@@ -86,8 +86,6 @@ internal sealed class PrefixPipeline : ILoaderModule
 
     private static bool CanRollOn(ModPrefix prefix, Item item)
     {
-        if (!prefix.HookEnabled(HookId.CanRoll)) return prefix.RollChance(item) > 0;
-
         try
         {
             return prefix.CanRoll(item);
@@ -136,7 +134,7 @@ internal sealed class PrefixPipeline : ILoaderModule
     private static bool CanRoll(On.Terraria.Item.orig_CanRollPrefix orig, Item self, int prefix)
     {
         var mod = PrefixTable.Of(prefix);
-        if (mod is null || mod.Category != ModPrefix.CategoryCustom) return orig(self, prefix);
+        if (mod is null || mod.Category != PrefixCategory.Custom) return orig(self, prefix);
 
         return Allowed(self, prefix) && CanRollOn(mod, self);
     }
@@ -199,8 +197,6 @@ internal sealed class PrefixPipeline : ILoaderModule
 
     private static double RollChance(ModPrefix prefix, Item item)
     {
-        if (!prefix.HookEnabled(HookId.RollChance)) return prefix.CanRoll(item) ? 1d : 0d;
-
         try
         {
             return prefix.RollChance(item);
@@ -269,14 +265,11 @@ internal sealed class PrefixPipeline : ILoaderModule
             var shootSpeed = 1f;
             var mana = 1f;
             var crit = 0;
-            var tag = 0;
-            var pierce = 0;
 
-            prefix.SetStats(ref damage, ref knockback, ref useTime, ref scale, ref shootSpeed, ref mana, ref crit, ref tag,
-                ref pierce);
+            prefix.SetStats(ref damage, ref knockback, ref useTime, ref scale, ref shootSpeed, ref mana, ref crit);
 
             var multiplier = damage * (2f - useTime) * (2f - mana) * scale * knockback * shootSpeed * (1f + crit * 0.02f);
-            if (prefix.HookEnabled(HookId.ModifyValue)) prefix.ModifyValue(ref multiplier);
+            prefix.ModifyValue(ref multiplier);
 
             dmg = damage;
             kb = knockback;
@@ -285,8 +278,6 @@ internal sealed class PrefixPipeline : ILoaderModule
             shtspd = shootSpeed;
             mcst = mana;
             crt = crit;
-            tagdmg = tag;
-            arpen = pierce;
             value = multiplier;
 
             return (damage == 1f || Math.Round(self.damage * damage) != self.damage) &&
@@ -328,7 +319,7 @@ internal sealed class PrefixPipeline : ILoaderModule
         if (!applied || prefixWeWant == -3) return applied;
 
         var prefix = PrefixTable.Of(self.prefix);
-        if (prefix is not null && prefix.HookEnabled(HookId.Apply))
+        if (prefix is not null)
         {
             try
             {
@@ -384,7 +375,7 @@ internal sealed class PrefixPipeline : ILoaderModule
         orig(self, item);
 
         var prefix = PrefixTable.Of(item.prefix);
-        if (prefix is null || !prefix.HookEnabled(HookId.ApplyAccessoryEffects)) return;
+        if (prefix is null) return;
 
         try
         {

@@ -5,12 +5,10 @@ using Terraria.ID;
 
 namespace PipelineTest.Content;
 
-/// <summary>测试 Boss：声明 TestBossBar 的普通 NPC（不要求 npc.boss，管线按 ModNpc.BossBar 找）。</summary>
+/// <summary>测试 Boss：SetDefaults 里把 TestBossBar 挂到 NPC.BossBar 的普通 NPC。</summary>
 public sealed class TestBossNpc : ModNpc
 {
     public override string DisplayName => "测试血条 Boss";
-
-    public override ModBossBar BossBar => ModContent.GetInstance<TestBossBar>();
 
     public override void SetDefaults()
     {
@@ -27,6 +25,7 @@ public sealed class TestBossNpc : ModNpc
         NPC.aiStyle = -1;
         NPC.HitSound = SoundID.NPCHit1;
         NPC.DeathSound = SoundID.NPCDeath1;
+        NPC.BossBar = ModContent.GetInstance<TestBossBar>();
     }
 
     public override void OnSpawn(IEntitySource source) => NPC.timeLeft = 3600;

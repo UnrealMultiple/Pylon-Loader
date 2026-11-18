@@ -36,9 +36,6 @@ internal sealed class BannerPipeline : ILoaderModule
         On.Terraria.GameContent.BannerSystem.Clear += Clear;
         On.Terraria.GameContent.BannerSystem.GetClaimableBannerCounts += ClaimableCounts;
         On.Terraria.GameContent.BannerSystem.RequestBannerClaim += RequestClaim;
-        On.Terraria.Main.Update += BuffScan;
-        On.Terraria.SceneMetrics.Scan += BuffApply;
-        On.Terraria.Player.HasNPCBannerBuff += HasNpcBannerBuff;
         On.Terraria.Main.MouseText_DrawBuffTooltip += BuffTooltip;
         On.Terraria.IO.WorldFile.LoadWorld += LoadWorld;
         On.Terraria.IO.WorldFile.InternalSaveWorld += SaveWorld;
@@ -187,86 +184,6 @@ internal sealed class BannerPipeline : ILoaderModule
 
         Main.LocalPlayer.QuickSpawnItem(null, item, granted);
         BannerTable.SetFresh(banner, false);
-    }
-
-    private static int[] _nearby = [];
-
-    private const int BuffInterval = 20;
-
-    private const int BuffRange = 40;
-
-    private static void BuffScan(On.Terraria.Main.orig_Update orig, Main self,
-                                 Il2CppMicrosoft.Xna.Framework.GameTime gameTime)
-    {
-        orig(self, gameTime);
-
-        if (Main.gameMenu || Main.dedServ || BannerTable.Count == 0) return;
-        if (Main.GameUpdateCount % BuffInterval != 0) return;
-
-        var player = Main.LocalPlayer;
-        if (player is null || !player.active) return;
-
-        var center = player.Center;
-        var cx = (int)(center.X / 16f);
-        var cy = (int)(center.Y / 16f);
-
-        List<int> found = [];
-        for (var x = cx - BuffRange; x <= cx + BuffRange; x++)
-        {
-            if (x < 0 || x >= Main.maxTilesX) continue;
-
-            for (var y = cy - BuffRange; y <= cy + BuffRange; y++)
-            {
-                if (y < 0 || y >= Main.maxTilesY) continue;
-
-                var tile = Main.tile[x, y];
-                if (!tile.active()) continue;
-
-                var style = tile.frameX / 18;
-                var banner = BannerTable.BannerOfTileAt(tile.type, style);
-                if (banner > 0 && !found.Contains(banner)) found.Add(banner);
-            }
-        }
-
-        _nearby = [.. found];
-    }
-
-    private static void BuffApply(On.Terraria.SceneMetrics.orig_Scan orig, SceneMetrics self, SceneMetricsScanSettings settings)
-    {
-        orig(self, settings);
-
-        if (_nearby.Length == 0) return;
-
-        var max = BannerTable.MaxBanner;
-        if (max <= 0) return;
-
-        var table = self.NPCBannerBuff;
-        if (table is null || table.Length <= max)
-        {
-            var longer = new bool[max + 1];
-            if (table is not null) Array.Copy(table, longer, table.Length);
-
-            self.NPCBannerBuff = longer;
-            table = longer;
-        }
-
-        var any = false;
-        foreach (var banner in _nearby)
-        {
-            if (banner >= table.Length) continue;
-            table[banner] = true;
-            any = true;
-        }
-
-        if (any) self.hasBanner = true;
-    }
-
-    private static bool HasNpcBannerBuff(On.Terraria.Player.orig_HasNPCBannerBuff orig, Player self, int bannerType)
-    {
-        var table = Main.SceneMetrics?.NPCBannerBuff;
-        if (bannerType >= VanillaCounts.Npc && (table is null || bannerType >= table.Length)) return false;
-
-        return orig(self, bannerType);
     }
 
     private static void BuffTooltip(On.Terraria.Main.orig_MouseText_DrawBuffTooltip orig, Main self,

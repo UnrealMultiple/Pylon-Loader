@@ -1,5 +1,6 @@
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Terraria;
+using Terraria.GameContent;
 using Terraria.ID;
 
 namespace Pylon.ModLoader;
@@ -11,6 +12,7 @@ internal sealed class NpcTown
 
     private NPC? _talking;
     private int _talkingType;
+    private readonly Dictionary<int, NPCInteractionList> _interactions = [];
 
     public void Install()
     {
@@ -186,28 +188,150 @@ internal sealed class NpcTown
 
         npc.type = _talkingType;
 
-        if (ModContent.Find(ContentKind.Npc, npc.type) is not ModNpc modNpc || !modNpc.HookEnabled(HookId.SetChatButtons))
-            return;
-
-        var button = "";
-        var button2 = "";
-        try
-        {
-            modNpc.SetChatButtons(ref button, ref button2);
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report($"{modNpc.Name}.SetChatButtons 异常：{Safe.Describe(e)}");
-        }
+        var list = InteractionsOf(npc);
+        var first = Choice(npc, list, true);
+        var second = Choice(npc, list, false);
+        if (first is null && second is null) return;
 
         var icon = option1Tex;
-        focusText = button ?? "";
-        focusText3 = button2 ?? "";
+        focusText = TextOf(first);
+        focusText3 = TextOf(second);
 #pragma warning disable CS8601
-        option1Tex = string.IsNullOrEmpty(button) ? Nothing : icon;
-        option2Tex = string.IsNullOrEmpty(button2) ? Nothing : icon;
+        option1Tex = first is null ? Nothing : icon;
+        option2Tex = second is null ? Nothing : icon;
 #pragma warning restore CS8601
         cost = 0;
+    }
+
+    private NPCInteractionList InteractionsOf(NPC npc)
+    {
+        if (_interactions.TryGetValue(npc.type, out var cached)) return cached;
+
+        var list = new NPCInteractionList(npc.type);
+        var mod = ModOf(npc);
+        if (mod is not null && mod.HookEnabled(HookId.SetChatButtons))
+        {
+            list.Append(new LegacyButton(first: true));
+            list.Append(new LegacyButton(first: false));
+        }
+
+        if (mod is not null && mod.HookEnabled(HookId.RegisterChatButtons))
+        {
+            try { mod.RegisterChatButtons(list); }
+            catch (Exception e) { ContentErrors.Report($"{mod.Name}.RegisterChatButtons 异常：{Safe.Describe(e)}"); }
+        }
+
+        foreach (var global in GlobalNpcRegistry.For(npc, HookId.RegisterChatButtons))
+        {
+            try { global.RegisterChatButtons(npc, list); }
+            catch (Exception e) { ContentErrors.Report($"{global.Name}.RegisterChatButtons 异常：{Safe.Describe(e)}"); }
+        }
+
+        _interactions[npc.type] = list;
+        return list;
+    }
+
+    private static ModNpc? ModOf(NPC? npc) =>
+        npc is null ? null : ModContent.Find(ContentKind.Npc, npc.type) as ModNpc;
+
+    private static NPCInteraction? Choice(NPC npc, NPCInteractionList list, bool first)
+    {
+        var wanted = first ? 0 : 1;
+        foreach (var entry in list.Entries)
+        {
+            if (!entry.Enabled || entry.NPCInteraction is null) continue;
+            try
+            {
+                if (!entry.NPCInteraction.Condition() || string.IsNullOrEmpty(entry.NPCInteraction.GetText())) continue;
+                if (wanted-- == 0) return entry.NPCInteraction;
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[npc] NPCInteraction {entry.NPCInteraction.GetType().Name} 异常：{Safe.Describe(e)}");
+            }
+        }
+
+        return null;
+    }
+
+    private static string TextOf(NPCInteraction? interaction)
+    {
+        if (interaction is null) return "";
+        try { return interaction.GetText() ?? ""; }
+        catch { return ""; }
+    }
+
+    private static bool PreChatButtonClicked(NPC npc, NPCInteraction interaction)
+    {
+        var allowed = true;
+        foreach (var global in GlobalNpcRegistry.For(npc, HookId.PreChatButtonClicked))
+        {
+            try
+            {
+                if (!global.PreChatButtonClicked(npc, interaction)) allowed = false;
+            }
+            catch (Exception e) { ContentErrors.Report($"{global.Name}.PreChatButtonClicked 异常：{Safe.Describe(e)}"); }
+        }
+
+        return allowed;
+    }
+
+    private static void OnChatButtonClicked(NPC npc, NPCInteraction interaction)
+    {
+        var mod = ModOf(npc);
+        if (mod is not null && mod.HookEnabled(HookId.OnChatButtonClicked))
+        {
+            try { mod.OnChatButtonClicked(interaction); }
+            catch (Exception e) { ContentErrors.Report($"{mod.Name}.OnChatButtonClicked 异常：{Safe.Describe(e)}"); }
+        }
+
+        foreach (var global in GlobalNpcRegistry.For(npc, HookId.OnChatButtonClicked))
+        {
+            try { global.OnChatButtonClicked(npc, interaction); }
+            catch (Exception e) { ContentErrors.Report($"{global.Name}.OnChatButtonClicked 异常：{Safe.Describe(e)}"); }
+        }
+    }
+
+    private sealed class LegacyButton(bool first) : NPCInteraction
+    {
+        public override bool Condition() => !string.IsNullOrEmpty(GetText());
+
+        public override string GetText()
+        {
+            var mod = ModOf(TalkingTo());
+            if (mod is null || !mod.HookEnabled(HookId.SetChatButtons)) return "";
+
+            var button = "";
+            var button2 = "";
+            try { mod.SetChatButtons(ref button, ref button2); }
+            catch (Exception e) { ContentErrors.Report($"{mod.Name}.SetChatButtons 异常：{Safe.Describe(e)}"); }
+            return first ? button ?? "" : button2 ?? "";
+        }
+
+        public override void Interact()
+        {
+            var npc = TalkingTo();
+            if (npc is null) return;
+
+            var mod = ModOf(npc);
+            if (mod is null) return;
+
+            var shopName = "";
+            try { mod.OnChatButtonClicked(first, ref shopName); }
+            catch (Exception e) { ContentErrors.Report($"{mod.Name}.OnChatButtonClicked 异常：{Safe.Describe(e)}"); }
+
+            if (string.IsNullOrEmpty(shopName)) return;
+
+            var shop = NpcShopDatabase.Find(npc.type, shopName);
+            if (shop is null)
+            {
+                Safe.Once("shop." + npc.type + "." + shopName,
+                    $"{mod.Name} 的聊天按钮要开商店 '{shopName}'，但没有注册", true);
+                return;
+            }
+
+            shop.Open();
+        }
     }
 
     private void Option1(On.GUINPCDialogue.orig_Option1Clicked orig, GUINPCDialogue self, int healCost)
@@ -222,36 +346,20 @@ internal sealed class NpcTown
 
     private static Texture2D Nothing => null!;
 
-    private static bool Clicked(bool first)
+    private bool Clicked(bool first)
     {
         var npc = TalkingTo();
         if (npc is null) return false;
 
-        if (ModContent.Find(ContentKind.Npc, npc.type) is not ModNpc modNpc) return false;
-        if (!modNpc.HookEnabled(HookId.OnChatButtonClicked)) return false;
+        var interaction = Choice(npc, InteractionsOf(npc), first);
+        if (interaction is null) return false;
 
-        string shopName = null!;
-        try
-        {
-            modNpc.OnChatButtonClicked(first, ref shopName);
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report($"{modNpc.Name}.OnChatButtonClicked 异常：{Safe.Describe(e)}");
-            return true;
-        }
+        if (!PreChatButtonClicked(npc, interaction)) return true;
 
-        if (shopName is null) return true;
+        try { interaction.Interact(); }
+        catch (Exception e) { ContentErrors.Report($"[npc] NPCInteraction {interaction.GetType().Name}.Interact 异常：{Safe.Describe(e)}"); }
 
-        var shop = NpcShop.Find(npc.type, shopName);
-        if (shop is null)
-        {
-            Safe.Once("shop." + npc.type + "." + shopName,
-                $"{modNpc.Name} 的聊天按钮要开商店 '{shopName}'，但没有注册", true);
-            return true;
-        }
-
-        shop.Open();
+        OnChatButtonClicked(npc, interaction);
         return true;
     }
 #endregion

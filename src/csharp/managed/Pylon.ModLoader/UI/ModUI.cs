@@ -63,7 +63,7 @@ public static class ModUI
 
         // 绘制走界面层管线（和作者层同一条链，位置可调，不再占原版某个绘制点的钩子）。
         InterfaceLayerPipeline.RegisterInternal(
-            new GameInterfaceLayer("Pylon: Loader UI", DrawLoaderUi, Terraria.UI.InterfaceScaleType.UI));
+            new LegacyGameInterfaceLayer("Pylon: Loader UI", DrawLoaderUi, Terraria.UI.InterfaceScaleType.UI));
         logger.Info("UI 绘制层已登记：Pylon: Loader UI");
     }
 

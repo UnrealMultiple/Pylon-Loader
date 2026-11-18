@@ -19,7 +19,8 @@ internal sealed class NetPipeline : ILoaderModule
     internal const byte MetaKind = 6;
     private const byte MetaFingerprint = 0;
 
-    private const byte KindPacket = 1, KindWorld = 2, KindNpc = 3, KindProjectile = 4;
+    internal const byte KindPacket = 1;
+    private const byte KindWorld = 2, KindNpc = 3, KindProjectile = 4;
     private const byte FirstChannelKind = 7;
 
     internal delegate void NetHandler(Il2CppSystem.IO.BinaryReader reader, int from);
@@ -88,14 +89,12 @@ internal sealed class NetPipeline : ILoaderModule
         End(toClient, ignoreClient);
     }
 
-    internal void SendPacket(ModPacket packet, int toClient, int ignoreClient)
+    internal void SendRawPacket(byte[] bytes, int length, int toClient, int ignoreClient)
     {
-        if (Main.netMode == 0 || packet?.Mod is null) return;
+        if (Main.netMode == 0 || bytes is null || length <= 0) return;
 
         var writer = Begin();
-        writer.Write(KindPacket);
-        writer.Write(packet.Mod.Name);
-        NetCodec.WriteValues(writer, packet.Values);
+        writer.Write(bytes, 0, length);
         End(toClient, ignoreClient);
     }
 
@@ -107,28 +106,6 @@ internal sealed class NetPipeline : ILoaderModule
             writer.Write(MetaFingerprint);
             writer.Write(ContentFingerprint.Value);
         }, toClient, -1);
-    }
-
-    private void SendWorld(Mod mod, int toClient, int ignoreClient)
-    {
-        var values = new NetWriter();
-        try
-        {
-            mod.NetSend(values);
-        }
-        catch (Exception e)
-        {
-            Safe.Report(mod.Name + ".NetSend", e);
-            return;
-        }
-
-        if (values.Values.Count == 0) return;
-
-        var writer = Begin();
-        writer.Write(KindWorld);
-        writer.Write(mod.Name);
-        NetCodec.WriteValues(writer, values.Values);
-        End(toClient, ignoreClient);
     }
 
     private void SendNpc(int index, int remoteClient, int ignoreClient)
@@ -206,11 +183,11 @@ internal sealed class NetPipeline : ILoaderModule
             var temp = new NetWriter();
             try
             {
-                globals[i].NetSend(projectile, temp);
+                globals[i].SendExtraAI(projectile, temp);
             }
             catch (Exception e)
             {
-                Safe.Report(globals[i].Name + ".NetSend", e);
+                Safe.Report(globals[i].Name + ".SendExtraAI", e);
                 continue;
             }
 
@@ -297,7 +274,6 @@ internal sealed class NetPipeline : ILoaderModule
             switch (kind)
             {
                 case KindPacket: ReceivePacket(reader, from); break;
-                case KindWorld: ReceiveWorld(reader); break;
                 case KindNpc: ReceiveNpc(reader); break;
                 case KindProjectile: ReceiveProjectile(reader); break;
                 case ItemKind: _items.Receive(reader, from); break;
@@ -368,32 +344,22 @@ internal sealed class NetPipeline : ILoaderModule
     private void ReceivePacket(Il2CppSystem.IO.BinaryReader reader, int from)
     {
         var mod = ModOf(reader);
-        var values = NetCodec.ReadValues(reader);
+        var length = reader.ReadInt32();
+        var raw = reader.ReadBytes(length);
         if (mod is null) return;
 
         try
         {
-            mod.HandlePacket(new NetReader(values), from);
+            var payload = new byte[raw?.Length ?? 0];
+            for (var i = 0; i < payload.Length; i++) payload[i] = raw![i];
+
+            using var stream = new MemoryStream(payload);
+            using var packet = new System.IO.BinaryReader(stream);
+            mod.HandlePacket(packet, from);
         }
         catch (Exception e)
         {
             Safe.Report(mod.Name + ".HandlePacket", e);
-        }
-    }
-
-    private void ReceiveWorld(Il2CppSystem.IO.BinaryReader reader)
-    {
-        var mod = ModOf(reader);
-        var values = NetCodec.ReadValues(reader);
-        if (mod is null) return;
-
-        try
-        {
-            mod.NetReceive(new NetReader(values));
-        }
-        catch (Exception e)
-        {
-            Safe.Report(mod.Name + ".NetReceive", e);
         }
     }
 
@@ -467,11 +433,11 @@ internal sealed class NetPipeline : ILoaderModule
 
             try
             {
-                globals[slot].NetReceive(projectile, new NetReader(values));
+                globals[slot].ReceiveExtraAI(projectile, new NetReader(values));
             }
             catch (Exception e)
             {
-                Safe.Report(globals[slot].Name + ".NetReceive", e);
+                Safe.Report(globals[slot].Name + ".ReceiveExtraAI", e);
             }
         }
     }
@@ -545,16 +511,6 @@ internal sealed class NetPipeline : ILoaderModule
 
         switch (msgType)
         {
-            case 7:
-                if (Main.netMode == 1) return;
-
-                foreach (var mod in ModLoader.Mods)
-                {
-                    if (mod is null || !mod.Plan.Has(HookId.NetSend)) continue;
-                    Safe.Run(mod.Name + ".NetSend", () => SendWorld(mod, remoteClient, ignoreClient));
-                }
-
-                break;
             case 23: Safe.Run("net.npc", () => SendNpc((int)number, remoteClient, ignoreClient)); break;
             case 27: Safe.Run("net.projectile", () => SendProjectile((int)number, remoteClient, ignoreClient)); break;
         }

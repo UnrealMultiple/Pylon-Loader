@@ -22,10 +22,10 @@ public sealed class TestManaOverlay : ModResourceOverlay
 
     public override void SetStaticDefaults()
     {
-        _classic = PipelineTestMod.Instance.LoadAsset("assets/items/ClassicManaOverlay.png");
-        _fancyPanel = PipelineTestMod.Instance.LoadAsset("assets/items/FancyManaOverlay_Panel.png");
-        _barsFill = PipelineTestMod.Instance.LoadAsset("assets/items/BarsManaOverlay_Fill.png");
-        _barsPanel = PipelineTestMod.Instance.LoadAsset("assets/items/BarsManaOverlay_Panel.png");
+        _classic = PipelineTestMod.Instance.Assets.Request<Texture2D>("assets/items/ClassicManaOverlay.png");
+        _fancyPanel = PipelineTestMod.Instance.Assets.Request<Texture2D>("assets/items/FancyManaOverlay_Panel.png");
+        _barsFill = PipelineTestMod.Instance.Assets.Request<Texture2D>("assets/items/BarsManaOverlay_Fill.png");
+        _barsPanel = PipelineTestMod.Instance.Assets.Request<Texture2D>("assets/items/BarsManaOverlay_Panel.png");
     }
 
     public override bool PreDrawResource(ResourceOverlayDrawContext context)

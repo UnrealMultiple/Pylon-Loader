@@ -1,6 +1,5 @@
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Terraria;
-using Terraria.Enums;
 
 namespace Pylon.ModLoader;
 
@@ -99,10 +98,4 @@ public abstract class GlobalTile : ModType
 
     /// <summary>type 这种 tile 在玩家附近还算作哪些类型（制作站）。</summary>
     public virtual int[] AdjTiles(int type) => [];
-
-    /// <summary>摇树：在掉落之前（treeType 是 TreeTypes）。</summary>
-    public virtual void PreShakeTree(int x, int y, TreeTypes treeType) { }
-
-    /// <summary>摇树：返回 true = 主要物品已经掉了（游戏不再掉它的）。</summary>
-    public virtual bool ShakeTree(int x, int y, TreeTypes treeType) => false;
 }

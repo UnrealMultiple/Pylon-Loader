@@ -33,9 +33,10 @@ public abstract class TestPylonBase : ModPylon
         TileObjectData.newTile.StyleHorizontal = true;
         TileObjectData.addTile(Type);
         AddMapEntry(Color.White, CreateMapEntryName());
+        RegisterItemDrop(ModContent.ItemType<TestPylonItem>());
         // Texture 是 Asset（不是路径），同目录后缀贴图走 TextureSibling。
-        _mapIcon = ModContent.Request(Mod, TextureSibling("_MapIcon"));
-        _crystal = ModContent.Request(Mod, TextureSibling("_Crystal"));
+        _mapIcon = Mod.Assets.Request<Texture2D>(TextureSibling("_MapIcon"));
+        _crystal = Mod.Assets.Request<Texture2D>(TextureSibling("_Crystal"));
     }
 
     /// <summary>放下时建实体：多格放置的补建走这里（管线在 PlaceTile 与 CallPostPlacement 两处都会调，

@@ -24,13 +24,9 @@ public static class EmoteProbe
     }
 }
 
-/// <summary>解锁的 mod 表情：进"通用"分类，NPC 用原版爱心回应。</summary>
+/// <summary>解锁的 mod 表情：进"通用"分类。</summary>
 public sealed class TestEmoteBubble : ModEmoteBubble
 {
-    public override string DisplayName => "Test Bubble";
-
-    public override int NPCReaction => EmoteID.EmotionLove;
-
     public override void SetStaticDefaults() => AddToCategory(0);
 
     public override void OnSpawn()

@@ -1,13 +1,13 @@
-using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Terraria;
 using Terraria.Chat;
+using Terraria.Chat.Commands;
 using Terraria.Localization;
 
 namespace Pylon.ModLoader;
 
 /// <summary>
-/// 命令管线：聊天里以 <c>/</c> 开头且名字命中 mod 命令时由我们跑，命中即吃掉这条消息。
-/// /help 会把 mod 命令补在原版列表之后；Console / Item 两种 CommandType 本版不接，见 docs/pipeline/content-command.md。
+/// 命令管线：聊天里以 <c>/</c> 开头且名字命中 mod 命令时由我们跑，命中即吃掉这条消息；
+/// 客户端发送链在联机时也拦一次；/help 把 mod 命令补在原版列表之后。表格与分派归 <see cref="CommandLoader"/>。
 /// </summary>
 internal sealed class CommandPipeline : ILoaderModule, ILoaderModuleRefresh
 {
@@ -19,137 +19,99 @@ internal sealed class CommandPipeline : ILoaderModule, ILoaderModuleRefresh
 
     public bool Install()
     {
-        On.Terraria.Chat.ChatCommandProcessor.ProcessIncomingMessage += Process;
+        On.Terraria.Chat.ChatCommandProcessor.ProcessIncomingMessage += Incoming;
+        On.Terraria.Chat.ChatHelper.SendChatMessageFromClient += FromClient;
+        On.Terraria.Chat.Commands.HelpCommand.ComposeMessage += Help;
 
-        Log.Info("[command] 已挂（聊天命令分派 / /help 补 mod 命令 / 权限与别名告警）");
+        Log.Info("[command] 已挂（聊天命令分派 / 客户端发送链 / /help 补 mod 命令）");
         return true;
     }
 
-    public void Refresh() => CommandTable.Rebuild();
+    public void Refresh() => CommandLoader.Clear();
 
     /// <summary>安装期一次：收表 + 静态默认值。</summary>
     internal void Build()
     {
-        CommandTable.Rebuild();
+        CommandLoader.Clear();
 
-        foreach (var command in CommandTable.All) command.SetStaticDefaults();
-
-        if (CommandTable.Count > 0) Log.Info($"[command] 安装：{CommandTable.Count} 条命令");
-    }
-
-    // ===================== 分派 =====================
-
-    private static void Process(On.Terraria.Chat.ChatCommandProcessor.orig_ProcessIncomingMessage orig,
-                                ChatCommandProcessor self, ChatMessage message, int clientId)
-    {
-        var text = message?.Text;
-
-        if (CommandTable.Count == 0 || string.IsNullOrEmpty(text) || text[0] != '/')
+        var count = 0;
+        foreach (var command in ModContent.GetContent<ModCommand>())
         {
-            orig(self, message!, clientId);
-            return;
-        }
-
-        var body = text.Substring(1);
-        var space = body.IndexOf(' ');
-        var name = space < 0 ? body : body[..space];
-        var rest = space < 0 ? "" : body[(space + 1)..];
-
-        if (CommandTable.Find(name) is not { } command)
-        {
-            orig(self, message!, clientId);
-
-            if (IsHelp(name)) SendHelp(clientId, rest);
-            return;
-        }
-
-        var caller = new ModCommand.CommandCaller
-        {
-            Player = PlayerOf(clientId),
-            CommandType = CommandType.Chat,
-            Reply = (reply, color) => ReplyTo(clientId, reply, color),
-        };
-
-        var args = rest.Length == 0 ? [] : rest.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-        if (!command.AllowedBy(caller.Player))
-        {
-            ReplyTo(clientId, $"你没有权限用 /{command.Command}", null);
-            return;
-        }
-
-        try
-        {
-            command.Action(caller, rest, args);
-        }
-        catch (UsageException e)
-        {
-            ReplyTo(clientId, e.Message, null);
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report($"[command] {command.Name} 异常：{Safe.Describe(e)}");
-        }
-    }
-
-    /// <summary>/help 或它的别名 ?。</summary>
-    private static bool IsHelp(string name) =>
-        string.Equals(name, "help", StringComparison.OrdinalIgnoreCase) || name == "?";
-
-    /// <summary>原版 /help 跑完之后，把 mod 命令补在后面（只在第一页补，避免每页都刷一遍）。</summary>
-    private static void SendHelp(int clientId, string rest)
-    {
-        if (CommandTable.Count == 0) return;
-
-        var page = rest.Trim();
-        if (page.Length > 0 && page != "1" && !string.Equals(page, "all", StringComparison.OrdinalIgnoreCase)) return;
-
-        ReplyTo(clientId, $"mod 命令（{CommandTable.Count} 条）：", null);
-
-        for (var index = 0; index < CommandTable.Count; index++)
-        {
-            var command = CommandTable.At(index);
-
-            string description;
+            CommandLoader.Add(command);
             try
             {
-                description = command.Description;
+                command.SetStaticDefaults();
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[command] {command.Name}.Description 异常：{Safe.Describe(e)}");
-                description = "";
+                ContentErrors.Report($"[command] {command.Name}.SetStaticDefaults 异常：{Safe.Describe(e)}");
             }
-
-            var line = string.IsNullOrEmpty(description)
-                ? command.Usage
-                : $"{command.Usage} — {description}";
-
-            ReplyTo(clientId, line, null);
+            count++;
         }
+
+        if (count > 0) Log.Info($"[command] 安装：{count} 条命令");
     }
 
-    private static Player PlayerOf(int clientId)
+    private static string? TextOf(ChatMessage message) => message is null ? null : message.Text;
+
+    private static void Incoming(On.Terraria.Chat.ChatCommandProcessor.orig_ProcessIncomingMessage orig,
+                                 ChatCommandProcessor self, ChatMessage message, int clientId)
     {
-        var players = Main.player;
-        if (players is not null && clientId >= 0 && clientId < players.Length && players[clientId] is { active: true } player)
-            return player;
-
-        return Main.LocalPlayer;
-    }
-
-    private static void ReplyTo(int clientId, string text, Color? color)
-    {
-        if (string.IsNullOrEmpty(text)) return;
-
-        var use = color ?? ModCommand.ResponseColor;
-
-        if (clientId < 0 || clientId >= 255)
+        string? text = TextOf(message);
+        if (Main.netMode != 1 && text is not null && text.StartsWith('/') && Handle(text, clientId))
         {
-            Main.NewText(text, use);
+            message.Consume();
             return;
         }
 
-        ChatHelper.SendChatMessageToClient(NetworkText.FromLiteral(text), use, clientId);
+        orig(self, message, clientId);
+    }
+
+    private static bool Handle(string text, int clientId)
+    {
+        try
+        {
+            if ((Main.netMode & 2) == 0)
+                return CommandLoader.HandleCommand(text, new ChatCommandCaller());
+            var player = new PlayerCommandCaller(clientId);
+            if (Main.netMode == 2 || clientId != Main.myPlayer)
+                return CommandLoader.HandleCommand(text, player);
+            return CommandLoader.HandleCommand(text, new ChatCommandCaller()) || CommandLoader.HandleCommand(text, player);
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report("[command] 分派异常：" + Safe.Describe(e));
+            return false;
+        }
+    }
+
+    private static void FromClient(On.Terraria.Chat.ChatHelper.orig_SendChatMessageFromClient orig, ChatMessage message)
+    {
+        string? text = TextOf(message);
+        if (Main.netMode == 1 && text is not null && text.StartsWith('/'))
+        {
+            try
+            {
+                if (CommandLoader.HandleCommand(text, new ChatCommandCaller()))
+                    return;
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report("[command] 客户端分派异常：" + Safe.Describe(e));
+            }
+        }
+
+        orig(message);
+    }
+
+    private static NetworkText Help(On.Terraria.Chat.Commands.HelpCommand.orig_ComposeMessage orig,
+                                    Il2CppSystem.Collections.Generic.Dictionary<string, Il2CppSystem.Collections.Generic.List<LocalizedText>> aliases)
+    {
+        NetworkText text = orig(aliases);
+        CommandType type = (Main.netMode & 2) != 0 ? CommandType.Chat | CommandType.Server : CommandType.Chat;
+        string[] lines = CommandLoader.GetHelp(type)
+            .Select(h => "/" + h.Item1 + (h.Item2.Length > 0 ? " " + h.Item2 : ""))
+            .ToArray();
+        return lines.Length == 0 ? text : NetworkText.FromLiteral(text.ToString() + "\n" + string.Join("\n", lines));
     }
 }

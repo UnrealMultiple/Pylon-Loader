@@ -13,6 +13,15 @@ public abstract class ModPlayer
     /// <summary>所属 Mod（自动发现时由框架赋值）。</summary>
     public Mod Mod { get; internal set; } = null!;
 
+    /// <summary>类名（可覆写）。</summary>
+    public virtual string Name => GetType().Name;
+
+    /// <summary>"Mod名/类名"。</summary>
+    public string FullName => $"{Mod?.Name ?? "Terraria"}/{Name}";
+
+    /// <summary>同一个 Mod 里的同名实例视为同一类。</summary>
+    public bool TypeEquals(ModPlayer other) => Mod == other.Mod && Name == other.Name;
+
     /// <summary>在全部 ModPlayer 模板里的下标（TML 的 <c>Index</c>；实例建出来时从模板复制）。</summary>
     public ushort Index { get; internal set; }
 

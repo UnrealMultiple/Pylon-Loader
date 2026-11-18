@@ -122,10 +122,15 @@ internal static class WallTests
             c.True(Content.TestWall.Dusts >= dusts + 5, $"尘土={Content.TestWall.Dusts - dusts}（NumDust 给 5）");
             ClearItems();
 
-            // 对照墙：ItemDrop 属性决定掉石头。
+            // 对照墙：RegisterItemDrop 决定掉石头。
             WorldGen.KillWall(_baseX + 6, _floor - 1, false);
             c.Eq(DroppedNear(_baseX + 6, _floor - 1), ItemID.StoneBlock, "对照墙掉石头");
             ClearItems();
+        });
+
+        PT.Later("WALL-W5", 30, c =>
+        {
+            c.True(Content.TestWall.Animates > 0, $"AnimateWall 调用={Content.TestWall.Animates}");
         });
     }
 

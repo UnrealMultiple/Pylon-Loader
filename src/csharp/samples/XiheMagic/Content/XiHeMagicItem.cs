@@ -39,7 +39,7 @@ namespace XiheMagic
             }
 
             // 兜底：用 MEAC 的 Arc 贴图，至少不是空白。
-            try { TextureAssets.Item[Type] = Mod.LoadAsset("assets/textures/Arc.png"); }
+            try { TextureAssets.Item[Type] = Mod.Assets.Request<Il2CppMicrosoft.Xna.Framework.Graphics.Texture2D>("assets/textures/Arc.png"); }
             catch (System.Exception e) { Mod.Logger.Warn("[item] Arc 兜底图标失败：" + e.Message); }
         }
 

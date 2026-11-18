@@ -140,7 +140,7 @@ public sealed class TestMount : ModMount
     public override void AimAbility(Player player, Vector2 mousePosition) =>
         Count(nameof(AimAbility));
 
-    public override bool Draw(PlayerDrawSet playerDrawData, int drawType, Player drawPlayer,
+    public override bool Draw(List<DrawData> playerDrawData, int drawType, Player drawPlayer,
         ref Texture2D texture, ref Texture2D glowTexture, ref Vector2 drawPosition, ref Rectangle frame,
         ref Color drawColor, ref Color glowColor, ref float rotation, ref SpriteEffects spriteEffects,
         ref Vector2 drawOrigin, ref float drawScale, float shadow)

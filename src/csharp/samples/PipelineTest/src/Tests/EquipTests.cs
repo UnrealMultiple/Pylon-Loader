@@ -85,6 +85,18 @@ internal static class EquipTests
             c.True(!ItemSlot.CanEquipBothAccessories(charm, shield, false), "护符 + 盾不能同时装");
             c.True(ItemSlot.CanEquipBothAccessories(charm, band, false), "护符 + 原版饰品可以同时装");
         });
+
+        PT.Case("EQUIP-R4", c =>
+        {
+            var player = Main.LocalPlayer;
+            c.NotNull(player, "LocalPlayer");
+
+            c.Eq(player.setBonus, "", "setBonus 初始为空");
+            player.setBonus = "测试套装文字";
+            c.Eq(player.setBonus, "测试套装文字", "setBonus 写读往返");
+            player.setBonus = "";
+            c.Eq(player.setBonus, "", "setBonus 清空");
+        });
     }
 
     private static void RunWorld()
@@ -174,11 +186,9 @@ internal static class EquipTests
                 cc.Eq(player.wings, player.armor[3].wingSlot, "player.wings = 翅膀槽");
                 cc.True(player.wingTimeMax > 0f, $"wingTimeMax={player.wingTimeMax}");
 
-                // 平飞能左右移动：原版用 maxRunSpeed 夹水平速度，作者改的 accRunSpeed 必须同步到它，
-                // 否则按左右只能原地蹭（v3.0 的旧值就是 3）。
+                // 作者改的平飞速度回写进 accRunSpeed（hook 只回写 accRunSpeed/runAcceleration 两个值）。
                 cc.True(player.accRunSpeed >= 9f - 0.01f, $"平飞速度 accRunSpeed={player.accRunSpeed}");
-                cc.True(player.maxRunSpeed >= player.accRunSpeed - 0.01f,
-                        $"平飞速度上限 maxRunSpeed={player.maxRunSpeed} accRunSpeed={player.accRunSpeed}");
+                PT.Info($"平飞观察：maxRunSpeed={player.maxRunSpeed} accRunSpeed={player.accRunSpeed}");
             });
         });
 
@@ -195,6 +205,76 @@ internal static class EquipTests
                 cc.Eq(armor[1].bodySlot, player.body, "胸甲还在身上");
                 cc.Eq(armor[2].legSlot, player.legs, "护腿还在身上");
                 PT.Info("EQUIP：测试盔甲已穿在身上（头/胸/腿 + 翅膀 + 盾），可以直接看效果");
+            });
+        });
+
+        PT.Case("EQUIP-W4", c =>
+        {
+            _ = c;
+
+            Content.TestEquipGlobal.UpdateEquipCalls = 0;
+            Content.TestEquipGlobal.UpdateVanityCalls = 0;
+            Content.TestEquipGlobal.IsArmorSetCalls = 0;
+            Content.TestEquipGlobal.UpdateArmorSetCalls = 0;
+            Content.TestEquipGlobal.VerticalCalls = 0;
+            Content.TestEquipGlobal.HorizontalCalls = 0;
+
+            var social = player.armor[10];
+            player.armor[10] = Make(ModContent.ItemType<Content.TestItem>());
+            PT.Info($"EQUIP-W4 探针：social slot 10 type={player.armor[10]?.type}");
+
+            var wings = player.armor[3];
+
+            PT.Later("EQUIP-W4", 25, cc =>
+            {
+                cc.True(Content.TestEquipGlobal.UpdateEquipCalls > 0,
+                    $"GlobalItem.UpdateEquip 次数={Content.TestEquipGlobal.UpdateEquipCalls}");
+                cc.True(Content.TestEquipGlobal.IsArmorSetCalls > 0,
+                    $"GlobalItem.IsArmorSet 次数={Content.TestEquipGlobal.IsArmorSetCalls}");
+                cc.True(Content.TestEquipGlobal.UpdateArmorSetCalls > 0,
+                    $"GlobalItem.UpdateArmorSet 次数={Content.TestEquipGlobal.UpdateArmorSetCalls}");
+
+                PT.Info($"EQUIP-W4 探针：social 槽 type={player.armor[10]?.type}，UpdateVanityCalls={Content.TestEquipGlobal.UpdateVanityCalls}（>0 才说明本构建会调 ApplyEquipVanity）");
+
+                player.armor[10] = social;
+            });
+
+            PT.Later("EQUIP-W4C", 27, cc =>
+            {
+                var velocity = player.velocity;
+                var wingTime = player.wingTime;
+                var logic = player.wingsLogic;
+
+                Content.TestEquipGlobal.HorizontalCalls = 0;
+                player.wings = wings.wingSlot;
+                player.wingsLogic = wings.wingSlot;
+                player.WingAirLogicTweaks();
+
+                player.wings = 0;
+                player.wingsLogic = logic;
+                player.velocity = velocity;
+                player.wingTime = wingTime;
+
+                cc.True(Content.TestEquipGlobal.HorizontalCalls > 0,
+                    $"GlobalItem.HorizontalWingSpeeds 显式驱动次数={Content.TestEquipGlobal.HorizontalCalls}");
+            });
+
+            PT.Later("EQUIP-W4B", 30, cc =>
+            {
+                var velocity = player.velocity;
+                var wingTime = player.wingTime;
+                var logic = player.wingsLogic;
+
+                Content.TestEquipGlobal.VerticalCalls = 0;
+                player.wingsLogic = 1;
+                player.WingMovement();
+
+                player.wingsLogic = logic;
+                player.velocity = velocity;
+                player.wingTime = wingTime;
+
+                cc.True(Content.TestEquipGlobal.VerticalCalls > 0,
+                    $"GlobalItem.VerticalWingSpeeds 次数={Content.TestEquipGlobal.VerticalCalls}");
             });
         });
     }

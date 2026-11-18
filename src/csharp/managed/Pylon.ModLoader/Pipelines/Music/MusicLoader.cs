@@ -17,6 +17,13 @@ public static class MusicLoader
 
     public static bool MusicExists(Mod mod, string path) => MusicPipeline.Instance.MusicExists(mod, path);
 
+    /// <summary>登记一首曲子；找不到文件直接抛（作者在加载期就该知道路径错了）。</summary>
+    public static void AddMusic(Mod mod, string path)
+    {
+        if (GetMusicSlot(mod, path) == 0)
+            throw new FileNotFoundException($"MusicLoader.AddMusic: {mod.Name} 里找不到 '{path}'（.ogg/.wav/.mp3）");
+    }
+
     /// <summary>把 Mod 曲子绑到音乐盒方块（按 frameY 区分样式）或音乐盒道具（itemType &gt; 0 时）。</summary>
     public static void AddMusicBox(Mod mod, int musicSlot, int itemType, int tileType, int tileFrameY = 0) =>
         MusicPipeline.Instance.AddMusicBox(musicSlot, itemType, tileType, tileFrameY);

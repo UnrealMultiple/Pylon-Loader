@@ -91,7 +91,7 @@ namespace RegressionTest
                     var n = Main.npc[i];
                     if (n is not { } npc || !npc.active) continue;
                     // 原版类型 Find 返回 null，天然跳过；mod NPC 按 mod 名匹配。
-                    if (ModContent.Find(ContentKind.Npc, npc.type) is not { } mod || mod.Mod?.Name != "XiheBoss")
+                    if (ModContent.GetModNPC(npc.type) is not { } mod || mod.Mod?.Name != "XiheBoss")
                         continue;
                     npc.active = false;
                     killed++;

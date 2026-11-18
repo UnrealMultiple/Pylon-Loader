@@ -4,6 +4,7 @@ using PipelineTest.Content;
 using Terraria;
 using Terraria.UI;
 using AuthorLayer = Pylon.ModLoader.GameInterfaceLayer;
+using AuthorLegacyLayer = Pylon.ModLoader.LegacyGameInterfaceLayer;
 
 namespace PipelineTest.Tests;
 
@@ -45,7 +46,7 @@ internal static class InterfaceTests
         PT.Case("IF-R3", c =>
         {
             // 建一个作者层外壳（菜单阶段：不插进游戏列表，只验构造与属性）。
-            var layer = new AuthorLayer("PipelineTest: ReadyProbe", () => true);
+            var layer = new AuthorLegacyLayer("PipelineTest: ReadyProbe", () => true);
             c.Eq(layer.Name, "PipelineTest: ReadyProbe", "作者层名字");
             c.True(layer.Active, "作者层默认 Active");
             c.Eq(layer.ScaleType, InterfaceScaleType.Game, "作者层默认坐标系 Game");

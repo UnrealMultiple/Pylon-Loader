@@ -12,6 +12,12 @@ public sealed class PipelineTestMod : Mod
 {
     public static PipelineTestMod Instance { get; private set; } = null!;
 
+    public static ManualInstallContent? ManualContent { get; private set; }
+
+    public static int TownHeadSlot { get; private set; } = -1;
+
+    public static int BossHeadSlot { get; private set; } = -1;
+
     public PipelineTestMod() => Instance = this;
 
     public override void ModifyInterfaceLayers(List<AuthorLayer> layers) =>
@@ -39,7 +45,22 @@ public sealed class PipelineTestMod : Mod
 
         LoadGroupSwitch();
 
+        AchievementsHelper.OnNPCKilled += (player, npcId) =>
+        {
+            if (npcId == Terraria.ID.NPCID.BlueSlime) AchievementProbe.Kills++;
+        };
+        AchievementsHelper.OnItemPickup += (player, itemId, count) =>
+        {
+            if (itemId == Terraria.ID.ItemID.Gel) AchievementProbe.Pickups += count;
+        };
+
+        ManualContent = new ManualInstallContent(7);
+        AddContent(ManualContent);
+        TownHeadSlot = AddNPCHeadTexture(ModContent.NPCType<TestTownNpc>(), "assets/npcs/TestTownNpc_Head.png");
+        BossHeadSlot = AddBossHeadTexture("assets/npcs/TestBossNpc_Head_Boss.png", ModContent.NPCType<TestBossNpc>());
+
         Tests.HostTests.Register();
+        Tests.InstallTests.Register();
         Tests.RarityTests.Register();
         Tests.DamageClassTests.Register();
         Tests.KeybindTests.Register();
@@ -52,6 +73,7 @@ public sealed class PipelineTestMod : Mod
         Tests.ItemTests.Register();
         Tests.ItemTests2.Register();
         Tests.ProjectileTests.Register();
+        Tests.ProjectileApiTests.Register();
         Tests.ProjectileHitTests.Register();
         Tests.DustTests.Register();
         Tests.GoreTests.Register();
@@ -61,6 +83,8 @@ public sealed class PipelineTestMod : Mod
         Tests.ArrayInteropTests.Register();
         Tests.NpcHitTests.Register();
         Tests.NpcContactTests.Register();
+        Tests.NpcApiTests.Register();
+        Tests.TownAttackTests.Register();
         Tests.BuffTests.Register();
         Tests.BuffInteractionTests.Register();
         Tests.LootTests.Register();
@@ -86,6 +110,7 @@ public sealed class PipelineTestMod : Mod
         Tests.PlayerDrawInfoTests.Register();
         Tests.InterfaceTests.Register();
         Tests.PlayerTests.Register();
+        Tests.PlayerApiTests.Register();
         Tests.PlayerUpdateTests.Register();
         Tests.PlayerHurtTests.Register();
         Tests.PlayerDamageSourceTests.Register();
@@ -146,7 +171,7 @@ public sealed class PipelineTestMod : Mod
     {
         try
         {
-            var path = Path.Combine(Directory, "tests.txt");
+            var path = Path.Combine(Folder, "tests.txt");
             if (!File.Exists(path)) return;
 
             var names = new HashSet<string>(StringComparer.Ordinal);
@@ -162,5 +187,10 @@ public sealed class PipelineTestMod : Mod
         {
             Logger.Warn("[PT] tests.txt 读取失败：" + e.Message);
         }
+    }
+
+    public sealed class ManualInstallContent(int marker) : ModType
+    {
+        public int Marker { get; } = marker;
     }
 }

@@ -53,7 +53,7 @@ public abstract class GlobalNpc : ModType
     public virtual void PostAI(NPC npc) { }
 
     /// <summary>每次挨打、在游戏自己的效果之后；<c>npc.life &lt;= 0</c> 是致命的这击。</summary>
-    public virtual void HitEffect(NPC npc, int hitDirection, double damage) { }
+    public virtual void HitEffect(NPC npc, HitInfo hit) { }
 
     /// <summary>接触玩家前查询；可修改本次使用的受伤冷却槽。</summary>
     public virtual bool CanHitPlayer(NPC npc, Player target, ref int cooldownSlot) => true;
@@ -110,6 +110,9 @@ public abstract class GlobalNpc : ModType
     /// <summary>自定义动画：改 <c>npc.frame.Y</c>；frameHeight 是贴图高 ÷ 帧数。</summary>
     public virtual void FindFrame(NPC npc, int frameHeight) { }
 
+    /// <summary>本帧回血算完之后；改 damage 就是改这一帧的回血扣减（负值 = 掉血）。</summary>
+    public virtual void UpdateLifeRegen(NPC npc, ref int damage) { }
+
     /// <summary>false：离玩家再远也不消失。</summary>
     public virtual bool CheckActive(NPC npc) => true;
 
@@ -137,6 +140,9 @@ public abstract class GlobalNpc : ModType
     /// <summary>给这个 NPC 起名时：往 nameList 里增删候选（原版名字已在表里）。</summary>
     public virtual void ModifyNPCNameList(NPC npc, List<string> nameList) { }
 
+    /// <summary>注册这个 NPC 的交互按钮（新形态）：往列表里加 <see cref="NPCInteraction"/>。</summary>
+    public virtual void RegisterChatButtons(NPC npc, NPCInteractionList interactions) { }
+
     /// <summary>商店第一次摆货之前：直接改店的商品表。</summary>
     public virtual void ModifyShop(NpcShop shop) { }
 
@@ -158,6 +164,9 @@ public abstract class GlobalNpc : ModType
 
     /// <summary>生成格已选好后改 spawner 标记;可通过 NPCSpawnInfo 读取本次坐标。</summary>
     public virtual void EditSpawnInfo(NPC.Spawner spawner) { }
+
+    /// <summary>自然生成池:类型 0 表示保留原版抽选,清空或全零权重表示不生成。</summary>
+    public virtual void EditSpawnPool(SpawnPool pool, NPC.Spawner spawner) => EditSpawnPool(pool, NpcSpawn.InfoOf(spawner));
 
     /// <summary>自然生成池:类型 0 表示保留原版抽选,清空或全零权重表示不生成。</summary>
     public virtual void EditSpawnPool(SpawnPool pool, NPCSpawnInfo spawnInfo) { }
@@ -186,11 +195,9 @@ public abstract class GlobalNpc : ModType
     /// <summary>首领图标的镜像（初值是游戏算的）。</summary>
     public virtual void BossHeadSpriteEffects(NPC npc, ref SpriteEffects spriteEffects) { }
 
-    /// <summary>每种 NPC 一次（加载结束时），收的是那一类的样表；掉落写进这个库。</summary>
-    public virtual void ModifyNPCLoot(NPC npc, ItemDropDatabase npcLoot) { }
+    public virtual void ModifyNPCLoot(NPC npc, NPCLoot npcLoot) { }
 
-    /// <summary>一次：对每个 NPC 都成立的掉落规则。</summary>
-    public virtual void ModifyGlobalLoot(ItemDropDatabase globalLoot) { }
+    public virtual void ModifyGlobalLoot(GlobalLoot globalLoot) { }
 
     /// <summary>图鉴条目注册前：给这个 NPC 的条目补生物群系/文本等。</summary>
     public virtual void SetBestiary(NPC npc, BestiaryDatabase database, BestiaryEntry bestiaryEntry) { }
@@ -205,6 +212,10 @@ public abstract class GlobalNpc : ModType
 
     /// <summary>null 交给游戏，false 不穿微光平台。</summary>
     public virtual bool? CanFallThroughPlatforms(NPC npc) => null;
+
+    /// <summary>近战命中盒与受伤冷却/伤害倍率的最后一道修饰；false 直接跳过原版命中判定。</summary>
+    public virtual bool ModifyCollisionData(NPC npc, Rectangle victimHitbox, ref int immunityCooldownSlot,
+                                            ref MultipliableFloat damageMultiplier, ref Rectangle npcHitbox) => true;
 
     /// <summary>true = 这个 NPC 死掉时走特殊掉落逻辑。</summary>
     public virtual bool SpecialOnKill(NPC npc) => false;

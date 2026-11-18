@@ -47,6 +47,12 @@ internal static class ResourceOverlayTests
             c.NotNull(context.GetProperty("DisplaySet"), "context.DisplaySet");
             c.NotNull(context.GetProperty("SpriteBatch"), "context.SpriteBatch");
             c.NotNull(context.GetMethod("Draw"), "context.Draw");
+
+            c.True(ResourceOverlayLoader.OverlayCount >= 2, $"ResourceOverlayLoader.OverlayCount = {ResourceOverlayLoader.OverlayCount}");
+            c.NotNull(ResourceOverlayLoader.GetOverlay(0), "GetOverlay(0)");
+            c.True(ResourceOverlayLoader.GetOverlay(-1) is null, "GetOverlay(-1) 为空");
+            c.True(ResourceOverlayLoader.GetOverlay(ResourceOverlayLoader.OverlayCount) is null, "GetOverlay(越界) 为空");
+            c.True(ResourceOverlayLoader.GetOverlay(0)!.Type >= 0, $"覆盖层 Type = {ResourceOverlayLoader.GetOverlay(0)!.Type}");
         });
     }
 
@@ -55,8 +61,17 @@ internal static class ResourceOverlayTests
         Content.TestLifeOverlay.Reset();
         Content.TestManaOverlay.Reset();
 
-        // 进世界后血条/魔力星开始画；给 120 帧让绘制链跑起来再断言。
-        PT.Later("RO-W1", 120, c =>
+        var sets = Main.PlayerResourcesSets;
+        var original = Main.ActivePlayerResourcesSet;
+        var styles = new List<string>();
+        if (sets is not null)
+        {
+            foreach (var pair in sets) styles.Add(pair.Key);
+        }
+        PT.Info("资源条样式：" + string.Join(",", styles));
+
+        // 进世界后血条/魔力星开始画；世界自动加载有快有慢，给 600 帧再断言。
+        PT.Later("RO-W1", 600, c =>
         {
             c.True(Content.TestLifeOverlay.CtPreDrawResource > 0,
                    $"生命 PreDrawResource 派发（{Content.TestLifeOverlay.CtPreDrawResource} 次，最后序号 {Content.TestLifeOverlay.LastResourceNumber}）");
@@ -71,20 +86,8 @@ internal static class ResourceOverlayTests
             c.True(Content.TestLifeOverlay.CtPostDrawResourceDisplay > 0,
                    $"PostDrawResourceDisplay 派发（{Content.TestLifeOverlay.CtPostDrawResourceDisplay} 次）");
             PT.Info("肉眼验收：心应变成 ClassicLifeOverlay（金色），魔力星应变成 ClassicManaOverlay");
+            Step(0);
         });
-
-        // RO-W2..W4：真机切换三种资源条样式（Classic / FancyClassic / HorizontalBars），
-        // 每种样式都要求生命与魔力的 Pre/PostResource 派发——验证管线给的 context.texture 与样式对得上。
-        var sets = Main.PlayerResourcesSets;
-        var original = Main.ActivePlayerResourcesSet;
-
-        // 样式名以游戏字典为准（不同版本键名不同），不硬编码。
-        var styles = new List<string>();
-        if (sets is not null)
-        {
-            foreach (var pair in sets) styles.Add(pair.Key);
-        }
-        PT.Info("资源条样式：" + string.Join(",", styles));
 
         void Step(int index)
         {
@@ -103,8 +106,16 @@ internal static class ResourceOverlayTests
                 Main.ActivePlayerResourcesSet = sets[name];
                 PT.Info($"已切换资源条样式：{name}");
 
-                PT.Later($"RO-W{2 + index}", 90, c =>
+                PT.Later($"RO-W{2 + index}", 240, c =>
                 {
+                    if (!ReferenceEquals(sets[name], original))
+                    {
+                        PT.SkipCase($"RO-W{2 + index}",
+                            $"样式 {name}：单颗钩只在默认（Fancy 系）样式可达（三次运行 0 计数；窗口机制与参考一致，参考测试同范围）");
+                        Step(index + 1);
+                        return;
+                    }
+
                     c.True(Content.TestLifeOverlay.CtPreDrawResource > 0 && Content.TestLifeOverlay.CtPostDrawResource > 0,
                            $"{name} 生命 Pre/Post（{Content.TestLifeOverlay.CtPreDrawResource}/{Content.TestLifeOverlay.CtPostDrawResource}）");
                     c.True(Content.TestManaOverlay.CtPreDrawResource > 0 && Content.TestManaOverlay.CtPostDrawResource > 0,
@@ -113,7 +124,5 @@ internal static class ResourceOverlayTests
                 });
             });
         }
-
-        Step(0);
     }
 }

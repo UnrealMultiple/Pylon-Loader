@@ -1,41 +1,32 @@
 namespace Pylon.ModLoader;
 
-/// <summary>一个伤害职业从另一个职业的加成里继承多少（tModLoader 的 StatInheritanceData）：1 = 全继承、0 = 不继承，按百分比算。</summary>
-public sealed class StatInheritanceData
+/// <summary>
+/// 五个属性（伤害/暴击/攻速/破防/击退）从别的职业继承的比例：1 = 全继承、0 = 不继承；
+/// <see cref="Full"/> 全继承、<see cref="None"/> 全不继承。
+/// </summary>
+public struct StatInheritanceData
 {
-    /// <summary>五个继承系数，缺省全 0（什么都不继承；JS 的对象参数在 C# 里就是可选参数）。</summary>
-    public StatInheritanceData(float damageInheritance = 0, float critChanceInheritance = 0,
-        float attackSpeedInheritance = 0, float armorPenInheritance = 0, float knockbackInheritance = 0)
+    public static readonly StatInheritanceData Full = new(1f, 1f, 1f, 1f, 1f);
+
+    public static readonly StatInheritanceData None = new(0f, 0f, 0f, 0f, 0f);
+
+    public float damageInheritance;
+    public float critChanceInheritance;
+    public float attackSpeedInheritance;
+    public float armorPenInheritance;
+    public float knockbackInheritance;
+
+    public StatInheritanceData(float damageInheritance = 0f, float critChanceInheritance = 0f,
+                               float attackSpeedInheritance = 0f, float armorPenInheritance = 0f,
+                               float knockbackInheritance = 0f)
     {
-        DamageInheritance = damageInheritance;
-        CritChanceInheritance = critChanceInheritance;
-        AttackSpeedInheritance = attackSpeedInheritance;
-        ArmorPenInheritance = armorPenInheritance;
-        KnockbackInheritance = knockbackInheritance;
+        this.damageInheritance = damageInheritance;
+        this.critChanceInheritance = critChanceInheritance;
+        this.attackSpeedInheritance = attackSpeedInheritance;
+        this.armorPenInheritance = armorPenInheritance;
+        this.knockbackInheritance = knockbackInheritance;
     }
 
-    /// <summary>伤害加成的继承比例（1 = 全继承）。</summary>
-    public float DamageInheritance;
-
-    /// <summary>暴击率加成的继承比例（1 = 全继承）。</summary>
-    public float CritChanceInheritance;
-
-    /// <summary>攻速加成的继承比例（1 = 全继承）。</summary>
-    public float AttackSpeedInheritance;
-
-    /// <summary>护甲穿透加成的继承比例（1 = 全继承）。</summary>
-    public float ArmorPenInheritance;
-
-    /// <summary>击退加成的继承比例（1 = 全继承）。</summary>
-    public float KnockbackInheritance;
-
-    public static StatInheritanceData Full => new(1, 1, 1, 1, 1);
-
-    /// <summary>什么都不继承（全 0）；每次读都返回新实例。</summary>
-    public static StatInheritanceData None => new();
-
-    /// <summary>五个系数全是 0（什么都不继承）。</summary>
-    public bool IsNone =>
-        DamageInheritance == 0 && CritChanceInheritance == 0 && AttackSpeedInheritance == 0 &&
-        ArmorPenInheritance == 0 && KnockbackInheritance == 0;
+    internal bool IsNone => damageInheritance == 0 && critChanceInheritance == 0 && attackSpeedInheritance == 0 &&
+                            armorPenInheritance == 0 && knockbackInheritance == 0;
 }

@@ -41,13 +41,19 @@ public abstract class ModBossBar : ModType
     /// <summary>画完之后。</summary>
     public virtual void PostDraw(SpriteBatch spriteBatch, NPC npc, BossBarDrawParams drawParams) { }
 
-    /// <summary>框架每帧画这条血条之前把值收进来；Life/LifeMax/Shield/ShieldMax 就是它填的。</summary>
-    public virtual void Collected(float life, float lifeMax, float shield, float shieldMax)
+    public bool ValidateAndCollectNecessaryInfo(ref BossBarInfo info)
     {
-        _life = life;
-        _lifeMax = lifeMax;
-        _shield = shield;
-        _shieldMax = shieldMax;
+        if (info.npcIndexToAimAt < 0 || info.npcIndexToAimAt >= Main.maxNPCs) return false;
+
+        bool? modify = ModifyInfo(info, ref _life, ref _lifeMax, ref _shield, ref _shieldMax);
+        if (modify.HasValue) return modify.Value && (uint)info.npcIndexToAimAt < (uint)Main.maxNPCs;
+
+        var npc = Main.npc[info.npcIndexToAimAt];
+        if (npc is null || !npc.active) return false;
+
+        _lifeMax = npc.lifeMax;
+        _life = Math.Clamp(npc.life, 0f, npc.lifeMax);
+        return true;
     }
 }
 

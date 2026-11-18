@@ -66,28 +66,25 @@ internal static class ModLifecycle
         }
     }
 
-    private static bool All(HookId hook, ModPredicate predicate)
+    private static string? Rejection(PlayerFileData player, WorldFileData world)
     {
-        var mods = Of(hook);
-        var allowed = true;
-        var timed = HookProfile.Enabled;
+        var mods = Of(HookId.CanWorldBePlayed);
         for (var i = 0; i < mods.Length; i++)
         {
-            var start = timed ? Stopwatch.GetTimestamp() : 0;
             try
             {
-                if (!predicate(mods[i])) allowed = false;
+                if (mods[i].CanWorldBePlayed(player, world)) continue;
+                var message = mods[i].WorldCanBePlayedRejectionMessage(player, world);
+                if (!string.IsNullOrWhiteSpace(message)) return message;
             }
             catch (Exception e)
             {
-                Safe.Report(mods[i].Name + "." + hook, e);
+                Safe.Report(mods[i].Name + ".CanWorldBePlayed", e);
             }
-            if (timed) HookProfile.Record((int)hook, mods[i].Index, HookProfile.TicksToNs(Stopwatch.GetTimestamp() - start));
         }
-        return allowed;
-    }
 
-    private delegate bool ModPredicate(Mod mod);
+        return null;
+    }
 
     private static void ClearWorldPostfix(On.Terraria.WorldGen.orig_clearWorld orig)
     {
@@ -100,9 +97,10 @@ internal static class ModLifecycle
     {
         var player = Main.ActivePlayerFileData;
         var world = Main.ActiveWorldFileData;
-        if (!All(HookId.CanWorldBePlayed, mod => mod.CanWorldBePlayed(player, world)))
+        var rejection = Rejection(player, world);
+        if (rejection is not null)
         {
-            Safe.Once("mod.world.rejected", "世界被 Mod 的 CanWorldBePlayed 拒绝了这次进入", true);
+            LoaderHost.Current.Log.Error($"[world] {rejection}");
             return;
         }
 

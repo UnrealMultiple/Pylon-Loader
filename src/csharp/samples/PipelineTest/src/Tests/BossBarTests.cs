@@ -31,11 +31,8 @@ internal static class BossBarTests
             c.NotNull(bar, "TestBossBar 实例");
             c.NotNull(ModContent.GetInstance<Content.TestGlobalBossBar>(), "TestGlobalBossBar 实例");
 
-            var npc = ModContent.NpcType<Content.TestBossNpc>();
+            var npc = ModContent.NPCType<Content.TestBossNpc>();
             c.True(npc >= NPCID.Count, $"TestBossNpc type={npc}");
-
-            var inst = ModContent.GetInstance<Content.TestBossNpc>();
-            c.True(ReferenceEquals(inst?.BossBar, bar), "TestBossNpc.BossBar 关联");
         });
     }
 
@@ -58,7 +55,7 @@ internal static class BossBarTests
 
             _boss = NPC.NewNPC(player.GetProjectileSource_Misc(0),
                 (int)player.Center.X + 100, (int)player.Center.Y - 40,
-                ModContent.NpcType<Content.TestBossNpc>(), 0, 0f, 0f, 0f, 0f, 0);
+                ModContent.NPCType<Content.TestBossNpc>(), 0, 0f, 0f, 0f, 0f, 0);
             c.True(_boss >= 0, $"刷出测试 Boss index={_boss}");
         });
 
@@ -71,31 +68,39 @@ internal static class BossBarTests
             }
 
             var npc = Main.npc[_boss];
+            var bar = ModContent.GetInstance<Content.TestBossBar>();
             c.True(npc.active, "Boss active");
-            c.Eq((int)Content.TestBossBar.CollectedLifeMax, 5000, "Collected.LifeMax");
-            c.Eq((int)Content.TestBossBar.CollectedLife, npc.life, "Collected.Life 等于该帧 Boss 真实生命");
-            c.True(Content.TestBossBar.CollectedCalls > 0, "Collected 调用");
+            c.True(ReferenceEquals(npc.BossBar, bar), "NPC.BossBar 关联（SetDefaults 里赋的）");
+            c.Eq((int)bar.LifeMax, 5000, "LifeMax 收进来了");
+            c.True(bar.Life > 0, $"Life 收进来了（{bar.Life}）");
             c.True(Content.TestBossBar.IconCalls > 0, "GetIconTexture 调用");
             c.True(Content.TestBossBar.InfoCalls > 0, "ModifyInfo 调用");
             c.True(Content.TestBossBar.PreCalls > 0, "PreDraw 调用");
             c.True(Content.TestBossBar.PostCalls > 0, "PostDraw 调用");
             c.Eq(Content.TestBossBar.LastFrame.Width, 16, "IconFrame.Width");
             c.Eq(Content.TestBossBar.LastFrame.Height, 16, "IconFrame.Height");
-            c.Eq((int)Content.TestBossBar.IconSeenLife, (int)Content.TestBossBar.CollectedLife, "GetIconTexture 时已 Collected");
+            c.Eq((int)Content.TestBossBar.IconSeenLife, (int)bar.Life, "GetIconTexture 时 Life 已收好");
             c.True(Content.TestGlobalBossBar.PreCalls > 0, "GlobalBossBar.PreDraw");
             c.True(Content.TestGlobalBossBar.PostCalls > 0, "GlobalBossBar.PostDraw");
             c.True(Content.TestBossBar.DrawCalls > 0, "GUIBossBar.Draw");
+
+            Main.npc[_boss].life = 1234;
         });
 
         PT.Later("BOSSBAR-W3", 180, c =>
         {
-            var before = Content.TestBossBar.PreCalls;
+            var bar = ModContent.GetInstance<Content.TestBossBar>();
+            c.Eq((int)bar.Life, 1234, "血条跟着 NPC 生命走");
             Content.TestBossBar.Hide = true;
             PT.Later("BOSSBAR-W4", 30, cc =>
             {
-                cc.Eq(Content.TestBossBar.PreCalls, before, "ModifyInfo false 后不再 PreDraw");
-                Content.TestBossBar.Hide = false;
-                PT.Info("血条隐藏验证结束，已恢复显示；测试 Boss 保留在场上供肉眼确认");
+                var before = Content.TestBossBar.PreCalls;
+                PT.Later("BOSSBAR-W5", 30, ccc =>
+                {
+                    ccc.Eq(Content.TestBossBar.PreCalls, before, "ModifyInfo false 后不再 PreDraw");
+                    Content.TestBossBar.Hide = false;
+                    PT.Info("血条隐藏验证结束，已恢复显示；测试 Boss 保留在场上供肉眼确认");
+                });
             });
         });
     }

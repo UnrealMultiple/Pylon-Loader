@@ -22,7 +22,7 @@ internal static class NpcTests
 
     private static void RunReady()
     {
-        var type = ModContent.NpcType<Content.TestNpc>();
+        var type = ModContent.NPCType<Content.TestNpc>();
 
         PT.Case("NPC-R1", c =>
         {
@@ -40,7 +40,7 @@ internal static class NpcTests
 
         PT.Case("NPC-T2", c =>
         {
-            var townType = ModContent.NpcType<Content.TestTownNpc>();
+            var townType = ModContent.NPCType<Content.TestTownNpc>();
             var profiles = Terraria.GameContent.TownNPCProfiles.Instance?._townNPCProfiles;
             c.NotNull(profiles, "游戏档案表");
             if (profiles is null) return;
@@ -52,7 +52,7 @@ internal static class NpcTests
 
     private static void RunWorld()
     {
-        var type = ModContent.NpcType<Content.TestNpc>();
+        var type = ModContent.NPCType<Content.TestNpc>();
         var player = Main.player[Main.myPlayer];
         if (player is null || !player.active)
         {

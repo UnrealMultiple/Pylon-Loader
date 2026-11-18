@@ -3,12 +3,16 @@ using Pylon.ModLoader;
 
 namespace PipelineTest.Content;
 
-/// <summary>测试发型：主贴图 assets/hairs/TestHair.png；建号菜单可用。</summary>
+/// <summary>测试发型：主贴图 assets/hairs/TestHair.png；建号菜单可用；声明画后发。</summary>
 public sealed class TestHair : ModHair
 {
     public static bool StaticDefaultsRan;
 
-    public override void SetStaticDefaults() => StaticDefaultsRan = true;
+    public override void SetStaticDefaults()
+    {
+        StaticDefaultsRan = true;
+        HairIdTml.Sets.DrawBackHair[Type] = true;
+    }
 }
 
 /// <summary>锁定发型：GetUnlockConditions 返回永假条件 → 理发师不可选。</summary>

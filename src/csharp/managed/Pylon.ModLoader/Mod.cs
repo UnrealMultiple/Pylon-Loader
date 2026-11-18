@@ -16,17 +16,33 @@ namespace Pylon.ModLoader;
 /// </summary>
 public abstract class Mod : IPylonMod
 {
+    private ModAssets? _assets;
+
+    public string Uid { get; private set; } = string.Empty;
+
     public string Name { get; private set; } = string.Empty;
 
-    public string Version { get; private set; } = string.Empty;
+    public string DisplayName { get; private set; } = string.Empty;
 
-    public string Directory { get; private set; } = string.Empty;
+    public Version Version { get; private set; } = new(0, 0);
 
-    public string DataDirectory { get; private set; } = string.Empty;
+    internal string Directory { get; private set; } = string.Empty;
+
+    internal string DataDirectory { get; private set; } = string.Empty;
+
+    public string Folder => Directory;
+
+    public bool ContentAutoloadingEnabled { get; init; } = true;
+
+    public bool BackgroundAutoloadingEnabled { get; init; } = true;
+
+    public bool CloudAutoloadingEnabled { get; init; } = true;
 
     public ModLogger Logger { get; private set; } = null!;
 
-    public IReadOnlyList<ModType> Types { get; internal set; } = [];
+    public ModAssets Assets => _assets ??= new ModAssets(this);
+
+    internal List<ModType> Types { get; set; } = [];
 
     internal HookMask Plan { get; set; }
 
@@ -34,21 +50,19 @@ public abstract class Mod : IPylonMod
 
     protected void RegisterImGuiTab(IModImGuiTab tab) => UI.ModUI.RegisterImGuiTab(tab);
 
-    public Asset<Texture2D> LoadAsset(string relativePath) => ModContent.Request(this, relativePath);
+    internal Asset<Texture2D> LoadAsset(string relativePath) => Assets.Request<Texture2D>(relativePath);
 
-    public Texture2D LoadTexture(string relativePath) => ModContent.Texture(this, relativePath);
+    internal Texture2D LoadTexture(string relativePath) => LoadAsset(relativePath).Value;
 
-    public List<T> GetContent<T>() where T : ModType => ModContent.GetContent<T>().FindAll(instance => instance.Mod == this);
+    public IEnumerable<ModType> GetContent() => ModContent.ContentOf<ModType>(this);
+
+    public IEnumerable<T> GetContent<T>() where T : class => ModContent.ContentOf<T>(this);
 
     public virtual object? Call(params object[] args) => null;
 
-    public ModPacket GetPacket() => new(this);
+    public ModPacket GetPacket(int capacity = 256) => new(this, capacity);
 
-    public virtual void HandlePacket(NetReader reader, int whoAmI) { }
-
-    public virtual void NetSend(NetWriter writer) { }
-
-    public virtual void NetReceive(NetReader reader) { }
+    public virtual void HandlePacket(System.IO.BinaryReader reader, int whoAmI) { }
 
     public virtual bool HijackGetData(ref byte messageType, ref Il2CppSystem.IO.BinaryReader reader, int playerNumber) => false;
 
@@ -56,10 +70,33 @@ public abstract class Mod : IPylonMod
                                        int number, float number2, float number3, float number4, int number5,
                                        int number6, int number7) => false;
 
-    public virtual int AddBossHeadTexture(string texture, int npcType = -1) => -1;
+    public int AddBossHeadTexture(string texture, int npcType = -1) => NpcHeadHooks.AddBossHead(this, texture, npcType);
+
+    public int AddNPCHeadTexture(int npcType, string texture) => NpcHeadHooks.AddTownHead(this, npcType, texture);
+
+    public bool AddContent(ModType instance)
+    {
+        ArgumentNullException.ThrowIfNull(instance);
+        if (instance.Mod is not null && instance.Mod != this)
+            throw new InvalidOperationException($"{instance.GetType().FullName} 已属于 {instance.Mod.Name}");
+
+        foreach (var existing in Types)
+        {
+            if (existing.GetType() == instance.GetType()) return false;
+        }
+
+        instance.Mod = this;
+        instance.Plan = HookScan.Of(instance.GetType());
+        Types.Add(instance);
+        RegistrationPipeline.RegisterGlobal(instance);
+        LoaderHost.Current.Content.Register(this, [instance]);
+        return true;
+    }
+
+    public bool AddContent<T>() where T : ModType, new() => AddContent(new T());
 
     /// <summary>以这个编号为结果新开一份配方（链式填完 Register）。</summary>
-    public ModRecipe CreateRecipe(int result, int amount = 1) => new ModRecipe().SetResult(result, amount);
+    public ModRecipe CreateRecipe(int result, int amount = 1) => new ModRecipe { Mod = this }.SetResult(result, amount);
 
     /// <summary>按名字找本 Mod 的内容实例；没有就抛。</summary>
     public T Find<T>(string name) where T : ModType => ModContent.Find<T>(Name + "/" + name);
@@ -70,6 +107,14 @@ public abstract class Mod : IPylonMod
 
     /// <summary>本地化键：Mods.&lt;Mod&gt;.&lt;suffix&gt;。</summary>
     public string GetLocalizationKey(string suffix) => $"Mods.{Name}.{suffix}";
+
+    public LocalizedText GetLocalization(string suffix, Func<string>? makeDefaultValue = null)
+    {
+        var key = GetLocalizationKey(suffix);
+        var text = new LocalizedText(key, makeDefaultValue?.Invoke() ?? suffix);
+        LocalizationKeys.Register(key, text);
+        return text;
+    }
 
     /// <summary>Mod 目录下有没有这个文件。</summary>
     public bool FileExists(string name) => File.Exists(Path.Combine(Directory, name.Replace('/', Path.DirectorySeparatorChar)));
@@ -194,8 +239,10 @@ public abstract class Mod : IPylonMod
 
     void IPylonMod.Load(IModContext context)
     {
-        Name = context.Id;
-        Version = context.Version;
+        Uid = context.Id;
+        Name = GetType().Assembly.GetName().Name ?? GetType().Name;
+        DisplayName = context.Id;
+        Version = System.Version.TryParse(context.Version, out var version) ? version : new System.Version(0, 0);
         Directory = context.Directory;
         DataDirectory = ModContent.DataDirectoryFor(context.Directory, context.Id);
         Logger = new ModLogger(context);

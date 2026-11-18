@@ -74,19 +74,13 @@ internal sealed class LootPipeline : ILoaderModule, ILoaderModuleRefresh
 
         if (self.HeldItem is not { } item || item.IsAir) return;
         if (Main.myPlayer != self.whoAmI) return;
-        if (ModContent.Find(ContentKind.Item, item.type) is not ModItem modItem) return;
-        if (!ItemRightClicked(modItem, item, self)) return;
 
-        try
-        {
-            modItem.RightClick(self);
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report($"[loot] {modItem.Name}.RightClick 异常：{Safe.Describe(e)}");
-        }
+        var modItem = ModContent.Find(ContentKind.Item, item.type) as ModItem;
+        if (!ItemRightClicked(modItem, item)) return;
 
-        if (ItemLoot.For(modItem).Count > 0) RollItemLoot(self, modItem);
+        RightClicked(modItem, item, self);
+
+        if (ItemLoot.For(item).Count > 0) RollItemLoot(self, item);
 
         if (!ConsumeItem(modItem, item, self)) return;
 
@@ -97,15 +91,42 @@ internal sealed class LootPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[loot] {modItem.Name}.ConsumeItem 扣物品异常：{Safe.Describe(e)}");
+            ContentErrors.Report("[loot] 扣物品异常：" + Safe.Describe(e));
         }
     }
 
-    private static bool ConsumeItem(ModItem modItem, Item item, Player player)
+    private static void RightClicked(ModItem? modItem, Item item, Player player)
+    {
+        if (modItem is not null)
+        {
+            try
+            {
+                modItem.RightClick(player);
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[loot] {modItem.Name}.RightClick 异常：{Safe.Describe(e)}");
+            }
+        }
+
+        foreach (var global in GlobalItemRegistry.For(item, HookId.RightClick))
+        {
+            try
+            {
+                global.RightClick(item, player);
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[loot] {global.FullKey}.RightClick 异常：{Safe.Describe(e)}");
+            }
+        }
+    }
+
+    private static bool ConsumeItem(ModItem? modItem, Item item, Player player)
     {
         var consume = true;
 
-        if (modItem.Plan.Has(HookId.ConsumeItem))
+        if (modItem is not null && modItem.Plan.Has(HookId.ConsumeItem))
         {
             try
             {
@@ -132,33 +153,51 @@ internal sealed class LootPipeline : ILoaderModule, ILoaderModuleRefresh
         return consume;
     }
 
-    private static bool ItemRightClicked(ModItem modItem, Item item, Player player)
+    private static bool ItemRightClicked(ModItem? modItem, Item item)
     {
-        try
+        if (modItem is not null)
         {
-            return modItem.CanRightClick();
+            try
+            {
+                if (modItem.CanRightClick()) return true;
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[loot] {modItem.Name}.CanRightClick 异常：{Safe.Describe(e)}");
+            }
         }
-        catch (Exception e)
+
+        foreach (var global in GlobalItemRegistry.For(item, HookId.CanRightClick))
         {
-            ContentErrors.Report($"[loot] {modItem.Name}.CanRightClick 异常：{Safe.Describe(e)}");
-            return false;
+            try
+            {
+                if (global.CanRightClick(item)) return true;
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[loot] {global.FullKey}.CanRightClick 异常：{Safe.Describe(e)}");
+            }
         }
+
+        return false;
     }
 
     private static void OpenBossBag(On.Terraria.Player.orig_OpenBossBag orig, Player self, int type)
     {
-        if (ModContent.Find(ContentKind.Item, type) is not ModItem modItem)
+        if (ModContent.Find(ContentKind.Item, type) is not ModItem)
         {
             orig(self, type);
             return;
         }
 
-        RollItemLoot(self, modItem);
+        var item = new Item();
+        item.SetDefaults(type, null);
+        RollItemLoot(self, item);
     }
 
-    private static void RollItemLoot(Player player, ModItem modItem)
+    private static void RollItemLoot(Player player, Item item)
     {
-        var rules = ItemLoot.For(modItem);
+        var rules = ItemLoot.For(item);
         if (rules.Count == 0) return;
 
         var info = new Terraria.GameContent.ItemDropRules.DropAttemptInfo
@@ -189,13 +228,13 @@ internal sealed class LootPipeline : ILoaderModule, ILoaderModuleRefresh
                     }
                     catch (Exception e)
                     {
-                        ContentErrors.Report($"[loot] {modItem.Name} 开袋链异常：{Safe.Describe(e)}");
+                        ContentErrors.Report($"[loot] 物品 {item.type} 开袋链异常：{Safe.Describe(e)}");
                     }
                 }
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[loot] {modItem.Name} 开袋规则异常：{Safe.Describe(e)}");
+                ContentErrors.Report($"[loot] 物品 {item.type} 开袋规则异常：{Safe.Describe(e)}");
             }
         }
     }

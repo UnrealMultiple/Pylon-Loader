@@ -63,11 +63,8 @@ public abstract class ModMount : ModType
     /// <summary>下来时；skipDust = true 就跳过游戏那阵尘土。</summary>
     public virtual void Dismount(Player player, ref bool skipDust) { }
 
-    /// <summary>每层一次（drawType 0 Back、1 BackExtra、2 Front、3 FrontExtra）；false = 这层不画；改了 ref 的值就用新的画。</summary>
-    public virtual bool Draw(PlayerDrawSet playerDrawData, int drawType, Player drawPlayer,
+    public virtual bool Draw(List<DrawData> playerDrawData, int drawType, Player drawPlayer,
         ref Texture2D texture, ref Texture2D glowTexture, ref Vector2 drawPosition, ref Rectangle frame,
         ref Color drawColor, ref Color glowColor, ref float rotation, ref SpriteEffects spriteEffects,
         ref Vector2 drawOrigin, ref float drawScale, float shadow) => true;
 }
-
-// 未移植 register 与 MountTextureType：占号与反查走 Pylon 的自动发现 + ModContent；各层贴图探测/上传归 Loader。

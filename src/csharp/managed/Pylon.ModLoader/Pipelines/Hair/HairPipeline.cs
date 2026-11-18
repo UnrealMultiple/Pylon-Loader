@@ -18,11 +18,12 @@ internal sealed class HairPipeline : ILoaderModule, ILoaderModuleRefresh
     {
         On.Terraria.GameContent.HairstyleUnlocksHelper.ListWarrantsRemake += ListWarrantsRemake;
         On.Terraria.GameContent.HairstyleUnlocksHelper.RebuildList += RebuildList;
+        On.Terraria.Player.GetHairSettings += GetHairSettings;
 
         On.Terraria.Player.InternalSavePlayerFile += SavePlayerFile;
         On.Terraria.Player.LoadPlayer += LoadPlayerFile;
 
-        Log.Info("[hair] 已挂（编号 / 扩表 / 主贴图 / 菜单 / 戴帽子版贴图 / 存档按名字）；不接 DrawBackHair");
+        Log.Info("[hair] 已挂（编号 / 扩表 / 主贴图 / 菜单 / 戴帽子版贴图 / 存档按名字 / 后发开关）");
         return true;
     }
 
@@ -86,6 +87,16 @@ internal sealed class HairPipeline : ILoaderModule, ILoaderModuleRefresh
     }
 
     private static bool ReadCreationFlag(Terraria.GameContent.HairstyleUnlocksHelper self) => self._isAtCharacterCreation;
+
+    private static void GetHairSettings(On.Terraria.Player.orig_GetHairSettings orig, Player self,
+        out bool fullHair, out bool hatHair, out bool hideHair, out bool backHairDraw, out bool drawsBackHairWithoutHeadgear)
+    {
+        orig(self, out fullHair, out hatHair, out hideHair, out backHairDraw, out drawsBackHairWithoutHeadgear);
+
+        var set = HairIdTml.Sets.DrawBackHair;
+        var hair = self.hair;
+        if (hair >= 0 && hair < set.Length) backHairDraw = set[hair];
+    }
 
     private static bool SafeUnlocked(ModHair hair, bool creation)
     {

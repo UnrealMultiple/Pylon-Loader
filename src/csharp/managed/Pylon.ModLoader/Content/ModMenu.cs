@@ -27,14 +27,11 @@ public abstract class ModMenu : ModType
         return method is not null && method.DeclaringType != typeof(ModMenu);
     }
 
-    /// <summary>菜单音乐槽（-1 = 用游戏的）；菜单音乐总是游戏的；在 SetStaticDefaults 里定一次，别用 get（每帧读）。</summary>
-    public virtual int Music { get; set; } = -1;
+    public virtual int Music => Terraria.ID.MusicID.TitleJourneysBeginningWithIntro;
 
-    /// <summary>false 把这个主题拿出轮换（选中的话自动换成别的）；也可以写成只读 get，按日期开。</summary>
-    public virtual bool IsAvailable { get; set; } = true;
+    public virtual bool IsAvailable => true;
 
-    /// <summary>"菜单主题"按钮上的名字（null = 用 Mod 名，长了截断）。</summary>
-    public virtual string DisplayName { get; set; } = null!;
+    public virtual string DisplayName => Mod?.DisplayName ?? Name;
 
     /// <summary>现在是生效的主题（只读；管线在切换主题时写）。</summary>
     public bool IsSelected { get; internal set; }

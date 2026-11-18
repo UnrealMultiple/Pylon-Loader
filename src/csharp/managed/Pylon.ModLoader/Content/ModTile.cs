@@ -29,8 +29,8 @@ public abstract class ModTile : ModType
     /// <summary>砸/挖这块时的尘土（-1 = 不出尘土）。</summary>
     public virtual int DustType => 0;
 
-    /// <summary>砸这块时的声音（-1 = 用游戏的）。</summary>
-    public virtual int HitSound => -1;
+    /// <summary>砸这块时的声音（< 0 = 静音；默认挖土声）。</summary>
+    public virtual int HitSound => Terraria.ID.SoundID.Dig;
 
     /// <summary>低于这个镐力的镐子挖不动。</summary>
     public virtual int MinPick => 0;
@@ -38,29 +38,25 @@ public abstract class ModTile : ModType
     /// <summary>抗性：每次敲的伤害除以它（同 TML，默认 1）。</summary>
     public virtual float MineResist => 1f;
 
-    /// <summary>挖掉时掉的物品 ID（0 = 用放置这块的 ModItem）。</summary>
-    public virtual int ItemDrop => 0;
-
     /// <summary>也算作这些制作站（TileID.WorkBenches 之类）。</summary>
     public virtual int[] AdjTiles => [];
 
     /// <summary>贴图里一帧动画的高度（0 = 不按竖直帧表动画）。</summary>
     public virtual int AnimationFrameHeight => 0;
 
-    /// <summary>false：SetDrawPositions/AnimateIndividualTile/SetSpriteEffects 每次绘制都跑，不走缓存。</summary>
-    public virtual bool CacheDrawData => true;
-
     /// <summary>改回原版方块的 ID（0 = 不改；Pylon 尚未实现，见 docs/mods/09-blocos.md）。</summary>
     public virtual int VanillaFallbackOnModDeletion => 0;
+
+    public string LocalizationCategory => "Tiles";
 
     /// <summary>描边贴图的路径（TileID.Sets.HasOutlines）；文件不在就没有描边。</summary>
     public virtual string HighlightTexture => TextureSibling("_Highlight");
 
     /// <summary>已登记的 <see cref="AddMapEntry"/>，按调用顺序；游戏侧读取用。</summary>
-    public IReadOnlyList<MapEntry> MapEntries => _mapEntries;
+    internal IReadOnlyList<MapEntry> MapEntries => _mapEntries;
 
     /// <summary>已登记的 <see cref="RegisterItemDrop"/>，按调用顺序；掉落查询用。</summary>
-    public IReadOnlyList<ItemDropEntry> ItemDrops => _itemDrops;
+    internal IReadOnlyList<ItemDropEntry> ItemDrops => _itemDrops;
 
     /// <summary>这个类覆写了哪些钩子（管线安装时算好）。</summary>
     internal HookMask Hooks { get; set; }
@@ -78,6 +74,17 @@ public abstract class ModTile : ModType
     public virtual void AddMapEntry(Color color, LocalizedText? name = null)
     {
         _mapEntries.Add(new MapEntry { Color = color, Name = name ?? CreateMapEntryName() });
+    }
+
+    public void AddMapEntry(Color color, LocalizedText name, Func<string, int, int, string> nameFunc)
+    {
+        throw new NotSupportedException("Coordinate-dependent map entry names are not supported by the mobile map legend");
+    }
+
+    public void AddToArray(ref int[] array)
+    {
+        Array.Resize(ref array, array.Length + 1);
+        array[^1] = Type;
     }
 
     /// <summary>地图上这块的名字（默认 MapObject.&lt;类名&gt; 的本地化键）。</summary>
@@ -198,8 +205,8 @@ public abstract class ModTile : ModType
     /// <summary>锤子敲这块；返回 false = 保持原样。</summary>
     public virtual bool Slope(int i, int j) => true;
 
-    /// <summary>世界的随机更新（草药在这里长）。</summary>
-    public virtual void RandomUpdate(int i, int j) { }
+    /// <summary>世界的随机更新（草药在这里长；underground = 走的是地下那套）。</summary>
+    public virtual void RandomUpdate(int i, int j, bool underground) { }
 
     /// <summary>重算这格的边框；返回 false = 游戏不重算（你自己算了）。</summary>
     public virtual bool TileFrame(int i, int j, ref bool resetFrame, ref bool noBreak) => true;

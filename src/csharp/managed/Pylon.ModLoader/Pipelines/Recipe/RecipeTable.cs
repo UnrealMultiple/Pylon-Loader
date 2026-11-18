@@ -9,8 +9,9 @@ namespace Pylon.ModLoader;
 internal struct RecipeEntry
 {
     public int Station;
+    public bool Disabled;
     public List<Condition>? Conditions;
-    public List<ModRecipe.ConsumeIngredientCallback>? Consume;
+    public List<ModRecipe.IngredientQuantityCallback>? Consume;
     public List<ModRecipe.OnCraftCallback>? Craft;
 }
 
@@ -22,7 +23,7 @@ internal static class RecipeTable
     private sealed class GroupInfo
     {
         public RecipeGroup Group = null!;
-        public string Name = "";
+        public Func<string>? Name;
     }
 
     private static RecipeEntry[] _entries = new RecipeEntry[512];
@@ -47,6 +48,8 @@ internal static class RecipeTable
 
         ref var entry = ref _entries[index];
         entry.Station = station;
+        entry.Disabled = recipe.Disabled;
+        recipe.RecipeIndex = index;
 
         if (recipe.Conditions.Count > 0) entry.Conditions = recipe.Conditions;
         if (recipe.ConsumeCallbacks.Count > 0) entry.Consume = recipe.ConsumeCallbacks;
@@ -56,7 +59,14 @@ internal static class RecipeTable
         if (pointer != 0) IndexOf[pointer] = index;
 
         if (index + 1 > Count) Count = index + 1;
-        if (entry.Conditions is not null || entry.Consume is not null || entry.Craft is not null) HasAny = true;
+        if (entry.Disabled || entry.Conditions is not null || entry.Consume is not null || entry.Craft is not null) HasAny = true;
+    }
+
+    internal static void SetDisabled(Recipe recipe, bool disabled)
+    {
+        if (!TryIndex(recipe, out var index) || index < 0 || index >= _entries.Length) return;
+        _entries[index].Disabled = disabled;
+        if (disabled) HasAny = true;
     }
 
     internal static ref RecipeEntry At(int index) => ref _entries[index];
@@ -90,6 +100,8 @@ internal static class RecipeTable
         if (applyConditions && index < _entries.Length)
         {
             ref var entry = ref _entries[index];
+            if (entry.Disabled) return false;
+
             var conditions = entry.Conditions;
             if (conditions is not null)
             {
@@ -135,7 +147,26 @@ internal static class RecipeTable
     internal static RecipeGroup? Group(string name) =>
         name is not null && Groups.TryGetValue(name, out var info) ? info.Group : null;
 
+    internal static string? KeyOf(RecipeGroup group)
+    {
+        if (group is null) return null;
+        foreach (var pair in Groups)
+            if (ReferenceEquals(pair.Value.Group, group)) return pair.Key;
+
+        return null;
+    }
+
     internal static void SetGroup(string name, RecipeGroup group, string display = "")
+    {
+        if (string.IsNullOrEmpty(name) || group is null) return;
+        Groups[name] = new GroupInfo
+        {
+            Group = group,
+            Name = string.IsNullOrEmpty(display) ? null : () => display,
+        };
+    }
+
+    internal static void SetGroup(string name, RecipeGroup group, Func<string>? display)
     {
         if (string.IsNullOrEmpty(name) || group is null) return;
         Groups[name] = new GroupInfo { Group = group, Name = display };
@@ -150,7 +181,7 @@ internal static class RecipeTable
             {
                 if (info.Group.RegisteredId != registeredId) continue;
 
-                return string.IsNullOrEmpty(info.Name) ? null : info.Name;
+                return info.Name?.Invoke();
             }
             catch
             {

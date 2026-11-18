@@ -55,7 +55,7 @@ namespace XiheBoss
                 var player = Main.player[Main.myPlayer];
                 if (player == null || !player.active) return;
 
-                var type = ModContent.NpcType<XiheBossNpc>();
+                var type = ModContent.NPCType<XiheBossNpc>();
                 if (type <= 0) return;
 
                 var idx = NPC.NewNPC(null, (int)player.Center.X, (int)player.Center.Y - 500, type);

@@ -105,8 +105,7 @@ internal static class EmoteBubbleTable
             try
             {
                 var key = "EmojiName." + emote.Name;
-                var text = string.IsNullOrEmpty(emote.DisplayName) ? emote.Name : emote.DisplayName;
-                LocalizationKeys.Register(key, new Terraria.Localization.LocalizedText(key, text));
+                LocalizationKeys.Register(key, new Terraria.Localization.LocalizedText(key, emote.Name));
             }
             catch (Exception e)
             {
