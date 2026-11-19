@@ -1,5 +1,6 @@
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using Pylon.ModLoader.Tables;
@@ -28,25 +29,73 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>tree 管线的安装门：只有存在 ModTree 时才接管生长、掉落、摇树与外观。</summary>
+    internal static class Gates
     {
-        On.Terraria.WorldGen.ShakeTree += ShakeTree;
-        On.Terraria.WorldGen.KillTile_GetItemDrops += KillTileDrops;
-        On.Terraria.WorldGen.GetTreeLeaf += TreeLeafHook;
-        On.Terraria.WorldGen.KillTile_GetTreeDrops += TreeDropsHook;
-        On.Terraria.WorldGen.KillTile_MakeTileDust += TreeDustHook;
-        On.Terraria.WorldGen.AttemptToGrowTreeFromSapling += GrowSaplingHook;
-        On.Terraria.WorldGen.GetTreeType_int += TreeTypeOfTile;
-        On.Terraria.WorldGen.IsTileTypeFitForTree += FitForTree;
-        On.Terraria.WorldGen.GrowTree += GrowTreeHook;
-        On.Terraria.WorldGen.TileFrame += TileFrameHook;
-        On.Terraria.WorldGen.CheckTree += CheckTreeHook;
-        On.Terraria.WorldGen.GetCommonTreeFoliageData += FoliageHook;
-        On.Terraria.TileObject.CanPlace += SaplingPlaceHook;
+        internal struct Grow : IGate
+        {
+            public static bool Wanted() => HasTrees();
 
-        Log.Info("[tree] 已挂（风格号 / 贴图表 / 摇树 / 掉落与橡果 / 叶子 / 尘土 / 种苗 / 可种判据 / 长大即换外观）");
-        return true;
+            public static void Install()
+            {
+                On.Terraria.WorldGen.AttemptToGrowTreeFromSapling += GrowSaplingHook;
+                On.Terraria.WorldGen.GetTreeType_int += TreeTypeOfTile;
+                On.Terraria.WorldGen.IsTileTypeFitForTree += FitForTree;
+                On.Terraria.WorldGen.GrowTree += GrowTreeHook;
+
+                Log.Info("[tree] 已挂（风格号 / 贴图表 / 摇树 / 掉落与橡果 / 叶子 / 尘土 / 种苗 / 可种判据 / 长大即换外观）");
+            }
+        }
+
+        internal struct Shake : IGate
+        {
+            public static bool Wanted() => HasTrees();
+
+            public static void Install() => On.Terraria.WorldGen.ShakeTree += ShakeTree;
+        }
+
+        internal struct Drops : IGate
+        {
+            public static bool Wanted() => HasTrees();
+
+            public static void Install()
+            {
+                On.Terraria.WorldGen.KillTile_GetItemDrops += KillTileDrops;
+                On.Terraria.WorldGen.KillTile_GetTreeDrops += TreeDropsHook;
+                On.Terraria.WorldGen.KillTile_MakeTileDust += TreeDustHook;
+            }
+        }
+
+        internal struct Leaf : IGate
+        {
+            public static bool Wanted() => HasTrees();
+
+            public static void Install() => On.Terraria.WorldGen.GetTreeLeaf += TreeLeafHook;
+        }
+
+        internal struct Sapling : IGate
+        {
+            public static bool Wanted() => HasTrees();
+
+            public static void Install() => On.Terraria.TileObject.CanPlace += SaplingPlaceHook;
+        }
+
+        internal struct Frame : IGate
+        {
+            public static bool Wanted() => HasTrees();
+
+            public static void Install()
+            {
+                On.Terraria.WorldGen.TileFrame += TileFrameHook;
+                On.Terraria.WorldGen.CheckTree += CheckTreeHook;
+                On.Terraria.WorldGen.GetCommonTreeFoliageData += FoliageHook;
+            }
+        }
     }
+
+    public bool Install() => GateHub<TreePipeline>.Run();
+
+    private static bool HasTrees() => ModContent.GetContent<ModTree>().Count > 0;
 
     /// <summary>
     /// 树冠/树枝绘制前，原版用这个函数从树顶格重新解析树的位置与风格；它不认 mod 地面，

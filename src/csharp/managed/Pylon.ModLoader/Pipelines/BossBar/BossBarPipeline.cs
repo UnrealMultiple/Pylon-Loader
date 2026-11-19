@@ -1,6 +1,7 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Globals;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
@@ -53,11 +54,36 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         get { lock (Gate) return Assigned.Count > 0; }
     }
 
-    public bool Install()
+    /// <summary>bossbar 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
+    {
+        internal struct Core : IGate
+        {
+            public static bool Wanted() => true;
+
+            public static void Install() => Instance.InstallCore();
+        }
+
+        internal struct Gui : IGate
+        {
+            public static bool Wanted() => ModContent.GetContent<ModBossBar>().Count > 0 ||
+                                            ModContent.GetContent<GlobalBossBar>().Count > 0;
+
+            public static void Install() => Instance.InstallGui();
+        }
+    }
+
+    public bool Install() => GateHub<BossBarPipeline>.Run();
+
+    private void InstallCore()
     {
         On.Terraria.GameContent.UI.BigProgressBar.BigProgressBarSystem.Update += Update;
         On.Terraria.GameContent.UI.BigProgressBar.BigProgressBarSystem.Draw += DrawSystem;
+        Log.Info("[bossbar] 已挂（BigProgressBarSystem.Update 抓目标 / Draw 换条）");
+    }
 
+    private void InstallGui()
+    {
         On.GUIBossBar.Draw += GuiDraw;
         On.GUIPanel.DrawBacking += Backing;
         On.GUIPanel.Region += CapturedRegion;
@@ -69,9 +95,6 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         On.GUIString.DrawWithShadow_String_Layout_string_Vector2 += ShadowTextVector;
         On.GUIString.DrawWithShadow_String_Layout_string_Vector2_Color += ShadowTextVectorColor;
         On.GUIString.DrawWithShadow_String_Layout_string_bool_Color += ShadowTextBoolColor;
-
-        Log.Info("[bossbar] 已挂（BigProgressBarSystem.Update 抓目标 / Draw 换条）");
-        return true;
     }
 
     public void Refresh() => BossBarTable.Rebuild();

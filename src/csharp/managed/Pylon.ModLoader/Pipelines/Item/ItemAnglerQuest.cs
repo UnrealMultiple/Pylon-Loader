@@ -10,12 +10,9 @@ namespace Pylon.ModLoader.Pipelines;
 internal static class ItemAnglerQuest
 {
     private const int MaxSwaps = 1000;
-    private static bool _installed;
 
     internal static void Install()
     {
-        if (_installed) return;
-        _installed = true;
         On.Terraria.Main.AnglerQuestSwap += Swap;
         On.Terraria.Lang.AnglerQuestChat += Chat;
     }

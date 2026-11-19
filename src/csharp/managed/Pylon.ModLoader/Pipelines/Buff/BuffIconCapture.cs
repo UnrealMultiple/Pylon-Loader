@@ -1,18 +1,32 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Hooks;
+using Pylon.ModLoader.Pipeline;
 
 namespace Pylon.ModLoader.Pipelines;
 /// <summary>只在单个增益图标的原版绘制窗口内修改真实绘制参数，不接管布局或输入。</summary>
 internal static class BuffIconCapture
 {
     [ThreadStatic] private static Scope? _current;
-    private static bool _installed;
 
+    /// <summary>是否存在需要图标捕获的增益绘制覆写。</summary>
+    internal static bool Wanted()
+    {
+        if (GlobalBuffRegistry.For(HookId.PreDraw).Count > 0 ||
+            GlobalBuffRegistry.For(HookId.PostDraw).Count > 0) return true;
+
+        foreach (var buff in ModContent.GetContent<ModBuff>())
+        {
+            if (buff.Plan.Has(HookId.PreDraw) || buff.Plan.Has(HookId.PostDraw)) return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>装图标捕获钩子；是否该装由门的 Wanted 判定，幂等由门保证。</summary>
     internal static void Install()
     {
-        if (_installed) return;
-        _installed = true;
         On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_Texture2D_Vector2_Nullable_Rectangle_Color_float_Vector2_float_SpriteEffects_float += Draw;
         On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_Texture2D_Vector2Ref_RectangleRef_ColorRef_float_Vector2_Vector2_SpriteEffects += DrawScaled;
         On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_Texture2D_Vector2_Nullable_Rectangle_Color_float_Vector2_Vector2_SpriteEffects_float += DrawScaledNullable;

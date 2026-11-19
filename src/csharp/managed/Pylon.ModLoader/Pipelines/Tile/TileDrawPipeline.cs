@@ -1,6 +1,7 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Hooks;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
@@ -27,15 +28,29 @@ internal sealed class TileDrawPipeline : ILoaderModule
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>tiledraw 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
     {
-        On.Terraria.GameContent.Drawing.TileDrawing.PostDrawTiles += Draw;
-        On.Terraria.GameContent.Drawing.TileDrawing.AddSpecialLegacyPoint_Point += AddPoint;
-        On.Terraria.GameContent.Drawing.TileDrawing.AddSpecialLegacyPoint_int_int += AddPointXY;
+        internal struct Pass : IGate
+        {
+            public static bool Wanted() => DrawWanted();
 
-        Log.Info("[tiledraw] 已挂（方块画完后的 DrawEffects / SpecialDraw）");
-        return true;
+            public static void Install()
+            {
+                On.Terraria.GameContent.Drawing.TileDrawing.PostDrawTiles += Draw;
+                On.Terraria.GameContent.Drawing.TileDrawing.AddSpecialLegacyPoint_Point += AddPoint;
+                On.Terraria.GameContent.Drawing.TileDrawing.AddSpecialLegacyPoint_int_int += AddPointXY;
+                Log.Info("[tiledraw] 已挂（方块画完后的 DrawEffects / SpecialDraw）");
+            }
+        }
     }
+
+    public bool Install() => GateHub<TileDrawPipeline>.Run();
+
+    private static bool DrawWanted() =>
+        HookGuard.Wants<ModTile>(HookId.PreDraw, HookId.DrawEffects, HookId.PostDraw, HookId.SpecialDraw) ||
+        GlobalTileRegistry.AnyWith(HookId.PreDraw, HookId.DrawEffects, HookId.PostDraw, HookId.SpecialDraw) ||
+        ModContent.GetContent<ModPylon>().Count > 0;
 
     /// <summary>绘制期作者要的"这一格要单独画"：先记下来，等这一遍方块回调走完再统一画。</summary>
     private static void AddPoint(On.Terraria.GameContent.Drawing.TileDrawing.orig_AddSpecialLegacyPoint_Point orig,

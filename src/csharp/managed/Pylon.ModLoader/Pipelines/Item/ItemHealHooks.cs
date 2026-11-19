@@ -10,12 +10,9 @@ internal static class ItemHealHooks
 {
     [ThreadStatic] private static nint _quickPlayer;
     [ThreadStatic] private static Player? _selectingPlayer;
-    private static bool _installed;
 
     internal static void Install()
     {
-        if (_installed) return;
-        _installed = true;
         On.Terraria.Player.QuickHeal += QuickHeal;
         On.Terraria.Player.QuickMana += QuickMana;
         On.Terraria.Player.ApplyLifeAndOrMana += Apply;

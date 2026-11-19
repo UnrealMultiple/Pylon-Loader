@@ -9,7 +9,6 @@ namespace Pylon.ModLoader.Pipelines;
 /// <summary>把受伤修饰换算回原版入参；实际扣血和原版冷却仍由游戏执行。</summary>
 internal static class PlayerHurtHooks
 {
-    private static bool _installed;
     private static readonly HookId[] Hooks =
     [
         HookId.ImmuneTo, HookId.FreeDodge, HookId.ConsumableDodge, HookId.ModifyHurt,
@@ -20,12 +19,10 @@ internal static class PlayerHurtHooks
 
     internal static void Install()
     {
-        if (_installed) return;
-        _installed = true;
         On.Terraria.Player.Hurt += Hurt;
     }
 
-    private static bool Active()
+    internal static bool Active()
     {
         foreach (var hook in Hooks)
             if (PlayerPipeline.Instance.ModsActive(hook)) return true;

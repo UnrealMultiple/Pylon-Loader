@@ -1,5 +1,6 @@
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using Pylon.ModLoader.Tables;
@@ -26,15 +27,51 @@ internal sealed class GorePipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>gore 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
     {
-        On.Terraria.Gore.NewGore += NewGore;
-        On.Terraria.Gore.Update += Update;
-        On.Terraria.Gore.GetAlpha += GetAlpha;
+        internal struct Core : IGate
+        {
+            public static bool Wanted() => true;
 
-        Log.Info("[gore] 已挂（生成 / 更新 / 颜色）；绘制与 UpdateType 本版不接");
-        return true;
+            public static void Install() => GoreTable.Assign();
+        }
+
+        internal struct Spawn : IGate
+        {
+            public static bool Wanted() => HookGuard.Wants<ModGore>(HookId.OnSpawn);
+
+            public static void Install()
+            {
+                On.Terraria.Gore.NewGore += Instance.NewGore;
+                Log.Info("[gore] 已挂：NewGore（OnSpawn）");
+            }
+        }
+
+        internal struct Update : IGate
+        {
+            public static bool Wanted() => HookGuard.Wants<ModGore>(HookId.Update);
+
+            public static void Install()
+            {
+                On.Terraria.Gore.Update += Instance.Update;
+                Log.Info("[gore] 已挂：Update");
+            }
+        }
+
+        internal struct Alpha : IGate
+        {
+            public static bool Wanted() => HookGuard.Wants<ModGore>(HookId.GetAlpha);
+
+            public static void Install()
+            {
+                On.Terraria.Gore.GetAlpha += Instance.GetAlpha;
+                Log.Info("[gore] 已挂：GetAlpha");
+            }
+        }
     }
+
+    public bool Install() => GateHub<GorePipeline>.Run();
 
     public void Refresh() => GoreTable.Assign();
 

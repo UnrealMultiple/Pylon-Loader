@@ -1,5 +1,6 @@
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using Pylon.ModLoader.SaveData;
@@ -22,18 +23,62 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static ModMenu? _current;
 
-    public bool Install()
+    /// <summary>menu 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
     {
-        On.Terraria.Main.Update += Update;
-        On.GUILogo.Draw += DrawLogo;
-        On.Terraria.Main.UpdateBGVisibility_BackLayer += UpdateBackLayer;
+        internal struct Core : IGate
+        {
+            public static bool Wanted() => ModContent.GetContent<ModMenu>().Count > 0;
 
-        // 之前，MenuTable 还是空的，按注册内容判断永远判不到——所以这里无条件挂载，
-        // 由 hook 体内按 _current.OverridesSunMoon 决定是否换贴图（没重写就 orig 直通）。
-        On.Terraria.Main.DrawSunAndMoon += DrawSunAndMoon;
+            public static void Install()
+            {
+                On.GUILogo.Draw += DrawLogo;
+                Log.Info("[menu] 已挂（logo 绘制回调 / Tick 时钟；音乐 / 背景 / 日月按覆写分装）");
+            }
+        }
 
-        Log.Info("[menu] 已挂（主题贴图每帧换入 / 每帧 / 菜单音乐 / logo 绘制回调 / 日月）");
-        return true;
+        internal struct Music : IGate
+        {
+            public static bool Wanted() => MenuOverrides("get_" + nameof(ModMenu.Music));
+
+            public static void Install() => On.Terraria.Main.Update += Instance.Update;
+        }
+
+        internal struct Bg : IGate
+        {
+            public static bool Wanted() => MenuOverrides("get_" + nameof(ModMenu.MenuBackgroundStyle));
+
+            public static void Install() => On.Terraria.Main.UpdateBGVisibility_BackLayer += UpdateBackLayer;
+        }
+
+        internal struct SunMoon : IGate
+        {
+            public static bool Wanted() =>
+                MenuOverrides("get_" + nameof(ModMenu.SunTexture)) || MenuOverrides("get_" + nameof(ModMenu.MoonTexture));
+
+            public static void Install() => On.Terraria.Main.DrawSunAndMoon += DrawSunAndMoon;
+        }
+    }
+
+    public bool Install() => GateHub<MenuPipeline>.Run();
+
+    private static readonly Dictionary<(Type, string), bool> _overrides = [];
+
+    private static bool MenuOverrides(string getter)
+    {
+        foreach (var menu in ModContent.GetContent<ModMenu>())
+        {
+            var type = menu.GetType();
+            if (!_overrides.TryGetValue((type, getter), out var hit))
+            {
+                hit = HookGuard.Overrides(type, typeof(ModMenu), getter);
+                _overrides[(type, getter)] = hit;
+            }
+
+            if (hit) return true;
+        }
+
+        return false;
     }
 
     public void Refresh() => MenuTable.Rebuild();

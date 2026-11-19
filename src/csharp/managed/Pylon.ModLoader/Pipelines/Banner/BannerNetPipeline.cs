@@ -1,3 +1,5 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using Terraria;
@@ -25,7 +27,22 @@ internal sealed class BannerNetPipeline : ILoaderModule
     private NetPipeline _net = null!;
     private byte _kind;
 
-    public bool Install()
+    /// <summary>bannernet 管线的安装门：有 ModNpc 就开同步通道（旗帜声明在注册期不保证已定型）。</summary>
+    internal static class Gates
+    {
+        internal static bool HasNpcs() => ModContent.GetContent<ModNpc>().Count > 0;
+
+        internal struct Sync : IGate
+        {
+            public static bool Wanted() => HasNpcs();
+
+            public static void Install() => Instance.InstallSync();
+        }
+    }
+
+    public bool Install() => GateHub<BannerNetPipeline>.Run();
+
+    private void InstallSync()
     {
         _net = NetPipeline.Instance;
         _kind = _net.OpenChannel(Receive);
@@ -33,7 +50,6 @@ internal sealed class BannerNetPipeline : ILoaderModule
         On.Terraria.NetMessage.SendData += SendData;
 
         Log.Info("[bannernet] 已挂（服务器推击杀数 / 新客户端连上补全量）");
-        return true;
     }
 
     /// <summary>服务器：某面 mod 旗子的击杀数（以及随之变化的可领取面数）变了，推给所有客户端。</summary>

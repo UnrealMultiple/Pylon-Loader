@@ -1,6 +1,7 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Pylon.ModLoader.Content;
 using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using Terraria;
@@ -17,17 +18,15 @@ namespace Pylon.ModLoader.Pipelines;
 /// </summary>
 internal static class DamageClassHooks
 {
-    static bool installed;
-    static bool projectileHooksInstalled;
     static bool[] projectileTypes = Array.Empty<bool>();
     static readonly object ProjectileGate = new();
     static Projectile firing = null!;
 
-    internal static void Install()
-    {
-        if (installed) return;
-        installed = true;
+    internal static void Install() =>
+        GateHub<DamageClassPipeline>.Trigger<DamageClassPipeline.Gates.Engine>();
 
+    internal static void InstallEngine()
+    {
         On.Terraria.Player.ResetEffects += ResetEffects;
         On.Terraria.Player.CapAttackSpeeds += CapAttackSpeeds;
         On.Terraria.Player.GetWeaponDamageMultiplier += GetWeaponDamageMultiplier;
@@ -55,8 +54,11 @@ internal static class DamageClassHooks
             table[type] = true;
             Volatile.Write(ref projectileTypes, table);
         }
-        if (projectileHooksInstalled) return;
-        projectileHooksInstalled = true;
+        GateHub<DamageClassPipeline>.Trigger<DamageClassPipeline.Gates.Projectile>();
+    }
+
+    internal static void InstallProjectileHooks()
+    {
         On.Terraria.Projectile.Damage += ProjectileDamage;
         On.Terraria.Player.TryConsumingTimerCrit += TryConsumingTimerCrit;
         On.Terraria.Projectile.Update += ProjectileUpdate;

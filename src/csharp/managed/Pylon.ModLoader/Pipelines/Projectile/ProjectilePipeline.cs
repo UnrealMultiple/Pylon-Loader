@@ -2,6 +2,7 @@ using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Hooks;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
@@ -45,7 +46,34 @@ internal sealed class ProjectilePipeline : ILoaderModule
 
     private ref DrawFrame Draw => ref _draws[_drawDepth - 1];
 
-    public bool Install()
+    /// <summary>projectile 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
+    {
+        internal struct Core : IGate
+        {
+            public static bool Wanted() => true;
+
+            public static void Install() => Instance.InstallCore();
+        }
+
+        internal struct Draw : IGate
+        {
+            public static bool Wanted() => DrawWanted();
+
+            public static void Install() => Instance.InstallDraw();
+        }
+
+        internal struct Alpha : IGate
+        {
+            public static bool Wanted() => AlphaWanted();
+
+            public static void Install() => Instance.InstallAlpha();
+        }
+    }
+
+    public bool Install() => GateHub<ProjectilePipeline>.Run();
+
+    private void InstallCore()
     {
         _defaults.Install();
 
@@ -61,19 +89,43 @@ internal sealed class ProjectilePipeline : ILoaderModule
         On.Terraria.Projectile.Colliding += Colliding;
         On.Terraria.Projectile.CanCutTiles += CanCutTiles;
         On.Terraria.Projectile.CutTiles += CutTiles;
-        On.Terraria.Projectile.GetAlpha += Alpha;
         On.Terraria.Projectile.AI_007_GrapplingHooks_CanTileBeLatchedOnTo += Latch;
         On.Terraria.Projectile.NewProjectile_IEntitySource_float_float_float_float_int_int_float_int_float_float_float_NewProjectileModifier += Spawned;
         On.Terraria.Projectile.NewProjectile_IEntitySource_Vector2_Vector2_int_int_float_int_float_float_float_NewProjectileModifier += SpawnedVector;
 
         On.Terraria.Player.FireGrapple += FireGrapple;
         On.Terraria.Player.GetGrapplingForces += GrapplingForces;
+
+        Log.Info("[projectile] 已挂（生成 / AI / 移动 / 命中 / 死亡 / 钩爪）");
+    }
+
+    private void InstallDraw()
+    {
         On.Terraria.Main.DrawProjDirect += DrawDirect;
-
         ProjectileDrawSplit.Install();
+    }
 
-        Log.Info("[projectile] 已挂（生成 / AI / 移动 / 命中 / 死亡 / 绘制 / 钩爪）");
-        return true;
+    private void InstallAlpha() => On.Terraria.Projectile.GetAlpha += Alpha;
+
+    private static bool DrawWanted()
+    {
+        foreach (var proj in ModContent.GetContent<ModProjectile>())
+        {
+            if (proj.Plan.Has(HookId.PreDraw) || proj.Plan.Has(HookId.PostDraw) || proj.Plan.Has(HookId.PreDrawExtras))
+                return true;
+        }
+
+        return GlobalProjectileRegistry.AnyWith(HookId.PreDraw, HookId.PostDraw, HookId.PreDrawExtras);
+    }
+
+    private static bool AlphaWanted()
+    {
+        foreach (var proj in ModContent.GetContent<ModProjectile>())
+        {
+            if (proj.Plan.Has(HookId.GetAlpha) || proj.Plan.Has(HookId.PreDraw)) return true;
+        }
+
+        return GlobalProjectileRegistry.AnyWith(HookId.GetAlpha, HookId.PreDraw);
     }
 
     internal void SetupTemplates(IModLog log) => _defaults.CreateTemplates(log);

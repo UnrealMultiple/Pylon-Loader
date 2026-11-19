@@ -1,6 +1,7 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Localization;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
@@ -27,7 +28,6 @@ internal static class BiomeBestiaryHooks
     private static readonly Dictionary<nint, Art> Arts = [];
     private static readonly List<ModBiome> Used = [];
     private static readonly Dictionary<nint, Asset<Texture2D>> BackgroundAssets = [];
-    private static bool _installed;
 
     private static IModLog Log => LoaderHost.Current.Log;
 
@@ -44,13 +44,15 @@ internal static class BiomeBestiaryHooks
                 : new Il2CppSystem.Nullable<Color>();
             var element = new SpawnConditionBestiaryInfoElement(key, ShadowFrame, null!, background);
 
+            var icon = Load(biome, biome.BestiaryIcon, IconWidth, IconHeight);
+            var artBackground = Load(biome, biome.BackgroundPath, BackgroundWidth, BackgroundHeight);
             Arts[element.Pointer] = new Art
             {
-                Icon = Load(biome, biome.BestiaryIcon, IconWidth, IconHeight),
-                Background = Load(biome, biome.BackgroundPath, BackgroundWidth, BackgroundHeight),
+                Icon = icon,
+                Background = artBackground,
                 Key = key,
             };
-            Install();
+            if (icon is not null || background is not null) GateHub<BiomePipeline>.Trigger<BiomePipeline.Gates.Bestiary>();
             return element;
         }
         catch (Exception e)
@@ -110,13 +112,12 @@ internal static class BiomeBestiaryHooks
         return null;
     }
 
-    private static void Install()
+    internal static void Install()
     {
-        if (_installed) return;
-        _installed = true;
         On.Terraria.GameContent.Bestiary.FilterProviderInfoElement.GetDisplay += GetDisplay;
         On.Terraria.GameContent.Bestiary.SpawnConditionBestiaryInfoElement.GetBackgroundImage += GetBackgroundImage;
         On.GUIBestiary.SpawnDraw += SpawnDraw;
+        Log.Info("[biome] 图鉴钩子已挂（群落美术替换出生页 / 图标 / 背景）");
     }
 
     private static void GetDisplay(On.Terraria.GameContent.Bestiary.FilterProviderInfoElement.orig_GetDisplay orig,

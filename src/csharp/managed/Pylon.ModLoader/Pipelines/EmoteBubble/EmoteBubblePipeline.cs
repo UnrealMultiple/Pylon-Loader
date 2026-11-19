@@ -1,6 +1,7 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Hooks;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
@@ -20,29 +21,114 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
 
     private const int EmoteSheetSlot = 48;
 
-    public bool Install()
+    /// <summary>emotebubble 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
     {
-        On.Terraria.GameContent.UI.EmoteBubble.NewBubble += NewBubble;
-        On.Terraria.GameContent.UI.EmoteBubble.NewLocalOnlyBubble += NewLocalOnlyBubble;
-        On.Terraria.GameContent.UI.EmoteBubble.NewBubbleNPC += NewBubbleNpc;
-        On.Terraria.GameContent.UI.EmoteBubble.UpdateAll += UpdateAll;
-        On.Terraria.GameContent.UI.EmoteBubble.Draw += Draw;
-        On.GUIEmotesWindow.EmoteDraw += EmoteDraw;
-        On.Terraria.GameContent.UI.EmoteBubble.PickNPCEmote += PickNpcEmote;
-        On.Terraria.GameContent.UI.EmoteBubble.GetPosition += GetPosition;
-        On.Terraria.GameContent.UI.EmoteBubble.ShouldFilterPlayerEmote += ShouldFilter;
-        On.GUIEmotesWindow.GetEmotesGeneral += General;
-        On.GUIEmotesWindow.GetEmotesRPS += Rps;
-        On.GUIEmotesWindow.GetEmotesItems += Items;
-        On.GUIEmotesWindow.GetEmotesBiomesAndEvents += BiomesAndEvents;
-        On.GUIEmotesWindow.GetEmotesTownNPCs += TownNpcs;
-        On.GUIEmotesWindow.GetEmotesCritters += Critters;
-        On.GUIEmotesWindow.GetEmotesBosses += Bosses;
-        On.GUIEmotesWindow.GetFrame += MenuFrame;
+        internal static bool HasEmotes() => ModContent.GetContent<ModEmoteBubble>().Count > 0;
 
-        Log.Info("[emotebubble] 已挂（建泡 / 帧 / 自绘 / 两道下标守卫 / 菜单分类与帧）；同步本版不接");
-        return true;
+        internal static bool GlobalHas(HookId hook) => GlobalEmoteBubbleRegistry.For(hook).Count > 0;
+
+        internal struct Spawn : IGate
+        {
+            public static bool Wanted() => HasEmotes() || GlobalHas(HookId.OnSpawn);
+
+            public static void Install()
+            {
+                On.Terraria.GameContent.UI.EmoteBubble.NewBubble += NewBubble;
+                On.Terraria.GameContent.UI.EmoteBubble.NewLocalOnlyBubble += NewLocalOnlyBubble;
+                On.Terraria.GameContent.UI.EmoteBubble.NewBubbleNPC += NewBubbleNpc;
+
+                Log.Info("[emotebubble] 已挂：建泡 / OnSpawn");
+            }
+        }
+
+        internal struct Update : IGate
+        {
+            public static bool Wanted() => HasEmotes() || GlobalHas(HookId.UpdateFrame);
+
+            public static void Install()
+            {
+                On.Terraria.GameContent.UI.EmoteBubble.UpdateAll += UpdateAll;
+
+                Log.Info("[emotebubble] 已挂：帧推进");
+            }
+        }
+
+        internal struct Render : IGate
+        {
+            public static bool Wanted() =>
+                HasEmotes() || GlobalHas(HookId.PreDraw) || GlobalHas(HookId.PostDraw) || GlobalHas(HookId.GetFrame);
+
+            public static void Install()
+            {
+                On.Terraria.GameContent.UI.EmoteBubble.Draw += Draw;
+
+                Log.Info("[emotebubble] 已挂：自绘 / 两道下标守卫");
+            }
+        }
+
+        internal struct Menu : IGate
+        {
+            public static bool Wanted() => HasEmotes() || GlobalHas(HookId.GetFrameInEmoteMenu);
+
+            public static void Install()
+            {
+                On.GUIEmotesWindow.EmoteDraw += EmoteDraw;
+                On.GUIEmotesWindow.GetEmotesGeneral += General;
+                On.GUIEmotesWindow.GetEmotesRPS += Rps;
+                On.GUIEmotesWindow.GetEmotesItems += Items;
+                On.GUIEmotesWindow.GetEmotesBiomesAndEvents += BiomesAndEvents;
+                On.GUIEmotesWindow.GetEmotesTownNPCs += TownNpcs;
+                On.GUIEmotesWindow.GetEmotesCritters += Critters;
+                On.GUIEmotesWindow.GetEmotesBosses += Bosses;
+                On.GUIEmotesWindow.GetFrame += MenuFrame;
+
+                Log.Info("[emotebubble] 已挂：菜单分类与帧");
+            }
+        }
+
+        internal struct Filter : IGate
+        {
+            public static bool Wanted() => HasEmotes();
+
+            public static void Install()
+            {
+                On.Terraria.GameContent.UI.EmoteBubble.ShouldFilterPlayerEmote += ShouldFilter;
+
+                Log.Info("[emotebubble] 已挂：过滤守卫");
+            }
+        }
+
+        internal struct NpcPick : IGate
+        {
+            public static bool Wanted() =>
+                HasEmotes() || HookGuard.Wants<ModNpc>(HookId.PickEmote) ||
+                GlobalNpcRegistry.AnyWith(HookId.PickEmote);
+
+            public static void Install()
+            {
+                On.Terraria.GameContent.UI.EmoteBubble.PickNPCEmote += PickNpcEmote;
+
+                Log.Info("[emotebubble] 已挂：NPC 选表情");
+            }
+        }
+
+        internal struct Position : IGate
+        {
+            public static bool Wanted() =>
+                HasEmotes() || HookGuard.Wants<ModNpc>(HookId.EmoteBubblePosition) ||
+                GlobalNpcRegistry.AnyWith(HookId.EmoteBubblePosition);
+
+            public static void Install()
+            {
+                On.Terraria.GameContent.UI.EmoteBubble.GetPosition += GetPosition;
+
+                Log.Info("[emotebubble] 已挂：泡泡位置");
+            }
+        }
     }
+
+    public bool Install() => GateHub<EmoteBubblePipeline>.Run();
 
     public void Refresh() => EmoteBubbleTable.Assign();
 

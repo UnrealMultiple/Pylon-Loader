@@ -28,7 +28,27 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>buff 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
+    {
+        internal struct Core : IGate
+        {
+            public static bool Wanted() => true;
+
+            public static void Install() => Instance.InstallCore();
+        }
+
+        internal struct Icons : IGate
+        {
+            public static bool Wanted() => BuffIconCapture.Wanted();
+
+            public static void Install() => BuffIconCapture.Install();
+        }
+    }
+
+    public bool Install() => GateHub<BuffPipeline>.Run();
+
+    private void InstallCore()
     {
         On.Terraria.Player.UpdateBuffs += UpdatePlayerBuffs;
         On.Terraria.NPC.UpdateNPC_BuffSetFlags += UpdateNpcBuffs;
@@ -42,14 +62,10 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
 
         On.GUIBuffs.ItemDraw += DrawGuiIcon;
         On.GUIBuffs.RemoveBuff_int += RemoveGuiBuff;
-        BuffIconCapture.Install();
 
         On.Terraria.IO.WorldFile.LoadWorld += WorldLoaded;
 
-        var count = Prime();
-
-        Log.Info($"[buff] 已挂（效果 / 续时 / 文字 / 自定义说明 / 图标 / 取消），模板 {count}");
-        return true;
+        Log.Info($"[buff] 已挂（效果 / 续时 / 文字 / 自定义说明 / 图标 / 取消），模板 {Prime()}");
     }
 
     public void Refresh()

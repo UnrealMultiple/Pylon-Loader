@@ -1,6 +1,7 @@
 using Il2CppInterop.Runtime;
 using Il2CppMicrosoft.Xna.Framework;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using Terraria;
@@ -55,13 +56,30 @@ internal sealed class InterfaceLayerPipeline : ILoaderModule, ILoaderModuleRefre
     /// <summary>加载器自己的层（画完原版层之后画，不参与作者的增删）。</summary>
     private static readonly List<GameInterfaceLayer> Internal = [];
 
-    /// <summary>登记一个加载器内部的界面层（不是作者 API）。</summary>
-    internal static void RegisterInternal(GameInterfaceLayer layer) => Internal.Add(layer);
+    /// <summary>登记一个加载器内部的界面层（不是作者 API）；登记即触发安装，避免模块保持 pending 时漏挂。</summary>
+    internal static void RegisterInternal(GameInterfaceLayer layer)
+    {
+        Internal.Add(layer);
+        GateHub<InterfaceLayerPipeline>.Trigger<Gates.Core>();
+    }
 
     private static IntPtr _capturedList;
     private static int _capturedCount;
 
-    public bool Install()
+    /// <summary>interfacelayer 管线的安装门：有 ModSystem 改层钩子或加载器自身层时安装。</summary>
+    internal static class Gates
+    {
+        internal struct Core : IGate
+        {
+            public static bool Wanted() => SystemTable.AnyModifyInterfaceLayers || Internal.Count > 0;
+
+            public static void Install() => Instance.InstallCore();
+        }
+    }
+
+    public bool Install() => GateHub<InterfaceLayerPipeline>.Run();
+
+    private void InstallCore()
     {
         On.Terraria.Main.DrawInterface += DrawInterface;
 
@@ -70,7 +88,6 @@ internal sealed class InterfaceLayerPipeline : ILoaderModule, ILoaderModuleRefre
         On.Terraria.UI.GameInterfaceLayer.DrawSelf += DrawSelf;
 
         Log.Info("[interfacelayer] 已挂（界面层序列可增删/换序/隐藏；作者层绘制转回托管）");
-        return true;
     }
 
     public void Refresh() => Reset();

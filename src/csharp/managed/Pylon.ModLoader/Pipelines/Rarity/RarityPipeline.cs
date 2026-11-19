@@ -1,5 +1,6 @@
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using Terraria;
@@ -17,15 +18,39 @@ internal sealed class RarityPipeline : ILoaderModule
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>rarity 管线的安装门：只有存在 ModRarity 时才接管颜色表、拾取色与前缀升降。</summary>
+    internal static class Gates
     {
-        On.Terraria.GameContent.UI.ItemRarity.Initialize += Initialized;
-        On.Terraria.Item.GetPopupRarityColor_int += PopupColor;
-        On.Terraria.Item.Prefix_int_boolRef += Prefixed;
+        internal struct Table : IGate
+        {
+            public static bool Wanted() => HasRarities();
 
-        Log.Info("[rarity] 已挂（颜色表 / 拾取色 / 前缀升降）");
-        return true;
+            public static void Install()
+            {
+                On.Terraria.GameContent.UI.ItemRarity.Initialize += Initialized;
+
+                Log.Info("[rarity] 已挂（颜色表 / 拾取色 / 前缀升降）");
+            }
+        }
+
+        internal struct Popup : IGate
+        {
+            public static bool Wanted() => HasRarities();
+
+            public static void Install() => On.Terraria.Item.GetPopupRarityColor_int += PopupColor;
+        }
+
+        internal struct Prefix : IGate
+        {
+            public static bool Wanted() => HasRarities();
+
+            public static void Install() => On.Terraria.Item.Prefix_int_boolRef += Prefixed;
+        }
     }
+
+    public bool Install() => GateHub<RarityPipeline>.Run();
+
+    private static bool HasRarities() => ModContent.GetContent<ModRarity>().Count > 0;
 
     private static void Initialized(On.Terraria.GameContent.UI.ItemRarity.orig_Initialize orig)
     {

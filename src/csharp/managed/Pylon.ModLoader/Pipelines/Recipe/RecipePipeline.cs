@@ -1,5 +1,7 @@
 using Pylon.ModLoader.Content;
 using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Globals;
 using Pylon.ModLoader.Hooks;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
@@ -17,17 +19,62 @@ internal sealed class RecipePipeline : ILoaderModule
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>recipe 管线的安装门：配方在安装期之后才注册，按注册期可见的 AddRecipes/AddRecipeGroups 覆写与 GlobalRecipe 钩子建门。</summary>
+    internal static class Gates
     {
-        On.Terraria.Recipe.FindRecipes += FindRecipes;
-        On.GUICraftGuidePopup.FindRecipes += GuideRecipes;
-        On.Terraria.Recipe.ProcessGroupsForText += GroupText;
-        On.Terraria.Recipe.GetIngredientCraftingDiscount += Discount;
-        On.Terraria.Main.CraftItem_GrantItem += Crafted;
+        internal struct Filter : IGate
+        {
+            public static bool Wanted() => HasRecipes() || GlobalRecipeRegistry.For(HookId.RecipeAvailable).Count > 0;
 
-        Log.Info("[recipe] 已挂（条件过滤 / 向导过滤 / 配方组名 / 材料折扣 / 制作回调）");
-        return true;
+            public static void Install()
+            {
+                On.Terraria.Recipe.FindRecipes += Instance.FindRecipes;
+                On.GUICraftGuidePopup.FindRecipes += Instance.GuideRecipes;
+            }
+        }
+
+        internal struct Groups : IGate
+        {
+            public static bool Wanted() => HasRecipes() || HasRecipeGroups();
+
+            public static void Install() => On.Terraria.Recipe.ProcessGroupsForText += Instance.GroupText;
+        }
+
+        internal struct Consume : IGate
+        {
+            public static bool Wanted() => HasRecipes() || GlobalRecipeRegistry.For(HookId.ConsumeItem).Count > 0;
+
+            public static void Install() => On.Terraria.Recipe.GetIngredientCraftingDiscount += Instance.Discount;
+        }
+
+        internal struct Craft : IGate
+        {
+            public static bool Wanted() =>
+                HasRecipes() || GlobalRecipeRegistry.For(HookId.OnCraft).Count > 0 ||
+                HookGuard.Wants<ModItem>(HookId.OnCreated) || GlobalItemRegistry.AnyWith(HookId.OnCreated);
+
+            public static void Install()
+            {
+                On.Terraria.Main.CraftItem_GrantItem += Instance.Crafted;
+
+                Log.Info("[recipe] 已挂（条件过滤 / 向导过滤 / 配方组名 / 材料折扣 / 制作回调）");
+            }
+        }
     }
+
+    public bool Install() => GateHub<RecipePipeline>.Run();
+
+    private static bool HasRecipes() =>
+        HookGuard.Wants<ModItem>(HookId.AddRecipes) ||
+        HookGuard.Wants<GlobalItem>(HookId.AddRecipes) ||
+        GlobalNpcRegistry.All.Any(static global => global.Plan.Has(HookId.AddRecipes)) ||
+        SystemLoader.With(HookId.AddRecipes).Length > 0 ||
+        LoaderHost.Current.Mods.Mods.Any(static mod => mod.Plan.Has(HookId.AddRecipes));
+
+    private static bool HasRecipeGroups() =>
+        SystemLoader.With(HookId.AddRecipeGroups).Length > 0 ||
+        LoaderHost.Current.Mods.Mods.Any(static mod => mod.Plan.Has(HookId.AddRecipeGroups)) ||
+        GlobalNpcRegistry.All.Any(static global => global.Plan.Has(HookId.AddRecipeGroups));
 
     #region 过滤
 

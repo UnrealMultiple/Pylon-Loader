@@ -1,5 +1,6 @@
 using System.Reflection;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Effects;
 using Pylon.ModLoader.Globals;
 using Pylon.ModLoader.Hooks;
 using Pylon.ModLoader.Logging;
@@ -88,6 +89,13 @@ internal static class RegistrationPipeline
             case GlobalTile global: GlobalTileRegistry.Register(global); break;
             case GlobalRecipe global: GlobalRecipeRegistry.Register(global); break;
             case GlobalEmoteBubble global: GlobalEmoteBubbleRegistry.Register(global); break;
+            case ModScreenEffect effect:
+                try { ScreenEffects.Register(effect); }
+                catch (Exception e)
+                {
+                    content.Mod?.Logger.Warn($"{content.GetType().FullName} 屏幕效果注册失败：{Safe.Describe(e)}");
+                }
+                break;
         }
     }
 

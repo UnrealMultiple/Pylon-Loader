@@ -1,6 +1,7 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using Terraria;
@@ -23,14 +24,23 @@ internal sealed class DustPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static readonly List<Owned> Live = [];
 
-    public bool Install()
+    /// <summary>dust 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
     {
-        On.Terraria.Dust.UpdateDust += UpdateDust;
-        On.Terraria.Main.DrawDust += DrawDust;
+        internal struct Loop : IGate
+        {
+            public static bool Wanted() => ModContent.GetContent<ModDust>().Count > 0;
 
-        Log.Info("[dust] 已挂（自己更新 / 自己画，不进游戏图集）");
-        return true;
+            public static void Install()
+            {
+                On.Terraria.Dust.UpdateDust += UpdateDust;
+                On.Terraria.Main.DrawDust += DrawDust;
+                Log.Info("[dust] 已挂（自己更新 / 自己画，不进游戏图集）");
+            }
+        }
     }
+
+    public bool Install() => GateHub<DustPipeline>.Run();
 
     public void Refresh() => DustTable.Assign();
 

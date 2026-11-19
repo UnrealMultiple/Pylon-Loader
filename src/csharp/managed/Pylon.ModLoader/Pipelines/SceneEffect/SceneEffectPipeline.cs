@@ -1,6 +1,7 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using ReLogic.Content;
@@ -28,21 +29,137 @@ internal sealed class SceneEffectPipeline : ILoaderModule, ILoaderModuleRefresh
     internal static ModSceneEffect? UndergroundEffect { get; private set; }
     internal static ModSceneEffect? MusicEffect { get; private set; }
 
-    public bool Install()
+    /// <summary>sceneeffect 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
     {
-        On.Terraria.Main.UpdateAudio_DecideOnNewMusic += DecideMusic;
-        On.Terraria.Main.UpdateAudio_DecideOnTOWMusic += TowMusic;
-        On.Terraria.Player.Update += Update;
-        On.GUIMap.DrawMapFullscreenBackground += DrawMapBackground;
-        On.Terraria.Main.DrawMapFullscreenBackground += DrawMainMapBackground;
+        internal struct Eval : IGate
+        {
+            public static bool Wanted() => SceneEvalWanted();
 
-        CaptureBiomePipeline.Install();
+            public static void Install()
+            {
+                On.Terraria.Player.Update += Update;
+                Log.Info("[sceneeffect] 已挂（排序与各槽赢家 / 音乐 / 每帧回调按覆写分装）");
+            }
+        }
 
-        Log.Info("[sceneeffect] 已挂（排序与各槽赢家 / 音乐 / 每帧回调 / 水与背景交给各自管线）");
-        return true;
+        internal struct Music : IGate
+        {
+            public static bool Wanted() => MusicWanted();
+
+            public static void Install()
+            {
+                On.Terraria.Main.UpdateAudio_DecideOnNewMusic += DecideMusic;
+                On.Terraria.Main.UpdateAudio_DecideOnTOWMusic += TowMusic;
+            }
+        }
+
+        internal struct MapBg : IGate
+        {
+            public static bool Wanted() => OverAnyScene("get_" + nameof(ModSceneEffect.MapBackground));
+
+            public static void Install()
+            {
+                On.GUIMap.DrawMapFullscreenBackground += DrawMapBackground;
+                On.Terraria.Main.DrawMapFullscreenBackground += DrawMainMapBackground;
+            }
+        }
+
+        internal struct CaptureBiome : IGate
+        {
+            public static bool Wanted() =>
+                HookGuard.Wants<ModSceneEffect>(HookId.WaterStyle) ||
+                OverAnyScene("get_" + nameof(ModSceneEffect.SurfaceBackgroundStyle)) ||
+                OverAnyScene("get_" + nameof(ModSceneEffect.TileColorStyle));
+
+            public static void Install() => CaptureBiomePipeline.Install();
+        }
     }
 
-    public void Refresh() => SceneEffectTable.Rebuild();
+    public bool Install() => GateHub<SceneEffectPipeline>.Run();
+
+    private static readonly Dictionary<(Type, Type, string), bool> _over = [];
+
+    private static bool Over(Type type, Type baseType, string method)
+    {
+        var key = (type, baseType, method);
+        if (!_over.TryGetValue(key, out var hit))
+        {
+            hit = HookGuard.Overrides(type, baseType, method);
+            _over[key] = hit;
+        }
+
+        return hit;
+    }
+
+    private static bool OverAnyScene(string getter)
+    {
+        foreach (var effect in ModContent.GetContent<ModSceneEffect>())
+        {
+            if (effect is ModBiome) continue;
+            if (Over(effect.GetType(), typeof(ModSceneEffect), getter)) return true;
+        }
+
+        return false;
+    }
+
+    private static bool SceneEvalWanted()
+    {
+        foreach (var effect in ModContent.GetContent<ModSceneEffect>())
+        {
+            if (effect is ModBiome)
+            {
+                if (Over(effect.GetType(), typeof(ModBiome), nameof(ModBiome.IsBiomeActive)) ||
+                    Over(effect.GetType(), typeof(ModBiome), "get_" + nameof(ModBiome.BiomeTorchItemType)) ||
+                    Over(effect.GetType(), typeof(ModBiome), "get_" + nameof(ModBiome.BiomeCampfireItemType)) ||
+                    Over(effect.GetType(), typeof(ModSceneEffect), nameof(ModSceneEffect.IsSceneEffectActive)) ||
+                    Over(effect.GetType(), typeof(ModSceneEffect), "get_" + nameof(ModSceneEffect.Music)) ||
+                    Over(effect.GetType(), typeof(ModSceneEffect), "get_" + nameof(ModSceneEffect.Priority)) ||
+                    Over(effect.GetType(), typeof(ModSceneEffect), "get_" + nameof(ModSceneEffect.WaterStyle)) ||
+                    Over(effect.GetType(), typeof(ModSceneEffect), "get_" + nameof(ModSceneEffect.SurfaceBackgroundStyle)) ||
+                    Over(effect.GetType(), typeof(ModSceneEffect), "get_" + nameof(ModSceneEffect.UndergroundBackgroundStyle)) ||
+                    Over(effect.GetType(), typeof(ModSceneEffect), "get_" + nameof(ModSceneEffect.TileColorStyle)) ||
+                    Over(effect.GetType(), typeof(ModSceneEffect), "get_" + nameof(ModSceneEffect.MapBackground)))
+                    return true;
+                continue;
+            }
+
+            if (effect.Plan.Has(HookId.WaterStyle) ||
+                Over(effect.GetType(), typeof(ModSceneEffect), nameof(ModSceneEffect.IsSceneEffectActive)) ||
+                Over(effect.GetType(), typeof(ModSceneEffect), nameof(ModSceneEffect.SpecialVisuals)) ||
+                Over(effect.GetType(), typeof(ModSceneEffect), nameof(ModSceneEffect.GetWeight)) ||
+                Over(effect.GetType(), typeof(ModSceneEffect), "get_" + nameof(ModSceneEffect.Music)) ||
+                Over(effect.GetType(), typeof(ModSceneEffect), "get_" + nameof(ModSceneEffect.Priority)) ||
+                Over(effect.GetType(), typeof(ModSceneEffect), "get_" + nameof(ModSceneEffect.SurfaceBackgroundStyle)) ||
+                Over(effect.GetType(), typeof(ModSceneEffect), "get_" + nameof(ModSceneEffect.UndergroundBackgroundStyle)) ||
+                Over(effect.GetType(), typeof(ModSceneEffect), "get_" + nameof(ModSceneEffect.MapBackground)) ||
+                Over(effect.GetType(), typeof(ModSceneEffect), "get_" + nameof(ModSceneEffect.TileColorStyle)))
+                return true;
+        }
+
+        return false;
+    }
+
+    internal static bool MusicWanted() =>
+        SceneEvalWanted() ||
+        OverAnyNpc("get_" + nameof(ModNpc.Music)) ||
+        OverAnyNpc("get_" + nameof(ModNpc.SceneEffectPriority));
+
+    private static bool OverAnyNpc(string getter)
+    {
+        foreach (var npc in ModContent.GetContent<ModNpc>())
+        {
+            if (Over(npc.GetType(), typeof(ModNpc), getter)) return true;
+        }
+
+        return false;
+    }
+
+    public void Refresh()
+    {
+        SceneEffectTable.Rebuild();
+        WaterEffect = SurfaceEffect = UndergroundEffect = MusicEffect = null;
+    }
 
     internal void Build()
     {

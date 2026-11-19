@@ -9,13 +9,10 @@ namespace Pylon.ModLoader.Pipelines;
 /// <summary>在真实鱼线绘制期间传递竿端偏移与染色前颜色。</summary>
 internal static class FishingLineHooks
 {
-    private static bool _installed;
     [ThreadStatic] private static Color? _lineColor;
 
     internal static void Install()
     {
-        if (_installed) return;
-        _installed = true;
         On.Terraria.Main.DrawProj_FishingLine += Draw;
         On.Terraria.Main.TryApplyingPlayerStringColor += StringColor;
     }

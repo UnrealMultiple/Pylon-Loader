@@ -43,7 +43,10 @@ namespace XiheBoss
             proj.hostile = true;
             proj.friendly = false;
             proj.tileCollide = true;
-            proj.penetrate = 2;
+            // 法阵是全程存活的场地技能（四次 Shoot + 光蛋雨 + 终爆），命中玩家不能按穿透计数自杀；
+            // 样例里其它 MEAC 危险弹幕全部 -1（EoLProj/EoLLance/EoLBigLaser/SunProj...）。
+            // 实测 =2 时：Shoot（tl=634）后一 tick 即被原版 Kill，光蛋（tl=410/385/370）永远放不出来。
+            proj.penetrate = -1;
             proj.ignoreWater = false;
         }
 

@@ -4,6 +4,8 @@ using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Contracts;
 using Pylon.ModLoader.Hooks;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
@@ -83,20 +85,53 @@ internal sealed class TooltipPipeline : ILoaderModule
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>tooltip 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
     {
+        internal struct Lines : IGate
+        {
+            public static bool Wanted() => TooltipWanted();
+
+            public static void Install() => Instance.InstallLines();
+        }
+
+        internal struct Strings : ILazyGate
+        {
+            public static bool Wanted() => false;
+
+            public static void Install()
+            {
+                On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.DrawString_SpriteFont_string_Vector2_Color_float_Vector2_float_SpriteEffects_float += DrawString;
+                On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteFont.MeasureString_string += MeasureString;
+            }
+        }
+    }
+
+    public bool Install() => GateHub<TooltipPipeline>.Run();
+
+    private void InstallLines()
+    {
+        _anyGlobalTooltip = GlobalItemRegistry.AnyWith(HookId.ModifyTooltips);
+
         OnMain.MouseText_DrawItemTooltip_GetLinesInfo += GetLinesInfo;
         OnMain.MouseText_DrawItemTooltip += DrawTooltip;
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.DrawString_SpriteFont_string_Vector2_Color_float_Vector2_float_SpriteEffects_float += DrawString;
-        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteFont.MeasureString_string += MeasureString;
-        Log.Info("[tooltip] 已挂（取行 + 绘制期逐行）");
-        return true;
+        Log.Info("[tooltip] 已挂（取行 + 绘制期逐行；字符串钩子首次用到再装）");
+    }
+
+    private static bool TooltipWanted()
+    {
+        if (ModContent.GetContent<ModItem>().Count > 0) return true;
+        if (ModContent.GetContent<ModPrefix>().Count > 0) return true;
+        if (ModContent.GetContent<DamageClass>().Count > 0) return true;
+        return GlobalItemRegistry.AnyWith(HookId.ModifyTooltips);
     }
 
     internal void Build()
     {
         _anyGlobalTooltip = GlobalItemRegistry.AnyWith(HookId.ModifyTooltips);
     }
+
+    private static void EnsureStringHooks() => GateHub<TooltipPipeline>.Trigger<Gates.Strings>();
 
     #region 取行
 
@@ -419,6 +454,8 @@ internal sealed class TooltipPipeline : ILoaderModule
             ContentErrors.Report("[tooltip] RarityColor：" + Safe.Describe(e));
         }
 
+        if (state is not null) EnsureStringHooks();
+
         _drawing = state;
         if (state is not null) state.NameColor = rarity;
         else if (rarity is { } rc && item is not null && item.type > 0)
@@ -517,6 +554,7 @@ internal sealed class TooltipPipeline : ILoaderModule
 
     internal static void Recolor(string text, Color color)
     {
+        EnsureStringHooks();
         _recolorText = text;
         _recolorColor = color;
         _recolorCount = 0;

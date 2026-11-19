@@ -1,3 +1,5 @@
+using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using Terraria;
@@ -21,13 +23,25 @@ internal sealed class EmoteNetPipeline : ILoaderModule
     private NetPipeline _net = null!;
     private byte _kind;
 
-    public bool Install()
+    /// <summary>emotenet 管线的安装门：仅在有 ModEmoteBubble 注册时开同步通道。</summary>
+    internal static class Gates
+    {
+        internal struct Sync : IGate
+        {
+            public static bool Wanted() => ModContent.GetContent<ModEmoteBubble>().Count > 0;
+
+            public static void Install() => Instance.InstallSync();
+        }
+    }
+
+    public bool Install() => GateHub<EmoteNetPipeline>.Run();
+
+    private void InstallSync()
     {
         _net = NetPipeline.Instance;
         _kind = _net.OpenChannel(Receive);
 
         Log.Info("[emotenet] 已挂（mod 表情：客户端发 / 服务器转发并自建）");
-        return true;
     }
 
     /// <summary>把一次 mod 表情广播出去：客户端发给服务器，服务器发给所有客户端。</summary>

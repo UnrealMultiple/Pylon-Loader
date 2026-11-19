@@ -1,6 +1,7 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using Terraria;
@@ -29,18 +30,42 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
     private static int _requests;
     private static int _npcChecks;
 
-    public bool Install()
+    /// <summary>pylon 管线的安装门：只有存在 ModPylon 时才接管列表注入、传送判定、地图与放置。</summary>
+    internal static class Gates
     {
-        On.Terraria.GameContent.TeleportPylonsSystem.UpdatePylonsListAndBroadcastChanges += UpdateList;
-        On.Terraria.GameContent.TeleportPylonsSystem.IsPlayerNearAPylon += NearAPylon;
-        On.Terraria.GameContent.TeleportPylonsSystem.HandleTeleportRequest += HandleRequest;
-        On.Terraria.GameContent.TeleportPylonsSystem.DoesPositionHaveEnoughNPCs += PositionHasEnoughNPCs;
-        On.Terraria.Map.TeleportPylonsMapLayer.Draw += DrawMap;
-        On.Terraria.TileObject.CanPlace += CanPlace;
+        internal struct Teleport : IGate
+        {
+            public static bool Wanted() => HasPylons();
 
-        Log.Info("[pylon] 已挂（列表注入 / 附近判定 / 传送请求 / NPC 检查 / 放置许可 / 地图图标与连线）；晶石走 tiledraw 的 SpecialDraw");
-        return true;
+            public static void Install()
+            {
+                On.Terraria.GameContent.TeleportPylonsSystem.UpdatePylonsListAndBroadcastChanges += UpdateList;
+                On.Terraria.GameContent.TeleportPylonsSystem.IsPlayerNearAPylon += NearAPylon;
+                On.Terraria.GameContent.TeleportPylonsSystem.HandleTeleportRequest += HandleRequest;
+                On.Terraria.GameContent.TeleportPylonsSystem.DoesPositionHaveEnoughNPCs += PositionHasEnoughNPCs;
+
+                Log.Info("[pylon] 已挂（列表注入 / 附近判定 / 传送请求 / NPC 检查 / 放置许可 / 地图图标与连线）；晶石走 tiledraw 的 SpecialDraw");
+            }
+        }
+
+        internal struct MapLayer : IGate
+        {
+            public static bool Wanted() => HasPylons();
+
+            public static void Install() => On.Terraria.Map.TeleportPylonsMapLayer.Draw += DrawMap;
+        }
+
+        internal struct Place : IGate
+        {
+            public static bool Wanted() => HasPylons();
+
+            public static void Install() => On.Terraria.TileObject.CanPlace += CanPlace;
+        }
     }
+
+    public bool Install() => GateHub<PylonPipeline>.Run();
+
+    private static bool HasPylons() => ModContent.GetContent<ModPylon>().Count > 0;
 
     public void Refresh() => PylonTable.Assign();
 

@@ -1,14 +1,54 @@
-using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Pylon.ModLoader.Textures;
-using Pylon.ModLoader.UI;
 using Pylon.NaviteAPI.Effects;
 using UnityEngine;
 
 namespace Pylon.ModLoader.Effects;
 
-/// <summary>屏幕效果（全屏后处理 GLSL）。Mod 每帧构造 ScreenFrame 提交。</summary>
-public static class ScreenGraphics
+/// <summary>
+/// 屏幕效果底层门面：shader / 纹理 / 目标 / 固定 pass / 一帧提交。
+/// 作者通常不需要直接碰这里——用 <see cref="ModScreenEffect"/> + <see cref="ScreenCommands"/>。
+/// </summary>
+public static partial class ScreenGraphics
 {
+    /// <summary>混合模式（与 <c>bl/color</c> 的 BL_BLEND_* 编号一致）。</summary>
+    public enum BlendMode
+    {
+        Normal = 0,
+        Multiply = 1,
+        Screen = 2,
+        Overlay = 3,
+        SoftLight = 4,
+        Add = 5,
+        Color = 6,
+        Luminosity = 7,
+    }
+
+    public enum ShaderStatus
+    {
+        Failed = -1,
+        Pending = 0,
+        Ready = 1,
+    }
+
+    /// <summary>数组 uniform 的显式打包（1..4 个分量一组）。</summary>
+    public static UniformArray Array(int components, IEnumerable<float> values) =>
+        new(components, values.ToArray());
+
+    public sealed class UniformArray
+    {
+        public int Components { get; }
+
+        public float[] Values { get; }
+
+        public UniformArray(int components, float[] values)
+        {
+            if (components < 1 || components > 4)
+                throw new ArgumentOutOfRangeException(nameof(components), "ScreenGraphics.Array: components 必须是 1..4");
+            Components = components;
+            Values = values ?? throw new ArgumentNullException(nameof(values));
+        }
+    }
+
     private static bool _installTried;
     private static readonly float[] BoxBuf = new float[4];
     private static readonly float[] CenterBuf = new float[2];
@@ -35,73 +75,13 @@ public static class ScreenGraphics
         try
         {
             var ok = ScreenEffectsNative.Install() != 0;
-            ModUI.Logger?.Info($"屏幕效果：hooks {(ok ? "已装" : "安装失败（见日志）")}");
+            UI.ModUI.Logger?.Info($"屏幕效果：hooks {(ok ? "已装" : "安装失败（见日志）")}");
         }
         catch (Exception e)
         {
             _installTried = false;
-            ModUI.Logger?.Warn($"屏幕效果安装异常：{e.Message}");
+            UI.ModUI.Logger?.Warn($"屏幕效果安装异常：{e.Message}");
         }
-    }
-
-    public static ScreenShader Shader(string name, string source) => new(name, source);
-
-    public static ScreenTexture Texture(Mod owner, string path, bool linear = true, bool repeat = false)
-    {
-        var full = PylonTexture.Resolve(owner, path);
-        byte[] fileBytes;
-        try { fileBytes = File.ReadAllBytes(full); }
-        catch (Exception e) { throw new ScreenEffectsException($"读取效果纹理失败：{full}（{e.Message}）"); }
-
-        var bytes = new Il2CppStructArray<byte>(fileBytes);
-        var unity = new Texture2D(2, 2);
-        bool decoded;
-        try { decoded = ImageConversion.LoadImage(unity, bytes, false); }
-        catch (Exception e)
-        {
-            UnityEngine.Object.Destroy(unity);
-            throw new ScreenEffectsException($"效果纹理解码抛异常：{full}（{e.Message}）");
-        }
-        if (!decoded)
-        {
-            UnityEngine.Object.Destroy(unity);
-            throw new ScreenEffectsException($"'{full}' 不是能解码的 PNG/JPG");
-        }
-
-        var width = unity.width;
-        var height = unity.height;
-        var rgba = FlipRows(unity.GetRawTextureData<byte>().ToArray(), width, height);
-        UnityEngine.Object.Destroy(unity);
-
-        int id;
-        try
-        {
-            id = ScreenEffectsNative.TextureLoad(full, width, height, rgba, linear ? 1 : 0, repeat ? 1 : 0, out _, out _);
-        }
-        catch (Exception e) { throw new ScreenEffectsException($"效果纹理登记失败：{full}（{e.Message}）"); }
-        if (id == 0) throw new ScreenEffectsException($"效果纹理登记失败：{full}（参数无效）");
-        return new ScreenTexture(id, width, height);
-    }
-
-    public static ScreenTexture Texture(string key, int width, int height, byte[] rgba,
-        bool linear = true, bool repeat = false)
-    {
-        ArgumentException.ThrowIfNullOrEmpty(key);
-        ArgumentNullException.ThrowIfNull(rgba);
-        if (width <= 0 || height <= 0)
-            throw new ScreenEffectsException($"效果纹理 '{key}' 尺寸无效：{width}x{height}");
-        if (rgba.LongLength < (long)width * height * 4)
-            throw new ScreenEffectsException($"效果纹理 '{key}' 的 RGBA 数据不足 {width}x{height}");
-
-        int id, outWidth, outHeight;
-        try
-        {
-            id = ScreenEffectsNative.TextureLoad(key, width, height, rgba, linear ? 1 : 0, repeat ? 1 : 0,
-                out outWidth, out outHeight);
-        }
-        catch (Exception e) { throw new ScreenEffectsException($"效果纹理登记失败：{key}（{e.Message}）"); }
-        if (id == 0) throw new ScreenEffectsException($"效果纹理登记失败：{key}（参数无效）");
-        return new ScreenTexture(id, outWidth > 0 ? outWidth : width, outHeight > 0 ? outHeight : height);
     }
 
     public static void Submit(ScreenFrame frame)
@@ -114,7 +94,7 @@ public static class ScreenGraphics
         try
         {
             foreach (var target in frame.Targets)
-                ScreenEffectsNative.SubmitAddTarget(target.Id, target.Name, target.Scale, target.Persistent ? 1 : 0);
+                ScreenEffectsNative.SubmitAddTarget(target.Texture, target.Name, target.Scale, target.Persistent ? 1 : 0);
 
             foreach (var draw in frame.Draws)
             {
@@ -140,7 +120,7 @@ public static class ScreenGraphics
                     if (draw.Box is { Length: 4 } candidate)
                     {
                         box = candidate;
-                        Array.Copy(candidate, BoxBuf, 4);
+                        System.Array.Copy(candidate, BoxBuf, 4);
                     }
                     CenterBuf[0] = draw.Center.x;
                     CenterBuf[1] = draw.Center.y;
@@ -152,7 +132,7 @@ public static class ScreenGraphics
                         draw.Shader?.Id ?? 0,
                         (int)draw.Layer,
                         draw.Dest,
-                        draw.Source?.Id ?? ScreenTexture.kTexNone,
+                        draw.Source?.Texture ?? kTexNone,
                         box is null ? null : BoxBuf,
                         CenterBuf,
                         draw.Radius,
@@ -171,57 +151,53 @@ public static class ScreenGraphics
         }
     }
 
-    public static void SaveNeutralLut(string path, int size = 16)
-    {
-        if (size < 2) throw new ArgumentException("LUT 尺寸必须 >= 2", nameof(size));
-        var inv = 1f / (size - 1f);
-        var w = size * size;
-        var rgba = new byte[w * size * 4];
-        var idx = 0;
-        for (var s = 0; s < size; s++)
-        {
-            var b = (byte)Mathf.RoundToInt(s * inv * 255f);
-            for (var y = 0; y < size; y++)
-            {
-                var g = (byte)Mathf.RoundToInt(y * inv * 255f);
-                for (var x = 0; x < size; x++)
-                {
-                    rgba[idx++] = (byte)Mathf.RoundToInt(x * inv * 255f);  // R
-                    rgba[idx++] = g;
-                    rgba[idx++] = b;
-                    rgba[idx++] = 255;
-                }
-            }
-        }
-        File.WriteAllBytes(path, PngEncoder.Encode(w, size, rgba));
-    }
-
-    public static ScreenStats Stats()
-    {
-        ScreenEffectsNative.Stats(out var native);
-        var stats = ScreenStats.From(native);
-        ScreenEffectsNative.UploadStats(out var upload);
-        stats.BufferSubDataBytes = upload.BufferSubDataBytes;
-        stats.BufferStorageBytes = upload.BufferStorageBytes;
-        stats.BufferDataCalls = upload.BufferDataCalls;
-        stats.BufferSubDataCalls = upload.BufferSubDataCalls;
-        return stats;
-    }
-
     public static void RequestTrace() => ScreenEffectsNative.RequestTrace();
 
     public static void SetMeshStreaming(bool enabled) => ScreenEffectsNative.SetMeshStreaming(enabled ? 1 : 0);
 
-    private static byte[] FlipRows(byte[] raw, int width, int height)
+    /// <summary>常用 pass：拷贝、阈值、横/竖模糊（给 Blit 与 Bloom/Blur 这类多步效果用）。</summary>
+    public static class Passes
     {
-        var row = width * 4;
-        var outBytes = new byte[row * height];
-        for (var y = 0; y < height; y++)
+        private static readonly Dictionary<string, Shader> Cache = new(StringComparer.Ordinal);
+
+        private static Shader Get(string name, string source)
         {
-            var src = y * row;
-            var dst = (height - 1 - y) * row;
-            for (var i = 0; i < row; i++) outBytes[dst + i] = raw[src + i];
+            lock (Cache)
+            {
+                if (!Cache.TryGetValue(name, out var shader))
+                    Cache[name] = shader = Shader.FromSource(source, "bl/" + name);
+                return shader;
+            }
         }
-        return outBytes;
+
+        private static string Blur(string axis) => $@"
+uniform float uBlurRadius;
+
+void main() {{
+    vec2 stride = {axis} * max(uBlurRadius, 0.0) / 4.0;
+    vec4 sum = blSource(vUV) * 0.2270270270;
+    sum += (blSource(vUV + stride * 1.3846153846) + blSource(vUV - stride * 1.3846153846)) * 0.3162162162;
+    sum += (blSource(vUV + stride * 3.2307692308) + blSource(vUV - stride * 3.2307692308)) * 0.0702702703;
+    fragColor = sum;
+}}
+";
+
+        public static Shader Copy => Get("Copy", "void main() {\n    fragColor = blSource(vUV);\n}\n");
+
+        public static Shader Threshold => Get("Threshold", @"
+#include <bl/color>
+uniform float uThreshold;
+uniform float uKnee;
+
+void main() {
+    vec4 c = blSource(vUV);
+    float keep = smoothstep(uThreshold, uThreshold + max(uKnee, 1e-4), blLuma(c.rgb));
+    fragColor = vec4(c.rgb * keep, 1.0);
+}
+");
+
+        public static Shader BlurH => Get("BlurH", Blur("vec2(uSourceTexel.x, 0.0)"));
+
+        public static Shader BlurV => Get("BlurV", Blur("vec2(0.0, uSourceTexel.y)"));
     }
 }

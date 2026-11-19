@@ -9,7 +9,7 @@ namespace XiheMagic
 {
     internal static class XiheTextures
     {
-        internal static ScreenTexture Load(Mod mod, string path, bool repeat)
+        internal static ScreenGraphics.Texture Load(Mod mod, string path, bool repeat)
         {
             var full = PylonTexture.Resolve(mod, path);
             var png = Decode(File.ReadAllBytes(full), out var width, out var height);
@@ -17,8 +17,8 @@ namespace XiheMagic
         }
 
         /// <summary>把已解好的 RGBA 交给内核（行序 v=0 在底部）。</summary>
-        internal static ScreenTexture LoadRaw(string key, int width, int height, byte[] rgba, bool repeat) =>
-            ScreenGraphics.Texture(key, width, height, rgba, true, repeat);
+        internal static ScreenGraphics.Texture LoadRaw(string key, int width, int height, byte[] rgba, bool repeat) =>
+            ScreenGraphics.Texture.FromRaw(key, width, height, rgba, true, repeat);
 
         // ---------------- 最小 PNG 解码 ----------------
 

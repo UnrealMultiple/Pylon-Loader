@@ -1,6 +1,7 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Hooks;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
@@ -10,7 +11,7 @@ using Terraria.DataStructures;
 
 namespace Pylon.ModLoader.Pipelines;
 /// <summary>物品管线：把 ModItem 接进"用/挥/装备/射"链；分派为本物品先、GlobalItem 后，射击上下文是实例字段。</summary>
-internal sealed class ItemPipeline : ILoaderModule
+internal sealed class ItemPipeline : ILoaderModule, ILoaderModuleRefresh
 {
     public static ItemPipeline Instance { get; } = new();
 
@@ -30,39 +31,257 @@ internal sealed class ItemPipeline : ILoaderModule
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>item 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
     {
-        _globalShoot = GlobalItemRegistry.AnyWith(HookId.CanShoot, HookId.ModifyShootStats, HookId.Shoot);
+        internal struct Core : IGate
+        {
+            public static bool Wanted() => true;
+
+            public static void Install() => Instance.InstallCore();
+        }
+
+        internal struct CanUse : IGate
+        {
+            public static bool Wanted() =>
+                HookGuard.Wants<ModItem>(HookId.CanUseItem) || GlobalItemRegistry.AnyWith(HookId.CanUseItem);
+
+            public static void Install() => On.Terraria.Player.ItemCheck_CheckCanUse_Inner += Instance.CanUse;
+        }
+
+        internal struct StartUse : IGate
+        {
+            public static bool Wanted() =>
+                HookGuard.Wants<ModItem>(HookId.UseItem) || GlobalItemRegistry.AnyWith(HookId.UseItem);
+
+            public static void Install() => On.Terraria.Player.ItemCheck_StartActualUse += Instance.Use;
+        }
+
+        internal struct UseStyle : IGate
+        {
+            public static bool Wanted() =>
+                HookGuard.Wants<ModItem>(HookId.UseStyle, HookId.HoldItem) ||
+                GlobalItemRegistry.AnyWith(HookId.UseStyle, HookId.HoldItem);
+
+            public static void Install() => On.Terraria.Player.ItemCheck_ApplyUseStyle += Instance.ApplyUseStyle;
+        }
+
+        internal struct HoldStyle : IGate
+        {
+            public static bool Wanted() =>
+                HookGuard.Wants<ModItem>(HookId.HoldStyle, HookId.HoldItem, HookId.HoldoutOffset) ||
+                GlobalItemRegistry.AnyWith(HookId.HoldStyle, HookId.HoldItem, HookId.HoldoutOffset);
+
+            public static void Install() => On.Terraria.Player.ItemCheck_ApplyHoldStyle += Instance.ApplyHoldStyle;
+        }
+
+        internal struct Equip : IGate
+        {
+            public static bool Wanted() =>
+                HookGuard.Wants<ModItem>(HookId.UpdateEquip, HookId.UpdateAccessory, HookId.UpdateVanity) ||
+                GlobalItemRegistry.AnyWith(HookId.UpdateEquip, HookId.UpdateAccessory, HookId.UpdateVanity);
+
+            public static void Install()
+            {
+                On.Terraria.Player.ApplyEquipFunctional += Instance.EquipFunctional;
+                On.Terraria.Player.ApplyEquipVanity += Instance.EquipVanity;
+                On.Terraria.Player.GrantArmorBenefits += Instance.GrantArmorBenefits;
+            }
+        }
+
+        internal struct Inventory : IGate
+        {
+            public static bool Wanted() =>
+                HookGuard.Wants<ModItem>(HookId.UpdateInventory) || GlobalItemRegistry.AnyWith(HookId.UpdateInventory);
+
+            public static void Install() => On.Terraria.Player.UpdateEquips += Instance.UpdateInventory;
+        }
+
+        internal struct Shoot : IGate
+        {
+            public static bool Wanted() => ShootWanted();
+
+            public static void Install()
+            {
+                On.Terraria.Player.ItemCheck_Shoot += Instance.ShootGate;
+                On.Terraria.Projectile.NewProjectile_IEntitySource_float_float_float_float_int_int_float_int_float_float_float_NewProjectileModifier += Instance.NewProjectile;
+            }
+        }
+
+        internal struct Alpha : IGate
+        {
+            public static bool Wanted() =>
+                HookGuard.Wants<ModItem>(HookId.GetAlpha) || GlobalItemRegistry.AnyWith(HookId.GetAlpha);
+
+            public static void Install() => On.Terraria.Item.GetAlpha += GetAlpha;
+        }
+
+        internal struct Angler : IGate
+        {
+            public static bool Wanted() => ModContent.GetContent<ModItem>().Count > 0;
+
+            public static void Install() => ItemAnglerQuest.Install();
+        }
+
+        internal struct Ammo : IGate
+        {
+            public static bool Wanted() => AmmoWanted();
+
+            public static void Install() => ItemAmmoHooks.Install();
+        }
+
+        internal struct Heal : IGate
+        {
+            public static bool Wanted() => HealWanted();
+
+            public static void Install() => ItemHealHooks.Install();
+        }
+
+        internal struct Pvp : IGate
+        {
+            public static bool Wanted() => ItemPvpHooks.AnyActive();
+
+            public static void Install() => ItemPvpHooks.Install();
+        }
+
+        internal struct Pickup : IGate
+        {
+            public static bool Wanted() => PickupWanted();
+
+            public static void Install() => ItemPickupHooks.Install();
+        }
+
+        internal struct Sorting : IGate
+        {
+            public static bool Wanted() => ModContent.GetContent<ModItem>().Count > 0;
+
+            public static void Install() => ItemSortingHooks.Install();
+        }
+
+        internal struct Save : IGate
+        {
+            public static bool Wanted() =>
+                ModContent.GetContent<ModItem>().Count > 0 || ModContent.GetContent<ModPrefix>().Count > 0;
+
+            public static void Install() => ItemSavePipeline.Instance.Install();
+        }
+
+        internal struct Timing : IGate
+        {
+            public static bool Wanted() => TimingWanted();
+
+            public static void Install() => ItemTimingHooks.Install();
+        }
+
+        internal struct Frame : IGate
+        {
+            public static bool Wanted() =>
+                HookGuard.Wants<ModItem>(HookId.UseItemFrame, HookId.HoldItemFrame) ||
+                GlobalItemRegistry.AnyWith(HookId.UseItemFrame, HookId.HoldItemFrame);
+
+            public static void Install() => ItemFrameHooks.Install();
+        }
+
+        internal struct Mana : IGate
+        {
+            public static bool Wanted() => ManaWanted();
+
+            public static void Install() => ItemManaHooks.Install();
+        }
+
+        internal struct Hitbox : IGate
+        {
+            public static bool Wanted() => HitboxWanted();
+
+            public static void Install() => ItemHitboxHooks.Install();
+        }
+
+        internal struct EquipUi : IGate
+        {
+            public static bool Wanted() => EquipUiWanted();
+
+            public static void Install() => ItemEquipHooks.Install();
+        }
+    }
+
+    public bool Install() => GateHub<ItemPipeline>.Run();
+
+    private void InstallCore()
+    {
+        RefreshGlobals();
         _defaults.Install();
         ItemTml.Install();
-        ItemAnglerQuest.Install();
-        ItemAmmoHooks.Install();
-        ItemHealHooks.Install();
-        ItemPvpHooks.Install();
-        ItemPickupHooks.Install();
-        ItemSortingHooks.Install();
-        ItemSavePipeline.Instance.Install();
-        ItemTimingHooks.Install();
-        ItemFrameHooks.Install();
-        ItemManaHooks.Install();
-        ItemHitboxHooks.Install();
-        ItemEquipHooks.Install();
-
-        On.Terraria.Player.ItemCheck_CheckCanUse_Inner += CanUse;
-        On.Terraria.Player.ItemCheck_StartActualUse += Use;
-        On.Terraria.Player.ItemCheck_ApplyUseStyle += ApplyUseStyle;
-        On.Terraria.Player.ItemCheck_ApplyHoldStyle += ApplyHoldStyle;
-        On.Terraria.Player.ApplyEquipFunctional += EquipFunctional;
-        On.Terraria.Player.ApplyEquipVanity += EquipVanity;
-        On.Terraria.Player.GrantArmorBenefits += GrantArmorBenefits;
-        On.Terraria.Player.UpdateEquips += UpdateInventory;
-        On.Terraria.Player.ItemCheck_Shoot += ShootGate;
-        On.Terraria.Projectile.NewProjectile_IEntitySource_float_float_float_float_int_int_float_int_float_float_float_NewProjectileModifier += NewProjectile;
-        On.Terraria.Item.GetAlpha += GetAlpha;
-
-        Log.Info("[item] 已挂（使用 / 装备 / 背包 / 射击）");
-        return true;
+        Log.Info("[item] 已挂（SetDefaults 分派枢纽；使用 / 装备 / 射击链按覆写分装）");
     }
+
+    public void Refresh() => RefreshGlobals();
+
+    private static void RefreshGlobals()
+    {
+        _globalShoot = GlobalItemRegistry.AnyWith(HookId.CanShoot, HookId.ModifyShootStats, HookId.Shoot);
+        ItemTimingHooks.RefreshGlobals();
+        ItemManaHooks.RefreshGlobals();
+        ItemHitboxHooks.RefreshGlobals();
+        ItemFrameHooks.RefreshGlobals();
+    }
+
+    private static bool PlayerWants(params ReadOnlySpan<HookId> hooks)
+    {
+        foreach (var player in PlayerPipeline.Instance.Binding.Templates)
+        {
+            var plan = HookScan.Of(player.GetType(), typeof(ModPlayer));
+            foreach (var hook in hooks)
+            {
+                if (plan.Has(hook)) return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ShootWanted() =>
+        HookGuard.Wants<ModItem>(HookId.CanShoot, HookId.ModifyShootStats, HookId.Shoot) ||
+        GlobalItemRegistry.AnyWith(HookId.CanShoot, HookId.ModifyShootStats, HookId.Shoot) ||
+        PlayerWants(HookId.CanShoot, HookId.ModifyShootStats, HookId.Shoot);
+
+    private static bool AmmoWanted() =>
+        HookGuard.Wants<ModItem>(HookId.CanChooseAmmo, HookId.CanBeChosenAsAmmo, HookId.NeedsAmmo,
+            HookId.PickAmmo, HookId.CanConsumeAmmo, HookId.CanBeConsumedAsAmmo, HookId.OnConsumeAmmo, HookId.OnConsumedAsAmmo) ||
+        GlobalItemRegistry.AnyWith(HookId.CanChooseAmmo, HookId.CanBeChosenAsAmmo, HookId.NeedsAmmo,
+            HookId.PickAmmo, HookId.CanConsumeAmmo, HookId.CanBeConsumedAsAmmo, HookId.OnConsumeAmmo, HookId.OnConsumedAsAmmo) ||
+        PlayerWants(HookId.CanConsumeAmmo, HookId.OnConsumeAmmo);
+
+    private static bool HealWanted() =>
+        HookGuard.Wants<ModItem>(HookId.GetHealLife, HookId.GetHealMana) ||
+        GlobalItemRegistry.AnyWith(HookId.GetHealLife, HookId.GetHealMana) ||
+        PlayerWants(HookId.GetHealLife, HookId.GetHealMana);
+
+    private static bool PickupWanted() =>
+        HookGuard.Wants<ModItem>(HookId.CanPickup, HookId.GrabRange, HookId.GrabStyle, HookId.ItemSpace, HookId.OnPickup) ||
+        GlobalItemRegistry.AnyWith(HookId.CanPickup, HookId.GrabRange, HookId.GrabStyle, HookId.ItemSpace, HookId.OnPickup);
+
+    private static bool TimingWanted() =>
+        HookGuard.Wants<ModItem>(HookId.UseTimeMultiplier, HookId.UseAnimationMultiplier, HookId.UseSpeedMultiplier,
+            HookId.UseAnimation, HookId.CanAutoReuseItem, HookId.AltFunctionUse) ||
+        GlobalItemRegistry.AnyWith(HookId.UseTimeMultiplier, HookId.UseAnimationMultiplier, HookId.UseSpeedMultiplier,
+            HookId.UseAnimation, HookId.CanAutoReuseItem, HookId.AltFunctionUse) ||
+        PlayerWants(HookId.UseTimeMultiplier, HookId.UseAnimationMultiplier, HookId.UseSpeedMultiplier, HookId.CanAutoReuseItem);
+
+    private static bool ManaWanted() =>
+        HookGuard.Wants<ModItem>(HookId.ModifyManaCost, HookId.OnMissingMana, HookId.OnConsumeMana) ||
+        GlobalItemRegistry.AnyWith(HookId.ModifyManaCost, HookId.OnMissingMana, HookId.OnConsumeMana) ||
+        PlayerWants(HookId.ModifyManaCost, HookId.OnMissingMana, HookId.OnConsumeMana);
+
+    private static bool HitboxWanted() =>
+        HookGuard.Wants<ModItem>(HookId.UseItemHitbox, HookId.MeleeEffects) ||
+        GlobalItemRegistry.AnyWith(HookId.UseItemHitbox, HookId.MeleeEffects) ||
+        PlayerWants(HookId.MeleeEffects);
+
+    private static bool EquipUiWanted() =>
+        HookGuard.Wants<ModItem>(HookId.CanEquipAccessory, HookId.CanAccessoryBeEquippedWith,
+            HookId.DrawArmorColor, HookId.ArmorArmGlowMask) ||
+        GlobalItemRegistry.AnyWith(HookId.CanEquipAccessory, HookId.CanAccessoryBeEquippedWith,
+            HookId.DrawArmorColor, HookId.ArmorArmGlowMask);
 
     private static bool IsModItem(Item? item) =>
         item is not null && ModContent.IsCustom(ContentKind.Item, item.type);

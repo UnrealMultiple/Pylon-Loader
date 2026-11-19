@@ -1,6 +1,7 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using Terraria;
@@ -44,11 +45,27 @@ internal sealed class TouchButtonPipeline : ILoaderModule
 
     internal int QuickUnboundValue => QuickUnbound;
 
-    public bool Install()
+    /// <summary>touchbutton 管线的安装门：核心就位；游戏钩子在首批按钮注册且 UI 就绪后惰性挂上。</summary>
+    internal static class Gates
     {
-        Log.Info("[touchbutton] 模块就位（游戏 UI 就绪后挂钩）");
-        return true;
+        internal struct Core : IGate
+        {
+            public static bool Wanted() => true;
+
+            public static void Install() => Instance.InstallCore();
+        }
+
+        internal struct Hooks : ILazyGate
+        {
+            public static bool Wanted() => !Instance._table.IsEmpty;
+
+            public static void Install() => Instance.InstallHooks();
+        }
     }
+
+    public bool Install() => GateHub<TouchButtonPipeline>.Run();
+
+    private void InstallCore() => Log.Info("[touchbutton] 模块就位（游戏 UI 就绪后挂钩）");
 
     #region 注册与编号
 
@@ -372,9 +389,12 @@ internal sealed class TouchButtonPipeline : ILoaderModule
 
         try
         {
-            InstallHooks();
-            Applied = true;
-            _log?.Info("触屏按钮已挂（控制器 + 触点 + 编辑器 + 快捷栏 + 布局）");
+            if (!_table.IsEmpty)
+            {
+                GateHub<TouchButtonPipeline>.Trigger<Gates.Hooks>();
+                _log?.Info("触屏按钮已挂（控制器 + 触点 + 编辑器 + 快捷栏 + 布局）");
+                Applied = true;
+            }
 
             if (_table.Count > 0) TouchButtonLayouts.Apply(Styles());
         }

@@ -48,12 +48,8 @@ internal static class PlayerJumpHooks
         HookId.OnExtraJumpCleared,
     ];
 
-    private static bool _installed;
-
     internal static void Install()
     {
-        if (_installed) return;
-        _installed = true;
         On.Terraria.Player.ResetEffects += ResetEffects;
         On.Terraria.Player.UpdateJumpHeight += UpdateJumpHeight;
         On.Terraria.Player.RefreshDoubleJumps += RefreshDoubleJumps;
@@ -66,7 +62,7 @@ internal static class PlayerJumpHooks
 
     private static int VanillaCount => ExtraJumpTable.DefaultCount;
 
-    private static bool Wanted()
+    internal static bool Wanted()
     {
         if (ExtraJumpTable.HasModded) return true;
         for (var i = 0; i < GateHooks.Length; i++)

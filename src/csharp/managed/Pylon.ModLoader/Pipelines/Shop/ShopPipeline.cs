@@ -1,5 +1,7 @@
 using Pylon.ModLoader.Content;
 using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Globals;
 using Pylon.ModLoader.Hooks;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
@@ -18,14 +20,39 @@ internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>shop 管线的安装门：有 mod 店、晶塔货架或商店改写钩子时才接管装货，有旅行商店覆写时才接管旅行店。</summary>
+    internal static class Gates
     {
-        On.Terraria.InventoryStorage.SetupShop += SetupShop;
-        On.Terraria.InventoryStorage.SetupTravelShop += SetupTravelShop;
+        internal struct Setup : IGate
+        {
+            public static bool Wanted() => HasShopContent();
 
-        Log.Info("[shop] 已挂（货架装货 / 原版商店收编 / 旅行商店）");
-        return true;
+            public static void Install()
+            {
+                On.Terraria.InventoryStorage.SetupShop += SetupShop;
+
+                Log.Info("[shop] 已挂（货架装货 / 原版商店收编 / 旅行商店）");
+            }
+        }
+
+        internal struct Travel : IGate
+        {
+            public static bool Wanted() => TravelShopOverridden();
+
+            public static void Install() => On.Terraria.InventoryStorage.SetupTravelShop += SetupTravelShop;
+        }
     }
+
+    public bool Install() => GateHub<ShopPipeline>.Run();
+
+    private static bool HasShopContent() =>
+        HookGuard.Wants<ModNpc>(HookId.AddShops, HookId.ModifyActiveShop) ||
+        ModContent.GetContent<ModPylon>().Count > 0 ||
+        GlobalNpcRegistry.AnyWith(HookId.ModifyShop, HookId.ModifyActiveShop) ||
+        NpcShopDatabase.AllShops.Any(static shop => shop is NpcShop npcShop && !npcShop.Vanilla);
+
+    private static bool TravelShopOverridden() =>
+        GlobalNpcRegistry.All.Any(static global => HookGuard.Overrides(global.GetType(), typeof(GlobalNpc), nameof(GlobalNpc.SetupTravelShop)));
 
     public void Refresh()
     {

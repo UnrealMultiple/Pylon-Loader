@@ -1,4 +1,5 @@
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using Pylon.ModLoader.SaveData;
@@ -17,18 +18,51 @@ internal sealed class HairPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>hair 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
     {
-        On.Terraria.GameContent.HairstyleUnlocksHelper.ListWarrantsRemake += ListWarrantsRemake;
-        On.Terraria.GameContent.HairstyleUnlocksHelper.RebuildList += RebuildList;
-        On.Terraria.Player.GetHairSettings += GetHairSettings;
+        internal static bool HasHairs() => ModContent.GetContent<ModHair>().Count > 0;
 
-        On.Terraria.Player.InternalSavePlayerFile += SavePlayerFile;
-        On.Terraria.Player.LoadPlayer += LoadPlayerFile;
+        internal struct Menu : IGate
+        {
+            public static bool Wanted() => HasHairs();
 
-        Log.Info("[hair] 已挂（编号 / 扩表 / 主贴图 / 菜单 / 戴帽子版贴图 / 存档按名字 / 后发开关）");
-        return true;
+            public static void Install()
+            {
+                On.Terraria.GameContent.HairstyleUnlocksHelper.ListWarrantsRemake += ListWarrantsRemake;
+                On.Terraria.GameContent.HairstyleUnlocksHelper.RebuildList += RebuildList;
+
+                Log.Info("[hair] 已挂：发型菜单");
+            }
+        }
+
+        internal struct Settings : IGate
+        {
+            public static bool Wanted() => HasHairs();
+
+            public static void Install()
+            {
+                On.Terraria.Player.GetHairSettings += GetHairSettings;
+
+                Log.Info("[hair] 已挂：后发开关");
+            }
+        }
+
+        internal struct Save : IGate
+        {
+            public static bool Wanted() => HasHairs();
+
+            public static void Install()
+            {
+                On.Terraria.Player.InternalSavePlayerFile += SavePlayerFile;
+                On.Terraria.Player.LoadPlayer += LoadPlayerFile;
+
+                Log.Info("[hair] 已挂：存档按名字");
+            }
+        }
     }
+
+    public bool Install() => GateHub<HairPipeline>.Run();
 
     private static readonly Dictionary<int, bool> MenuUnlocked = [];
 

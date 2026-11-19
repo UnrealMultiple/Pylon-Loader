@@ -1,3 +1,4 @@
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Content;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
@@ -15,14 +16,23 @@ internal sealed class PlayerSavePipeline : ILoaderModule
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>playersave 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
     {
-        On.Terraria.Player.InternalSavePlayerFile += SavePlayerFile;
-        On.Terraria.Player.LoadPlayer += LoadPlayerFile;
+        internal struct Files : IGate
+        {
+            public static bool Wanted() => PlayerPipeline.Instance.Binding.Count > 0;
 
-        Log.Info("[playersave] 已挂（PreSavePlayer / SaveData / PreSaveCustomData / PostSavePlayer / LoadData）");
-        return true;
+            public static void Install()
+            {
+                On.Terraria.Player.InternalSavePlayerFile += SavePlayerFile;
+                On.Terraria.Player.LoadPlayer += LoadPlayerFile;
+                Log.Info("[playersave] 已挂（PreSavePlayer / SaveData / PreSaveCustomData / PostSavePlayer / LoadData）");
+            }
+        }
     }
+
+    public bool Install() => GateHub<PlayerSavePipeline>.Run();
 
     private static PlayerBinding Binding => PlayerPipeline.Instance.Binding;
 

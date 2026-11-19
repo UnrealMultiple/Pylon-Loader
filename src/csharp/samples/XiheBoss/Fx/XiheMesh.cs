@@ -22,8 +22,8 @@ namespace XiheBoss
 {
     internal static class XiheMesh
     {
-        internal static ScreenShader GeoShader;
-        internal static ScreenShader TrailShader;
+        internal static ScreenGraphics.Shader GeoShader;
+        internal static ScreenGraphics.Shader TrailShader;
 
         internal static int MeshBatchCount
         {
@@ -97,8 +97,8 @@ namespace XiheBoss
         {
             try
             {
-                GeoShader = ScreenShader.FromFileMesh(mod, "assets/effects/XiheGeo.frag");
-                TrailShader = ScreenShader.FromFileMesh(mod, "assets/effects/XiheTrailFx.frag");
+                GeoShader = ScreenGraphics.Shader.FromFileMesh(mod, "assets/effects/XiheGeo.frag");
+                TrailShader = ScreenGraphics.Shader.FromFileMesh(mod, "assets/effects/XiheTrailFx.frag");
                 log?.Info("[mesh] XiheGeo/XiheTrailFx 已注册（硬件几何：不读屏幕、不做屏幕拷贝）");
             }
             catch (Exception e)
@@ -392,7 +392,7 @@ namespace XiheBoss
                     if (b.Head != (headPass == 1) || b.Verts.Count < 36) continue;
                     var fx = new ScreenEffect(TrailShader)
                     {
-                        Layer = ScreenEffectLayer.World,
+                        Layer = ScreenEffects.Layer.World,
                         Mesh = true,
                         MeshBlend = b.Blend,
                         MeshVertices = CopyForSubmit(b.Verts, ref b.SubmitVertices),
@@ -416,7 +416,7 @@ namespace XiheBoss
                     if (b.Verts.Count < 6) continue;
                     var fx = new ScreenEffect(GeoShader)
                     {
-                        Layer = ScreenEffectLayer.World,
+                        Layer = ScreenEffects.Layer.World,
                         Mesh = true,
                         MeshBlend = b.Blend,
                         MeshVertices = CopyForSubmit(b.Verts, ref b.SubmitVertices),

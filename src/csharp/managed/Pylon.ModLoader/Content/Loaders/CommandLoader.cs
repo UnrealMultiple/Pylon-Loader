@@ -131,7 +131,7 @@ public static class CommandLoader
         {
             List<ModCommand> matching = entry.Value.Where(mc => Matches(mc.Type, type)).ToList();
             foreach (ModCommand mc in matching)
-                list.Add(Tuple.Create(matching.Count > 1 ? mc.Mod.Name + ":" + mc.Command : mc.Command, mc.Description));
+                list.Add(Tuple.Create(matching.Count > 1 && mc.Mod is not null ? mc.Mod.Name + ":" + mc.Command : mc.Command, mc.Description));
         }
 
         return list;

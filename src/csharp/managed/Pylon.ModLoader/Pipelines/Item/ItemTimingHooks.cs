@@ -1,4 +1,5 @@
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Globals;
 using Pylon.ModLoader.Hooks;
 using Pylon.ModLoader.Logging;
@@ -16,16 +17,21 @@ internal static class ItemTimingHooks
 
     internal static void Install()
     {
-        GlobalTime = GlobalItemRegistry.AnyWith(HookId.UseTimeMultiplier, HookId.UseSpeedMultiplier);
-        GlobalAnimation = GlobalItemRegistry.AnyWith(HookId.UseAnimationMultiplier, HookId.UseSpeedMultiplier);
-        GlobalAutoReuse = GlobalItemRegistry.AnyWith(HookId.CanAutoReuseItem);
-        GlobalAlt = GlobalItemRegistry.AnyWith(HookId.AltFunctionUse);
+        RefreshGlobals();
 
         On.Terraria.Player.ApplyItemTime_Item += ApplyItemTime;
         On.Terraria.Player.ApplyItemTime_Item_float += ApplyItemTimeMultiplied;
         On.Terraria.Player.ApplyItemAnimation += ApplyItemAnimation;
         On.Terraria.Player.ItemCheck_AutoReuseLogic += AutoReuseLogic;
         On.Terraria.Player.ItemCheck_ManageRightClickFeatures += ManageRightClickFeatures;
+    }
+
+    internal static void RefreshGlobals()
+    {
+        GlobalTime = GlobalItemRegistry.AnyWith(HookId.UseTimeMultiplier, HookId.UseSpeedMultiplier);
+        GlobalAnimation = GlobalItemRegistry.AnyWith(HookId.UseAnimationMultiplier, HookId.UseSpeedMultiplier);
+        GlobalAutoReuse = GlobalItemRegistry.AnyWith(HookId.CanAutoReuseItem);
+        GlobalAlt = GlobalItemRegistry.AnyWith(HookId.AltFunctionUse);
     }
 
     private static bool Wanted(bool global, Item? item) =>

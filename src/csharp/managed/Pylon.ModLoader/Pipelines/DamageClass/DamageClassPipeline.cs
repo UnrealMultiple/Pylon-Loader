@@ -1,5 +1,6 @@
 using Pylon.ModLoader.Content;
 using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Globals;
 using Pylon.ModLoader.Hooks;
 using Pylon.ModLoader.Logging;
@@ -19,16 +20,79 @@ internal sealed class DamageClassPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>damageclass 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
     {
-        On.Terraria.Player.GetWeaponDamage += WeaponDamage;
-        On.Terraria.Player.GetWeaponCrit += WeaponCrit;
-        On.Terraria.Player.GetWeaponKnockback += WeaponKnockback;
-        On.Terraria.Player.GetAdjustedItemScale += ItemScale;
+        internal static bool PlayersWant(HookId hook) => PlayerPipeline.Instance.ModsActive(hook);
 
-        Log.Info("[damageclass] 已挂（武器伤害/暴击/击退/体积派发 + 类别引擎随注册激活）");
-        return true;
+        internal struct Damage : IGate
+        {
+            public static bool Wanted() =>
+                HookGuard.Wants<ModItem>(HookId.ModifyWeaponDamage) ||
+                GlobalItemRegistry.AnyWith(HookId.ModifyWeaponDamage) || PlayersWant(HookId.ModifyWeaponDamage);
+
+            public static void Install()
+            {
+                On.Terraria.Player.GetWeaponDamage += WeaponDamage;
+                Log.Info("[damageclass] 已挂：武器伤害派发");
+            }
+        }
+
+        internal struct Crit : IGate
+        {
+            public static bool Wanted() =>
+                HookGuard.Wants<ModItem>(HookId.ModifyWeaponCrit) ||
+                GlobalItemRegistry.AnyWith(HookId.ModifyWeaponCrit) || PlayersWant(HookId.ModifyWeaponCrit);
+
+            public static void Install()
+            {
+                On.Terraria.Player.GetWeaponCrit += WeaponCrit;
+                Log.Info("[damageclass] 已挂：武器暴击派发");
+            }
+        }
+
+        internal struct Knockback : IGate
+        {
+            public static bool Wanted() =>
+                HookGuard.Wants<ModItem>(HookId.ModifyWeaponKnockback) ||
+                GlobalItemRegistry.AnyWith(HookId.ModifyWeaponKnockback) || PlayersWant(HookId.ModifyWeaponKnockback);
+
+            public static void Install()
+            {
+                On.Terraria.Player.GetWeaponKnockback += WeaponKnockback;
+                Log.Info("[damageclass] 已挂：武器击退派发");
+            }
+        }
+
+        internal struct Scale : IGate
+        {
+            public static bool Wanted() =>
+                HookGuard.Wants<ModItem>(HookId.ModifyItemScale) ||
+                GlobalItemRegistry.AnyWith(HookId.ModifyItemScale) || PlayersWant(HookId.ModifyItemScale);
+
+            public static void Install()
+            {
+                On.Terraria.Player.GetAdjustedItemScale += ItemScale;
+                Log.Info("[damageclass] 已挂：武器体积派发");
+            }
+        }
+
+        internal struct Engine : ILazyGate
+        {
+            public static bool Wanted() => false;
+
+            public static void Install() => DamageClassHooks.InstallEngine();
+        }
+
+        internal struct Projectile : ILazyGate
+        {
+            public static bool Wanted() => false;
+
+            public static void Install() => DamageClassHooks.InstallProjectileHooks();
+        }
     }
+
+    public bool Install() => GateHub<DamageClassPipeline>.Run();
 
     public void Refresh() { }
 

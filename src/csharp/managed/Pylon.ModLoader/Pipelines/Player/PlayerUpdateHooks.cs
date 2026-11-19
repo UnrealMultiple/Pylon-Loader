@@ -8,30 +8,39 @@ namespace Pylon.ModLoader.Pipelines;
 internal static class PlayerUpdateHooks
 {
     private static readonly HashSet<nint> Moved = [];
-    private static bool _installed;
     private static PlayerPipeline Players => PlayerPipeline.Instance;
 
-    internal static void Install()
+    internal static void InstallLook()
     {
-        if (_installed) return;
-        _installed = true;
-        PlayerFishingHooks.Install();
-        PlayerNurseShopHooks.Install();
-        PlayerSlotHooks.Install();
-        PlayerCraftingHooks.Install();
-        PlayerJumpHooks.Install();
         On.Terraria.Player.UpdateDyes += Dyes;
         On.Terraria.Player.UpdateVisibleAccessories += VisibleAccessories;
-        On.Terraria.Player.RecalculateLuck += Luck;
+    }
+
+    internal static void InstallLuck() => On.Terraria.Player.RecalculateLuck += Luck;
+
+    internal static void InstallMisc()
+    {
         On.Terraria.Player.CapAttackSpeeds += Misc;
+        On.Terraria.Main.DoUpdate_WhilePaused += Paused;
+    }
+
+    internal static void InstallMovement()
+    {
         On.Terraria.Player.HorizontalMovement += RunSpeeds;
         On.Terraria.Player.Update += Update;
         On.Terraria.Player.WetCollision += Wet;
         On.Terraria.Player.DryCollision += Dry;
         On.Terraria.Player.SlopingCollision += Sloping;
         On.Terraria.Player.BordersMovement += Borders;
-        On.Terraria.Main.DoUpdate_WhilePaused += Paused;
     }
+
+    internal static void InstallFishing() => PlayerFishingHooks.Install();
+
+    internal static void InstallNurseShop() => PlayerNurseShopHooks.Install();
+
+    internal static void InstallSlots() => PlayerSlotHooks.Install();
+
+    internal static void InstallCrafting() => PlayerCraftingHooks.Install();
 
     private static void Luck(On.Terraria.Player.orig_RecalculateLuck orig, Player self)
     {

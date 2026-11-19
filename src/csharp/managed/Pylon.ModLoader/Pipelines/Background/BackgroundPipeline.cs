@@ -2,6 +2,7 @@ using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using Terraria;
@@ -32,21 +33,69 @@ internal sealed class BackgroundPipeline : ILoaderModule, ILoaderModuleRefresh
     private static int Step1Push;
     private static float[] FadeBuffer = [];
 
-    public bool Install()
+    /// <summary>background 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
     {
-        On.Terraria.Main.GetPreferredBGStyleForPlayer += PreferredStyle;
-        On.Terraria.Main.UpdateBGVisibility_BackLayer += BackLayer;
-        On.Terraria.Main.UpdateBGVisibility_FrontLayer += FrontLayer;
-        On.Terraria.Main.DrawSurfaceBG_BackMountainsStep1 += Step1Hook;
-        On.Terraria.Main.DrawSurfaceBG_BackMountainsStep2 += Step2Hook;
-        On.Terraria.Main.DrawSurfaceBG_GetFogPower += FogPower;
+        internal static bool HasGlobal() => OverAnyGlobal(
+            nameof(GlobalBackgroundStyle.ChooseSurfaceBackgroundStyle),
+            nameof(GlobalBackgroundStyle.ModifyFarSurfaceFades),
+            nameof(GlobalBackgroundStyle.ChooseUndergroundBackgroundStyle),
+            nameof(GlobalBackgroundStyle.FillUndergroundTextureArray));
 
-        On.Terraria.Main.DrawBackground_PickUndergroundBackgroundStyle += PickUnderground;
-        On.Terraria.Main.get_backTextureValues += BackTextureValues;
-        On.Terraria.Main.get_oldBackTextureValues += OldBackTextureValues;
+        internal struct Surface : IGate
+        {
+            public static bool Wanted() =>
+                ModContent.GetContent<ModSurfaceBackgroundStyle>().Count > 0 || HasGlobal();
 
-        Log.Info("[background] 已挂（背景号固定 / 远中近三层 / 淡入淡出 / 地下 5 层）");
-        return true;
+            public static void Install()
+            {
+                On.Terraria.Main.GetPreferredBGStyleForPlayer += PreferredStyle;
+                On.Terraria.Main.UpdateBGVisibility_BackLayer += BackLayer;
+                On.Terraria.Main.UpdateBGVisibility_FrontLayer += FrontLayer;
+                On.Terraria.Main.DrawSurfaceBG_BackMountainsStep1 += Step1Hook;
+                On.Terraria.Main.DrawSurfaceBG_BackMountainsStep2 += Step2Hook;
+                On.Terraria.Main.DrawSurfaceBG_GetFogPower += FogPower;
+                Log.Info("[background] 已挂（表层背景六链：换号 / 淡入淡出 / 远中近补画）");
+            }
+        }
+
+        internal struct Underground : IGate
+        {
+            public static bool Wanted() =>
+                ModContent.GetContent<ModUndergroundBackgroundStyle>().Count > 0 || HasGlobal();
+
+            public static void Install()
+            {
+                On.Terraria.Main.DrawBackground_PickUndergroundBackgroundStyle += PickUnderground;
+                On.Terraria.Main.get_backTextureValues += BackTextureValues;
+                On.Terraria.Main.get_oldBackTextureValues += OldBackTextureValues;
+                Log.Info("[background] 已挂（地下背景：换号 + 5 层贴图）");
+            }
+        }
+    }
+
+    public bool Install() => GateHub<BackgroundPipeline>.Run();
+
+    private static readonly Dictionary<(Type, string), bool> _over = [];
+
+    private static bool OverAnyGlobal(params ReadOnlySpan<string> methods)
+    {
+        foreach (var global in ModContent.GetContent<GlobalBackgroundStyle>())
+        {
+            foreach (var method in methods)
+            {
+                var key = (global.GetType(), method);
+                if (!_over.TryGetValue(key, out var hit))
+                {
+                    hit = HookGuard.Overrides(global.GetType(), typeof(GlobalBackgroundStyle), method);
+                    _over[key] = hit;
+                }
+
+                if (hit) return true;
+            }
+        }
+
+        return false;
     }
 
     public void Refresh()

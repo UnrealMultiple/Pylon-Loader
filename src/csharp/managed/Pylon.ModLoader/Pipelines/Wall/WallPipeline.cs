@@ -27,18 +27,39 @@ internal sealed class WallPipeline : ILoaderModule
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>wall 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
     {
-        On.Terraria.WorldGen.KillWall += Kill;
-        On.Terraria.WorldGen.KillWall_MakeWallDust += MakeDust;
-        On.Terraria.WorldGen.KillWall_PlaySounds += PlaySounds;
-        On.Terraria.WorldGen.KillWall_DropItems += DropItems;
-        On.Terraria.Framing.WallFrame += Frame;
-        On.Terraria.Main.DoUpdate_AnimateWalls += Animate;
+        internal struct Kill : IGate
+        {
+            public static bool Wanted() => ModContent.GetContent<ModWall>().Count > 0;
 
-        Log.Info("[wall] 已挂（挖 / 尘土 / 声音 / 掉落 / 边框 / 动画）");
-        return true;
+            public static void Install()
+            {
+                On.Terraria.WorldGen.KillWall += Instance.Kill;
+                On.Terraria.WorldGen.KillWall_MakeWallDust += Instance.MakeDust;
+                On.Terraria.WorldGen.KillWall_PlaySounds += Instance.PlaySounds;
+                On.Terraria.WorldGen.KillWall_DropItems += Instance.DropItems;
+                Log.Info("[wall] 已挂（挖 / 尘土 / 声音 / 掉落；边框 / 动画按覆写分装）");
+            }
+        }
+
+        internal struct Frame : IGate
+        {
+            public static bool Wanted() => HookGuard.Wants<ModWall>(HookId.WallFrame);
+
+            public static void Install() => On.Terraria.Framing.WallFrame += Instance.Frame;
+        }
+
+        internal struct Animate : IGate
+        {
+            public static bool Wanted() => HookGuard.Wants<ModWall>(HookId.AnimateWall);
+
+            public static void Install() => On.Terraria.Main.DoUpdate_AnimateWalls += Instance.Animate;
+        }
     }
+
+    public bool Install() => GateHub<WallPipeline>.Run();
 
     private void Animate(On.Terraria.Main.orig_DoUpdate_AnimateWalls orig)
     {

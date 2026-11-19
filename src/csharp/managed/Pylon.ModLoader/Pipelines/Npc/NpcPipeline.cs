@@ -70,58 +70,318 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private ref NpcDrawFrame Draw => ref _draws[_drawDepth - 1];
 
-    public bool Install()
+    /// <summary>npc 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
+    {
+        internal static bool HasNpcs() => ModContent.GetContent<ModNpc>().Count > 0;
+
+        internal struct Core : IGate
+        {
+            public static bool Wanted() => true;
+
+            public static void Install() => Instance.InstallCore();
+        }
+
+        internal struct Save : IGate
+        {
+            public static bool Wanted() => HasNpcs();
+
+            public static void Install() => Instance._save.Install();
+        }
+
+        internal struct Town : IGate
+        {
+            public static bool Wanted() => HasNpcs();
+
+            public static void Install() => Instance._town.Install();
+        }
+
+        internal struct Heads : IGate
+        {
+            public static bool Wanted() => HasNpcs();
+
+            public static void Install() => NpcHeadHooks.Install();
+        }
+
+        internal struct Spawner : IGate
+        {
+            public static bool Wanted() => HasNpcs();
+
+            public static void Install() => NpcSpawn.Install();
+        }
+
+        internal struct TownAttack : IGate
+        {
+            public static bool Wanted() => HasNpcs();
+
+            public static void Install() => NpcTownAttackHooks.Install();
+        }
+
+        internal struct DrawCustom : IGate
+        {
+            public static bool Wanted() => HasNpcs();
+
+            public static void Install() => On.Terraria.Main.DrawNPCs += Instance.DrawNpcs;
+        }
+
+        internal struct Ai : IGate
+        {
+            public static bool Wanted() => NpcOrGlobal(HookId.PreAI, HookId.AI, HookId.PostAI) ||
+                                           NpcOverrides("get_" + nameof(ModNpc.AIType));
+
+            public static void Install() => On.Terraria.NPC.AI += Instance.Ai;
+        }
+
+        internal struct Spawn : IGate
+        {
+            public static bool Wanted() => NpcOrGlobal(HookId.OnSpawn);
+
+            public static void Install() => On.Terraria.NPC.NewNPC += Instance.Spawned;
+        }
+
+        internal struct Behind : IGate
+        {
+            public static bool Wanted() => NpcOrGlobal(HookId.ResetEffects, HookId.DrawBehind);
+
+            public static void Install()
+            {
+                On.Terraria.NPC.UpdateNPC_BuffSetFlags += Instance.ResetEffects;
+                On.Terraria.Main.CacheNPCDraws += Instance.CacheDraws;
+            }
+        }
+
+        internal struct CheckDead : IGate
+        {
+            public static bool Wanted() => NpcOrGlobal(HookId.CheckDead);
+
+            public static void Install() => On.Terraria.NPC.checkDead += Instance.CheckDead;
+        }
+
+        internal struct CheckActive : IGate
+        {
+            public static bool Wanted() => NpcOrGlobal(HookId.CheckActive);
+
+            public static void Install() => On.Terraria.NPC.CheckActive += Instance.CheckActive;
+        }
+
+        internal struct FindFrame : IGate
+        {
+            public static bool Wanted() => NpcOrGlobal(HookId.FindFrame) ||
+                                           NpcOverrides("get_" + nameof(ModNpc.AnimationType));
+
+            public static void Install() => On.Terraria.NPC.FindFrame += Instance.FindFrame;
+        }
+
+        internal struct LifeRegen : IGate
+        {
+            public static bool Wanted() => NpcOrGlobal(HookId.UpdateLifeRegen);
+
+            public static void Install() => On.Terraria.NPC.UpdateNPC_BuffApplyDOTs += Instance.LifeRegen;
+        }
+
+        internal struct Scaling : IGate
+        {
+            public static bool Wanted() => NpcOrGlobal(HookId.ApplyDifficultyAndPlayerScaling);
+
+            public static void Install() => On.Terraria.NPC.ScaleStats_ByPlayerCount += Instance.Scaling;
+        }
+
+        internal struct Loot : IGate
+        {
+            public static bool Wanted() => NpcOrGlobal(HookId.PreKill, HookId.OnKill, HookId.SpecialOnKill, HookId.HitEffect);
+
+            public static void Install()
+            {
+                On.Terraria.NPC.NPCLoot += Instance.Loot;
+                On.Terraria.NPC.DropEoWLoot += Instance.DropEoWLoot;
+                On.Terraria.NPC.HitEffect += Instance.HitEffect;
+            }
+        }
+
+        internal struct Hit : IGate
+        {
+            public static bool Wanted() => HitWanted();
+
+            public static void Install() => Instance.InstallHit();
+        }
+
+        internal struct Contact : IGate
+        {
+            public static bool Wanted() => ContactWanted();
+
+            public static void Install() => NpcContactHooks.Install();
+        }
+
+        internal struct DeathMsg : IGate
+        {
+            public static bool Wanted() => NpcOrGlobal(HookId.ModifyDeathMessage) ||
+                                           NpcOverrides("get_" + nameof(ModNpc.DeathMessage));
+
+            public static void Install() => NpcDeathMessageHooks.Install();
+        }
+
+        internal struct TypeName : IGate
+        {
+            public static bool Wanted() => NpcOrGlobal(HookId.ModifyTypeName);
+
+            public static void Install() => On.Terraria.NPC.get_TypeName += Instance.TypeName;
+        }
+
+        internal struct PartyHat : IGate
+        {
+            public static bool Wanted() => NpcOrGlobal(HookId.UsesPartyHat);
+
+            public static void Install() => On.Terraria.NPC.UsesPartyHat += Instance.PartyHat;
+        }
+
+        internal struct HealthBar : IGate
+        {
+            public static bool Wanted() => NpcOrGlobal(HookId.DrawHealthBar);
+
+            public static void Install()
+            {
+                On.Terraria.Main.DrawInterface_14_EntityHealthBars += Instance.HealthBarsStart;
+                On.Terraria.Main.DrawHealthBar += Instance.HealthBar;
+            }
+        }
+
+        internal struct Hover : IGate
+        {
+            public static bool Wanted() => NpcOrGlobal(HookId.ModifyHoverBoundingBox, HookId.PreHoverInteract);
+
+            public static void Install() => On.Terraria.Main.HoverOverNPCs += Instance.Hover;
+        }
+
+        internal struct Catch : IGate
+        {
+            public static bool Wanted() => NpcOrGlobal(HookId.CanBeCaughtBy, HookId.OnCaughtBy, HookId.CanCatchNPC, HookId.OnCatchNPC) ||
+                                           PlayerWants(HookId.CanCatchNPC, HookId.OnCatchNPC);
+
+            public static void Install()
+            {
+                On.Terraria.Player.ItemCheck_CatchCritters += Instance.CatchCritters;
+                On.Terraria.NPC.CatchNPC += Instance.Catch;
+            }
+        }
+
+        internal struct Draw : IGate
+        {
+            public static bool Wanted() => NpcOrGlobal(HookId.DrawEffects, HookId.PreDraw, HookId.PostDraw);
+
+            public static void Install()
+            {
+                On.Terraria.NPC.GetNPCColorTintedByBuffs += Instance.TintedByBuffs;
+                On.Terraria.Main.DrawNPCDirect_SpriteBatch_NPC_bool_Vector2 += Instance.DrawDirect;
+                On.Terraria.Main.DrawNPCDirect_SpriteBatch_NPC_bool_Vector2_LightMap_RectangleRef += Instance.DrawDirectLit;
+            }
+        }
+
+        internal struct Alpha : IGate
+        {
+            public static bool Wanted() => NpcOrGlobal(HookId.GetAlpha);
+
+            public static void Install() => On.Terraria.NPC.GetAlpha += Instance.Alpha;
+        }
+
+        internal struct BossHead : IGate
+        {
+            public static bool Wanted() => NpcOrGlobal(HookId.BossHeadSlot, HookId.BossHeadRotation, HookId.BossHeadSpriteEffects);
+
+            public static void Install()
+            {
+                On.Terraria.NPC.GetBossHeadTextureIndex += Instance.BossHeadSlot;
+                On.Terraria.NPC.GetBossHeadRotation += Instance.BossHeadRotation;
+                On.Terraria.NPC.GetBossHeadSpriteEffects += Instance.BossHeadEffects;
+            }
+        }
+
+        internal struct Chat : IGate
+        {
+            public static bool Wanted() => NpcOrGlobal(HookId.GetChat, HookId.CanChat);
+
+            public static void Install()
+            {
+                On.Terraria.NPC.GetChat += Instance.GetChat;
+                On.Terraria.NPC.get_CanTalk += Instance.ForceCanTalk;
+            }
+        }
+    }
+
+    public bool Install() => GateHub<NpcPipeline>.Run();
+
+    private void InstallCore()
     {
         _binding.Prime();
         _defaults.Install();
-        _town.Install();
-        _save.Install();
-        NpcTownAttackHooks.Install();
-        NpcDeathMessageHooks.Install();
-        NpcHeadHooks.Install();
-        NpcSpawn.Install();
-        NpcHitHooks.Install();
-        NpcContactHooks.Install();
+        EnsureNpcTypeTables();
+        Log.Info("[npc] 已挂（默认值 / 免疫表；AI / 绘制 / 城镇钩子按内容分装）");
+    }
 
-        On.Terraria.Main.DrawNPCs += DrawNpcs;
-        On.Terraria.NPC.AI += Ai;
-        On.Terraria.NPC.NewNPC += Spawned;
-        On.Terraria.NPC.UpdateNPC_BuffSetFlags += ResetEffects;
-        On.Terraria.NPC.checkDead += CheckDead;
-        On.Terraria.NPC.CheckActive += CheckActive;
-        On.Terraria.NPC.FindFrame += FindFrame;
-        On.Terraria.NPC.NPCLoot += Loot;
-        On.Terraria.NPC.DropEoWLoot += DropEoWLoot;
-        On.Terraria.NPC.HitEffect += HitEffect;
+    private void InstallHit()
+    {
+        NpcHitHooks.Install();
         On.Terraria.NPC.GetMeleeCollisionData += CollisionData;
         On.Terraria.NPC.Collision_DecideFallThroughPlatforms += FallThroughPlatforms;
-        On.Terraria.NPC.get_TypeName += TypeName;
-        On.Terraria.NPC.UsesPartyHat += PartyHat;
-        On.Terraria.Player.ItemCheck_CatchCritters += CatchCritters;
-        On.Terraria.NPC.CatchNPC += Catch;
-        On.Terraria.Main.DrawInterface_14_EntityHealthBars += HealthBarsStart;
-        On.Terraria.Main.DrawHealthBar += HealthBar;
-        On.Terraria.Main.HoverOverNPCs += Hover;
-        On.Terraria.NPC.ScaleStats_ByPlayerCount += Scaling;
-        On.Terraria.NPC.UpdateNPC_BuffApplyDOTs += LifeRegen;
-        On.Terraria.NPC.GetChat += GetChat;
-        On.Terraria.NPC.get_CanTalk += ForceCanTalk;
-        On.Terraria.NPC.GetNPCColorTintedByBuffs += TintedByBuffs;
-        On.Terraria.NPC.GetAlpha += Alpha;
-        On.Terraria.NPC.GetBossHeadTextureIndex += BossHeadSlot;
-        On.Terraria.NPC.GetBossHeadRotation += BossHeadRotation;
-        On.Terraria.NPC.GetBossHeadSpriteEffects += BossHeadEffects;
-        On.Terraria.Main.DrawNPCDirect_SpriteBatch_NPC_bool_Vector2 += DrawDirect;
-        On.Terraria.Main.DrawNPCDirect_SpriteBatch_NPC_bool_Vector2_LightMap_RectangleRef += DrawDirectLit;
-        On.Terraria.Main.CacheNPCDraws += CacheDraws;
-
-        Log.Info("[npc] 已挂（AI / 事件 / 绘制 / 首领头像 / 城镇）");
-        return true;
     }
+
+    private static bool NpcWants(params ReadOnlySpan<HookId> hooks) => HookGuard.Wants<ModNpc>(hooks);
+
+    private static bool NpcOrGlobal(params ReadOnlySpan<HookId> hooks) =>
+        HookGuard.Wants<ModNpc>(hooks) || GlobalNpcRegistry.AnyWith(hooks);
+
+    private static bool ItemWants(params ReadOnlySpan<HookId> hooks) => HookGuard.Wants<ModItem>(hooks);
+
+    private static bool PlayerWants(params ReadOnlySpan<HookId> hooks)
+    {
+        foreach (var player in PlayerPipeline.Instance.Binding.Templates)
+        {
+            var plan = HookScan.Of(player.GetType(), typeof(ModPlayer));
+            foreach (var hook in hooks)
+            {
+                if (plan.Has(hook)) return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static readonly Dictionary<(Type, string), bool> _overrides = [];
+
+    private static bool NpcOverrides(string getter)
+    {
+        foreach (var npc in ModContent.GetContent<ModNpc>())
+        {
+            var type = npc.GetType();
+            if (!_overrides.TryGetValue((type, getter), out var hit))
+            {
+                hit = HookGuard.Overrides(type, typeof(ModNpc), getter);
+                _overrides[(type, getter)] = hit;
+            }
+
+            if (hit) return true;
+        }
+
+        return false;
+    }
+
+    private static bool HitWanted() =>
+        GlobalItemRegistry.AnyWith(HookId.CanHitNPC, HookId.CanMeleeAttackCollideWithNPC, HookId.ModifyHitNPC, HookId.OnHitNPC) ||
+        GlobalNpcRegistry.AnyWith(HookId.CanBeHitByItem, HookId.CanCollideWithPlayerMeleeAttack, HookId.ModifyIncomingHit,
+            HookId.ModifyHitByItem, HookId.OnHitByItem, HookId.ModifyCollisionData, HookId.CanFallThroughPlatforms) ||
+        NpcWants(HookId.CanBeHitByItem, HookId.CanCollideWithPlayerMeleeAttack, HookId.ModifyIncomingHit,
+            HookId.ModifyHitByItem, HookId.OnHitByItem, HookId.ModifyCollisionData, HookId.CanFallThroughPlatforms) ||
+        ItemWants(HookId.CanHitNPC, HookId.CanMeleeAttackCollideWithNPC, HookId.ModifyHitNPC, HookId.OnHitNPC) ||
+        PlayerWants(HookId.CanHitNPC, HookId.CanHitNPCWithItem, HookId.CanMeleeAttackCollideWithNPC,
+            HookId.ModifyHitNPC, HookId.ModifyHitNPCWithItem, HookId.OnHitNPC, HookId.OnHitNPCWithItem);
+
+    private static bool ContactWanted() =>
+        GlobalNpcRegistry.AnyWith(HookId.CanHitNPC, HookId.ModifyHitNPC, HookId.OnHitNPC, HookId.CanBeHitByNPC) ||
+        NpcWants(HookId.CanHitNPC, HookId.ModifyHitNPC, HookId.OnHitNPC, HookId.CanBeHitByNPC);
 
     public void Refresh()
     {
         _binding.Prime();
+        EnsureNpcTypeTables();
         NpcTownAttackHooks.RebuildWanted();
     }
 

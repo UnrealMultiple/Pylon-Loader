@@ -11,7 +11,6 @@ using Pylon.ModLoader;
 using Pylon.ModLoader.Effects;
 using Terraria;
 using UVector2 = UnityEngine.Vector2;
-using ScreenShader = Pylon.ModLoader.Effects.ScreenShader;
 using Pylon.ModLoader.Content;
 using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
@@ -20,7 +19,7 @@ namespace XiheBoss
 {
     internal static class XiheBigLaserFx
     {
-        internal static ScreenShader Shader;
+        internal static ScreenGraphics.Shader Shader;
 
         private sealed class Ring
         {
@@ -42,7 +41,7 @@ namespace XiheBoss
         {
             try
             {
-                Shader = ScreenShader.FromFile(mod, "assets/effects/XiheBigLaser.frag");
+                Shader = ScreenGraphics.Shader.FromFile(mod, "assets/effects/XiheBigLaser.frag");
                 log?.Info("[fx] XiheBigLaser.frag 已注册（复用 XiheMagic 的光柱着色器）");
             }
             catch (Exception e)
@@ -148,7 +147,10 @@ namespace XiheBoss
             foreach (var r in state.Rings)
             {
                 var age = r.Birth - p.timeLeft;
-                if (age < 0 || age > r.Life + 32) continue;
+                // MEAC：激光活着时环的 TimeLeft 被钳在 15~20，环跟着光柱全程存在；
+                // 激光濒死（timeLeft <= 20）才开始收束淡出——淡出由 RingScale 的 scale→0 负责。
+                // 这里不能再按 Life+32 硬砍年龄，否则环会在光柱中途集体消失。
+                if (age < 0) continue;
 
                 var s = RingScale(r, p.timeLeft, age);
                 if (s <= 0.01f) continue;

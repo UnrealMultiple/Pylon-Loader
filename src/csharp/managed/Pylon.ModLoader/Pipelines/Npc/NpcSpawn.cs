@@ -12,7 +12,6 @@ namespace Pylon.ModLoader.Pipelines;
 /// <summary>自然生成的选点上下文、权重池与生成通知;客户端不参与作者抽选。</summary>
 internal static class NpcSpawn
 {
-    private static bool _installed;
     private sealed class State { internal NPCSpawnInfo? Info; }
     private static readonly Dictionary<long, State> States = [];
     [ThreadStatic] private static NPCSpawnInfo? _current;
@@ -35,8 +34,6 @@ internal static class NpcSpawn
 
     internal static void Install()
     {
-        if (_installed) return;
-        _installed = true;
         On.Terraria.WorldGen.clearWorld += ClearWorld;
         On.Terraria.NPC.Spawner.SetSpawnFlags += SetFlags;
         On.Terraria.NPC.Spawner.SetSpawnFlagsForChosenTile += ChosenTile;

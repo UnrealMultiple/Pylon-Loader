@@ -18,7 +18,12 @@ internal sealed class PlayerBinding
     internal void Register(ModPlayer template)
     {
         template.Index = (ushort)_templates.Count;
+        template.Hooks = HookScan.Of(template.GetType(), typeof(ModPlayer));
         _templates.Add(template);
+
+        Span<HookId> buffer = stackalloc HookId[HookMask.Capacity];
+        var count = template.Hooks.Collect(buffer);
+        for (var i = 0; i < count; i++) _active.Add(buffer[i]);
     }
 
     internal void Refresh()

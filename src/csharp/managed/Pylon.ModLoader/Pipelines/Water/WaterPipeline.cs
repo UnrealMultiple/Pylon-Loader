@@ -30,25 +30,105 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>water 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
     {
-        On.Terraria.WaterfallManager.Draw += DrawWaterfalls;
-        On.Terraria.Player.GetHairColor += HairColor;
-        On.Terraria.WaterfallManager.DrawWaterfall_int_int_int_float_Vector2_RectangleRef_ColorRef_SpriteEffects += TintWaterfall;
-        On.Terraria.Dust.dustWater += DustWater;
-        On.Terraria.Gore.NewGore += NewGore;
-        On.Terraria.GameContent.Drawing.TileDrawing.EmitLiquidDrops += EmitLiquidDrops;
-        On.Terraria.Rain.MakeRain += MakeRain;
-        On.Terraria.Rain.NewRain += NewRain;
-        On.Terraria.Rain.NewRainForced += NewRainForced;
-        On.Terraria.Main.DrawRain += DrawRain;
-        On.Terraria.Main.CalculateWaterStyle += ChooseWaterStyle;
-        On.Terraria.Graphics.Light.LightingEngine.UpdateLightDecay += UpdateLightDecay;
-        On.Terraria.Graphics.Light.LegacyLighting.UpdateLightDecay += UpdateLegacyLightDecay;
+        internal struct Core : IGate
+        {
+            public static bool Wanted() => true;
 
-        Log.Info("[water] 已挂（编号 / 扩表 / 主贴图 / 瀑布贴图与绘制 / 溅水尘与水滴 / 雨 / 光穿透 / 场景赢家改 CalculateWaterStyle 返回值）");
-        return true;
+            public static void Install()
+            {
+                WaterTable.Assign();
+                WaterfallTable.Assign();
+            }
+        }
+
+        internal struct Scene : IGate
+        {
+            public static bool Wanted() => HookGuard.Wants<ModSceneEffect>(HookId.WaterStyle);
+
+            public static void Install() => On.Terraria.Main.CalculateWaterStyle += ChooseWaterStyle;
+        }
+
+        internal struct RainMake : IGate
+        {
+            public static bool Wanted() => ModContent.GetContent<ModWaterStyle>().Count > 0;
+
+            public static void Install() => On.Terraria.Rain.MakeRain += MakeRain;
+        }
+
+        internal struct RainVariant : IGate
+        {
+            public static bool Wanted() => HookGuard.Wants<ModWaterStyle>(HookId.GetRainVariant);
+
+            public static void Install()
+            {
+                On.Terraria.Rain.NewRain += NewRain;
+                On.Terraria.Rain.NewRainForced += NewRainForced;
+            }
+        }
+
+        internal struct RainTex : IGate
+        {
+            public static bool Wanted() => HookGuard.Wants<ModWaterStyle>(HookId.GetRainTexture);
+
+            public static void Install() => On.Terraria.Main.DrawRain += DrawRain;
+        }
+
+        internal struct Light : IGate
+        {
+            public static bool Wanted() => HookGuard.Wants<ModWaterStyle>(HookId.LightColorMultiplier);
+
+            public static void Install()
+            {
+                On.Terraria.Graphics.Light.LightingEngine.UpdateLightDecay += UpdateLightDecay;
+                On.Terraria.Graphics.Light.LegacyLighting.UpdateLightDecay += UpdateLegacyLightDecay;
+            }
+        }
+
+        internal struct Dust : IGate
+        {
+            public static bool Wanted() => HookGuard.Wants<ModWaterStyle>(HookId.GetSplashDust);
+
+            public static void Install() => On.Terraria.Dust.dustWater += DustWater;
+        }
+
+        internal struct Drip : IGate
+        {
+            public static bool Wanted() => ModContent.GetContent<ModWaterStyle>().Count > 0;
+
+            public static void Install()
+            {
+                On.Terraria.Gore.NewGore += NewGore;
+                On.Terraria.GameContent.Drawing.TileDrawing.EmitLiquidDrops += EmitLiquidDrops;
+            }
+        }
+
+        internal struct FallDraw : IGate
+        {
+            public static bool Wanted() => ModContent.GetContent<ModWaterStyle>().Count > 0;
+
+            public static void Install() => On.Terraria.WaterfallManager.Draw += DrawWaterfalls;
+        }
+
+        internal struct FallTint : IGate
+        {
+            public static bool Wanted() => HookGuard.Wants<ModWaterfallStyle>(HookId.ColorMultiplier);
+
+            public static void Install() =>
+                On.Terraria.WaterfallManager.DrawWaterfall_int_int_int_float_Vector2_RectangleRef_ColorRef_SpriteEffects += TintWaterfall;
+        }
+
+        internal struct Hair : IGate
+        {
+            public static bool Wanted() => HookGuard.Wants<ModWaterStyle>(HookId.BiomeHairColor);
+
+            public static void Install() => On.Terraria.Player.GetHairColor += HairColor;
+        }
     }
+
+    public bool Install() => GateHub<WaterPipeline>.Run();
 
     private static readonly int[] VanillaBackgrounds = { 1, 2, 3, 4, 5, 6, 7, 8, 13, 14 };
 
@@ -270,7 +350,7 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
     {
         var index = orig(position, velocity);
 
-        if (_raining is { } water && HookGuard.Overrides(water.GetType(), typeof(ModWaterStyle), nameof(ModWaterStyle.GetRainVariant)))
+        if (_raining is { } water && water.Plan.Has(HookId.GetRainVariant))
             SetRainType(index, water);
         return index;
     }

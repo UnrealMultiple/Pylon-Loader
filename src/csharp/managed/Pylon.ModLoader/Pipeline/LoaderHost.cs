@@ -44,9 +44,9 @@ internal sealed class LoaderHost
         mod.Plan = HookScan.Of(mod.GetType(), typeof(Mod));
         mod.Types = RegistrationPipeline.Register(this, mod);
 
+        Hooks.Rebuild(Mods.Mods);
         LoaderRegistry.InstallAll();
         ModLifecycle.Install();
-        Hooks.Rebuild(Mods.Mods);
     }
 
     public void ContentReady()

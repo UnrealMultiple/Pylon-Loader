@@ -1,5 +1,6 @@
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using Terraria;
@@ -24,28 +25,68 @@ internal sealed class PlayerDrawInfoPipeline : ILoaderModule
 
     private static PlayerPipeline Players => PlayerPipeline.Instance;
 
-    public bool Install()
+    /// <summary>playerdrawinfo 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
     {
-        // 绘制准备之后改颜色 / 参数；每个玩家各一次。
-        On.Terraria.DataStructures.PlayerDrawSet.BoringSetup += BoringSetup;
+        internal struct Boring : IGate
+        {
+            public static bool Wanted() =>
+                Players.ModsActive(HookId.DrawEffects) || Players.ModsActive(HookId.ModifyDrawInfo);
 
-        // 游戏的层变换之后、进渲染缓存之前。
-        On.Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_RenderAllLayers += RenderAllLayers;
+            public static void Install() => On.Terraria.DataStructures.PlayerDrawSet.BoringSetup += BoringSetup;
+        }
 
-        // 整个玩家画完（含相机）；DrawPlayer 钩子的落点。
-        On.Terraria.Graphics.Renderers.LegacyPlayerRenderer.DrawPlayerFull += DrawPlayerFull;
+        internal struct Transform : IGate
+        {
+            public static bool Wanted() => Players.ModsActive(HookId.TransformDrawData);
 
-        // 缩放；作者要自己的视野倍率时改它。
-        On.Terraria.Main.DoDraw_UpdateCameraPosition += UpdateCameraPosition;
+            public static void Install() =>
+                On.Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_RenderAllLayers += RenderAllLayers;
+        }
 
-        // 缩放写在 GameViewMatrix 的 set_Zoom 里：拦写入点，游戏自己的按键缩放也会先过作者的钩子。
-        On.Terraria.Graphics.SpriteViewMatrix.set_Zoom += SetZoom;
+        internal struct DrawPlayer : IGate
+        {
+            public static bool Wanted() => Players.ModsActive(HookId.DrawPlayer);
 
-        // 逐层：作者可以说某一层别画（VanillaDrawLayer 点名）。
-        HideLayerHooks.Install();
+            public static void Install() =>
+                On.Terraria.Graphics.Renderers.LegacyPlayerRenderer.DrawPlayerFull += DrawPlayerFull;
+        }
 
-        Log.Info("[playerdrawinfo] 已挂（DrawEffects / ModifyDrawInfo / TransformDrawData / DrawPlayer / ModifyScreenPosition）");
-        return true;
+        internal struct Camera : IGate
+        {
+            public static bool Wanted() =>
+                Players.ModsActive(HookId.ModifyScreenPosition) ||
+                SystemLoader.With(HookId.ModifyScreenPosition).Length > 0;
+
+            public static void Install() => On.Terraria.Main.DoDraw_UpdateCameraPosition += UpdateCameraPosition;
+        }
+
+        internal struct Zoom : IGate
+        {
+            public static bool Wanted() => Players.ModsActive(HookId.ModifyZoom);
+
+            public static void Install() => On.Terraria.Graphics.SpriteViewMatrix.set_Zoom += SetZoom;
+        }
+
+        internal struct Anchors : IGate
+        {
+            public static bool Wanted() => ModLayerCount() > 0 || Players.ModsActive(HookId.HideDrawLayers);
+
+            public static void Install() => HideLayerHooks.Install();
+        }
+    }
+
+    public bool Install() => GateHub<PlayerDrawInfoPipeline>.Run();
+
+    private static int ModLayerCount()
+    {
+        var count = 0;
+        foreach (var layer in ModContent.GetContent<PlayerDrawLayer>())
+        {
+            if (layer is not VanillaPlayerDrawLayer) count++;
+        }
+
+        return count;
     }
 
     // ===================== 钩子 =====================

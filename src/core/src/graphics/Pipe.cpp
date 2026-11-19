@@ -2,6 +2,7 @@
 #include "graphics/Pipe.h"
 
 #include <atomic>
+#include <iterator>
 #include <mutex>
 #include <utility>
 
@@ -37,6 +38,20 @@ fx::Frame take(fx::Frame& slot) {
     std::lock_guard<std::mutex> lock(g_mutex);
     frame = std::move(slot);
     return frame;
+}
+
+/// 同一渲染帧内可以有多个 Mod 各自提交（每帧多个 Begin/End）。发布必须累加，
+/// 不能让后提交的 Mod 把先提交的整帧覆盖掉——否则两个屏幕效果同时开时，
+/// 只有一个能画出来（XiheBoss + XiheMagic 的真机现象）。
+void mergeInto(fx::Frame& into, fx::Frame&& from) {
+    if (from.empty()) return;
+    into.draws.insert(into.draws.end(),
+                      std::make_move_iterator(from.draws.begin()),
+                      std::make_move_iterator(from.draws.end()));
+    into.targets.insert(into.targets.end(),
+                        std::make_move_iterator(from.targets.begin()),
+                        std::make_move_iterator(from.targets.end()));
+    into.history = into.history || from.history;
 }
 
 }  // namespace
@@ -91,8 +106,8 @@ void Pipe::Publish(fx::Frame&& frame) {
     if (screen.draws.empty()) screen = fx::Frame();
 
     std::lock_guard<std::mutex> lock(g_mutex);
-    g_world = std::move(world);
-    g_screen = std::move(screen);
+    mergeInto(g_world, std::move(world));
+    mergeInto(g_screen, std::move(screen));
 }
 
 bool Pipe::WorldPending() {

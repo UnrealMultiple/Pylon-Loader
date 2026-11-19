@@ -1,5 +1,6 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Contracts;
 using Pylon.ModLoader.Hooks;
 using Pylon.ModLoader.Logging;
@@ -22,40 +23,268 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>player 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
     {
-        On.Terraria.Player.ResetEffects += ResetEffects;
-        On.Terraria.Player.UpdateEquips += Equips;
-        On.Terraria.Player.UpdateLifeRegen += LifeRegen;
-        On.Terraria.Player.UpdateDead += Dead;
-        On.Terraria.Player.Update += Update;
-        On.Terraria.Player.UpdateBuffs += Buffs;
-        On.Terraria.Player.KillMe += KillMe;
-        PlayerHurtHooks.Install();
-        PlayerUpdateHooks.Install();
+        internal struct Core : IGate
+        {
+            public static bool Wanted() => true;
 
-        On.Terraria.Player.ItemCheck += ItemCheck;
-        On.Terraria.Player.CanUseItem += CanUse;
-        On.Terraria.Player.ApplyPotionDelay += PotionDelay;
-        On.Terraria.Player.AddBuff += AddBuff;
+            public static void Install() => Instance.Refresh();
+        }
 
-        On.Terraria.Player.RefreshInfoAccs += InfoAccessories;
-        On.Terraria.GameInput.TriggersSet.CopyInto += TriggersCopied;
-        On.Terraria.Player.KeyDoubleTap += KeyDoubleTap;
-        On.Terraria.Player.KeyHoldDown += KeyHoldDown;
-        On.Terraria.Player.TrySwitchingLoadout += LoadoutSwitched;
+        internal struct Reset : IGate
+        {
+            public static bool Wanted() => Instance.Wants(HookId.ResetEffects, HookId.ModifyMaxStats);
 
-        On.Terraria.Player.Spawn += Spawned;
-        On.Terraria.Player.Teleport += Teleport;
-        On.Terraria.Player.PickupItem += Pickup;
-        On.Terraria.Player.OnHit += HitAnything;
-        On.GUIPlayerCreateMenu.SetupStartingItems += StartingItemsCreated;
-        On.Terraria.Player.DropItems += StartingItemsDropped;
+            public static void Install() => On.Terraria.Player.ResetEffects += Instance.ResetEffects;
+        }
 
-        Refresh();
-        Log.Info($"[player] 已挂（重置 / 更新 / 装备 / 再生 / 死亡 / 物品检查 / 能力键 / 复活 / 传送 / 拾取），模板 {_binding.Count}");
-        return true;
+        internal struct Equips : IGate
+        {
+            public static bool Wanted() => Instance.Wants(HookId.UpdateEquips);
+
+            public static void Install() => On.Terraria.Player.UpdateEquips += Instance.Equips;
+        }
+
+        internal struct InfoAccs : IGate
+        {
+            public static bool Wanted() => Instance.Wants(HookId.ResetInfoAccessories);
+
+            public static void Install() => On.Terraria.Player.RefreshInfoAccs += Instance.InfoAccessories;
+        }
+
+        internal struct Loadout : IGate
+        {
+            public static bool Wanted() => Instance.Wants(HookId.OnEquipmentLoadoutSwitched);
+
+            public static void Install() => On.Terraria.Player.TrySwitchingLoadout += Instance.LoadoutSwitched;
+        }
+
+        internal struct LifeRegen : IGate
+        {
+            public static bool Wanted() => Instance.Wants(HookId.UpdateBadLifeRegen, HookId.UpdateLifeRegen);
+
+            public static void Install() => On.Terraria.Player.UpdateLifeRegen += Instance.LifeRegen;
+        }
+
+        internal struct Dead : IGate
+        {
+            public static bool Wanted() => Instance.Wants(HookId.UpdateDead);
+
+            public static void Install() => On.Terraria.Player.UpdateDead += Instance.Dead;
+        }
+
+        internal struct Kill : IGate
+        {
+            public static bool Wanted() => Instance.Wants(HookId.PreKill, HookId.Kill);
+
+            public static void Install() => On.Terraria.Player.KillMe += Instance.KillMe;
+        }
+
+        internal struct Update : IGate
+        {
+            public static bool Wanted() => Instance.Wants(HookId.PreUpdate, HookId.PostUpdate);
+
+            public static void Install() => On.Terraria.Player.Update += Instance.Update;
+        }
+
+        internal struct Buffs : IGate
+        {
+            public static bool Wanted() => Instance.Wants(HookId.PreUpdateBuffs, HookId.PostUpdateBuffs);
+
+            public static void Install() => On.Terraria.Player.UpdateBuffs += Instance.Buffs;
+        }
+
+        internal struct ItemCheck : IGate
+        {
+            public static bool Wanted() => Instance.Wants(HookId.PreItemCheck, HookId.PostItemCheck);
+
+            public static void Install() => On.Terraria.Player.ItemCheck += Instance.ItemCheck;
+        }
+
+        internal struct CanUse : IGate
+        {
+            public static bool Wanted() => Instance.Wants(HookId.CanUseItem);
+
+            public static void Install() => On.Terraria.Player.CanUseItem += Instance.CanUse;
+        }
+
+        internal struct Pickup : IGate
+        {
+            public static bool Wanted() => Instance.Wants(HookId.OnPickup);
+
+            public static void Install() => On.Terraria.Player.PickupItem += Instance.Pickup;
+        }
+
+        internal struct Potion : IGate
+        {
+            public static bool Wanted() =>
+                Instance.Wants(HookId.ApplyPotionDelay, HookId.ModifyPotionDelay) ||
+                HookGuard.Wants<ModItem>(HookId.ModifyPotionDelay, HookId.ApplyPotionDelay) ||
+                GlobalItemRegistry.AnyWith(HookId.ModifyPotionDelay, HookId.ApplyPotionDelay);
+
+            public static void Install()
+            {
+                On.Terraria.Player.ApplyPotionDelay += Instance.PotionDelay;
+                On.Terraria.Player.AddBuff += Instance.AddBuff;
+            }
+        }
+
+        internal struct Triggers : IGate
+        {
+            public static bool Wanted() => Instance.Wants(HookId.ProcessTriggers);
+
+            public static void Install() => On.Terraria.GameInput.TriggersSet.CopyInto += Instance.TriggersCopied;
+        }
+
+        internal struct Keys : IGate
+        {
+            public static bool Wanted() => Instance.Wants(HookId.ArmorSetBonusActivated, HookId.ArmorSetBonusHeld);
+
+            public static void Install()
+            {
+                On.Terraria.Player.KeyDoubleTap += Instance.KeyDoubleTap;
+                On.Terraria.Player.KeyHoldDown += Instance.KeyHoldDown;
+            }
+        }
+
+        internal struct Respawn : IGate
+        {
+            public static bool Wanted() => Instance.Wants(HookId.OnRespawn);
+
+            public static void Install() => On.Terraria.Player.Spawn += Instance.Spawned;
+        }
+
+        internal struct Teleport : IGate
+        {
+            public static bool Wanted() => Instance.Wants(HookId.CanBeTeleportedTo);
+
+            public static void Install() => On.Terraria.Player.Teleport += Instance.Teleport;
+        }
+
+        internal struct OnHit : IGate
+        {
+            public static bool Wanted() => Instance.Wants(HookId.OnHitAnything);
+
+            public static void Install() => On.Terraria.Player.OnHit += Instance.HitAnything;
+        }
+
+        internal struct Starting : IGate
+        {
+            public static bool Wanted() => Instance.Wants(HookId.AddStartingItems, HookId.ModifyStartingInventory);
+
+            public static void Install()
+            {
+                On.GUIPlayerCreateMenu.SetupStartingItems += Instance.StartingItemsCreated;
+                On.Terraria.Player.DropItems += Instance.StartingItemsDropped;
+            }
+        }
+
+        internal struct Hurt : IGate
+        {
+            public static bool Wanted() => HurtWanted();
+
+            public static void Install() => PlayerHurtHooks.Install();
+        }
+
+        internal struct Luck : IGate
+        {
+            public static bool Wanted() => Instance.Wants(HookId.PreModifyLuck, HookId.ModifyLuck);
+
+            public static void Install() => PlayerUpdateHooks.InstallLuck();
+        }
+
+        internal struct Look : IGate
+        {
+            public static bool Wanted() =>
+                Instance.Wants(HookId.UpdateDyes, HookId.UpdateVisibleAccessories, HookId.UpdateVisibleVanityAccessories);
+
+            public static void Install() => PlayerUpdateHooks.InstallLook();
+        }
+
+        internal struct Misc : IGate
+        {
+            public static bool Wanted() => Instance.Wants(HookId.PostUpdateMiscEffects, HookId.UpdateAutopause);
+
+            public static void Install() => PlayerUpdateHooks.InstallMisc();
+        }
+
+        internal struct Movement : IGate
+        {
+            public static bool Wanted() =>
+                Instance.Wants(HookId.PreUpdateMovement, HookId.PostUpdateRunSpeeds) || PlayerJumpHooks.Wanted();
+
+            public static void Install() => PlayerUpdateHooks.InstallMovement();
+        }
+
+        internal struct Fishing : IGate
+        {
+            public static bool Wanted() => Instance.FishingWanted();
+
+            public static void Install() => PlayerUpdateHooks.InstallFishing();
+        }
+
+        internal struct NurseShop : IGate
+        {
+            public static bool Wanted() => Instance.NurseWanted();
+
+            public static void Install() => PlayerUpdateHooks.InstallNurseShop();
+        }
+
+        internal struct Slots : IGate
+        {
+            public static bool Wanted() => Instance.Wants(HookId.HoverSlot, HookId.ShiftClickSlot);
+
+            public static void Install() => PlayerUpdateHooks.InstallSlots();
+        }
+
+        internal struct Crafting : IGate
+        {
+            public static bool Wanted() => Instance.Wants(HookId.AddMaterialsForCrafting);
+
+            public static void Install() => PlayerUpdateHooks.InstallCrafting();
+        }
+
+        internal struct Jump : IGate
+        {
+            public static bool Wanted() => PlayerJumpHooks.Wanted();
+
+            public static void Install() => PlayerJumpHooks.Install();
+        }
     }
+
+    public bool Install() => GateHub<PlayerPipeline>.Run();
+
+    private bool Wants(params ReadOnlySpan<HookId> hooks)
+    {
+        foreach (var hook in hooks)
+        {
+            if (_binding.Active(hook)) return true;
+        }
+
+        return false;
+    }
+
+    private static bool HurtWanted() =>
+        PlayerHurtHooks.Active() ||
+        HookGuard.Wants<ModNpc>(HookId.CanCatchNPC, HookId.OnCatchNPC) ||
+        GlobalNpcRegistry.AnyWith(HookId.CanCatchNPC, HookId.OnCatchNPC);
+
+    private bool FishingWanted() =>
+        Wants(
+            HookId.ModifyFishingAttempt, HookId.CatchFish, HookId.ModifyCaughtFish, HookId.CanConsumeBait,
+            HookId.GetFishingLevel, HookId.AnglerQuestReward, HookId.ModifyFishingLine) ||
+        HookGuard.Wants<ModProjectile>(HookId.ModifyFishingLine, HookId.ModifyCaughtFish) ||
+        HookGuard.Wants<ModItem>(HookId.ModifyFishingLine, HookId.ConsumeBait) ||
+        GlobalProjectileRegistry.AnyWith(HookId.ModifyFishingLine, HookId.ModifyCaughtFish, HookId.ConsumeBait) ||
+        GlobalItemRegistry.AnyWith(HookId.ModifyFishingLine, HookId.ConsumeBait);
+
+    private bool NurseWanted() =>
+        Wants(HookId.ModifyNurseHeal, HookId.ModifyNursePrice, HookId.PostNurseHeal,
+            HookId.CanBuyItem, HookId.PostBuyItem, HookId.CanSellItem, HookId.PostSellItem) ||
+        HookGuard.Wants<ModNpc>(HookId.ModifyNurseHeal, HookId.ModifyNursePrice, HookId.PostNurseHeal) ||
+        GlobalNpcRegistry.AnyWith(HookId.ModifyNurseHeal, HookId.ModifyNursePrice, HookId.PostNurseHeal);
 
     internal void Register(ModPlayer template) => _binding.Register(template);
 

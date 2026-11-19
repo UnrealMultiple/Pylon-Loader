@@ -17,9 +17,6 @@ namespace XiheMagic
         internal static XiheMagicMod Instance { get; private set; }
         internal static ModLogger Log { get; private set; }
 
-        /// <summary>找不到 Main.DoDraw 时退回 PostUpdateEverything 提交（少一帧精度，但不会没效果）。</summary>
-        private static bool _submitFromUpdate;
-
         public override void Load()
         {
             Instance = this;
@@ -27,7 +24,7 @@ namespace XiheMagic
 
             try
             {
-                XiheFx.Shader = ScreenShader.FromFile(this, "assets/effects/XiheBeam.frag");
+                XiheFx.Shader = ScreenGraphics.Shader.FromFile(this, "assets/effects/XiheBeam.frag");
                 Logger.Info("[fx] XiheBeam.frag 已注册（激光柱屏幕着色器）");
             }
             catch (Exception e)
@@ -42,35 +39,44 @@ namespace XiheMagic
 
             Logger.Info("羲和魔杖已加载（复刻 MEAC XiHeMagicItem）");
         }
+    }
 
-        public override void SetupContent()
+    /// <summary>系统时机：内容就绪后的屏幕效果装配、每帧推进、世界卸载清理与配方注册。</summary>
+    public sealed class XiheMagicSystem : ModSystem
+    {
+        /// <summary>找不到 Main.DoDraw 时退回 PostUpdateEverything 提交（少一帧精度，但不会没效果）。</summary>
+        private static bool _submitFromUpdate;
+
+        public override void PostSetupContent()
+        {
+            SetupContent();
+
+            // 贴图表这时已定型：把物品图标指到原版光女魔法武器。
+            ModContent.GetInstance<XiHeMagicItem>()?.ApplyIcon();
+        }
+
+        private static void SetupContent()
         {
             XiheFx.Reset();
-            XiheFx.BindTextures(this);
+            XiheFx.BindTextures(XiheMagicMod.Instance);
 
             // 提交时机：Main.DoDraw 之前。世界已经绘制完、screenPosition 已定稿。
             try
             {
                 On.Terraria.Main.DoDraw += BeforeDraw;
-                Logger.Info("[fx] Main.DoDraw 已挂（激光柱按绘制帧提交）");
+                XiheMagicMod.Log.Info("[fx] Main.DoDraw 已挂（激光柱按绘制帧提交）");
             }
             catch (Exception e)
             {
                 _submitFromUpdate = true;
-                Logger.Warn("[fx] Main.DoDraw 挂载失败，改为 PostUpdateEverything 提交：" + e.Message);
+                XiheMagicMod.Log.Warn("[fx] Main.DoDraw 挂载失败，改为 PostUpdateEverything 提交：" + e.Message);
             }
 
             try { ScreenGraphics.Install(); }
-            catch (Exception e) { Logger.Warn("[fx] 屏幕效果安装失败：" + e.Message); }
+            catch (Exception e) { XiheMagicMod.Log.Warn("[fx] 屏幕效果安装失败：" + e.Message); }
 
             // 立刻编译一次着色器：错了在日志里就有行号，不用等玩家用武器。
             XiheFx.Probe();
-        }
-
-        public override void PostSetupContent()
-        {
-            // 贴图表这时已定型：把物品图标指到原版光女魔法武器。
-            ModContent.GetInstance<XiHeMagicItem>()?.ApplyIcon();
         }
 
         private static void BeforeDraw(On.Terraria.Main.orig_DoDraw orig, Main self, GameTime gameTime)
@@ -99,11 +105,11 @@ namespace XiheMagic
                 recipe.AddIngredient(ItemID.GoldBar, 10);
                 recipe.AddTile(TileID.LunarCraftingStation);
                 recipe.Register();
-                Logger.Info("[recipe] 羲和魔杖配方已注册");
+                XiheMagicMod.Log.Info("[recipe] 羲和魔杖配方已注册");
             }
             catch (Exception e)
             {
-                Logger.Warn("[recipe] 羲和魔杖配方注册失败：" + e.Message);
+                XiheMagicMod.Log.Warn("[recipe] 羲和魔杖配方注册失败：" + e.Message);
             }
         }
     }

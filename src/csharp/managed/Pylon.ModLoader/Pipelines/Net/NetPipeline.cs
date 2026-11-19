@@ -1,5 +1,6 @@
 using System.Text;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Contracts;
 using Pylon.ModLoader.Hooks;
 using Pylon.ModLoader.Logging;
@@ -40,7 +41,27 @@ internal sealed class NetPipeline : ILoaderModule
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>net 管线的安装门：核心通道单门就绪；PvP 网络通道按内容每轮重评补装。</summary>
+    internal static class Gates
+    {
+        internal struct Core : IGate
+        {
+            public static bool Wanted() => true;
+
+            public static void Install() => Instance.InstallCore();
+        }
+
+        internal struct PvpNet : IGate
+        {
+            public static bool Wanted() => ItemPvpHooks.AnyActive();
+
+            public static void Install() => ItemPvpHooks.InstallNetwork(Instance);
+        }
+    }
+
+    public bool Install() => GateHub<NetPipeline>.Run();
+
+    private void InstallCore()
     {
         foreach (var mod in ModQuery.Mods)
         {
@@ -52,7 +73,6 @@ internal sealed class NetPipeline : ILoaderModule
 
         _items = new ItemSync(this);
         _items.Install();
-        ItemPvpHooks.InstallNetwork(this);
 
         _handshake = new NetHandshake(this);
         _handshake.Install();
@@ -60,7 +80,6 @@ internal sealed class NetPipeline : ILoaderModule
         ContentFingerprint.Refresh();
         Log.Info("[net] 已挂（消息 0x" + Id.ToString("X") + "；" + _byName.Count + " 个 mod 可寻址；物品附属数据走 " +
                  ItemKind + "；握手前缀 " + NetHandshake.HelloPrefix + "；" + ContentFingerprint.Summary() + "）");
-        return true;
     }
 
     #region 发送

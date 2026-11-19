@@ -17,17 +17,59 @@ internal sealed class LootPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>loot 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
     {
-        On.Terraria.Player.OpenBossBag += OpenBossBag;
-        On.Terraria.Player.ItemCheck_ManageRightClickFeatures += RightClickFeatures;
-        On.Terraria.GameContent.ItemDropRules.CommonCode.DropItemFromNPC += DropModItem;
+        internal static bool HasItems() => ModContent.GetContent<ModItem>().Count > 0;
 
-        PatchNpcLootLimit();
+        internal struct BossBag : IGate
+        {
+            public static bool Wanted() => HasItems() || GlobalItemRegistry.AnyWith(HookId.ModifyItemLoot);
 
-        Log.Info("[loot] 已挂（全局掉落 / 物品规则预建 / 开 Boss 袋 / 物品右键）");
-        return true;
+            public static void Install()
+            {
+                On.Terraria.Player.OpenBossBag += OpenBossBag;
+
+                Log.Info("[loot] 已挂：开 Boss 袋");
+            }
+        }
+
+        internal struct RightClick : IGate
+        {
+            public static bool Wanted() =>
+                HasItems() ||
+                GlobalItemRegistry.AnyWith(HookId.CanRightClick, HookId.RightClick, HookId.ConsumeItem,
+                    HookId.ModifyItemLoot);
+
+            public static void Install()
+            {
+                On.Terraria.Player.ItemCheck_ManageRightClickFeatures += RightClickFeatures;
+
+                Log.Info("[loot] 已挂：物品右键");
+            }
+        }
+
+        internal struct Drop : IGate
+        {
+            public static bool Wanted() => HasItems();
+
+            public static void Install()
+            {
+                On.Terraria.GameContent.ItemDropRules.CommonCode.DropItemFromNPC += DropModItem;
+
+                Log.Info("[loot] 已挂：mod 物品掉落");
+            }
+        }
+
+        internal struct Patch : IGate
+        {
+            public static bool Wanted() => ModContent.GetContent<ModNpc>().Count > 0;
+
+            public static void Install() => PatchNpcLootLimit();
+        }
     }
+
+    public bool Install() => GateHub<LootPipeline>.Run();
 
     private static void DropModItem(On.Terraria.GameContent.ItemDropRules.CommonCode.orig_DropItemFromNPC orig,
                                     NPC npc, int itemId, int stack, bool scattered)

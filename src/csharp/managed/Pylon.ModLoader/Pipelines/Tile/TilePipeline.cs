@@ -25,38 +25,163 @@ internal sealed class TilePipeline : ILoaderModule
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>tile 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
     {
-        On.Terraria.WorldGen.CanKillTile_int_int_SpecialKillTileContext += CanKill;
-        On.Terraria.WorldGen.CanKillTile_int_int += CanKillFast;
-        On.Terraria.WorldGen.CanKillTile_int_int_boolRef += CanKillOut;
-        On.Terraria.WorldGen.KillTile += Kill;
-        On.Terraria.WorldGen.KillTile_PlaySounds += PlaySounds;
-        On.Terraria.WorldGen.KillTile_MakeTileDust += MakeDust;
-        On.Terraria.WorldGen.KillTile_DropItems += DropItems;
-        On.Terraria.WorldGen.KillTile_GetItemDrops += GetItemDrops;
-        On.Terraria.WorldGen.TileFrame += Frame;
-        On.Terraria.WorldGen.TileFrameImportant += FrameImportant;
-        On.Terraria.Wiring.HitWireSingle += Wire;
-        On.Terraria.Player.AdjTiles += Stations;
-        On.Terraria.Player.GetPickaxeDamage += PickaxeDamage;
-        On.Terraria.Player.TileInteractionsUse += Interact;
-        On.Terraria.Player.TileInteractionsMouseOver += MouseOver;
-        On.Terraria.Player.TileInteractionsCheckLongDistance += MouseOverFar;
-        On.Terraria.Player.PlaceThing_Tiles_BlockPlacementForAssortedThings += CanPlace;
-        On.Terraria.Projectile.CanExplodeTile += Explode;
-        On.Terraria.WorldGen.ReplaceTile += Replace;
-        On.Terraria.GameContent.Drawing.TileDrawing.IsTileDangerous += Danger;
-        On.Terraria.Main.IsTileSpelunkable_ushort_short_short += Spelunk;
-        On.Terraria.WorldGen.UpdateWorld_OvergroundTile += RandomUpdateOver;
-        On.Terraria.WorldGen.UpdateWorld_UndergroundTile += RandomUpdateUnder;
-        TileMergeFix.Install();
-        TileInteractionHooks.Install();
-        TileEffectsHooks.Install();
+        internal struct Merge : IGate
+        {
+            public static bool Wanted() => ModContent.GetContent<ModTile>().Count > 0;
 
-        Log.Info("[tile] 已挂（挖 / 尘土 / 掉落 / 边框 / 通电 / 制作站 / 右键 / 光标 / 周边效果 / 随机更新）；逐格绘制与光照本版无入口");
-        return true;
+            public static void Install()
+            {
+                TileMergeFix.Install();
+                Log.Info("[tile] 已挂（mod 方块内容：编号 / 挖 / 边框 / 制作站等组按覆写分装）");
+            }
+        }
+
+        internal struct Kill : IGate
+        {
+            public static bool Wanted() => KillWanted();
+
+            public static void Install()
+            {
+                On.Terraria.WorldGen.CanKillTile_int_int_SpecialKillTileContext += Instance.CanKill;
+                On.Terraria.WorldGen.CanKillTile_int_int += Instance.CanKillFast;
+                On.Terraria.WorldGen.CanKillTile_int_int_boolRef += Instance.CanKillOut;
+                On.Terraria.WorldGen.KillTile += Instance.Kill;
+                On.Terraria.WorldGen.KillTile_PlaySounds += Instance.PlaySounds;
+                On.Terraria.WorldGen.KillTile_MakeTileDust += Instance.MakeDust;
+                On.Terraria.WorldGen.KillTile_DropItems += Instance.DropItems;
+                On.Terraria.WorldGen.KillTile_GetItemDrops += Instance.GetItemDrops;
+            }
+        }
+
+        internal struct Frame : IGate
+        {
+            public static bool Wanted() =>
+                WantsTile(HookId.TileFrame) || GlobalTileRegistry.AnyWith(HookId.TileFrame);
+
+            public static void Install() => On.Terraria.WorldGen.TileFrame += Instance.Frame;
+        }
+
+        internal struct FrameImportant : IGate
+        {
+            public static bool Wanted() => ModContent.GetContent<ModTile>().Count > 0;
+
+            public static void Install() => On.Terraria.WorldGen.TileFrameImportant += Instance.FrameImportant;
+        }
+
+        internal struct Random : IGate
+        {
+            public static bool Wanted() =>
+                HookGuard.Wants<ModTile>(HookId.RandomUpdate) || HookGuard.Wants<ModWall>(HookId.RandomUpdate) ||
+                GlobalTileRegistry.AnyWith(HookId.RandomUpdate);
+
+            public static void Install()
+            {
+                On.Terraria.WorldGen.UpdateWorld_OvergroundTile += Instance.RandomUpdateOver;
+                On.Terraria.WorldGen.UpdateWorld_UndergroundTile += Instance.RandomUpdateUnder;
+            }
+        }
+
+        internal struct Wire : IGate
+        {
+            public static bool Wanted() =>
+                WantsTile(HookId.HitWire) || GlobalTileRegistry.AnyWith(HookId.PreHitWire, HookId.HitWire) ||
+                HookGuard.Wants<ModNpc>(HookId.CanGoToStatue, HookId.OnGoToStatue) ||
+                GlobalNpcRegistry.AnyWith(HookId.CanGoToStatue, HookId.OnGoToStatue);
+
+            public static void Install() => On.Terraria.Wiring.HitWireSingle += Instance.Wire;
+        }
+
+        internal struct Adj : IGate
+        {
+            public static bool Wanted() => WantsTile(HookId.AdjTiles) || GlobalTileRegistry.AnyWith(HookId.AdjTiles);
+
+            public static void Install() => On.Terraria.Player.AdjTiles += Instance.Stations;
+        }
+
+        internal struct Pick : IGate
+        {
+            public static bool Wanted() => ModContent.GetContent<ModTile>().Count > 0;
+
+            public static void Install() => On.Terraria.Player.GetPickaxeDamage += PickaxeDamage;
+        }
+
+        internal struct Click : IGate
+        {
+            public static bool Wanted() =>
+                WantsTile(HookId.RightClick, HookId.HasSmartInteract) ||
+                GlobalTileRegistry.AnyWith(HookId.RightClick, HookId.HasSmartInteract);
+
+            public static void Install() => On.Terraria.Player.TileInteractionsUse += Instance.Interact;
+        }
+
+        internal struct Mouse : IGate
+        {
+            public static bool Wanted() =>
+                WantsTile(HookId.MouseOver, HookId.MouseOverFar, HookId.RightClick) ||
+                GlobalTileRegistry.AnyWith(HookId.MouseOver, HookId.MouseOverFar, HookId.RightClick);
+
+            public static void Install()
+            {
+                On.Terraria.Player.TileInteractionsMouseOver += Instance.MouseOver;
+                On.Terraria.Player.TileInteractionsCheckLongDistance += Instance.MouseOverFar;
+            }
+        }
+
+        internal struct Place : IGate
+        {
+            public static bool Wanted() =>
+                WantsTile(HookId.CanPlace, HookId.CanExplode, HookId.CanReplace) ||
+                GlobalTileRegistry.AnyWith(HookId.CanPlace, HookId.CanExplode, HookId.CanReplace);
+
+            public static void Install()
+            {
+                On.Terraria.Player.PlaceThing_Tiles_BlockPlacementForAssortedThings += Instance.CanPlace;
+                On.Terraria.Projectile.CanExplodeTile += Instance.Explode;
+                On.Terraria.WorldGen.ReplaceTile += Instance.Replace;
+            }
+        }
+
+        internal struct Danger : IGate
+        {
+            public static bool Wanted() =>
+                WantsTile(HookId.IsTileDangerous, HookId.IsTileSpelunkable) ||
+                GlobalTileRegistry.AnyWith(HookId.IsTileDangerous, HookId.IsTileSpelunkable);
+
+            public static void Install()
+            {
+                On.Terraria.GameContent.Drawing.TileDrawing.IsTileDangerous += Instance.Danger;
+                On.Terraria.Main.IsTileSpelunkable_ushort_short_short += Instance.Spelunk;
+            }
+        }
+
+        internal struct Effects : IGate
+        {
+            public static bool Wanted() =>
+                WantsTile(HookId.NearbyEffects) || GlobalTileRegistry.AnyWith(HookId.NearbyEffects);
+
+            public static void Install() => TileEffectsHooks.Install();
+        }
+
+        internal struct Interact : IGate
+        {
+            public static bool Wanted() =>
+                ModContent.GetContent<ModTile>().Count > 0 || GlobalTileRegistry.All.Count > 0;
+
+            public static void Install() => TileInteractionHooks.Install();
+        }
     }
+
+    public bool Install() => GateHub<TilePipeline>.Run();
+
+    private static bool WantsTile(params ReadOnlySpan<HookId> hooks) => HookGuard.Wants<ModTile>(hooks);
+
+    private static bool KillWanted() =>
+        ModContent.GetContent<ModTile>().Count > 0 ||
+        GlobalTileRegistry.AnyWith(HookId.CanKillTile, HookId.KillTile, HookId.NumDust, HookId.CreateDust,
+            HookId.KillSound, HookId.CanDrop, HookId.Drop);
 
     private int _maintained;
 

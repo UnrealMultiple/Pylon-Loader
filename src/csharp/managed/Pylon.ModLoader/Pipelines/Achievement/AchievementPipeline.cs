@@ -1,6 +1,7 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using Terraria;
@@ -27,23 +28,57 @@ internal sealed class AchievementPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static readonly HashSet<IntPtr> RefreshedMenus = [];
 
-    public bool Install()
+    /// <summary>achievement 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
     {
-        On.Terraria.Achievements.Achievement.OnConditionComplete += ConditionComplete;
-        On.Terraria.GameContent.Achievements.AchievementsHelper.NotifyNPCKilledDirect += NpcKilled;
-        On.Terraria.GameContent.Achievements.AchievementsHelper.NotifyItemPickup_Player_Item += ItemPickedUp;
-        On.Terraria.GameContent.Achievements.AchievementsHelper.NotifyItemPickup_Player_Item_int += ItemPickedUpStack;
-        On.Terraria.GameContent.Achievements.AchievementsHelper.NotifyItemCraft += ItemCrafted;
-        On.Terraria.GameContent.Achievements.AchievementsHelper.NotifyTileDestroyed += TileDestroyed;
-        On.Terraria.GameContent.Achievements.AchievementsHelper.NotifyProgressionEvent += ProgressionEvent;
-        On.GUIAchievementsMenu.Open += MenuOpen;
-        On.GUIAchievementsMenu.AchievementDraw += AchievementIconDraw;
-        On.Terraria.UI.InGamePopups.AchievementUnlockedPopup.DrawInGame += PopupDrawInGame;
-        On.Terraria.UI.InGamePopups.AchievementUnlockedPopup.DrawInNotificationsArea += PopupDrawInNotificationsArea;
+        internal static bool HasAchievements() => ModContent.GetContent<ModAchievement>().Count > 0;
 
-        Log.Info("[achievement] 已挂（注册 / 条件 / 完成回调 / 五条通知 / 菜单图标 / 弹窗图标）");
-        return true;
+        internal struct Notifications : IGate
+        {
+            public static bool Wanted() => HasAchievements();
+
+            public static void Install()
+            {
+                On.Terraria.Achievements.Achievement.OnConditionComplete += ConditionComplete;
+                On.Terraria.GameContent.Achievements.AchievementsHelper.NotifyNPCKilledDirect += NpcKilled;
+                On.Terraria.GameContent.Achievements.AchievementsHelper.NotifyItemPickup_Player_Item += ItemPickedUp;
+                On.Terraria.GameContent.Achievements.AchievementsHelper.NotifyItemPickup_Player_Item_int += ItemPickedUpStack;
+                On.Terraria.GameContent.Achievements.AchievementsHelper.NotifyItemCraft += ItemCrafted;
+                On.Terraria.GameContent.Achievements.AchievementsHelper.NotifyTileDestroyed += TileDestroyed;
+                On.Terraria.GameContent.Achievements.AchievementsHelper.NotifyProgressionEvent += ProgressionEvent;
+
+                Log.Info("[achievement] 已挂：完成回调与六条通知");
+            }
+        }
+
+        internal struct Menu : IGate
+        {
+            public static bool Wanted() => HasAchievements();
+
+            public static void Install()
+            {
+                On.GUIAchievementsMenu.Open += MenuOpen;
+                On.GUIAchievementsMenu.AchievementDraw += AchievementIconDraw;
+
+                Log.Info("[achievement] 已挂：菜单刷新与图标");
+            }
+        }
+
+        internal struct Popup : IGate
+        {
+            public static bool Wanted() => HasAchievements();
+
+            public static void Install()
+            {
+                On.Terraria.UI.InGamePopups.AchievementUnlockedPopup.DrawInGame += PopupDrawInGame;
+                On.Terraria.UI.InGamePopups.AchievementUnlockedPopup.DrawInNotificationsArea += PopupDrawInNotificationsArea;
+
+                Log.Info("[achievement] 已挂：解锁弹窗图标");
+            }
+        }
     }
+
+    public bool Install() => GateHub<AchievementPipeline>.Run();
 
     public void Refresh() => AchievementTable.Rebuild();
 

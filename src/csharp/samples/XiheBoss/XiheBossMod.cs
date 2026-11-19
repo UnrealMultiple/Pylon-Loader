@@ -20,9 +20,6 @@ namespace XiheBoss
         internal static XiheBossMod Instance { get; private set; }
         internal static ModLogger Log { get; private set; }
 
-        private static bool _submitFromUpdate;
-        private static bool _cameraHookInstalled;
-
         public override void Load()
         {
             Instance = this;
@@ -37,12 +34,30 @@ namespace XiheBoss
 
             Logger.Info("[build] 2026-10-25 23:10；羲和 Boss 已加载（复刻 MEAC.Bosses.EoL.XiHe）");
         }
+    }
 
-        public override void SetupContent()
+    /// <summary>系统时机：内容就绪后的视觉/钩子装配、每帧天空与图元提交、光照染色、世界卸载清理。</summary>
+    public sealed class XiheBossSystem : ModSystem
+    {
+        private static bool _submitFromUpdate;
+        private static bool _cameraHookInstalled;
+
+        public override void PostSetupContent()
+        {
+            SetupContent();
+            SetupHooks();
+
+            // 游戏贴图表已就绪：先取 Boss 绘制用的原版贴图，再注册音乐。
+            XiheBossNpc.LoadVisualAssets();
+            // 音乐注册放到内容就绪之后：音频引擎这时才稳定（失败也只是没 BGM）。
+            XiheBossNpc.ResolveMusic(XiheBossMod.Instance);
+        }
+
+        private static void SetupContent()
         {
             XiheFx.Reset();
             XiheVisuals.Clear();
-            XiheTextures.Bind(this, Logger);
+            XiheTextures.Bind(XiheBossMod.Instance, XiheBossMod.Log);
 
             // 弹幕视觉：每种弹幕只把自己的状态喂给屏幕效果，不自己画。
             XiheFx.RegisterVisual<EoLLance>(EoLLance.PushVisual);
@@ -55,18 +70,21 @@ namespace XiheBoss
             XiheFx.RegisterVisual<EoLFire>(EoLFire.PushVisual);
             XiheFx.RegisterVisual<SunProj>(SunProj.PushVisual);
             XiheFx.RegisterVisual<SolarProminence>(SolarProminence.PushVisual);
-            Logger.Info($"[fx] 弹幕视觉 {XiheFx.VisualCount} 种（EoLProj type={ModContent.ProjectileType<EoLProj>()}、EoLLance type={ModContent.ProjectileType<EoLLance>()}）");
+            XiheBossMod.Log.Info($"[fx] 弹幕视觉 {XiheFx.VisualCount} 种（EoLProj type={ModContent.ProjectileType<EoLProj>()}、EoLLance type={ModContent.ProjectileType<EoLLance>()}）");
+        }
 
+        private static void SetupHooks()
+        {
             // 提交时机：Main.DoDraw 之前（世界画完、screenPosition 定稿，界面还没画）。
             try
             {
                 On.Terraria.Main.DoDraw += BeforeDraw;
-                Logger.Info("[fx] Main.DoDraw 已挂（屏幕效果按绘制帧提交）");
+                XiheBossMod.Log.Info("[fx] Main.DoDraw 已挂（屏幕效果按绘制帧提交）");
             }
             catch (Exception e)
             {
                 _submitFromUpdate = true;
-                Logger.Warn("[fx] Main.DoDraw 挂载失败，改为 PostUpdateEverything 提交：" + e.Message);
+                XiheBossMod.Log.Warn("[fx] Main.DoDraw 挂载失败，改为 PostUpdateEverything 提交：" + e.Message);
             }
 
             // 镜头锁：原版相机算完之后应用 XiheFx 的 UseScreenPosition，再按最终 screenPosition 提交。
@@ -74,20 +92,20 @@ namespace XiheBoss
             {
                 On.Terraria.Main.DoDraw_UpdateCameraPosition += AfterCameraUpdate;
                 _cameraHookInstalled = true;
-                Logger.Info("[fx] Main.DoDraw_UpdateCameraPosition 已挂：UseScreenPosition 镜头锁生效");
+                XiheBossMod.Log.Info("[fx] Main.DoDraw_UpdateCameraPosition 已挂：UseScreenPosition 镜头锁生效");
             }
-            catch (Exception e) { Logger.Warn("[fx] 镜头钩子失败：" + e.Message); }
+            catch (Exception e) { XiheBossMod.Log.Warn("[fx] 镜头钩子失败：" + e.Message); }
 
             try { ScreenGraphics.Install(); }
-            catch (Exception e) { Logger.Warn("[fx] 屏幕效果安装失败：" + e.Message); }
+            catch (Exception e) { XiheBossMod.Log.Warn("[fx] 屏幕效果安装失败：" + e.Message); }
 
             // MEAC 是在 Main.UpdateAudio_DecideOnNewMusic 里接管 Boss 曲；必须在选曲之后把 newMusic 压成 0。
             try
             {
                 On.Terraria.Main.UpdateAudio_DecideOnNewMusic += AfterDecideOnNewMusic;
-                Logger.Info("[music] Main.UpdateAudio_DecideOnNewMusic 已挂：Boss 存在时压制原版 Boss 曲");
+                XiheBossMod.Log.Info("[music] Main.UpdateAudio_DecideOnNewMusic 已挂：Boss 存在时压制原版 Boss 曲");
             }
-            catch (Exception e) { Logger.Warn("[music] DecideOnNewMusic 挂载失败：" + e.Message); }
+            catch (Exception e) { XiheBossMod.Log.Warn("[music] DecideOnNewMusic 挂载失败：" + e.Message); }
         }
 
         /// <summary>
@@ -105,15 +123,7 @@ namespace XiheBoss
                 if (XiheBossNpc.MusicSlot <= 0) return;
                 Main.newMusic = 0;
             }
-            catch (Exception e) { Log?.Warn("[music] 压原版曲失败：" + e.Message); }
-        }
-
-        public override void PostSetupContent()
-        {
-            // 游戏贴图表已就绪：先取 Boss 绘制用的原版贴图，再注册音乐。
-            XiheBossNpc.LoadVisualAssets();
-            // 音乐注册放到内容就绪之后：音频引擎这时才稳定（失败也只是没 BGM）。
-            XiheBossNpc.ResolveMusic(this);
+            catch (Exception e) { XiheBossMod.Log?.Warn("[music] 压原版曲失败：" + e.Message); }
         }
 
         private static void BeforeDraw(On.Terraria.Main.orig_DoDraw orig, Main self, GameTime gameTime)
@@ -149,6 +159,5 @@ namespace XiheBoss
             XiheVisuals.Clear();
             XiheBossNpc.Current = null;
         }
-
     }
 }

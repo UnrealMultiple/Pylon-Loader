@@ -1,5 +1,6 @@
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Contracts;
 using Pylon.ModLoader.Hooks;
 using Pylon.ModLoader.Logging;
@@ -38,19 +39,88 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>equip 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
     {
-        On.Terraria.Player.UpdateArmorSets += UpdateArmorSets;
-        On.Terraria.Player.PlayerFrame += PlayerFrame;
-        On.Terraria.Player.SetArmorEffectVisuals += SetArmorEffectVisuals;
-        On.Terraria.Player.SetMatch += SetMatch;
-        On.Terraria.Player.WingFrame += WingFrame;
-        On.Terraria.Player.WingMovement += WingMovement;
-        On.Terraria.Player.WingAirLogicTweaks += WingAirLogicTweaks;
+        internal struct Sets : IGate
+        {
+            public static bool Wanted() => SetsWanted();
 
-        Log.Info("[equip] 已挂（15 个部位：编号 / 扩表 / 写贴图 / 套装 / 时装套 / SetMatch / 翅膀动画）");
-        return true;
+            public static void Install() => InstallArmorSets();
+        }
+
+        internal struct Frame : IGate
+        {
+            public static bool Wanted() => FrameWanted();
+
+            public static void Install() => InstallFrame();
+        }
+
+        internal struct Shadows : IGate
+        {
+            public static bool Wanted() => ShadowsWanted();
+
+            public static void Install() => InstallShadows();
+        }
+
+        internal struct SetMatch : IGate
+        {
+            public static bool Wanted() => MatchWanted();
+
+            public static void Install() => InstallSetMatch();
+        }
+
+        internal struct WingVertical : IGate
+        {
+            public static bool Wanted() => WingsWanted(HookId.VerticalWingSpeeds);
+
+            public static void Install() => On.Terraria.Player.WingMovement += WingMovement;
+        }
+
+        internal struct WingHorizontal : IGate
+        {
+            public static bool Wanted() => WingsWanted(HookId.HorizontalWingSpeeds);
+
+            public static void Install() => On.Terraria.Player.WingAirLogicTweaks += WingAirLogicTweaks;
+        }
+
+        internal struct WingUpdate : IGate
+        {
+            public static bool Wanted() => WingsWanted(HookId.WingUpdate);
+
+            public static void Install() => On.Terraria.Player.WingFrame += WingFrame;
+        }
     }
+
+    public bool Install() => GateHub<EquipPipeline>.Run();
+
+    private static void InstallArmorSets() => On.Terraria.Player.UpdateArmorSets += UpdateArmorSets;
+
+    private static void InstallFrame() => On.Terraria.Player.PlayerFrame += PlayerFrame;
+
+    private static void InstallShadows() => On.Terraria.Player.SetArmorEffectVisuals += SetArmorEffectVisuals;
+
+    private static void InstallSetMatch() => On.Terraria.Player.SetMatch += SetMatch;
+
+    private static bool SetsWanted() =>
+        HookGuard.Wants<ModItem>(HookId.IsArmorSet, HookId.UpdateArmorSet) ||
+        GlobalItemRegistry.AnyWith(HookId.IsArmorSet, HookId.UpdateArmorSet) ||
+        PlayerPipeline.Instance.ModsActive(HookId.PostUpdateEquips);
+
+    private static bool FrameWanted() =>
+        HookGuard.Wants<ModItem>(HookId.IsVanitySet, HookId.PreUpdateVanitySet, HookId.UpdateVanitySet, HookId.EquipFrameEffects) ||
+        GlobalItemRegistry.AnyWith(HookId.IsVanitySet, HookId.PreUpdateVanitySet, HookId.UpdateVanitySet) ||
+        PlayerPipeline.Instance.ModsActive(HookId.FrameEffects);
+
+    private static bool ShadowsWanted() =>
+        HookGuard.Wants<ModItem>(HookId.IsVanitySet, HookId.ArmorSetShadows) ||
+        GlobalItemRegistry.AnyWith(HookId.IsVanitySet, HookId.ArmorSetShadows);
+
+    private static bool MatchWanted() =>
+        HookGuard.Wants<ModItem>(HookId.SetMatch) || GlobalItemRegistry.AnyWith(HookId.SetMatch);
+
+    private static bool WingsWanted(HookId hook) =>
+        HookGuard.Wants<ModItem>(hook) || GlobalItemRegistry.AnyWith(hook);
 
     private static bool _globalVertical;
     private static bool _globalHorizontal;
@@ -563,6 +633,7 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         if (!_setBonusWanted)
         {
             _setBonusWanted = true;
+            GateHub<EquipPipeline>.Trigger<Gates.Sets>();
         }
         if (string.IsNullOrEmpty(text)) _setBonuses.Remove(player.Pointer);
         else _setBonuses[player.Pointer] = text;
@@ -591,6 +662,33 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         _globalVertical = GlobalItemRegistry.AnyWith(HookId.VerticalWingSpeeds);
         _globalHorizontal = GlobalItemRegistry.AnyWith(HookId.HorizontalWingSpeeds);
         _globalUpdate = GlobalItemRegistry.AnyWith(HookId.WingUpdate);
+
+        foreach (var part in EquipTable.Parts)
+        {
+            foreach (var equip in EquipTable.Of(part))
+            {
+                var mask = HookScan.Of(equip.GetType());
+                if (mask.Has(HookId.FrameEffects) || mask.Has(HookId.IsVanitySet) ||
+                    mask.Has(HookId.PreUpdateVanitySet) || mask.Has(HookId.UpdateVanitySet))
+                    GateHub<EquipPipeline>.Trigger<Gates.Frame>();
+                if (mask.Has(HookId.IsVanitySet) || mask.Has(HookId.ArmorSetShadows))
+                    GateHub<EquipPipeline>.Trigger<Gates.Shadows>();
+                if (mask.Has(HookId.SetMatch))
+                    GateHub<EquipPipeline>.Trigger<Gates.SetMatch>();
+                if (mask.Has(HookId.VerticalWingSpeeds))
+                    GateHub<EquipPipeline>.Trigger<Gates.WingVertical>();
+                if (mask.Has(HookId.HorizontalWingSpeeds))
+                    GateHub<EquipPipeline>.Trigger<Gates.WingHorizontal>();
+                if (mask.Has(HookId.WingUpdate))
+                    GateHub<EquipPipeline>.Trigger<Gates.WingUpdate>();
+            }
+        }
+
+        if (EquipTable.Of(EquipType.Wings).Count > 0)
+            GateHub<EquipPipeline>.Trigger<Gates.Frame>();
+
+        if (EquipTable.Installed().Count > 0)
+            GateHub<ItemPipeline>.Trigger<ItemPipeline.Gates.EquipUi>();
 
         if (EquipTable.Count > 0) Log.Info($"[equip] 安装：{EquipTable.Count} 张装备贴图");
     }

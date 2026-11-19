@@ -9,13 +9,10 @@ namespace Pylon.ModLoader.Pipelines;
 /// <summary>接触攻击只在匹配目标的首次受击中使用来源上下文，嵌套攻击不继承外层来源。</summary>
 internal static class NpcContactHooks
 {
-    private static bool _installed;
     private static readonly HookId[] SourceHooks = [HookId.CanHitNPC, HookId.ModifyHitNPC, HookId.OnHitNPC];
 
     internal static void Install()
     {
-        if (_installed) return;
-        _installed = true;
         On.Terraria.NPC.BeHurtByOtherNPC += Contact;
     }
 

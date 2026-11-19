@@ -9,8 +9,6 @@ namespace Pylon.ModLoader.Pipelines;
 /// <summary>拾取族：CanPickup/OnPickup/ItemSpace/GrabStyle 为 GlobalItem 先、ModItem 后，GrabRange 相反；异常按作者隔离并放行。</summary>
 internal static class ItemPickupHooks
 {
-    private static bool _installed;
-
     [ThreadStatic] private static Player? _grabbing;
 
     [ThreadStatic] private static Item? _cachedItem;
@@ -18,9 +16,6 @@ internal static class ItemPickupHooks
 
     internal static void Install()
     {
-        if (_installed) return;
-        _installed = true;
-
         On.Terraria.Player.GrabItems += Grabbing;
         On.Terraria.Player.CanAcceptItemIntoInventory_Item += CanAccept;
         On.Terraria.Player.GetItemGrabRange_WorldItem += GrabRangeGate;

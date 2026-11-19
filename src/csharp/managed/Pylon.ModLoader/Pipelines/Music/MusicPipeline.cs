@@ -1,5 +1,6 @@
 using Pylon.ModLoader.Audio;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using Terraria;
@@ -38,16 +39,37 @@ internal sealed class MusicPipeline : ILoaderModule
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>music 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
+    {
+        internal static bool MusicHookWanted() =>
+            SceneEffectPipeline.MusicWanted() || Instance._table.Count > 0 || Instance._table.BoxCount > 0;
+
+        internal struct Tick : IGate
+        {
+            public static bool Wanted() => MusicHookWanted();
+
+            public static void Install() => Instance.InstallTick();
+        }
+
+        internal struct Pause : IGate
+        {
+            public static bool Wanted() => MusicHookWanted();
+
+            public static void Install() => Instance.InstallPause();
+        }
+    }
+
+    public bool Install() => GateHub<MusicPipeline>.Run();
+
+    private void InstallTick()
     {
         VerifyVanillaCount();
         On.Terraria.Main.UpdateAudio += UpdateAudio;
-
-        On.XNAUnityRunner.OnApplicationPause += OnApplicationPause;
-
         Log.Info("[music] 已挂（每 10 帧选曲/每帧淡出；后台暂停 MediaPlayer）");
-        return true;
     }
+
+    private void InstallPause() => On.XNAUnityRunner.OnApplicationPause += OnApplicationPause;
 
     internal int MusicCount => _table.Base + _table.Count;
 
@@ -69,12 +91,31 @@ internal sealed class MusicPipeline : ILoaderModule
         }
     }
 
-    internal int GetSlot(Mod? mod, string path) => _table.Register(mod, path);
+    internal int GetSlot(Mod? mod, string path)
+    {
+        var before = _table.Count;
+        var slot = _table.Register(mod, path);
+        if (slot > 0 && _table.Count > before)
+        {
+            GateHub<MusicPipeline>.Trigger<Gates.Tick>();
+            GateHub<MusicPipeline>.Trigger<Gates.Pause>();
+        }
+
+        return slot;
+    }
 
     internal bool MusicExists(Mod? mod, string path) => _table.Exists(mod, path);
 
-    internal void AddMusicBox(int slot, int itemType, int tileType, int frameY) =>
+    internal void AddMusicBox(int slot, int itemType, int tileType, int frameY)
+    {
+        var before = _table.BoxCount;
         _table.AddBox(slot, itemType, tileType, frameY);
+        if (_table.BoxCount > before)
+        {
+            GateHub<MusicPipeline>.Trigger<Gates.Tick>();
+            GateHub<MusicPipeline>.Trigger<Gates.Pause>();
+        }
+    }
 
     internal bool IsPlaying(int slot)
     {
@@ -126,6 +167,8 @@ internal sealed class MusicPipeline : ILoaderModule
 
     private void Tick()
     {
+        if (_table.Count == 0 && _table.BoxCount == 0 && !_silenced) return;
+
         if (Main.gameMenu || _stopped)
         {
             FadeTo(-1);

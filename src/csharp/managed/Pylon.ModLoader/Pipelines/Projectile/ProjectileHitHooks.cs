@@ -10,7 +10,6 @@ namespace Pylon.ModLoader.Pipelines;
 /// <summary>在原版弹幕 PVE 窗口记录来源，受击计算统一交给 NPC 执行器。</summary>
 internal static class ProjectileHitHooks
 {
-    private static bool _installed;
     private static readonly HookId[] SourceHooks = [HookId.ModifyHitNPC, HookId.OnHitNPC];
     private static readonly HookId[] TargetHooks = [HookId.ModifyIncomingHit, HookId.ModifyHitByProjectile, HookId.OnHitByProjectile];
     private static readonly HookId[] PlayerHooks = [HookId.ModifyHitNPC, HookId.ModifyHitNPCWithProj, HookId.OnHitNPC, HookId.OnHitNPCWithProj];
@@ -22,8 +21,6 @@ internal static class ProjectileHitHooks
 
     internal static void Install()
     {
-        if (_installed) return;
-        _installed = true;
         On.Terraria.Projectile.Damage_PVE += Damage;
         On.Terraria.Player.CanNPCBeHitByPlayerOrPlayerProjectile += CanHit;
     }

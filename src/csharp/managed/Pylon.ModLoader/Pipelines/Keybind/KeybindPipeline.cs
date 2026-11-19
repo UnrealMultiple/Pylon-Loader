@@ -1,4 +1,5 @@
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using Terraria;
@@ -18,11 +19,21 @@ internal sealed class KeybindPipeline : ILoaderModule
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>keybind 管线的安装门：有 Mod 时才就位（键位没有独立的注册期清单）。</summary>
+    internal static class Gates
     {
-        Log.Info($"[keybind] 已挂（按键即触屏按钮；手机端无物理键可绑）· 已注册 {_count}");
-        return true;
+        internal struct Core : IGate
+        {
+            public static bool Wanted() => ModQuery.Mods.Count > 0;
+
+            public static void Install() => Instance.InstallCore();
+        }
     }
+
+    public bool Install() => GateHub<KeybindPipeline>.Run();
+
+    private void InstallCore() =>
+        Log.Info($"[keybind] 已挂（按键即触屏按钮；手机端无物理键可绑）· 已注册 {_count}");
 
     internal ModTouchButton Register(Mod mod, string name, string defaultKey = "")
     {

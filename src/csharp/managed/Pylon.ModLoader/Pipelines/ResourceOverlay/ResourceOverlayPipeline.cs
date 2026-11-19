@@ -1,6 +1,7 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using ReLogic.Content;
@@ -27,19 +28,58 @@ internal sealed class ResourceOverlayPipeline : ILoaderModule, ILoaderModuleRefr
     private static ResourceOverlayDrawContext _current;
     private static int _resourceNumber;
 
-    public bool Install()
+    /// <summary>resourceoverlay 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
     {
-        // 与 menu 一样：Install 早于 Build/收表，所以无条件挂；分派时按位集跳过没覆写的覆盖层。
-        On.GUIHearts.HeartDraw += HeartDraw;
-        On.GUIMana.StarDraw += StarDraw;
-        On.GUIHearts.Draw += HeartsDraw;
-        On.GUIMana.Draw += ManaDraw;
-        On.GUIHearts.DrawLifeString += DrawLifeString;
+        internal static (bool AnyResource, bool AnyDisplay) Scan()
+        {
+            var overlays = ModContent.GetContent<ModResourceOverlay>();
+            var anyResource = false;
+            var anyDisplay = false;
+            foreach (var overlay in overlays)
+            {
+                anyResource |= overlay.Plan.Has(HookId.PreDrawResource) || overlay.Plan.Has(HookId.PostDrawResource);
+                anyDisplay |= overlay.Plan.Has(HookId.PreDrawResourceDisplay) || overlay.Plan.Has(HookId.PostDrawResourceDisplay);
+            }
 
-        SpriteBatchCapture.Install();
+            return (anyResource, anyDisplay);
+        }
 
-        Log.Info("[resourceoverlay] 已挂（生命/魔力条前后 + 单颗心/星前后 + 生命数值）");
-        return true;
+        internal struct Hooks : IGate
+        {
+            public static bool Wanted()
+            {
+                var (anyResource, anyDisplay) = Scan();
+                return anyResource || anyDisplay;
+            }
+
+            public static void Install()
+            {
+                var (anyResource, anyDisplay) = Scan();
+                Instance.InstallHooks(anyResource, anyDisplay);
+            }
+        }
+    }
+
+    public bool Install() => GateHub<ResourceOverlayPipeline>.Run();
+
+    private void InstallHooks(bool anyResource, bool anyDisplay)
+    {
+        if (anyDisplay)
+        {
+            On.GUIHearts.Draw += HeartsDraw;
+            On.GUIMana.Draw += ManaDraw;
+            On.GUIHearts.DrawLifeString += DrawLifeString;
+        }
+
+        if (anyResource)
+        {
+            On.GUIHearts.HeartDraw += HeartDraw;
+            On.GUIMana.StarDraw += StarDraw;
+            SpriteBatchCapture.Install();
+        }
+
+        Log.Info($"[resourceoverlay] 已挂（覆盖层 {ModContent.GetContent<ModResourceOverlay>().Count}：{(anyResource ? "单颗心/星前后 + 贴图捕获" : "")}{(anyResource && anyDisplay ? " + " : "")}{(anyDisplay ? "整条前后 + 生命数值" : "")}）");
     }
 
     public void Refresh() => ResourceOverlayTable.Rebuild();

@@ -1,5 +1,6 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Hooks;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
@@ -11,18 +12,19 @@ internal static class ItemHitboxHooks
 {
     private static bool _globalHitbox;
     private static bool _globalEffects;
-    private static bool _installed;
 
     internal static void Install()
     {
-        if (_installed) return;
-        _installed = true;
-
-        _globalHitbox = GlobalItemRegistry.AnyWith(HookId.UseItemHitbox);
-        _globalEffects = GlobalItemRegistry.AnyWith(HookId.MeleeEffects);
+        RefreshGlobals();
 
         On.Terraria.Player.ItemCheck_GetMeleeHitbox += GetMeleeHitbox;
         On.Terraria.Player.ItemCheck_EmitUseVisuals += EmitUseVisuals;
+    }
+
+    internal static void RefreshGlobals()
+    {
+        _globalHitbox = GlobalItemRegistry.AnyWith(HookId.UseItemHitbox);
+        _globalEffects = GlobalItemRegistry.AnyWith(HookId.MeleeEffects);
     }
 
     private static bool Wanted(bool global, Item? item) =>

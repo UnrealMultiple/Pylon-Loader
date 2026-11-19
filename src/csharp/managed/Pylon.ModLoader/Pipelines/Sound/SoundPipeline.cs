@@ -1,6 +1,7 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Audio;
 using Pylon.ModLoader.Audio;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using Terraria;
@@ -18,22 +19,61 @@ internal sealed class SoundPipeline : ILoaderModule
 
     private const int PruneInterval = 10;
 
+    /// <summary>SoundPool 解码未就绪的播放请求：排队重试（上限内），解码好就补播。</summary>
+    private const int PendingLimit = 24;
+    private const int PendingMaxAge = 45;
+
     private readonly SoundTable _table = new();
+    private readonly List<PendingPlay> _pending = [];
     private int _ticks;
+
+    private sealed class PendingPlay
+    {
+        public int Index;
+        public float VolumeScale;
+        public float PitchOffset;
+        public int Age;
+    }
+
+    private enum PlayReject
+    {
+        None,
+        Missing,
+        PoolUnavailable,
+        NotReady,
+        Full,
+    }
 
     public string Name => "sound";
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>sound 管线的安装门：播放与回收钩子在首个自定义音效注册时惰性挂上。</summary>
+    internal static class Gates
+    {
+        internal struct Playback : ILazyGate
+        {
+            public static bool Wanted() => false;
+
+            public static void Install() => Instance.InstallHooks();
+        }
+    }
+
+    public bool Install() => GateHub<SoundPipeline>.Run();
+
+    private void InstallHooks()
     {
         On.Terraria.Audio.LegacySoundPlayer.PlaySound += PlayMarker;
         On.Terraria.Main.UpdateAudio += UpdateAudio;
         Log.Info("[sound] 已挂（LegacySoundPlayer.PlaySound / 每 10 帧回收过期流）");
-        return true;
     }
 
-    internal int Register(SoundStyle style) => _table.Register(style);
+    internal int Register(SoundStyle style)
+    {
+        var index = _table.Register(style);
+        GateHub<SoundPipeline>.Trigger<Gates.Playback>();
+        return index;
+    }
 
     internal int Play(SoundStyle? style, Vector2? position)
     {
@@ -71,19 +111,41 @@ internal sealed class SoundPipeline : ILoaderModule
 
     private int Play(int index, float volumeScale, float pitchOffset)
     {
-        if ((uint)index >= (uint)_table.Count) return 0;
+        var handle = TryPlay(index, volumeScale, pitchOffset, out var reject);
+        if (handle > 0) return handle;
+
+        // SoundPool 解码是异步的：首播常常还没就绪。排队重试，就绪后补播，
+        // 否则"第一次放技能没声音"（音效有时有有时没有的主因）。
+        if (reject == PlayReject.NotReady)
+        {
+            if (_pending.Count < PendingLimit)
+                _pending.Add(new PendingPlay { Index = index, VolumeScale = volumeScale, PitchOffset = pitchOffset });
+        }
+        return 0;
+    }
+
+    private int TryPlay(int index, float volumeScale, float pitchOffset, out PlayReject reject)
+    {
+        reject = PlayReject.None;
+        if ((uint)index >= (uint)_table.Count)
+        {
+            reject = PlayReject.Missing;
+            return 0;
+        }
 
         ref var entry = ref _table.Entry(index);
         if (entry.SoundId <= 0)
         {
             Safe.Once("sound.missing:" + _table.PathOf(index),
                 $"sound: '{_table.PathOf(index)}' 没有可播的 SoundPool 条目", true);
+            reject = PlayReject.Missing;
             return 0;
         }
 
         if (!AndroidAudio.SoundAvailable)
         {
             Safe.Once("sound.pool", "sound: SoundPool 不可用，Mod 音效无法播放", true);
+            reject = PlayReject.PoolUnavailable;
             return 0;
         }
 
@@ -91,7 +153,11 @@ internal sealed class SoundPipeline : ILoaderModule
 
         if (entry.MaxInstances > 0 && entry.Active >= entry.MaxInstances)
         {
-            if (entry.LimitBehavior == 0) return 0;   // IgnoreNew
+            if (entry.LimitBehavior == 0)
+            {
+                reject = PlayReject.Full;   // IgnoreNew
+                return 0;
+            }
             Stop(entry.Head);
         }
 
@@ -105,6 +171,7 @@ internal sealed class SoundPipeline : ILoaderModule
         {
             Safe.Once("sound.notready:" + _table.PathOf(index),
                 $"sound: '{_table.PathOf(index)}' 还没解码好/被拒，这次先不播", false);
+            reject = PlayReject.NotReady;
             return 0;
         }
 
@@ -113,10 +180,24 @@ internal sealed class SoundPipeline : ILoaderModule
             try { AndroidAudio.StopSound(streamId); }
             catch (Exception e) { Safe.Report("sound.stop", e); }
             Safe.Once("sound.full", "sound: 活动流到上限，拒绝这次播放", true);
+            reject = PlayReject.Full;
             return 0;
         }
 
         return handle;
+    }
+
+    /// <summary>每 tick 清一次待播队列：就绪即补播，超时（约 0.75s）放弃。</summary>
+    private void DrainPending()
+    {
+        for (var i = _pending.Count - 1; i >= 0; i--)
+        {
+            var item = _pending[i];
+            item.Age++;
+            var handle = TryPlay(item.Index, item.VolumeScale, item.PitchOffset, out var reject);
+            if (handle > 0 || reject != PlayReject.NotReady || item.Age >= PendingMaxAge)
+                _pending.RemoveAt(i);
+        }
     }
 
     private void Prune(int index)
@@ -148,6 +229,8 @@ internal sealed class SoundPipeline : ILoaderModule
     private void UpdateAudio(On.Terraria.Main.orig_UpdateAudio orig, Main self)
     {
         orig(self);
+
+        if (_pending.Count > 0) DrainPending();
 
         if (_table.Count == 0) return;
         if (++_ticks < PruneInterval) return;

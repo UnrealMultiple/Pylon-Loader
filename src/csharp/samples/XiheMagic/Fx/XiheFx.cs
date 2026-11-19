@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using Il2CppMicrosoft.Xna.Framework;
 using Pylon.ModLoader;
 using Pylon.ModLoader.Effects;
@@ -13,14 +14,14 @@ namespace XiheMagic
 {
     internal static class XiheFx
     {
-        internal static ScreenShader Shader;
+        internal static ScreenGraphics.Shader Shader;
 
         // MEAC 原素材（从 MEAC 文件夹拷进来的那张图，不是新画的）。
-        private static ScreenTexture _beamTex;   // Images/tex3（外层柱）
-        private static ScreenTexture _coreTex;   // Images/tex0（内层柱）
-        private static ScreenTexture _arcTex;    // Items/ModWeapons/Arc（蓄力耀斑）
-        private static ScreenTexture _starTex;   // Images/Extra_89（十字辉光）
-        private static ScreenTexture _ringStripTex; // Images/MagicCircle/tex1（MagicRing 的 600x70 环带条）
+        private static ScreenGraphics.Texture _beamTex;   // Images/tex3（外层柱）
+        private static ScreenGraphics.Texture _coreTex;   // Images/tex0（内层柱）
+        private static ScreenGraphics.Texture _arcTex;    // Items/ModWeapons/Arc（蓄力耀斑）
+        private static ScreenGraphics.Texture _starTex;   // Images/Extra_89（十字辉光）
+        private static ScreenGraphics.Texture _ringStripTex; // Images/MagicCircle/tex1（MagicRing 的 600x70 环带条）
 
         private static int _controllerType;
         private static int _pillarType;
@@ -87,7 +88,7 @@ namespace XiheMagic
                 if (Shader == null) return;
                 var fx = new ScreenEffect(Shader)
                 {
-                    Layer = ScreenEffectLayer.World,
+                    Layer = ScreenEffects.Layer.World,
                     Box = new[] { 0f, 0f, 0.001f, 0.001f },
                     Center = new UVector2(0.5f, 0.5f),
                     Intensity = 0f,
@@ -137,6 +138,7 @@ namespace XiheMagic
             _sky = 0f;
             _submittedFrame = -1;
             _warmed = false;
+            if (ScreenEffects.Find(EffectKey) is { } live) live.Kill();
             ResetRings(-1);
         }
 
@@ -151,7 +153,7 @@ namespace XiheMagic
                 if (Shader == null) return;
                 var fx = new ScreenEffect(Shader)
                 {
-                    Layer = ScreenEffectLayer.World,
+                    Layer = ScreenEffects.Layer.World,
                     Box = new[] { 0f, 0f, 0.5f, 0.5f },
                     Center = new UVector2(0.5f, 0.5f),
                     Intensity = 0f,
@@ -201,10 +203,10 @@ namespace XiheMagic
                 if (!_probeChecked && Shader != null)
                 {
                     var state = Shader.Status;
-                    if (state != ScreenShaderStatus.Pending)
+                    if (state != ScreenGraphics.ShaderStatus.Pending)
                     {
                         _probeChecked = true;
-                        if (state == ScreenShaderStatus.Failed)
+                        if (state == ScreenGraphics.ShaderStatus.Failed)
                             XiheMagicMod.Log?.Error("[fx] 着色器编译失败：" + Shader.Error);
                         else
                             XiheMagicMod.Log?.Info("[fx] 着色器编译通过");
@@ -475,13 +477,21 @@ namespace XiheMagic
             _typesReady = _controllerType > 0 && _pillarType > 0;
         }
 
-        /// <summary>提交这一帧（Main.DoDraw 之前；或 PostUpdateEverything 兜底）。</summary>
+        private const string EffectKey = "XiheMagic:beam";
+
+        /// <summary>效果实例交给 ScreenEffects 统一推进与提交；这里只决定它该不该存在。</summary>
         internal static void Submit()
         {
             try
             {
                 if (Main.gameMenu || Shader == null) return;
-                if (!_hasCharge && !_hasBeam && !HasRings() && _flash <= 0.001f && _sky <= 0.01f) return;
+
+                var active = _hasCharge || _hasBeam || HasRings() || _flash > 0.001f || _sky > 0.01f;
+                if (!active)
+                {
+                    if (ScreenEffects.Find(EffectKey) is { } stale) stale.Kill();
+                    return;
+                }
 
                 var frame = UnityEngine.Time.frameCount;
                 if (_submittedFrame == frame) return;
@@ -494,101 +504,116 @@ namespace XiheMagic
                     {
                         var status = Shader.Status;
                         XiheMagicMod.Log?.Info($"[fx] 首次提交：shader={status}");
-                        if (status == ScreenShaderStatus.Failed)
+                        if (status == ScreenGraphics.ShaderStatus.Failed)
                             XiheMagicMod.Log?.Error("[fx] 着色器编译失败：" + Shader.Error);
                     }
                     catch (Exception e) { XiheMagicMod.Log?.Warn("[fx] 查询着色器状态失败：" + e.Message); }
                 }
 
-                var sw = Main.screenWidth;
-                var sh = Main.screenHeight;
-                if (sw <= 0 || sh <= 0) return;
-
-                var screen = Main.screenPosition;
-                var beamX = _hasBeam ? (_beamCenter.X - screen.X) / sw : 0f;
-                var impact = _hasBeam ? 1f - (_impactWorld.Y - screen.Y) / sh : 0f;
-
-                var chargeX = _hasCharge ? (_chargeCenter.X - screen.X) / sw : beamX;
-                var chargeY = _hasCharge ? 1f - (_chargeCenter.Y - screen.Y) / sh : 0.5f;
-
-                // 震屏：MEAC EoLBigLaser_Friendly.AI 每 tick 调 EffectPlayer.ScreenShake(8f, 柱心)，
-                // 强度按「柱心到屏幕中心的距离」线性衰减（dis=2000），覆盖整个 245..20 窗口。
-                var shake = 0f;
-                if (_hasBeam && _beamTimeLeft < 245 && _beamTimeLeft > 20)
+                if (ScreenEffects.Find(EffectKey) is XiheBeamEffect { Active: true }) return;
+                ScreenEffects.Spawn<XiheBeamEffect>(fx =>
                 {
-                    var screenCenter = new XVector2(screen.X + sw * 0.5f, screen.Y + sh * 0.5f);
-                    var distToCenter = Vector2.Distance(_beamCenter, screenCenter);
-                    shake = 8f * Math.Max(0f, 1f - distToCenter / 2000f) / sh;
-                }
-
-                var beam = 0f;
-                if (_hasBeam && _beamScale > 0.01f)
-                    beam = 0.55f + 0.45f * MathHelper.Clamp(_beamScale / 3.16f, 0f, 1f);   // 细柱阶段也要看得见
-                var charge = _hasCharge ? MathHelper.Clamp(_chargeAlpha, 0f, 1f) : 0f;
-
-                var fx = new ScreenEffect(Shader)
-                {
-                    Layer = ScreenEffectLayer.World,
-                    Center = new UVector2(MathHelper.Clamp(chargeX, 0f, 1f), MathHelper.Clamp(chargeY, 0f, 1f)),
-                    Radius = 0.4f,
-                    Intensity = 1f,
-                    Color = new UColor(1f, 0.8f, 0.35f, 1f),
-                };
-                fx.Uniform("uCharge", charge);
-                fx.Uniform("uBeam", beam);
-                fx.Uniform("uFlash", _flash);
-                fx.Uniform("uSky", _sky);
-                fx.Uniform("uShake", shake);
-                fx.Uniform("uImpact", MathHelper.Clamp(impact, -0.5f, 1.5f));
-                fx.Uniform("uBeamWidth", MathHelper.Clamp(_beamScale * 128f / sh, 0.002f, 0.5f));
-                fx.Uniform("uBeamX", MathHelper.Clamp(beamX, -0.5f, 1.5f));
-                fx.Uniform("uTexOn", _beamTex != null && _coreTex != null && _arcTex != null &&
-                                     _starTex != null && _ringStripTex != null ? 1f : 0f);
-
-                // 每个环一个 vec4：屏幕 uv 中心 + 半径/半宽（都以屏幕高度为单位，和 MEAC 的
-                // 世界 px 等价，投影常数 viewZ=1000 也换算进 uRingViewZ）。
-                var ringData = new float[MaxRings * 4];
-                var ringCount = 0;
-                for (var i = 0; i < _rings.Length && ringCount < MaxRings; i++)
-                {
-                    var r = _rings[i];
-                    if (!r.Alive) continue;
-
-                    var radius = 110f * r.Scale * r.Ai0;
-                    if (radius < 0.5f) continue;
-
-                    ringData[ringCount * 4 + 0] = (r.WorldX - screen.X) / sw;
-                    ringData[ringCount * 4 + 1] = 1f - (r.WorldY - screen.Y) / sh;
-                    ringData[ringCount * 4 + 2] = radius / sh;
-                    ringData[ringCount * 4 + 3] = 10f * r.Scale * r.Ai0 / sh;
-                    ringCount++;
-                }
-
-                if (ringCount > 0)
-                {
-                    var packed = new float[ringCount * 4];
-                    Array.Copy(ringData, packed, packed.Length);
-                    fx.Uniform("uRings", packed);
-                }
-                fx.Uniform("uRingCount", ringCount);
-                fx.Uniform("uRingViewZ", 1000f / sh);
-                // bloom 半径：MEAC 是三次 Kawase 模糊（很小），大了会把 4px 的描边糊成白带。
-                fx.Uniform("uRingHalo", 3f / sh);
-
-                if (_beamTex != null) fx.Texture("uBeamTex", _beamTex);
-                if (_coreTex != null) fx.Texture("uCoreTex", _coreTex);
-                if (_arcTex != null) fx.Texture("uArcTex", _arcTex);
-                if (_starTex != null) fx.Texture("uStarTex", _starTex);
-                if (_ringStripTex != null) fx.Texture("uRingStrip", _ringStripTex);
-
-                var screenFrame = new ScreenFrame();
-                screenFrame.Add(fx);
-                screenFrame.Submit();
+                    fx.Key = EffectKey;
+                    fx.Layer = ScreenEffects.Layer.World;
+                    fx.Fullscreen = true;
+                });
             }
             catch (Exception e)
             {
                 if (!_loggedError) { _loggedError = true; XiheMagicMod.Log?.Warn("[fx] 提交失败：" + e.Message); }
             }
+        }
+
+        /// <summary>把当前状态翻成这一帧的 uniform/纹理，交给效果层提交。</summary>
+        private static void DrawBeam(ScreenCommands cmd, ScreenGraphics.Shader shader)
+        {
+            var sw = Main.screenWidth;
+            var sh = Main.screenHeight;
+            if (sw <= 0 || sh <= 0) return;
+
+            var screen = Main.screenPosition;
+            var beamX = _hasBeam ? (_beamCenter.X - screen.X) / sw : 0f;
+            var impact = _hasBeam ? 1f - (_impactWorld.Y - screen.Y) / sh : 0f;
+
+            var chargeX = _hasCharge ? (_chargeCenter.X - screen.X) / sw : beamX;
+            var chargeY = _hasCharge ? 1f - (_chargeCenter.Y - screen.Y) / sh : 0.5f;
+
+            // 震屏：MEAC EoLBigLaser_Friendly.AI 每 tick 调 EffectPlayer.ScreenShake(8f, 柱心)，
+            // 强度按「柱心到屏幕中心的距离」线性衰减（dis=2000），覆盖整个 245..20 窗口。
+            var shake = 0f;
+            if (_hasBeam && _beamTimeLeft < 245 && _beamTimeLeft > 20)
+            {
+                var screenCenter = new XVector2(screen.X + sw * 0.5f, screen.Y + sh * 0.5f);
+                var distToCenter = Vector2.Distance(_beamCenter, screenCenter);
+                shake = 8f * Math.Max(0f, 1f - distToCenter / 2000f) / sh;
+            }
+
+            var beam = 0f;
+            if (_hasBeam && _beamScale > 0.01f)
+                beam = 0.55f + 0.45f * MathHelper.Clamp(_beamScale / 3.16f, 0f, 1f);   // 细柱阶段也要看得见
+            var charge = _hasCharge ? MathHelper.Clamp(_chargeAlpha, 0f, 1f) : 0f;
+
+            var options = new ScreenDrawOptions();
+            options.Uniforms["uCharge"] = charge;
+            options.Uniforms["uBeam"] = beam;
+            options.Uniforms["uFlash"] = _flash;
+            options.Uniforms["uSky"] = _sky;
+            options.Uniforms["uShake"] = shake;
+            options.Uniforms["uImpact"] = MathHelper.Clamp(impact, -0.5f, 1.5f);
+            options.Uniforms["uBeamWidth"] = MathHelper.Clamp(_beamScale * 128f / sh, 0.002f, 0.5f);
+            options.Uniforms["uBeamX"] = MathHelper.Clamp(beamX, -0.5f, 1.5f);
+            options.Uniforms["uTexOn"] = _beamTex != null && _coreTex != null && _arcTex != null &&
+                                         _starTex != null && _ringStripTex != null ? 1f : 0f;
+            options.Uniforms["uCenter"] = new XVector2(
+                MathHelper.Clamp(chargeX, 0f, 1f), MathHelper.Clamp(chargeY, 0f, 1f));
+
+            // 每个环一个 vec4：屏幕 uv 中心 + 半径/半宽（都以屏幕高度为单位，和 MEAC 的
+            // 世界 px 等价，投影常数 viewZ=1000 也换算进 uRingViewZ）。
+            var ringData = new float[MaxRings * 4];
+            var ringCount = 0;
+            for (var i = 0; i < _rings.Length && ringCount < MaxRings; i++)
+            {
+                var r = _rings[i];
+                if (!r.Alive) continue;
+
+                var radius = 110f * r.Scale * r.Ai0;
+                if (radius < 0.5f) continue;
+
+                ringData[ringCount * 4 + 0] = (r.WorldX - screen.X) / sw;
+                ringData[ringCount * 4 + 1] = 1f - (r.WorldY - screen.Y) / sh;
+                ringData[ringCount * 4 + 2] = radius / sh;
+                ringData[ringCount * 4 + 3] = 10f * r.Scale * r.Ai0 / sh;
+                ringCount++;
+            }
+
+            if (ringCount > 0)
+                options.Uniforms["uRings"] = ScreenGraphics.Array(4, ringData.Take(ringCount * 4));
+            options.Uniforms["uRingCount"] = ringCount;
+            options.Uniforms["uRingViewZ"] = 1000f / sh;
+            // bloom 半径：MEAC 是三次 Kawase 模糊（很小），大了会把 4px 的描边糊成白带。
+            options.Uniforms["uRingHalo"] = 3f / sh;
+
+            if (_beamTex != null) options.Textures["uBeamTex"] = _beamTex;
+            if (_coreTex != null) options.Textures["uCoreTex"] = _coreTex;
+            if (_arcTex != null) options.Textures["uArcTex"] = _arcTex;
+            if (_starTex != null) options.Textures["uStarTex"] = _starTex;
+            if (_ringStripTex != null) options.Textures["uRingStrip"] = _ringStripTex;
+
+            cmd.DrawShader(shader, options);
+        }
+
+        /// <summary>光柱/蓄力/魔法环共用的一个全屏 pass；状态由 <see cref="XiheFx"/> 提供。</summary>
+        public sealed class XiheBeamEffect : ModScreenEffect
+        {
+            public override string ShaderPath => "assets/effects/XiheBeam.frag";
+
+            public override void SetDefaults()
+            {
+                Layer = ScreenEffects.Layer.World;
+                Fullscreen = true;
+            }
+
+            public override void Draw(ScreenCommands cmd) => DrawBeam(cmd, Shader!);
         }
     }
 }

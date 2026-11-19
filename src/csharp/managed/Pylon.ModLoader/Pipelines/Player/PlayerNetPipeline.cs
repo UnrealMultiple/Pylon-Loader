@@ -1,3 +1,4 @@
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using Terraria;
@@ -15,20 +16,29 @@ internal sealed class PlayerNetPipeline : ILoaderModule
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>playernet 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
     {
-        On.Terraria.Player.clientClone_Player += ClientClone;
-        On.Terraria.Player.clientClone_ += ClientCloneSelf;
-        On.Terraria.Main.UpdateClient += UpdateClient;
-        On.Terraria.NetMessage.SyncOnePlayer += SyncOnePlayer;
-        On.Terraria.NetMessage.SyncDisconnectedPlayer += SyncDisconnectedPlayer;
-        On.Terraria.Player.Hooks.PlayerConnect += Connected;
-        On.Terraria.Player.Hooks.PlayerDisconnect += Disconnected;
-        On.Terraria.Player.Hooks.EnterWorld += EnteredWorld;
+        internal struct Sync : IGate
+        {
+            public static bool Wanted() => PlayerPipeline.Instance.Binding.Count > 0;
 
-        Log.Info("[playernet] 已挂（同步 / 客户端状态比对 / 断线）");
-        return true;
+            public static void Install()
+            {
+                On.Terraria.Player.clientClone_Player += ClientClone;
+                On.Terraria.Player.clientClone_ += ClientCloneSelf;
+                On.Terraria.Main.UpdateClient += Instance.UpdateClient;
+                On.Terraria.NetMessage.SyncOnePlayer += Instance.SyncOnePlayer;
+                On.Terraria.NetMessage.SyncDisconnectedPlayer += Instance.SyncDisconnectedPlayer;
+                On.Terraria.Player.Hooks.PlayerConnect += Instance.Connected;
+                On.Terraria.Player.Hooks.PlayerDisconnect += Instance.Disconnected;
+                On.Terraria.Player.Hooks.EnterWorld += Instance.EnteredWorld;
+                Log.Info("[playernet] 已挂（同步 / 客户端状态比对 / 断线）");
+            }
+        }
     }
+
+    public bool Install() => GateHub<PlayerNetPipeline>.Run();
 
     private static bool Wants(HookId hook) => PlayerPipeline.Instance.ModsActive(hook);
 

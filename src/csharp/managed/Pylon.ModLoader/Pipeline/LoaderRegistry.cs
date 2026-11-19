@@ -72,27 +72,50 @@ internal static class LoaderRegistry
         }
     }
 
-    private static int _installed;
+    private static readonly bool[] _installed = new bool[Modules.Length];
+    private static bool _allInstalled;
+    private static string? _lastGates;
 
     public static void InstallAll()
     {
-        if (_installed >= Modules.Length) return;
-
-        while (_installed < Modules.Length)
+        if (_allInstalled)
         {
-            var module = Modules[_installed];
-            if (!module.Install()) return;
-            _installed++;
+            RefreshAll();
+            return;
         }
 
+        var pending = false;
+        for (var i = 0; i < Modules.Length; i++)
+        {
+            if (_installed[i]) continue;
+            if (Modules[i].Install())
+            {
+                _installed[i] = true;
+            }
+            else
+            {
+                pending = true;
+            }
+        }
+
+        LogGates();
         RefreshAll();
+        if (!pending) _allInstalled = true;
+    }
+
+    private static void LogGates()
+    {
+        var gates = GateLog.Snapshot();
+        if (gates == _lastGates) return;
+        _lastGates = gates;
+        LoaderHost.Current.Log.Info(gates);
     }
 
     public static void RefreshAll()
     {
-        for (var i = 0; i < _installed; i++)
+        for (var i = 0; i < Modules.Length; i++)
         {
-            if (Modules[i] is ILoaderModuleRefresh refresh) refresh.Refresh();
+            if (_installed[i] && Modules[i] is ILoaderModuleRefresh refresh) refresh.Refresh();
         }
     }
 }

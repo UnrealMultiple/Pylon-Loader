@@ -1,4 +1,5 @@
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 
@@ -15,10 +16,27 @@ internal sealed class PlayerDrawLayerPipeline : ILoaderModule, ILoaderModuleRefr
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>playerdrawlayer 管线的安装门：只有存在作者绘制层时才登记安装（原生逐层钩子归 playerdrawinfo 的 Anchors 门）。</summary>
+    internal static class Gates
     {
-        Log.Info("[playerdrawlayer] 已挂（层位排序 / 父子层 / 可见性 / 原版逐层槽位）");
-        return true;
+        internal struct Layers : IGate
+        {
+            public static bool Wanted() => HasLayers();
+
+            public static void Install() => Log.Info("[playerdrawlayer] 已挂（层位排序 / 父子层 / 可见性 / 原版逐层槽位）");
+        }
+    }
+
+    public bool Install() => GateHub<PlayerDrawLayerPipeline>.Run();
+
+    private static bool HasLayers()
+    {
+        foreach (var layer in ModContent.GetContent<PlayerDrawLayer>())
+        {
+            if (layer is not VanillaPlayerDrawLayer) return true;
+        }
+
+        return false;
     }
 
     public void Refresh() => PlayerDrawLayerLoader.Rebuild();

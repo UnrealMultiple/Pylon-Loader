@@ -1,4 +1,5 @@
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Hooks;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
@@ -9,20 +10,19 @@ namespace Pylon.ModLoader.Pipelines;
 internal static class ItemManaHooks
 {
     private static bool _globalMana;
-    private static bool _installed;
 
     [ThreadStatic] private static bool _checking;
 
     internal static void Install()
     {
-        if (_installed) return;
-        _installed = true;
-
-        _globalMana = GlobalItemRegistry.AnyWith(HookId.ModifyManaCost, HookId.OnMissingMana, HookId.OnConsumeMana);
+        RefreshGlobals();
 
         On.Terraria.Player.CheckMana += CheckMana;
         On.Terraria.Player.CheckManaPredictWithoutUse += CheckManaPredictWithoutUse;
     }
+
+    internal static void RefreshGlobals() =>
+        _globalMana = GlobalItemRegistry.AnyWith(HookId.ModifyManaCost, HookId.OnMissingMana, HookId.OnConsumeMana);
 
     private static bool Wanted(Item? item) =>
         item is not null && item.type > 0 && (_globalMana || ModContent.IsCustom(ContentKind.Item, item.type));

@@ -1,5 +1,6 @@
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Hooks;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
@@ -18,19 +19,70 @@ internal sealed class PrefixPipeline : ILoaderModule
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>prefix 管线的安装门：只有存在 ModPrefix 或相关物品前缀钩子时才接管前缀链。</summary>
+    internal static class Gates
     {
-        On.Terraria.Item.GetRollablePrefixes += Rollable;
-        On.Terraria.Item.CanRollPrefix += CanRoll;
-        On.Terraria.Item.RollAPrefix += Roll;
-        On.Terraria.Item.TryGetPrefixStatMultipliersForItem += Stats;
-        On.Terraria.Item.Prefix_int_boolRef += Applied;
-        On.Terraria.Player.GrantPrefixBenefits += AccessoryBenefits;
-        On.Terraria.Lang.InitializeLegacyLocalization += AfterLegacyLocalization;
+        internal struct Pool : IGate
+        {
+            public static bool Wanted() =>
+                HasPrefixes() || HookGuard.Wants<ModItem>(HookId.AllowPrefix) ||
+                GlobalItemRegistry.AnyWith(HookId.AllowPrefix);
 
-        Log.Info("[prefix] 已挂（可滚列表 / 能否滚 / 加权随机 / 数值 / 应用 / 饰品 / 名字）");
-        return true;
+            public static void Install()
+            {
+                On.Terraria.Item.GetRollablePrefixes += Instance.Rollable;
+
+                Log.Info("[prefix] 已挂（可滚列表 / 能否滚 / 加权随机 / 数值 / 应用 / 饰品 / 名字）");
+            }
+        }
+
+        internal struct Roll : IGate
+        {
+            public static bool Wanted() =>
+                HasPrefixes() || HookGuard.Wants<ModItem>(HookId.ChoosePrefix) ||
+                GlobalItemRegistry.AnyWith(HookId.ChoosePrefix);
+
+            public static void Install()
+            {
+                On.Terraria.Item.CanRollPrefix += CanRoll;
+                On.Terraria.Item.RollAPrefix += Instance.Roll;
+            }
+        }
+
+        internal struct Stats : IGate
+        {
+            public static bool Wanted() => HasPrefixes();
+
+            public static void Install() => On.Terraria.Item.TryGetPrefixStatMultipliersForItem += Instance.Stats;
+        }
+
+        internal struct Apply : IGate
+        {
+            public static bool Wanted() =>
+                HasPrefixes() || HookGuard.Wants<ModItem>(HookId.PrefixChance) ||
+                GlobalItemRegistry.AnyWith(HookId.PrefixChance);
+
+            public static void Install() => On.Terraria.Item.Prefix_int_boolRef += Instance.Applied;
+        }
+
+        internal struct Benefits : IGate
+        {
+            public static bool Wanted() => HasPrefixes();
+
+            public static void Install() => On.Terraria.Player.GrantPrefixBenefits += Instance.AccessoryBenefits;
+        }
+
+        internal struct Names : IGate
+        {
+            public static bool Wanted() => HasPrefixes();
+
+            public static void Install() => On.Terraria.Lang.InitializeLegacyLocalization += Instance.AfterLegacyLocalization;
+        }
     }
+
+    public bool Install() => GateHub<PrefixPipeline>.Run();
+
+    private static bool HasPrefixes() => ModContent.GetContent<ModPrefix>().Count > 0;
 
     #region 可滚列表
 

@@ -1,4 +1,5 @@
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using Terraria;
@@ -31,7 +32,37 @@ internal sealed class ConfigNetPipeline : ILoaderModule
     /// <summary>被服务器改过的配置 → 它们在本机的原值（离开世界时写回）。</summary>
     private readonly Dictionary<ModConfigEntry, Dictionary<string, object>> _applied = [];
 
-    public bool Install()
+    /// <summary>confignet 管线的安装门：仅在有 ServerSide 配置时开通道并挂同步钩子。</summary>
+    internal static class Gates
+    {
+        internal static bool HasServerConfigs()
+        {
+            foreach (var config in ModContent.GetContent<ModConfig>())
+            {
+                try
+                {
+                    if (config.Mode == ConfigScope.ServerSide) return true;
+                }
+                catch
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        internal struct Sync : IGate
+        {
+            public static bool Wanted() => HasServerConfigs();
+
+            public static void Install() => Instance.InstallSync();
+        }
+    }
+
+    public bool Install() => GateHub<ConfigNetPipeline>.Run();
+
+    private void InstallSync()
     {
         _net = NetPipeline.Instance;
         _kind = _net.OpenChannel(Receive);
@@ -40,7 +71,6 @@ internal sealed class ConfigNetPipeline : ILoaderModule
         On.Terraria.Main.Update += CheckLeave;
 
         Log.Info("[confignet] 已挂（ServerSide 配置：连上收服务器值 / 离开写回本机值 / 改值走请求）");
-        return true;
     }
 
     // ===================== 服务器 → 客户端 =====================

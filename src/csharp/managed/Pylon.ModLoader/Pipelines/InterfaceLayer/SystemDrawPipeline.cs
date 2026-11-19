@@ -1,4 +1,5 @@
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using Terraria;
@@ -16,14 +17,32 @@ internal sealed class SystemDrawPipeline : ILoaderModule, ILoaderModuleRefresh
     private static bool _tiles;
     private static bool _interface;
 
-    public bool Install()
+    /// <summary>systemdraw 管线的安装门：按 ModSystem 的绘制时机钩子分装。</summary>
+    internal static class Gates
     {
-        On.Terraria.Main.DrawSuperSpecialProjectiles += DrawProjectiles;
-        On.Terraria.Main.DrawInterface_33_MouseText += DrawMouseText;
+        internal struct Core : IGate
+        {
+            public static bool Wanted() => true;
 
-        Log.Info("[systemdraw] 已挂（PostDrawTiles / PostDrawInterface）");
-        return true;
+            public static void Install() => Log.Info("[systemdraw] 已就位（PostDrawTiles / PostDrawInterface 按 ModSystem 时机分装）");
+        }
+
+        internal struct Tiles : IGate
+        {
+            public static bool Wanted() => SystemTable.AnyPostDrawTiles;
+
+            public static void Install() => On.Terraria.Main.DrawSuperSpecialProjectiles += DrawProjectiles;
+        }
+
+        internal struct Interface : IGate
+        {
+            public static bool Wanted() => SystemTable.AnyPostDrawInterface;
+
+            public static void Install() => On.Terraria.Main.DrawInterface_33_MouseText += DrawMouseText;
+        }
     }
+
+    public bool Install() => GateHub<SystemDrawPipeline>.Run();
 
     public void Refresh()
     {

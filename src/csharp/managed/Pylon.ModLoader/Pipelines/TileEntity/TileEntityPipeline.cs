@@ -1,5 +1,6 @@
 using Pylon.ModLoader.Content;
 using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Hooks;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
@@ -26,24 +27,81 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>tileentity 管线的安装门：网络通道常驻，其余钩子按 ModTileEntity 与方块放置钩子分装。</summary>
+    internal static class Gates
     {
-        _net = NetPipeline.Instance;
-        _kind = _net.OpenChannel(Receive);
+        internal struct Core : IGate
+        {
+            public static bool Wanted() => true;
 
-        On.Terraria.DataStructures.TileEntity.PerformUpdates += Tick;
-        On.Terraria.WorldGen.clearWorld += ClearWorldPostfix;
-        On.Terraria.IO.WorldFile.LoadWorld += LoadWorld;
-        On.Terraria.IO.WorldFile.InternalSaveWorld += SaveWorld;
-        On.Terraria.NetMessage.SendSection += SendSection;
-        On.Terraria.WorldGen.PlaceTile += PlaceTile;
-        On.Terraria.ObjectData.TileObjectData.CallPostPlacementPlayerHook += CallPostPlacement;
-        On.Terraria.WorldGen.KillTile += KillTile;
-        On.Terraria.Player.PlaceThing_Tiles += Placing;
+            public static void Install()
+            {
+                Instance._net = NetPipeline.Instance;
+                Instance._kind = Instance._net.OpenChannel(Instance.Receive);
 
-        Log.Info("[tileentity] 已挂（每帧 / 清世界 / 读档 / 存档 / 同步 / 放置即建实体 / 拆除即摘实体）");
-        return true;
+                Log.Info("[tileentity] 已挂（每帧 / 清世界 / 读档 / 存档 / 同步 / 放置即建实体 / 拆除即摘实体）");
+            }
+        }
+
+        internal struct UpdateTick : IGate
+        {
+            public static bool Wanted() =>
+                HookGuard.Wants<ModTileEntity>(HookId.PreGlobalUpdate, HookId.Update, HookId.PostGlobalUpdate);
+
+            public static void Install() => On.Terraria.DataStructures.TileEntity.PerformUpdates += Instance.Tick;
+        }
+
+        internal struct Lifecycle : IGate
+        {
+            public static bool Wanted() => HasEntities();
+
+            public static void Install()
+            {
+                On.Terraria.WorldGen.clearWorld += ClearWorldPostfix;
+                On.Terraria.IO.WorldFile.LoadWorld += LoadWorld;
+                On.Terraria.IO.WorldFile.InternalSaveWorld += SaveWorld;
+            }
+        }
+
+        internal struct Sync : IGate
+        {
+            public static bool Wanted() => HasEntities();
+
+            public static void Install() => On.Terraria.NetMessage.SendSection += Instance.SendSection;
+        }
+
+        internal struct TilePlace : IGate
+        {
+            public static bool Wanted() => HasEntities() || HasTilePlaceHooks();
+
+            public static void Install() => On.Terraria.WorldGen.PlaceTile += PlaceTile;
+        }
+
+        internal struct Placement : IGate
+        {
+            public static bool Wanted() => HasTilePlaceHooks();
+
+            public static void Install()
+            {
+                On.Terraria.ObjectData.TileObjectData.CallPostPlacementPlayerHook += CallPostPlacement;
+                On.Terraria.Player.PlaceThing_Tiles += Placing;
+            }
+        }
+
+        internal struct Kill : IGate
+        {
+            public static bool Wanted() => HasEntities();
+
+            public static void Install() => On.Terraria.WorldGen.KillTile += KillTile;
+        }
     }
+
+    public bool Install() => GateHub<TileEntityPipeline>.Run();
+
+    private static bool HasEntities() => ModContent.GetContent<ModTileEntity>().Count > 0;
+
+    private static bool HasTilePlaceHooks() =>
+        HookGuard.Wants<ModTile>(HookId.PlaceInWorld) || GlobalTileRegistry.AnyWith(HookId.PlaceInWorld);
 
     [ThreadStatic] private static int _placing;
 

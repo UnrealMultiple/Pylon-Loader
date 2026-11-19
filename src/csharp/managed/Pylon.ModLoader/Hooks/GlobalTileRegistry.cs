@@ -12,4 +12,6 @@ internal static class GlobalTileRegistry
     internal static IReadOnlyList<GlobalTile> All => Registry.All;
 
     internal static List<GlobalTile> For(HookId hook) => Registry.For(hook);
+
+    internal static bool AnyWith(params ReadOnlySpan<HookId> hooks) => Registry.AnyWith(hooks);
 }

@@ -1,6 +1,7 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using ReLogic.Content;
@@ -22,23 +23,90 @@ internal sealed class MountPipeline : ILoaderModule
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>mount 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
     {
-        On.Terraria.Mount.SetMount += SetMount;
-        On.Terraria.Mount.DoSpawnDust += SpawnDust;
-        On.Terraria.Mount.Dismount += Dismount;
-        On.Terraria.Mount.UpdateEffects += UpdateEffects;
-        On.Terraria.Mount.UpdateFrame += UpdateFrame;
-        On.Terraria.Mount.JumpHeight += JumpHeight;
-        On.Terraria.Mount.JumpSpeed += JumpSpeed;
-        On.Terraria.Mount.UseAbility += UseAbility;
-        On.Terraria.Mount.AimAbility += AimAbility;
-        On.Terraria.Mount.Draw += Draw;
-        On.Terraria.Mount.Initialize += Initialized;
+        internal static bool HasMounts() => ModContent.GetContent<ModMount>().Count > 0;
 
-        Log.Info("[mount] 已挂（骑 / 下 / 每帧 / 跳 / 能力 / 绘制 / 表重建）");
-        return true;
+        internal struct Ride : IGate
+        {
+            public static bool Wanted() => HasMounts();
+
+            public static void Install()
+            {
+                On.Terraria.Mount.SetMount += Instance.SetMount;
+                On.Terraria.Mount.DoSpawnDust += Instance.SpawnDust;
+                On.Terraria.Mount.Dismount += Instance.Dismount;
+
+                Log.Info("[mount] 已挂：骑 / 下");
+            }
+        }
+
+        internal struct Update : IGate
+        {
+            public static bool Wanted() => HasMounts();
+
+            public static void Install()
+            {
+                On.Terraria.Mount.UpdateEffects += Instance.UpdateEffects;
+                On.Terraria.Mount.UpdateFrame += Instance.UpdateFrame;
+
+                Log.Info("[mount] 已挂：每帧");
+            }
+        }
+
+        internal struct Jump : IGate
+        {
+            public static bool Wanted() => HasMounts();
+
+            public static void Install()
+            {
+                On.Terraria.Mount.JumpHeight += Instance.JumpHeight;
+                On.Terraria.Mount.JumpSpeed += Instance.JumpSpeed;
+
+                Log.Info("[mount] 已挂：跳");
+            }
+        }
+
+        internal struct Ability : IGate
+        {
+            public static bool Wanted() => HasMounts();
+
+            public static void Install()
+            {
+                On.Terraria.Mount.UseAbility += Instance.UseAbility;
+                On.Terraria.Mount.AimAbility += Instance.AimAbility;
+
+                Log.Info("[mount] 已挂：能力");
+            }
+        }
+
+        internal struct Render : IGate
+        {
+            public static bool Wanted() => HasMounts();
+
+            public static void Install()
+            {
+                On.Terraria.Mount.Draw += Instance.Draw;
+
+                Log.Info("[mount] 已挂：绘制");
+            }
+        }
+
+        internal struct Initialize : IGate
+        {
+            public static bool Wanted() => HasMounts();
+
+            public static void Install()
+            {
+                On.Terraria.Mount.Initialize += Instance.Initialized;
+
+                Log.Info("[mount] 已挂：表重建");
+            }
+        }
     }
+
+    public bool Install() => GateHub<MountPipeline>.Run();
 
     #region 骑乘
 

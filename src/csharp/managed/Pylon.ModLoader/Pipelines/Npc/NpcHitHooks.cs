@@ -46,7 +46,6 @@ internal static class NpcHitHooks
 
     [ThreadStatic] private static Attack? _attack;
     [ThreadStatic] private static int _hideText, _critText;
-    private static bool _installed;
     private static readonly HookId[] ItemHooks = [HookId.CanHitNPC, HookId.CanMeleeAttackCollideWithNPC, HookId.ModifyHitNPC, HookId.OnHitNPC];
     private static readonly HookId[] NpcHooks = [HookId.CanBeHitByItem, HookId.CanCollideWithPlayerMeleeAttack, HookId.ModifyIncomingHit, HookId.ModifyHitByItem, HookId.OnHitByItem];
     private static readonly HookId[] PlayerHooks = [HookId.CanHitNPC, HookId.CanHitNPCWithItem, HookId.CanMeleeAttackCollideWithNPC, HookId.ModifyHitNPC, HookId.ModifyHitNPCWithItem, HookId.OnHitNPC, HookId.OnHitNPCWithItem];
@@ -59,8 +58,6 @@ internal static class NpcHitHooks
 
     internal static void Install()
     {
-        if (_installed) return;
-        _installed = true;
         On.Terraria.Player.ProcessHitAgainstNPC += Process;
         On.Terraria.Player.CanNPCBeHitByPlayerOrPlayerProjectile += CanBeHit;
         On.Terraria.NPC.StrikeNPC += Strike;

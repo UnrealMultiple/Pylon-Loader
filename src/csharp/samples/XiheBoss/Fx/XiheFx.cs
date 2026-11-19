@@ -12,7 +12,6 @@ using Color = Il2CppMicrosoft.Xna.Framework.Graphics.Color;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader;
 using Pylon.ModLoader.Effects;
-using ScreenShader = Pylon.ModLoader.Effects.ScreenShader;
 using Terraria;
 using Terraria.ID;
 using UVector2 = UnityEngine.Vector2;
@@ -183,10 +182,10 @@ namespace XiheBoss
         internal const int RingPerPass = 6;
         internal const int SpritePerPass = 64;
 
-        internal static ScreenShader PrimsShader;
-        internal static ScreenShader PostShader;
-        internal static ScreenShader RingShader;
-        internal static ScreenShader LineShader;
+        internal static ScreenGraphics.Shader PrimsShader;
+        internal static ScreenGraphics.Shader PostShader;
+        internal static ScreenGraphics.Shader RingShader;
+        internal static ScreenGraphics.Shader LineShader;
 
         private static readonly List<OrbPrim> Orbs = new();
         private static readonly List<BeamPrim> Beams = new();
@@ -252,10 +251,10 @@ namespace XiheBoss
         {
             try
             {
-                PrimsShader = ScreenShader.FromFile(mod, "assets/effects/XihePrims.frag");
-                PostShader = ScreenShader.FromFile(mod, "assets/effects/XihePost.frag");
-                RingShader = ScreenShader.FromFile(mod, "assets/effects/XiheRing.frag");
-                LineShader = ScreenShader.FromFile(mod, "assets/effects/XiheLine.frag");
+                PrimsShader = ScreenGraphics.Shader.FromFile(mod, "assets/effects/XihePrims.frag");
+                PostShader = ScreenGraphics.Shader.FromFile(mod, "assets/effects/XihePost.frag");
+                RingShader = ScreenGraphics.Shader.FromFile(mod, "assets/effects/XiheRing.frag");
+                LineShader = ScreenGraphics.Shader.FromFile(mod, "assets/effects/XiheLine.frag");
                 XiheMesh.Init(mod, log);
                 log?.Info("[fx] XihePrims/XihePost/XiheRing/XiheLine 已注册");
             }
@@ -477,7 +476,7 @@ namespace XiheBoss
             var uv = XiheSky.SunUv();
             var fx = new ScreenEffect(PostShader)
             {
-                Layer = ScreenEffectLayer.World,
+                Layer = ScreenEffects.Layer.World,
                 Center = new UVector2(MathHelper.Clamp(uv.X, 0f, 1f), MathHelper.Clamp(uv.Y, 0f, 1f)),
                 Intensity = 1f,
             };
@@ -754,16 +753,13 @@ namespace XiheBoss
                     if (nowMs - _lastProfileLogMs >= 1000)
                     {
                         _lastProfileLogMs = nowMs;
-                        var native = ScreenGraphics.Stats();
+                        var native = ScreenEffects.Stats;
                         var frames = Math.Max(1L, native.Frames - _lastNativeFrames);
                         var gpuSamples = native.GpuSamples - _lastNativeGpuSamples;
                         XiheBossMod.Log?.Info($"[screen-profile] draws={frame.Draws.Count} meshBatches={XiheMesh.MeshBatchCount} meshVerts={XiheMesh.MeshVertexCount} " +
-                            $"submitNs={submitNs:F0} allocBytes={allocBytes} nativeFrames={frames} nativeDraws={native.Draws} " +
-                            $"meshDraws={native.MeshDraws} fullscreenDraws={native.FullscreenDraws} boxPixels={native.BoxPixels} " +
-                            $"screenCopies={native.ScreenCopies} copyPixels={native.ScreenCopyPixels} uniformBytes={native.UniformBytes} " +
-                            $"bufferDataBytes={native.BufferDataBytes} subDataBytes={native.BufferSubDataBytes} storageBytes={native.BufferStorageBytes} " +
-                            $"bufferDataCalls={native.BufferDataCalls} subDataCalls={native.BufferSubDataCalls} nativeMeshVertices={native.MeshVertices} " +
-                            $"framesTotal={native.Frames} cpuNs={native.CpuNs} gpuSamplesTotal={native.GpuSamples} gpuNs={native.GpuNs} gpuSamples={gpuSamples}");
+                            $"submitNs={submitNs:F0} allocBytes={allocBytes} nativeFrames={frames} nativePasses={native.Passes} " +
+                            $"boxPixels={native.BoxPixels} screenCopies={native.CopyFallbacks} " +
+                            $"framesTotal={native.Frames} renderCpuNs={native.RenderCpuNs} gpuSamplesTotal={native.GpuSamples} gpuNs={native.GpuNs} gpuSamples={gpuSamples}");
                         _lastNativeFrames = native.Frames;
                         _lastNativeGpuSamples = native.GpuSamples;
                     }
@@ -781,7 +777,7 @@ namespace XiheBoss
             var center = centerWorld == default ? new Vector2(0.5f, 0.5f) : ToUv(centerWorld);
             var fx = new ScreenEffect(PostShader)
             {
-                Layer = ScreenEffectLayer.World,
+                Layer = ScreenEffects.Layer.World,
                 Center = new UVector2(MathHelper.Clamp(center.X, 0f, 1f), MathHelper.Clamp(center.Y, 0f, 1f)),
                 Intensity = 1f,
             };
@@ -826,7 +822,7 @@ namespace XiheBoss
                 if (count == 0) break;
                 var fx = new ScreenEffect(PostShader)
                 {
-                    Layer = ScreenEffectLayer.World,
+                    Layer = ScreenEffects.Layer.World,
                     Center = new UVector2(0.5f, 0.5f),
                     Intensity = 1f,
                 };
@@ -849,7 +845,7 @@ namespace XiheBoss
                 var uv = ToUv(f.Pos);
                 var fx = new ScreenEffect(PostShader)
                 {
-                    Layer = ScreenEffectLayer.World,
+                    Layer = ScreenEffects.Layer.World,
                     Center = new UVector2(MathHelper.Clamp(uv.X, 0f, 1f), MathHelper.Clamp(uv.Y, 0f, 1f)),
                     Intensity = 1f,
                 };
@@ -912,7 +908,7 @@ namespace XiheBoss
             }
             var fx = new ScreenEffect(PostShader)
             {
-                Layer = ScreenEffectLayer.World,
+                Layer = ScreenEffects.Layer.World,
                 Intensity = 1f,
             };
             fx.Uniform("uMode", 8f);
@@ -961,7 +957,7 @@ namespace XiheBoss
 
                 var fx = new ScreenEffect(RingShader)
                 {
-                    Layer = ScreenEffectLayer.World,
+                    Layer = ScreenEffects.Layer.World,
                     Box = new[]
                     {
                         MathHelper.Clamp(x0 - 0.02f, 0f, 1f), MathHelper.Clamp(y0 - 0.02f, 0f, 1f),
@@ -1031,7 +1027,7 @@ namespace XiheBoss
 
                     var fx = new ScreenEffect(LineShader)
                     {
-                        Layer = ScreenEffectLayer.World,
+                        Layer = ScreenEffects.Layer.World,
                         Box = new[]
                         {
                             MathHelper.Clamp(x0 - 0.02f, 0f, 1f), MathHelper.Clamp(y0 - 0.02f, 0f, 1f),
@@ -1232,7 +1228,7 @@ namespace XiheBoss
 
                 var fx = new ScreenEffect(PrimsShader)
                 {
-                    Layer = ScreenEffectLayer.World,
+                    Layer = ScreenEffects.Layer.World,
                     Box = box,
                     Center = new UVector2(0.5f, 0.5f),
                     Intensity = 1f,

@@ -8,15 +8,12 @@ namespace Pylon.ModLoader.Pipelines;
 /// <summary>在原版选鱼前修改条件，在掷骰后回写物品和敌人结果。</summary>
 internal static class PlayerFishingHooks
 {
-    private static bool _installed;
     [ThreadStatic] private static nint _catchPlayer;
     [ThreadStatic] private static bool _catchPending;
     private static PlayerPipeline Players => PlayerPipeline.Instance;
 
     internal static void Install()
     {
-        if (_installed) return;
-        _installed = true;
         On.Terraria.Projectile.FishingCheck_ProbeForQuestFish += Probe;
         On.Terraria.Projectile.FishingCheck_RollItemDrop += Roll;
         On.Terraria.Projectile.AI_061_FishingBobber_GiveItemToPlayer += Give;

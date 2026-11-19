@@ -1,4 +1,6 @@
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Effects;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using Terraria;
@@ -18,14 +20,27 @@ internal sealed class CommandPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>command 管线的安装门：仅在有 ModCommand 注册时接管聊天分派与 /help。</summary>
+    internal static class Gates
+    {
+        internal struct Dispatch : IGate
+        {
+            // 框架自带 /fx（屏幕效果调试），所以即使没有 Mod 命令也要接管分派。
+            public static bool Wanted() => true;
+
+            public static void Install() => Instance.InstallDispatch();
+        }
+    }
+
+    public bool Install() => GateHub<CommandPipeline>.Run();
+
+    private void InstallDispatch()
     {
         On.Terraria.Chat.ChatCommandProcessor.ProcessIncomingMessage += Incoming;
         On.Terraria.Chat.ChatHelper.SendChatMessageFromClient += FromClient;
         On.Terraria.Chat.Commands.HelpCommand.ComposeMessage += Help;
 
         Log.Info("[command] 已挂（聊天命令分派 / 客户端发送链 / /help 补 mod 命令）");
-        return true;
     }
 
     public void Refresh() => CommandLoader.Clear();
@@ -49,6 +64,8 @@ internal sealed class CommandPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             count++;
         }
+
+        CommandLoader.Add(new ScreenFxCommand());
 
         if (count > 0) Log.Info($"[command] 安装：{count} 条命令");
     }

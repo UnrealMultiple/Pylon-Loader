@@ -71,11 +71,31 @@ internal static class TileDrawHooks
         }
 
         // bool halfBrick 那个重载是草/藤的，不挂。
-        On.Terraria.GameContent.Drawing.TileDrawing.GetTileDrawData_int_int_TileDrawInfo_ushort_shortRef_shortRef_intRef_intRef_intRef_intRef_intRef_intRef_SpriteEffectsRef_Texture2DRef_RectangleRef_ColorRef += DrawData;
-        On.Terraria.GameContent.Drawing.TileDrawing.GetTileDrawData_int_int_Tile_ushort_shortRef_shortRef_intRef_intRef_intRef_intRef_intRef_intRef_SpriteEffectsRef_Texture2DRef_RectangleRef_ColorRef += SpecialDrawData;
-        On.Terraria.Main.AnimateTiles += AnimateTiles;
-        log.Info("[tile] 逐格绘制已挂（形状 / 动画 / SetDrawPositions" +
-                 (cacheWanted ? "；绘制缓存已挂" : "") + "）");
+        var drawWanted = ModContent.GetContent<ModTile>().Count > 0 ||
+            GlobalTileRegistry.AnyWith(HookId.SetSpriteEffects, HookId.IsTileDangerous, HookId.IsTileSpelunkable);
+        if (drawWanted)
+        {
+            On.Terraria.GameContent.Drawing.TileDrawing.GetTileDrawData_int_int_TileDrawInfo_ushort_shortRef_shortRef_intRef_intRef_intRef_intRef_intRef_intRef_SpriteEffectsRef_Texture2DRef_RectangleRef_ColorRef += DrawData;
+            On.Terraria.GameContent.Drawing.TileDrawing.GetTileDrawData_int_int_Tile_ushort_shortRef_shortRef_intRef_intRef_intRef_intRef_intRef_intRef_SpriteEffectsRef_Texture2DRef_RectangleRef_ColorRef += SpecialDrawData;
+        }
+
+        var animateWanted = false;
+        foreach (var tile in ModContent.GetContent<ModTile>())
+        {
+            if (tile.AnimationFrameHeight > 0 || tile.HookEnabled(HookId.AnimateTile))
+            {
+                animateWanted = true;
+                break;
+            }
+        }
+        if (!animateWanted &&
+            (HookGuard.Wants<ModTile>(HookId.AnimateTile) || GlobalTileRegistry.AnyWith(HookId.AnimateTile)))
+            animateWanted = true;
+        if (animateWanted) On.Terraria.Main.AnimateTiles += AnimateTiles;
+
+        if (drawWanted || animateWanted)
+            log.Info("[tile] 逐格绘制已挂（形状 / 动画 / SetDrawPositions" +
+                     (cacheWanted ? "；绘制缓存已挂" : "") + "）");
     }
 
     private static void DrawData(

@@ -67,20 +67,20 @@ namespace XiheBoss
     internal static class XiheTextures
     {
         /// <summary>图集在 shader 里的 sampler（uAtlas）。</summary>
-        internal static ScreenTexture Atlas { get; private set; }
+        internal static ScreenGraphics.Texture Atlas { get; private set; }
 
         /// <summary>单独一张：Perlin 噪声（uNoise，屏幕效果里做抖动/扭曲）。</summary>
-        internal static ScreenTexture Noise { get; private set; }
+        internal static ScreenGraphics.Texture Noise { get; private set; }
 
         /// <summary>原版 ForceField 波纹使用的 1200px 独立噪声贴图。</summary>
         internal static Texture2D WavePerlin1200 { get; private set; }
 
         // EoLBigLaser 专用 shader（复用 XiheMagic 的 XiheBeam.frag）要单独绑 5 张 sampler。
-        internal static ScreenTexture BigOuter { get; private set; }
-        internal static ScreenTexture BigCore { get; private set; }
-        internal static ScreenTexture BigArc { get; private set; }
-        internal static ScreenTexture BigStar { get; private set; }
-        internal static ScreenTexture BigRing { get; private set; }
+        internal static ScreenGraphics.Texture BigOuter { get; private set; }
+        internal static ScreenGraphics.Texture BigCore { get; private set; }
+        internal static ScreenGraphics.Texture BigArc { get; private set; }
+        internal static ScreenGraphics.Texture BigStar { get; private set; }
+        internal static ScreenGraphics.Texture BigRing { get; private set; }
 
         internal static AtlasCell[] Cells { get; private set; }
 
@@ -284,15 +284,15 @@ namespace XiheBoss
             return new Color(_atlasRgba[i], _atlasRgba[i + 1], _atlasRgba[i + 2], _atlasRgba[i + 3]);
         }
 
-        private static ScreenTexture Load(Mod mod, string path, bool repeat)
+        private static ScreenGraphics.Texture Load(Mod mod, string path, bool repeat)
         {
             var full = PylonTexture.Resolve(mod, path);
             var png = Decode(File.ReadAllBytes(full), out var width, out var height);
             return Upload(full, width, height, png, repeat);
         }
 
-        private static ScreenTexture Upload(string key, int width, int height, byte[] rgba, bool repeat,
-            bool linear = true) => ScreenGraphics.Texture(key, width, height, rgba, linear, repeat);
+        private static ScreenGraphics.Texture Upload(string key, int width, int height, byte[] rgba, bool repeat,
+            bool linear = true) => ScreenGraphics.Texture.FromRaw(key, width, height, rgba, linear, repeat);
 
         // ---------------- 最小 PNG 解码（RGBA，v=0 在底部） ----------------
 

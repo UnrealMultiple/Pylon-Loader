@@ -1,4 +1,5 @@
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Hooks;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
@@ -12,9 +13,12 @@ internal static class ItemFrameHooks
 
     internal static void Install()
     {
-        GlobalFrames = GlobalItemRegistry.AnyWith(HookId.UseItemFrame, HookId.HoldItemFrame);
+        RefreshGlobals();
         On.Terraria.Player.PlayerFrame += PlayerFrame;
     }
+
+    internal static void RefreshGlobals() =>
+        GlobalFrames = GlobalItemRegistry.AnyWith(HookId.UseItemFrame, HookId.HoldItemFrame);
 
     private static bool Wanted(Item? item) =>
         item is not null && item.type > 0 && (GlobalFrames || ModContent.IsCustom(ContentKind.Item, item.type));

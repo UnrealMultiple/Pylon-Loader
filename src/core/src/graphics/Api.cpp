@@ -2,10 +2,10 @@
 #include "pylon/graphics/ScreenEffectsApi.h"
 
 #include <cstring>
-#include <mutex>
 #include <cstddef>
 #include <type_traits>
 #include <utility>
+#include <vector>
 
 #include "graphics/Pipe.h"
 #include "graphics/Trace.h"
@@ -17,12 +17,18 @@ namespace pylon::graphics {
 static_assert(sizeof(PylonFxStats) == 200);
 namespace {
 
-std::mutex g_builderMutex;
-fx::Frame g_builder;
+/// 每个游戏线程各自一栈帧：提交是 Begin → Add* → End 的同步过程，
+/// 允许嵌套（Mod 在钩子里再触发另一个 Mod 的提交），也避免两个 Mod 交错时
+/// 后一个 Begin 把前一个还在拼的帧清空。
+thread_local std::vector<fx::Frame> g_builders;
+
+fx::Frame& builder() { return g_builders.back(); }
 
 fx::Draw* drawAt(int32_t handle) {
-    if (handle <= 0 || handle > static_cast<int32_t>(g_builder.draws.size())) return nullptr;
-    return &g_builder.draws[static_cast<size_t>(handle) - 1];
+    if (g_builders.empty()) return nullptr;
+    fx::Frame& frame = builder();
+    if (handle <= 0 || handle > static_cast<int32_t>(frame.draws.size())) return nullptr;
+    return &frame.draws[static_cast<size_t>(handle) - 1];
 }
 
 }  // namespace
@@ -71,24 +77,22 @@ PYLON_FX_EXPORT int32_t PylonFx_TextureLoad(const char* key, int32_t width, int3
 }
 
 PYLON_FX_EXPORT int32_t PylonFx_SubmitBegin(int32_t history) {
-    std::lock_guard<std::mutex> lock(g_builderMutex);
-    g_builder = fx::Frame();
-    g_builder.history = history != 0;
+    g_builders.emplace_back();
+    builder().history = history != 0;
     return 1;
 }
 
 PYLON_FX_EXPORT int32_t PylonFx_SubmitAddTarget(int32_t id, const char* name, float scale, int32_t persistent) {
     if (id <= 0 || name == nullptr || scale <= 0.f || scale > 1.f) return 0;
-    std::lock_guard<std::mutex> lock(g_builderMutex);
-    g_builder.targets.push_back({id, name, scale, persistent != 0});
+    if (g_builders.empty()) return 0;
+    builder().targets.push_back({id, name, scale, persistent != 0});
     return 1;
 }
 
 PYLON_FX_EXPORT int32_t PylonFx_SubmitAddDraw(int32_t shader, int32_t layer, int32_t dest, int32_t source,
                                               const float* box, const float* center, float radius, float intensity,
                                               float progress, float age, const float* color) {
-    if (shader <= 0) return 0;
-    std::lock_guard<std::mutex> lock(g_builderMutex);
+    if (shader <= 0 || g_builders.empty()) return 0;
     fx::Draw draw;
     draw.shader = shader;
     draw.layer = layer >= 1 ? fx::Layer::Screen : fx::Layer::World;
@@ -101,14 +105,13 @@ PYLON_FX_EXPORT int32_t PylonFx_SubmitAddDraw(int32_t shader, int32_t layer, int
     draw.progress = progress;
     draw.age = age;
     if (color != nullptr) std::memcpy(draw.color, color, sizeof draw.color);
-    g_builder.draws.push_back(std::move(draw));
-    return static_cast<int32_t>(g_builder.draws.size());
+    builder().draws.push_back(std::move(draw));
+    return static_cast<int32_t>(builder().draws.size());
 }
 
 PYLON_FX_EXPORT int32_t PylonFx_SubmitAddUniform(int32_t draw, const char* name, int32_t components,
                                                  const float* values, int32_t count) {
     if (name == nullptr || values == nullptr || components < 1 || components > 4 || count <= 0) return 0;
-    std::lock_guard<std::mutex> lock(g_builderMutex);
     fx::Draw* target = drawAt(draw);
     if (target == nullptr) return 0;
     fx::Uniform uniform;
@@ -121,7 +124,6 @@ PYLON_FX_EXPORT int32_t PylonFx_SubmitAddUniform(int32_t draw, const char* name,
 
 PYLON_FX_EXPORT int32_t PylonFx_SubmitAddTexture(int32_t draw, const char* name, int32_t texture) {
     if (name == nullptr || texture == fx::kTexNone) return 0;
-    std::lock_guard<std::mutex> lock(g_builderMutex);
     fx::Draw* target = drawAt(draw);
     if (target == nullptr) return 0;
     target->textures.push_back({name, texture});
@@ -130,8 +132,7 @@ PYLON_FX_EXPORT int32_t PylonFx_SubmitAddTexture(int32_t draw, const char* name,
 
 PYLON_FX_EXPORT int32_t PylonFx_SubmitAddMesh(int32_t shader, int32_t layer, int32_t dest, int32_t blend,
                                               int32_t count, const float* verts) {
-    if (shader <= 0 || verts == nullptr || count < 3 || count % 3 != 0) return 0;
-    std::lock_guard<std::mutex> lock(g_builderMutex);
+    if (shader <= 0 || verts == nullptr || count < 3 || count % 3 != 0 || g_builders.empty()) return 0;
     fx::Draw draw;
     draw.mesh = true;
     draw.shader = shader;
@@ -145,16 +146,14 @@ PYLON_FX_EXPORT int32_t PylonFx_SubmitAddMesh(int32_t shader, int32_t layer, int
     static_assert(sizeof(fx::MeshVertex) == sizeof(float) * 12);
     static_assert(std::is_trivially_copyable_v<fx::MeshVertex>);
     std::memcpy(draw.verts.data(), verts, static_cast<size_t>(count) * sizeof(fx::MeshVertex));
-    g_builder.draws.push_back(std::move(draw));
-    return static_cast<int32_t>(g_builder.draws.size());
+    builder().draws.push_back(std::move(draw));
+    return static_cast<int32_t>(builder().draws.size());
 }
 
 PYLON_FX_EXPORT void PylonFx_SubmitEnd() {
-    fx::Frame frame;
-    {
-        std::lock_guard<std::mutex> lock(g_builderMutex);
-        std::swap(frame, g_builder);
-    }
+    if (g_builders.empty()) return;
+    fx::Frame frame = std::move(g_builders.back());
+    g_builders.pop_back();
     Pipe::Publish(std::move(frame));
 }
 

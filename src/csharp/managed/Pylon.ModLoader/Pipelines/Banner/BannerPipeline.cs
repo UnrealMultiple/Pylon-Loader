@@ -1,3 +1,4 @@
+using Pylon.ModLoader.Content;
 using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
@@ -23,27 +24,72 @@ internal sealed class BannerPipeline : ILoaderModule
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>banner 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
     {
-        On.Terraria.GameContent.BannerSystem.NPCtoBanner += NpcToBanner;
-        On.Terraria.GameContent.BannerSystem.BannerToItem += BannerToItem;
-        On.Terraria.GameContent.BannerSystem.BannerToNPC += BannerToNpc;
-        On.Terraria.GameContent.BannerSystem.GetKillCount += GetKillCount;
-        On.Terraria.GameContent.BannerSystem.AddKill += AddKill;
-        On.Terraria.GameContent.BannerSystem.AddNPCKillBy += AddNpcKillBy;
-        On.Terraria.GameContent.BannerSystem.IsNewBanner += IsNewBanner;
-        On.Terraria.GameContent.BannerSystem.SetNewBanner += SetNewBanner;
-        On.Terraria.GameContent.BannerSystem.ClearNewBanner += ClearNewBanner;
-        On.Terraria.GameContent.BannerSystem.Clear += Clear;
-        On.Terraria.GameContent.BannerSystem.GetClaimableBannerCounts += ClaimableCounts;
-        On.Terraria.GameContent.BannerSystem.RequestBannerClaim += RequestClaim;
-        On.Terraria.Main.MouseText_DrawBuffTooltip += BuffTooltip;
-        On.Terraria.IO.WorldFile.LoadWorld += LoadWorld;
-        On.Terraria.IO.WorldFile.InternalSaveWorld += SaveWorld;
+        internal static bool HasNpcs() => ModContent.GetContent<ModNpc>().Count > 0;
 
-        Log.Info("[banner] 已挂（映射 / 击杀数 / 新旗标 / 领取 / 插地 buff / 存档）");
-        return true;
+        internal struct Map : IGate
+        {
+            public static bool Wanted() => HasNpcs();
+
+            public static void Install()
+            {
+                On.Terraria.GameContent.BannerSystem.NPCtoBanner += NpcToBanner;
+                On.Terraria.GameContent.BannerSystem.BannerToItem += BannerToItem;
+                On.Terraria.GameContent.BannerSystem.BannerToNPC += BannerToNpc;
+                On.Terraria.GameContent.BannerSystem.GetKillCount += GetKillCount;
+                On.Terraria.GameContent.BannerSystem.AddKill += AddKill;
+                On.Terraria.GameContent.BannerSystem.AddNPCKillBy += AddNpcKillBy;
+                On.Terraria.GameContent.BannerSystem.IsNewBanner += IsNewBanner;
+                On.Terraria.GameContent.BannerSystem.SetNewBanner += SetNewBanner;
+                On.Terraria.GameContent.BannerSystem.ClearNewBanner += ClearNewBanner;
+                On.Terraria.GameContent.BannerSystem.Clear += Clear;
+
+                Log.Info("[banner] 已挂：映射 / 击杀数 / 新旗标");
+            }
+        }
+
+        internal struct Claim : IGate
+        {
+            public static bool Wanted() => HasNpcs();
+
+            public static void Install()
+            {
+                On.Terraria.GameContent.BannerSystem.GetClaimableBannerCounts += ClaimableCounts;
+                On.Terraria.GameContent.BannerSystem.RequestBannerClaim += RequestClaim;
+
+                Log.Info("[banner] 已挂：可领取数与领取");
+            }
+        }
+
+        internal struct Tooltip : IGate
+        {
+            public static bool Wanted() => HasNpcs();
+
+            public static void Install()
+            {
+                On.Terraria.Main.MouseText_DrawBuffTooltip += BuffTooltip;
+
+                Log.Info("[banner] 已挂：插地 buff 提示");
+            }
+        }
+
+        internal struct Save : IGate
+        {
+            public static bool Wanted() => HasNpcs();
+
+            public static void Install()
+            {
+                On.Terraria.IO.WorldFile.LoadWorld += LoadWorld;
+                On.Terraria.IO.WorldFile.InternalSaveWorld += SaveWorld;
+
+                Log.Info("[banner] 已挂：存档");
+            }
+        }
     }
+
+    public bool Install() => GateHub<BannerPipeline>.Run();
 
     internal void Build()
     {

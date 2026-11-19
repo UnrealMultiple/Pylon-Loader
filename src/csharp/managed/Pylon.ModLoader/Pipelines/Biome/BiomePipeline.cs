@@ -1,4 +1,5 @@
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using Terraria;
@@ -22,20 +23,79 @@ internal sealed class BiomePipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>biome 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
     {
-        _net = NetPipeline.Instance;
-        _kind = _net.OpenChannel(Receive);
+        internal struct Channel : IGate
+        {
+            public static bool Wanted() => true;
 
-        On.Terraria.SceneMetrics.Scan += Scan;
-        On.Terraria.Player.Update += UpdateOther;
-        On.Terraria.IO.WorldFile.LoadWorld += LoadWorld;
-        On.Terraria.WorldGen.SaveAndQuit += SaveAndQuit;
-        On.Terraria.WorldGen.clearWorld += ClearWorld;
-        On.Terraria.NetMessage.SendData += SendData;
+            public static void Install()
+            {
+                Instance._net = NetPipeline.Instance;
+                Instance._kind = Instance._net.OpenChannel(Instance.Receive);
+                BiomeTable.Assign();
+            }
+        }
 
-        Log.Info("[biome] 已挂（扫描后判定 / 进-在-出回调 / 别人的群落走网络）；音乐与背景归场景效果管线");
-        return true;
+        internal struct Eval : IGate
+        {
+            public static bool Wanted() => BiomeActiveWanted();
+
+            public static void Install()
+            {
+                On.Terraria.SceneMetrics.Scan += Instance.Scan;
+                On.Terraria.Player.Update += Instance.UpdateOther;
+                Log.Info("[biome] 已挂（扫描后判定 / 进-在-出回调 / 别人的群落走网络）；音乐与背景归场景效果管线");
+            }
+        }
+
+        internal struct World : IGate
+        {
+            public static bool Wanted() => HookGuard.IsDone(typeof(Eval));
+
+            public static void Install()
+            {
+                On.Terraria.IO.WorldFile.LoadWorld += Instance.LoadWorld;
+                On.Terraria.WorldGen.SaveAndQuit += Instance.SaveAndQuit;
+                On.Terraria.WorldGen.clearWorld += Instance.ClearWorld;
+            }
+        }
+
+        internal struct Net : IGate
+        {
+            public static bool Wanted() => HookGuard.IsDone(typeof(Eval));
+
+            public static void Install() => On.Terraria.NetMessage.SendData += Instance.SendData;
+        }
+
+        internal struct Bestiary : ILazyGate
+        {
+            public static bool Wanted() => false;
+
+            public static void Install() => BiomeBestiaryHooks.Install();
+        }
+    }
+
+    public bool Install() => GateHub<BiomePipeline>.Run();
+
+    private static readonly Dictionary<Type, bool> _activeOverrides = [];
+
+    private static bool BiomeActiveWanted()
+    {
+        foreach (var biome in ModContent.GetContent<ModBiome>())
+        {
+            var type = biome.GetType();
+            if (!_activeOverrides.TryGetValue(type, out var hit))
+            {
+                hit = HookGuard.Overrides(type, typeof(ModBiome), nameof(ModBiome.IsBiomeActive));
+                _activeOverrides[type] = hit;
+            }
+
+            if (hit) return true;
+        }
+
+        return false;
     }
 
     public void Refresh()

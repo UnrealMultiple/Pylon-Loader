@@ -22,14 +22,11 @@ internal static class ItemAmmoHooks
 
     [ThreadStatic] private static AmmoScope? _ammo;
     private static readonly Dictionary<int, Item?> DefaultItems = [];
-    private static bool _installed;
     private static int _templateCount = -1;
     private static bool _ammoSelection, _ammoSide;
 
     internal static void Install()
     {
-        if (_installed) return;
-        _installed = true;
         On.Terraria.Player.PickAmmo_IterateRange += Iterate;
         On.Terraria.Player.HasAmmo += HasAmmo;
         On.Terraria.Player.PickAmmo += Pick;

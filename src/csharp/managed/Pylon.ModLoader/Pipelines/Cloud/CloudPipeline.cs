@@ -1,5 +1,6 @@
 using Il2CppMicrosoft.Xna.Framework;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using Pylon.ModLoader.Tables;
@@ -17,15 +18,38 @@ internal sealed class CloudPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>cloud 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
+    internal static class Gates
     {
-        On.Terraria.Cloud.addCloud += AddCloud;
-        On.Terraria.Cloud.RollRareCloud += RollRareCloud;
-        On.Terraria.GameContent.Drawing.NextHorizonRenderer.DrawCloud += DrawCloud;
+        internal static bool HasClouds() => ModContent.GetContent<ModCloud>().Count > 0;
 
-        Log.Info("[cloud] 已挂（普通云 / 稀有云按权重换编号；覆写 Draw 的云逐云接管绘制）");
-        return true;
+        internal struct Spawn : IGate
+        {
+            public static bool Wanted() => HasClouds();
+
+            public static void Install()
+            {
+                On.Terraria.Cloud.addCloud += AddCloud;
+                On.Terraria.Cloud.RollRareCloud += RollRareCloud;
+
+                Log.Info("[cloud] 已挂：普通云 / 稀有云按权重换编号");
+            }
+        }
+
+        internal struct Draw : IGate
+        {
+            public static bool Wanted() => HasClouds();
+
+            public static void Install()
+            {
+                On.Terraria.GameContent.Drawing.NextHorizonRenderer.DrawCloud += DrawCloud;
+
+                Log.Info("[cloud] 已挂：覆写 Draw 的云逐云接管绘制");
+            }
+        }
     }
+
+    public bool Install() => GateHub<CloudPipeline>.Run();
 
     public void Refresh() => CloudTable.Assign();
 

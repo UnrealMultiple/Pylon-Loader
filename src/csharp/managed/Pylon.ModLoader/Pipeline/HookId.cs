@@ -490,4 +490,16 @@ internal enum HookId
 
     PreDrawMapIconOverlay,
     PostDrawFullscreenMap,
+
+    GetSplashDust,
+    GetDropletGore,
+    GetRainVariant,
+    GetRainTexture,
+    LightColorMultiplier,
+    BiomeHairColor,
+    ChooseWaterfallStyle,
+    ColorMultiplier,
+    AddLight,
+    WaterStyle,
+    EquipFrameEffects,
 }

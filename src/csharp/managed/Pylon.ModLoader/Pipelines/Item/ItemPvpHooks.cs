@@ -19,16 +19,13 @@ internal static class ItemPvpHooks
     [ThreadStatic] private static Received? _receiving;
     private static readonly object Gate = new();
     private static readonly Dictionary<int, List<Received>> Pending = [];
-    private static bool _installed, _networkInstalled;
-    private static NetPipeline? _net;
+        private static NetPipeline? _net;
     private static byte _kind;
     private const int HurtPacket = 117;
     private static readonly HookId[] Pvp = [HookId.CanHitPvp, HookId.ModifyHitPvp, HookId.OnHitPvp];
 
     internal static void Install()
     {
-        if (_installed) return;
-        _installed = true;
         On.Terraria.Player.ItemCheck_MeleeHitPVP += Melee;
         On.Terraria.Player.CanHit += CanHit;
         On.Terraria.NetMessage.SendPlayerHurt += Send;
@@ -36,8 +33,6 @@ internal static class ItemPvpHooks
 
     internal static void InstallNetwork(NetPipeline net)
     {
-        if (_networkInstalled) return;
-        _networkInstalled = true;
         _net = net;
         _kind = net.OpenChannel(Receive);
         On.Terraria.MessageBuffer.ProcessData += Process;

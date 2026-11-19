@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Audio;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using Terraria;
@@ -32,12 +33,26 @@ internal sealed class ConfigPipeline : ILoaderModule
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    public bool Install()
+    /// <summary>config 管线的安装门：仅在有 Mod 注册配置类型时就位。</summary>
+    internal static class Gates
+    {
+        internal static bool HasConfigs() => ModContent.GetContent<ModConfig>().Count > 0;
+
+        internal struct Core : IGate
+        {
+            public static bool Wanted() => HasConfigs();
+
+            public static void Install() => Instance.InstallCore();
+        }
+    }
+
+    public bool Install() => GateHub<ConfigPipeline>.Run();
+
+    private void InstallCore()
     {
         ModConfigLog ??= message => Log.Error(message);
         ModConfigTrace ??= message => Log.Info(message);
         Log.Info($"[config] 已挂（{_entries.Count} 份配置）");
-        return true;
     }
 
     internal IReadOnlyList<ModConfigEntry> List => _entries;
