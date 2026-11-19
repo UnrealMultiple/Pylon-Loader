@@ -11,7 +11,7 @@ namespace XiheBoss
 {
     public sealed class SunProj : ModProjectile
     {
-        /// <summary>EoLSky.DrawSun 的 uScale：太阳半径按屏幕高度换算。</summary>
+
         private const float SunScale = 0.067f;
 
         public override string TexturePath => null;
@@ -39,7 +39,7 @@ namespace XiheBoss
         public override void OnSpawn(Terraria.DataStructures.IEntitySource source)
         {
             var proj = Projectile;
-            // 源 OnSpawn：25 个 MagicRing_Sun，ai1 各加 0..50。
+
             for (var i = 0; i < 25; i++)
             {
                 var ring = XiheVisuals.Create(VfxKind.MagicRingSun, proj.Center, Vector2.Zero);
@@ -67,7 +67,6 @@ namespace XiheBoss
             if (proj.timeLeft == 10)
             {
                 XiheFx.ScreenShake(30f, proj.Center);
-                // 源只靠太阳 shader 自身的过曝（DrawSun），没有全屏白 Flash；这里对齐 MEAC，不再加白屏。
 
                 if (Main.netMode != 1)
                 {
@@ -123,10 +122,6 @@ namespace XiheBoss
             proj.ai = ai;
         }
 
-        /// <summary>
-        /// 源 SolarProminence 弹幕：从太阳表面沿随机径向飞出，带 solarCenter/solarRadius 的 trail。
-        /// radiusFactor / minSpeed / maxSpeed 的三个调用口径与源文件一一对应。
-        /// </summary>
         private static void SpawnProminence(Projectile proj, float radiusFactor, int minSpeed, int maxSpeed,
             bool setTrail)
         {
@@ -158,17 +153,12 @@ namespace XiheBoss
 
         public override bool PreDraw(Player player, ref Color lightColor) => false;
 
-        /// <summary>源 PreDraw：EoLSky.DrawSun → 逐像素 Sun.fx。</summary>
         public static void PushVisual(Projectile p)
         {
             var ai = p.ai;
             if (p.scale <= 0.01f) return;
 
-            // DrawSun(center, ai[1], 0.067*scale, Main.Transform, ai[0]*2.1)
             XiheFx.SunFxAt(p.Center, p.scale, ai[1], ai[0] * 2.1f);
         }
     }
 }
-
-
-

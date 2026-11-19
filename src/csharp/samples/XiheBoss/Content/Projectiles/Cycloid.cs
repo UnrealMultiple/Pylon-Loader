@@ -12,17 +12,16 @@ namespace XiheBoss
 {
     public sealed class Cycloid : ModProjectile
     {
-        // ---- 源文件的实例状态（每发弹幕一份；PushVisual 需要的那份同步进 ai/localAI）----
-        private int _ownerIndex = -1;   // 源 ownerIndex（来自 ai[0]）
-        private bool _p2;               // 源 p2（来自 ai[1]）
-        private int _canDamageTimer;    // 源 canDamageTimer
-        private int _drawEffTimer;      // 源 drawEffTimer
-        private float _r1;              // 源 ai[0]：摆线内半径
-        private float _angle;           // 源 ai[1]：角度偏移
-        private float _local0;          // 源 localAI[0]：内层摆线半径参数
-        private float _local1;          // 源 localAI[1]：内层摆线缩放
 
-        // drawEffTimer 只影响画面，不进 ai；按 whoAmI 存一份给静态 PushVisual 读。
+        private int _ownerIndex = -1;
+        private bool _p2;
+        private int _canDamageTimer;
+        private int _drawEffTimer;
+        private float _r1;
+        private float _angle;
+        private float _local0;
+        private float _local1;
+
         private static readonly System.Collections.Generic.Dictionary<int, int> DrawEff = new();
 
         public override string TexturePath => null;
@@ -43,9 +42,7 @@ namespace XiheBoss
             proj.hostile = true;
             proj.friendly = false;
             proj.tileCollide = true;
-            // 法阵是全程存活的场地技能（四次 Shoot + 光蛋雨 + 终爆），命中玩家不能按穿透计数自杀；
-            // 样例里其它 MEAC 危险弹幕全部 -1（EoLProj/EoLLance/EoLBigLaser/SunProj...）。
-            // 实测 =2 时：Shoot（tl=634）后一 tick 即被原版 Kill，光蛋（tl=410/385/370）永远放不出来。
+
             proj.penetrate = -1;
             proj.ignoreWater = false;
         }
@@ -98,7 +95,6 @@ namespace XiheBoss
                 XiheVisuals.Create(VfxKind.Circle, proj.Center, Vector2.Zero);
             }
 
-            // 源：for i = 4..7，每 51.5 tick 一次 Shoot
             for (var i = 4; i <= 7; i++)
             {
                 if (proj.timeLeft == 840 - (int)(51.5f * i)) Shoot(proj);
@@ -181,7 +177,6 @@ namespace XiheBoss
             Sync(proj);
         }
 
-        /// <summary>源 Shoot()：光尘、震屏、Wave、RadialGlur、150 颗 LightDust，p2 再补 6 发 EoLProj。</summary>
         private void Shoot(Projectile proj)
         {
             for (var i = 0; i < 8; i++)
@@ -197,17 +192,15 @@ namespace XiheBoss
 
             XiheFx.ScreenShake(20f, proj.Center);
 
-            // 源：VisualEffect.Create<Wave>(...).scale *= 1.5f
             var wave = XiheVisuals.Create(VfxKind.Wave, proj.Center, Vector2.Zero);
             wave.Scale *= 1.5f;
 
-            // 源：RadialGlur(20)，Pos = Center。注意源用的是**非加色**的 RadialGlur（不是 RadialGlur2），
-            // 这里之前传了 true，整个屏幕被 9 层加色叠成纯白——就是“法阵打伤害全屏白”的原因。
             XiheFx.RadialGlur(proj.Center, 20, false);
 
             for (var j = 0; j < 10; j++)
             {
-                for (var k = 0; k < 4; k++)
+
+                for (var k = 0; k < 15; k++)
                 {
                     var vel = XiheHelper.Vxr(j * (float)Math.PI * 2f / 10f
                                             + XiheHelper.NextFloatDirection() * 0.2f);
@@ -229,7 +222,6 @@ namespace XiheBoss
             }
         }
 
-        /// <summary>把实例状态写回 proj.ai[2] / localAI，供静态 PushVisual 读取。</summary>
         private void Sync(Projectile proj)
         {
             var ai = proj.ai;
@@ -257,7 +249,6 @@ namespace XiheBoss
 
         public override bool PreDraw(Player player, ref Color lightColor) => false;
 
-        /// <summary>画面：源 DrawCycloid 的三条 TriangleStrip（摆线 + 100/110 两圈），全部 MagicPixel + Additive。</summary>
         public static void PushVisual(Projectile p)
         {
             var ai = p.ai;
@@ -279,14 +270,12 @@ namespace XiheBoss
 
             var exPos = center + Utils.ToRotationVector2(angle) * 100f * scale;
 
-            // 源 PreDraw：screenTargetSwap 上的黄色全屏闪光，再经 Hide.fx 在 exPos 挖一个洞。
             if (DrawEff.TryGetValue(p.whoAmI, out var drawEff) && drawEff > 0)
             {
-                var hole = 31f * l[1] / Math.Max(1, Main.screenHeight);
+                var hole = 31f * l[1] * Main.Transform.M11 / Math.Max(1, Main.screenHeight);
                 XiheFx.CycloidOverlay(exPos, drawEff / 70f, hole);
             }
 
-            // 源 DrawCycloid：三条三角形条带合进一次硬件几何提交（加色，顺序无关）。
             var verts = new List<TriVertex>(700 * 6);
             AddCycloidStrips(verts, center, r1 + 0.001f, 100f, scale, rot, color);
             if (local1 > 0.01f)
@@ -296,11 +285,10 @@ namespace XiheBoss
                 XiheFx.Tri(Tex.MagicPixel, false, true, false, false, verts.ToArray());
         }
 
-        /// <summary>源 DrawCycloid：摆线曲线 + 半径 100/110 两圈，MagicPixel 顶点色。</summary>
         private static void AddCycloidStrips(List<TriVertex> verts, Vector2 pos, float r1, float r2,
             float scale, float rot, Color color)
         {
-            // 1) 摆线：Create(r1 + 0.001, r2, 0.15, 70) 的每点两个顶点。
+
             var curve = Create(r1, r2, 0.15f, 70f);
             var inner = new Vector2[curve.Length];
             var outer = new Vector2[curve.Length];
@@ -312,7 +300,6 @@ namespace XiheBoss
             }
             AddStrip(verts, inner, outer, color);
 
-            // 2) 100 圈、3) 110 圈：每圈 101 个点，外径 = 内径 * 1.005 + 2。
             AddRingStrip(verts, pos, 100f * scale, 100.5f * scale + 2f, 100, color);
             AddRingStrip(verts, pos, 110f * scale, 110.5f * scale + 2f, 100, color);
         }
@@ -345,7 +332,6 @@ namespace XiheBoss
             }
         }
 
-        /// <summary>MEAC Cycloid.Create：trochoid 参数方程（R 在源里未使用）。</summary>
         private static Vector2[] Create(float r1, float r2, float v, float max)
         {
             var list = new System.Collections.Generic.List<Vector2>();
@@ -360,5 +346,3 @@ namespace XiheBoss
         }
     }
 }
-
-

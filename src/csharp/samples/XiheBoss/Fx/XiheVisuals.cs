@@ -1,6 +1,3 @@
-// MEAC 的 VisualEffect 组（Boss 专用）：EOLEff / Wave / RingWarp / RingWarp2 / VLight / Circle /
-// CircleWarp / LightDust / LightDust_CN / LineWarp。AI 逐条照抄 MEAC 的 SetDefault + AI，绘制改写成
-// XiheFx 图元（EOLEff 的残留剪影例外：它画的是原版贴图，交给 Boss 的 PreDraw 用 SpriteBatch 画）。
 using System;
 using System.Collections.Generic;
 using Il2CppMicrosoft.Xna.Framework;
@@ -28,6 +25,7 @@ namespace XiheBoss
         LineWarp,
         Explosion,
         MagicRingSun,
+        LightDust00,
     }
 
     internal sealed class Vfx
@@ -48,7 +46,6 @@ namespace XiheBoss
         public int OwnerNpc = -1;
         public int OwnerProjectile = -1;
 
-        // EOLEff / LightDust 私有量
         public float Dis;
         public float VAngle;
         public Vector2 Acc;
@@ -127,6 +124,12 @@ namespace XiheBoss
                     v.Random = Main.rand.NextFloat() * 50f;
                     v.Rand2 = Main.rand.NextFloat() * 50f;
                     break;
+                case VfxKind.LightDust00:
+
+                    v.MaxTime = 30;
+                    v.Ai0 = 0.3f;
+                    v.Random = XiheHelper.RandBool() ? 1f : -1f;
+                    break;
             }
             v.TimeLeft = v.MaxTime;
             if (scale != 1f) v.Scale = scale;
@@ -142,7 +145,6 @@ namespace XiheBoss
                 try { Step(v); }
                 catch (Exception e) { XiheBossMod.Log?.Warn("[vfx] " + v.Kind + " 异常：" + e.Message); }
 
-                // VisualEffect.Update：先 AI、再 timeLeft--、再 Center += Velocity
                 v.TimeLeft--;
                 v.Center += v.Velocity;
                 if (v.TimeLeft <= 0) List.RemoveAt(i);
@@ -163,8 +165,7 @@ namespace XiheBoss
                         if (v.OwnerNpc >= 0 && v.OwnerNpc < Main.npc.Length && Main.npc[v.OwnerNpc].active)
                         {
                             var npc = Main.npc[v.OwnerNpc];
-                            // 源：UnitX 先绕Y(vAngle)，再绕Z(ai1)、绕Y(ai1)，最后投影。
-                            // 旧迁移用二维圆+250深度，改变了出场剪影轨道和半径。
+
                             var orbit = XiheHelper.Vec3RotBy("Y", Vector3.UnitX, v.VAngle);
                             orbit = XiheHelper.Vec3RotBy("Z", orbit, v.Ai1);
                             orbit = XiheHelper.Vec3RotBy("Y", orbit, v.Ai1);
@@ -276,6 +277,18 @@ namespace XiheBoss
                     if (v.Velocity.Length() > 2f) v.Velocity = XiheHelper.Normalize2(v.Velocity) * 2f;
                     break;
                 }
+                case VfxKind.LightDust00:
+                {
+
+                    var t = v.MaxTime / 3f;
+                    v.Velocity = XiheHelper.RotatedBy(v.Velocity, 0.05f * v.Random) * 1.02f;
+                    if (v.TimeLeft < t)
+                    {
+                        v.Ai0 -= 0.3f / t;
+                        v.Velocity *= 0.94f;
+                    }
+                    break;
+                }
                 case VfxKind.MagicRingSun:
                 {
                     if (v.OwnerProjectile < 0 || v.OwnerProjectile >= Main.projectile.Length
@@ -285,10 +298,7 @@ namespace XiheBoss
                         break;
                     }
                     var p = Main.projectile[v.OwnerProjectile];
-                    // Authoritative center: SunProj.Center in world pixels.  Both
-                    // MagicRingSun geometry and SunProj.PushVisual consume this
-                    // same world value; camera projection happens exactly once in
-                    // the mesh path or the post path, never in this VFX update.
+
                     v.Center = p.Center;
                     v.Scale = p.scale;
                     v.TimeLeft = p.timeLeft;
@@ -298,8 +308,6 @@ namespace XiheBoss
                 }
             }
         }
-
-        // ================= 提交图元 =================
 
         internal static void PushAll()
         {
@@ -318,20 +326,18 @@ namespace XiheBoss
             switch (v.Kind)
             {
                 case VfxKind.EolEff:
-                    // 交给 Boss.PreDraw 画原版贴图剪影（见 DrawEolSprites）
+
                     break;
 
                 case VfxKind.Wave:
                 {
-                    // 由 DrawWaves 使用原版 ForceField 实际绘制。
-                    // 直接把 Perlin 贴图放大会形成亮圆/白盘，既不是波纹也缺少原版 shader。
+
                     break;
                 }
                 case VfxKind.RingWarp:
                 case VfxKind.RingWarp2:
                 {
-                    // 源：isWarp=true，画进 screenTargetSwap 当 KScreen0 的扭曲遮罩；
-                    // 不是可见的环。半径按 WarpRing 128px × scale 折算。
+
                     var rad = 64f * Math.Abs(v.Scale) / Math.Max(1, Main.screenHeight);
                     XiheFx.Warp(v.Center, rad, MathHelper.Max(rad * 0.6f, 0.02f),
                         0.02f * MathHelper.Clamp(v.Alpha, 0f, 1f));
@@ -342,7 +348,7 @@ namespace XiheBoss
                     var alpha = MathHelper.Clamp(v.Ai1 / v.MaxTime, 0f, 1f);
                     var c = v.DrawColor;
                     c.A = 255;
-                    var col = c * (alpha * 1.2f * v.Alpha);
+                    var col = XiheHelper.MulClamp(c, alpha * 1.2f * v.Alpha);
                     var stretch = new Vector2(0.1f + alpha * 0.7f, 10f + alpha * 10f) * v.Scale;
                     var origin = Origin(Tex.Ball);
                     XiheFx.Sprite(v.Center, Tex.Ball, col * 0.5f, 0f, stretch, origin, additive: true);
@@ -353,7 +359,7 @@ namespace XiheBoss
                 }
                 case VfxKind.Circle:
                 {
-                    // 源 Circle.Draw：200 段环带，半径 ai1、宽 18，颜色 (255,255,150)*alpha，Additive。
+
                     var a = MathHelper.Clamp(v.Alpha, 0f, 1f);
                     if (a <= 0.002f || v.Ai1 <= 0.5f) break;
                     var color = new Color(255, 255, 150) * a;
@@ -387,7 +393,7 @@ namespace XiheBoss
                 }
                 case VfxKind.CircleWarp:
                 {
-                    // 源：isWarp，WarpBall 当遮罩；半径按 81px × scale 折算。
+
                     var rad = 40f * Math.Abs(v.Scale) / Math.Max(1, Main.screenHeight);
                     XiheFx.Warp(v.Center, rad, MathHelper.Max(rad, 0.02f),
                         0.03f * MathHelper.Clamp(v.Alpha, 0f, 1f));
@@ -399,12 +405,11 @@ namespace XiheBoss
                     c.A = 0;
                     var rot = (float)Math.Atan2(v.Velocity.Y, v.Velocity.X);
                     var sc = new Vector2(1.2f, 0.8f) * v.Ai0 * v.Scale;
-                    // MEAC LightDust.Draw: all five alpha-zero layers. Submit directly
-                    // to the shared Ball mesh rather than allocating sprite primitives.
+
                     for (var i = 0; i < 5; i++)
                     {
                         var pos = v.Center - v.Velocity * i / 3f;
-                        XiheMesh.AddBallGlow(pos, rot, sc, c * (v.Alpha * (1f - i / 5f) * 1.2f));
+                        XiheMesh.AddBallGlow(pos, rot, sc, XiheHelper.MulClamp(c, v.Alpha * (1f - i / 5f) * 1.2f));
                     }
                     break;
                 }
@@ -418,13 +423,13 @@ namespace XiheBoss
                 }
                 case VfxKind.LineWarp:
                 {
-                    // 源：isWarp，画一条 Ball 拉长的遮罩；这里用整屏环带扭曲近似（半径 0）。
+
                     XiheFx.Warp(v.Center, 0f, 0.6f, 0.02f * MathHelper.Clamp(v.Alpha, 0f, 1f));
                     break;
                 }
                 case VfxKind.Explosion:
                 {
-                    // 源：Explosion 7 帧，source=(0, ai1*h/7, w, h/7)，Colorize+AlphaBlend。
+
                     var h = XiheTextures.HeightOf(Tex.Explosion);
                     var fh = h / 7;
                     var frame = (int)MathHelper.Clamp(v.Ai1, 0f, 6f);
@@ -435,12 +440,28 @@ namespace XiheBoss
                         additive: false, colorize: true);
                     break;
                 }
+                case VfxKind.LightDust00:
+                {
+
+                    var rot = (float)Math.Atan2(v.Velocity.Y, v.Velocity.X);
+                    var offset = Math.Min(v.Velocity.Length(), 18f * v.Scale);
+                    var sc = new Vector2(1.5f, 0.7f) * v.Ai0 * v.Scale;
+                    var c = v.BloomColor;
+                    c.A = 0;
+                    var dir = XiheHelper.Normalize2(v.Velocity);
+                    if (dir == Vector2.Zero) dir = XiheHelper.Vxr(rot);
+                    for (var i = 0; i < 5; i++)
+                    {
+                        var pos = v.Center - dir * offset * i / 3f;
+                        XiheMesh.AddBallGlow(pos, rot, sc, XiheHelper.MulClamp(c, v.Alpha * (1f - i / 5f) * 1.2f));
+                    }
+                    break;
+                }
                 case VfxKind.MagicRingSun:
                 {
-                    // 源 MagicRing_Sun.Draw：30 段 3D 环，半径 100*scale、带宽 width=32*scale，
-                    // 逐点 Projection(viewZ=1200)；tex3 的 u 走 5 圈 PointWrap。
+
                     if (v.Scale <= 0.01f || v.TimeLeft <= 0) break;
-                    // 不在屏幕里的法阵直接不提交（留着也是每个像素跑 40 个三角形）。
+
                     var cuv = XiheFx.ToUv(v.Center);
                     var crad = 140f * v.Scale / Math.Max(1, Main.screenHeight);
                     if (cuv.X + crad < 0f || cuv.X - crad > 1f || cuv.Y + crad < 0f || cuv.Y - crad > 1f) break;
@@ -452,7 +473,7 @@ namespace XiheBoss
                                    + new Vector2(Main.screenWidth, Main.screenHeight) / 2f;
                     var width = 32f * v.Scale;
                     var t = v.Ai1 * 0.1f;
-                    const int counts = 30;   // 源 MagicRing_Sun.Draw: counts = 30
+                    const int counts = 30;
 
                     var lo = new TriVertex[counts + 1];
                     var hi = new TriVertex[counts + 1];
@@ -464,7 +485,7 @@ namespace XiheBoss
                         var b = center3 + RotV(rot + new Vector3(0f, width, 0f), v.Ai1, v.Random, v.Rand2);
                         var pa = XiheHelper.Projection(a, scCenter, 1200f);
                         var pb = XiheHelper.Projection(b, scCenter, 1200f);
-                        // 源：第一个顶点 Projection 的 k += 0.05，第二个顶点复用同一个 k（没有重新取 out）。
+
                         var ka = -1200f / (a.Z - 1200f) + 0.05f;
                         var u = 5f * i / counts + t;
                         lo[i] = new TriVertex { World = pa, Uv = new Vector2(u, 0f), Color = color * ka };
@@ -483,7 +504,6 @@ namespace XiheBoss
             }
         }
 
-        /// <summary>EOLEff 的原版剪影（Boss.PreDraw 里调，保持和 MEAC 一样的翅膀/身体贴图）。</summary>
         internal static void DrawEolSprites(SpriteBatch sb, Vector2 screenPos, float npcAlpha)
         {
             foreach (var v in List)
@@ -492,9 +512,10 @@ namespace XiheBoss
                 try
                 {
                     var frame = v.TimeLeft / 2 % 11;
-                    var color = XiheHelper.HsvToRgb(v.Golden ? 50f : (v.TimeLeft * 5f + v.Ai1 * 10f) % 360f, 0.6f)
-                                * ((v.Dis / 300f) * (v.Dis / 300f)) * v.Alpha;
-                    // 源 EOLEff.Draw 明确 c.A=0：通过预乘 AlphaBlend 只增加RGB，不遮住背景。
+                    var color = XiheHelper.MulClamp(
+                        XiheHelper.HsvToRgb(v.Golden ? 50f : (v.TimeLeft * 5f + v.Ai1 * 10f) % 360f, 0.6f),
+                        (v.Dis / 300f) * (v.Dis / 300f) * v.Alpha);
+
                     color.A = 0;
                     DrawBossEcho(sb, v.Center - screenPos, frame, color);
                 }
@@ -516,7 +537,7 @@ namespace XiheBoss
         private static void DrawBossEcho(SpriteBatch sb, Vector2 pos, int frame, Color color)
         {
             var tex = XiheBossNpc.BodyTexture;
-            // BaseDrawEol 明确使用原版 Extra157/159；本体 XiHe_Wing 不能串用到剪影。
+
             _echoWing ??= Main.Assets.Request<Texture2D>("Images/Extra_157", ReLogic.Content.AssetRequestMode.ImmediateLoad)?.Value;
             _echoWingGlow ??= Main.Assets.Request<Texture2D>("Images/Extra_159", ReLogic.Content.AssetRequestMode.ImmediateLoad)?.Value;
             var wing1 = _echoWing;
@@ -532,12 +553,3 @@ namespace XiheBoss
         }
     }
 }
-
-
-
-
-
-
-
-
-

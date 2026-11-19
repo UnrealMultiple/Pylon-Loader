@@ -13,7 +13,6 @@ namespace XiheBoss
     {
         public override string TexturePath => null;
 
-        /// <summary>出生时的总寿命（MEAC 的 maxtime；ai[2] 可覆盖）。</summary>
         private int _maxTime = 600;
 
         public override void SetStaticDefaults()
@@ -50,10 +49,7 @@ namespace XiheBoss
         public override void AI()
         {
             var proj = Projectile;
-            // MEAC 在 NewProjectileDirect 返回后同时设置 timeLeft 和 maxtime。
-            // 迁移版用 ai[2] 传 maxtime，OnSpawn 早于调用方的 SetLanceTime，
-            // 所以必须在计算 timer 前读取后写入的值；否则末尾模式 6 从约 275 开始计时，
-            // 永远错过 timer == 60 的 40px/sub-update 加速与 extraUpdates++。
+
             if (proj.ai[2] > 1f) _maxTime = (int)proj.ai[2];
             var t = Timer(proj);
             var center = proj.Center;
@@ -142,7 +138,7 @@ namespace XiheBoss
                 if (t == 70)
                 {
                     proj.Kill();
-                    // MEAC 的旋转光矛在转为激光时归一化方向，不把跟随偏移长度传过去。
+
                     Projectile.NewProjectile(null, proj.Center, Vector2.Normalize(proj.velocity),
                         ModContent.ProjectileType<EoLLaser1>(), proj.damage, 0f, Main.myPlayer, proj.ai[0], 0f, 0f);
                 }
@@ -223,31 +219,23 @@ namespace XiheBoss
 
         public override bool PreDraw(Player player, ref Color lightColor) => false;
 
-        /// <summary>源 PreDraw：2500px 的顶点光矛 + 8 层残影 + 枪身，全部加色。</summary>
         public static void PushVisual(Projectile p)
         {
             var ai = p.ai;
-            // 源 PreDraw 用的是 MEAC.Colorize（把贴图亮度映射到 HSV 色），不是普通 Color 乘法；
-            // 这里让 Sprite 走 colorize 通道，颜色才和 MEAC 一样亮。
+
             var color = XiheHelper.HsvToRgb(ai[0] % 360f);
-            // MEAC's warning triangle uses projectile.alpha / 200, the inverse of
-            // sprite opacity. Do not gate the whole draw with (1 - alpha / 255):
-            // that discards the warning precisely when its source vertices are brightest.
-            // localAI[0] fades only the spear sprite and its afterimages below.
 
             var rot = (float)Math.Atan2(p.velocity.Y, p.velocity.X);
             var tex = Tex.Proj919;
             var origin = new Vector2(XiheTextures.WidthOf(tex), XiheTextures.HeightOf(tex)) / 2f;
             var scale = new Vector2(1f, p.hostile ? 1.2f : 0.5f) * p.scale;
 
-            // 源第一段：一条 3 顶点光矛，纹理 MagicPixel，顶点色 alpha/200、alpha/205，Additive。
             var l = XiheHelper.Normalize2(p.velocity);
             var pos = p.Center;
             var color2 = XiheHelper.HsvToRgb(ai[0] % 360f);
-            var a200 = color2 * (p.alpha / 200f);
-            var a205 = color2 * (p.alpha / 205f);
-            a200.A = (byte)MathHelper.Clamp(a200.A, 0f, 255f);
-            a205.A = (byte)MathHelper.Clamp(a205.A, 0f, 255f);
+
+            var a200 = XiheHelper.MulClamp(color2, p.alpha / 200f);
+            var a205 = XiheHelper.MulClamp(color2, p.alpha / 205f);
             var verts = new[]
             {
                 new TriVertex { World = pos + XiheHelper.VerticalVec(l) * 2.5f, Color = a200 },
@@ -258,8 +246,7 @@ namespace XiheBoss
 
             if (p.velocity.Length() > 20f && ai[1] != 3f && ai[1] != -3f)
             {
-                // 源是 8 层残影（i=0..7，亮度 0.6 - i/15）。之前为了省图元只画 4 层（i*2），
-                // 长枪看起来比 MEAC 细一圈——这里按源恢复 8 层。
+
                 for (var i = 0; i < 8; i++)
                 {
                     XiheFx.Sprite(p.Center - p.velocity * 0.8f * i, tex,
@@ -270,10 +257,9 @@ namespace XiheBoss
 
             XiheFx.Sprite(p.Center, tex, color * p.localAI[0], rot,
                 new Vector2(1f, p.hostile ? 1f : 0.5f) * p.scale, origin, additive: true, colorize: true);
+
+            XiheMesh.AddGlow(p.Center, rot, new Vector2(1f, p.hostile ? 1f : 0.5f) * p.scale,
+                origin, tex, XiheHelper.WithAlpha0(XiheHelper.MulClamp(color, p.localAI[0])));
         }
     }
 }
-
-
-
-

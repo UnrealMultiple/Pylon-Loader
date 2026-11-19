@@ -31,6 +31,33 @@ namespace XiheBoss
 
         internal static XiheBossNpc Current;
 
+        internal static int SpawnCountdown = -1;
+
+        internal static void TickSpawnCountdown()
+        {
+            if (SpawnCountdown < 0) return;
+            if (SpawnCountdown > 0)
+            {
+                SpawnCountdown--;
+                return;
+            }
+
+            SpawnCountdown = -1;
+            if (Current != null && Current.NpcAlive) return;
+
+            var player = Main.player[Main.myPlayer];
+            if (player == null || !player.active) return;
+
+            var type = ModContent.NPCType<XiheBossNpc>();
+            if (type <= 0) return;
+            var idx = NPC.NewNPC(null, (int)(player.Center.X), (int)(player.Center.Y - 200f), type);
+            if (idx >= 0 && idx < Main.npc.Length)
+            {
+                Main.npc[idx].target = player.whoAmI;
+                Main.npc[idx].GivenName = "羲和";
+            }
+        }
+
         internal static Texture2D BodyTexture;
         internal static Texture2D WingTexture;
         internal static Texture2D WingGlowTexture;
@@ -42,7 +69,6 @@ namespace XiheBoss
 
         private static int _musicSlot = -1;
 
-        // ---- 状态机字段（对应 MEAC 的 timerM / t / ai[2] / ai[3] / phase / alpha ...）----
         internal int TimerM;
         private int _t;
         private int _phase = 1;
@@ -53,11 +79,10 @@ namespace XiheBoss
         private float _realAreaRadius;
         private Vector2 _areaCenter;
         private Vector2 _oldPosition = Vector2.UnitX;
-        // MEAC 的 act/actTimer：源码里 act 只在 OnSpawn 设过 1，绘制固定取手臂第 1 帧，故只留注释。
+
         private const int Act = 1;
         private bool _spawned;
-        // 手机版逻辑更新跟帧率走；BGM 是实时音频。用真实时间把 Boss 的 60Hz 时钟补齐，
-        // 否则掉到 59~58 tick/s 时，一场 4 分钟的战斗会慢慢落后音乐半拍以上。
+
         private long _lastTickMs;
         private double _tickCarry;
 
@@ -75,8 +100,6 @@ namespace XiheBoss
         public override int Music => _musicSlot;
         public override int SceneEffectPriority => 6;
 
-        // Reuse Terraria's original Empress of Light boss head entry for both
-        // the boss bar head hook and the minimap boss marker.
         public override void BossHeadSlot(ref int index)
         {
             var heads = NPCID.Sets.BossHeadTextures;
@@ -85,7 +108,6 @@ namespace XiheBoss
                 index = heads[type];
         }
 
-        // 贴图：PostSetupContent 里指向原版光之女皇的贴图槽（原版素材，不复制美术）。
         public override string TexturePath => "assets/textures/Ball.png";
 
         internal static int MusicSlot => _musicSlot;
@@ -128,19 +150,14 @@ namespace XiheBoss
             npc.BossBar = ModContent.GetInstance<XiheBossBar>();
         }
 
-        /// <summary>由 <see cref="XiheBossMod.PostSetupContent"/> 调用：那时游戏贴图表已就绪。</summary>
         internal static void LoadVisualAssets()
         {
             BodyTexture = LoadGameTexture("Images/NPC_" + NPCID.HallowBoss, "boss 身体");
             WingTexture = LoadGameTexture("Images/Extra_157", "翅膀");
             WingGlowTexture = LoadGameTexture("Images/Extra_159", "翅膀背光");
-            // 新增绘制资源在第一次绘制时加载，避免安装阶段触发尚未就绪的游戏纹理上传。
+
         }
 
-        /// <summary>
-        /// 原版贴图：不走 TextureAssets 表（在 mod 的晚阶段可能还是空 Asset），
-        /// 直接向 Main.Assets 要立即加载的那份，拿不到再退回表。
-        /// </summary>
         private static Texture2D LoadGameTexture(string path, string label)
         {
             try
@@ -156,14 +173,12 @@ namespace XiheBoss
             return null;
         }
 
-        // ================= 生成 / 死亡 =================
-
         public override void OnSpawn(Terraria.DataStructures.IEntitySource source)
         {
             var npc = NPC;
             Current = this;
             _spawned = true;
-            // act = 1（源码同值；手臂帧固定第 1 帧）
+
             BossState = State.Spawn;
             _areaCenter = npc.Center;
             _setAreaRadius = 10000f;
@@ -172,11 +187,10 @@ namespace XiheBoss
             TimerM = 0;
             _t = 0;
             _lastTickMs = Environment.TickCount64;
-            // 手机音频输出有几十毫秒延迟；Boss 的节拍比“听到的”音乐略早，先把逻辑时钟压后 2 tick（≈33ms）。
+
             _tickCarry = -2.0;
             XiheBossMod.Log?.Info($"[boss] spawn life={npc.life}/{npc.lifeMax} difficulty={npc.difficulty} expert={Main.expertMode} master={Main.masterMode}");
 
-            // 召唤瞬间就是黎明，避免从夜晚慢慢 lerp 过去。
             Main.dayTime = true;
             Main.time = 2000f;
 
@@ -193,9 +207,6 @@ namespace XiheBoss
             if (Main.masterMode) npc.lifeMax = 150000;
             npc.lifeMax = (int)(bossAdjustment * npc.lifeMax);
 
-            // MEAC 的 XiHe 只缩 lifeMax，npc.damage 保持 SetDefaults 的 50（弹幕伤害 = npc.damage / 5 = 10）。
-            // Pylon 的 ScaleStats 会按难度/人数把 damage 再缩一次（实测大师里被缩成 25，弹幕只剩 5），
-            // 这里在缩放回调之后把源值写回去，保证和 MEAC 一致。
             npc.damage = 50;
             npc.defDamage = 50;
         }
@@ -215,25 +226,17 @@ namespace XiheBoss
 
         public override void OnKill()
         {
-            // MEAC does not hard-stop its track from XiHe.OnKill. The NPC remains
-            // active through the 360-tick Leave animation; once it is gone, the
-            // normal music selector fades the MediaPlayer out.
+
             Current = null;
             XiheFx.CancelScreenPosition();
             XiheVisuals.Clear();
         }
 
-        /// <summary>
-        /// MEAC XiHe.LimitDPS：按 14820 tick 的战斗时间限制单次伤害，避免高伤害武器
-        /// 提前把 Boss 压到 1 血，导致 Leave 阶段比原版提前进入。
-        /// </summary>
         public override void ModifyIncomingHit(ref HitModifiers modifiers)
         {
             var npc = NPC;
             if (npc.life <= 1 || npc.lifeMax <= 0) return;
 
-            // Pylon 的 damage 是扣防御/乘暴击之前的基数，与 MEAC 旧 ModifyHit 的输入一致。
-            // 保留源代码两次整数截断及暴击补偿的整数除法；14820 是 DPS 参考时间，非 Leave 门槛。
             var original = (int)modifiers.damage;
             var critMultiplier = modifiers.crit ? 2 : 1;
             const int totalTime = 14820;
@@ -249,7 +252,7 @@ namespace XiheBoss
         public override void HitEffect(HitInfo hit)
         {
             var npc = NPC;
-            // MEAC OnHit()：11451~11500 锁血；11501~11529 转 Speacial4。
+
             if (TimerM > 11451 && TimerM < 11500) npc.dontTakeDamage = true;
             if (TimerM > 11500 && TimerM < 11530)
             {
@@ -291,21 +294,15 @@ namespace XiheBoss
             _ai3 = reader.ReadSingle();
         }
 
-        // 原版首领头像槽同时供地图使用；NPC ID 636 不是头像槽号。
         internal static int EmpressHeadSlot => NPCID.Sets.BossHeadTextures[NPCID.HallowBoss];
 
-        /// <summary>源文件 CheckActive = false：离玩家再远也不消失。</summary>
         public override bool CheckActive() => false;
-
-        // ================= AI =================
 
         public override void AI()
         {
             var npc = NPC;
             if (!_spawned) OnSpawn(null);
 
-            // 固定 60Hz：每帧按真实时间补 0/1/2 步。这样无论手机当前是 59/60/120 帧，
-            // TimerM 都按 60 tick/s 推进，和 140 BPM 的 BGM 逐拍对齐（PC 版 tModLoader 就是固定 60Hz）。
             if (Main.gamePaused)
             {
                 _lastTickMs = Environment.TickCount64;
@@ -316,7 +313,7 @@ namespace XiheBoss
             if (_lastTickMs <= 0) _lastTickMs = now;
             var elapsed = now - _lastTickMs;
             _lastTickMs = now;
-            if (elapsed > 100)   // 刚从后台/读盘回来：不补帧，避免一次跑几十步
+            if (elapsed > 100)
             {
                 _tickCarry = 0;
                 return;
@@ -329,7 +326,6 @@ namespace XiheBoss
             for (var i = 0; i < steps; i++) TickBoss(npc);
         }
 
-        /// <summary>一个游戏 tick（60Hz）的完整逻辑。</summary>
         private void TickBoss(NPC npc)
         {
             if (TimerM < 1650 && TimerM % 5 == 0) npc.GivenName = XiheHelper.RandomString(15);
@@ -357,7 +353,7 @@ namespace XiheBoss
             }
 
             Main.dayTime = true;
-            // MEAC XiHe.AI：世界时间随剩余生命缓慢推进；战斗天空由 EoLSky 独立覆盖。
+
             if (npc.life > 10)
                 Main.time = MathHelper.Lerp((float)Main.time,
                     MathHelper.Lerp(2000f, 53700f, 1f - (float)npc.life / npc.lifeMax), 0.005f);
@@ -387,7 +383,6 @@ namespace XiheBoss
             if (BossState == State.Speacial4) { AI_Speacial4(npc, player); }
             if (BossState == State.Leave) { AI_Leave(npc, player); }
 
-            // 尾段：移动残影 + 场地半径收缩 + 玩家关在场内。
             if (Vector2.Distance(npc.Center + npc.velocity, _oldPosition) > 15f && XiheHelper.RandBool(3))
             {
                 var vec = npc.Center + npc.velocity - _oldPosition;
@@ -403,11 +398,9 @@ namespace XiheBoss
                     _areaCenter + XiheHelper.DirectionTo(_areaCenter, player.Center) * _realAreaRadius, 0.2f);
             }
 
-            // 把状态写回 npc.ai，保持原生同步包/调试工具看到的口径（MEAC 的 ai[0..3] 就是这个）。
             XiheHelper.WriteAi(npc, (float)BossState, _t, _ai2, _ai3);
         }
 
-        // ---------------- Spawn ----------------
         private void AI_Spawn(NPC npc, Player player)
         {
             GrayScale = true;
@@ -513,7 +506,6 @@ namespace XiheBoss
             if (TimerM == XiheHelper.BeatTime(32)) SwitchState();
         }
 
-        // ---------------- Roar ----------------
         private void AI_Roar(NPC npc, Player player)
         {
             XiheHelper.LerpValue(ref _alpha, 1f, 0.1f);
@@ -549,14 +541,12 @@ namespace XiheBoss
             }
         }
 
-        // ---------------- Delay ----------------
         private void AI_Delay(NPC npc, Player player)
         {
             if (++_t < 80) XiheHelper.MoveTo(npc, player.Center + new Vector2(0f, -250f), 20f, 40f);
             else SwitchState();
         }
 
-        // ---------------- EoLProjShoot1 ----------------
         private void AI_ProjShoot1(NPC npc, Player player)
         {
             var delay = _phase >= 2 ? 10 : 20;
@@ -602,7 +592,6 @@ namespace XiheBoss
             }
         }
 
-        // ---------------- EoLProjShoot2 ----------------
         private void AI_ProjShoot2(NPC npc, Player player)
         {
             var delay = _phase >= 2 ? 10 : 20;
@@ -670,7 +659,6 @@ namespace XiheBoss
             if (_t > 130 + delay) SwitchState();
         }
 
-        // ---------------- VLaser ----------------
         private void AI_VLaser(NPC npc, Player player)
         {
             if (++_t < 30) StraightMove30(npc, player, 200f, 50f);
@@ -706,7 +694,6 @@ namespace XiheBoss
             if (_t > 40 + (_phase >= 2 ? 45 : 60)) SwitchState();
         }
 
-        // ---------------- Dash1 ----------------
         private void AI_Dash1(NPC npc, Player player)
         {
             var t1 = _phase == 3 ? 10 : 20;
@@ -764,7 +751,6 @@ namespace XiheBoss
             }
         }
 
-        // ---------------- Lance2 ----------------
         private void AI_Lance2(NPC npc, Player player)
         {
             if (++_t < 30) StraightMove30(npc, player, 100f, 100f);
@@ -793,7 +779,6 @@ namespace XiheBoss
             }
         }
 
-        // ---------------- DashSpin ----------------
         private void AI_DashSpin(NPC npc, Player player)
         {
             if (++_t <= 30)
@@ -845,7 +830,6 @@ namespace XiheBoss
             if (_t == 100 + t2) SwitchState();
         }
 
-        // ---------------- SunDance1 ----------------
         private void AI_SunDance1(NPC npc, Player player)
         {
             if (_t == 30)
@@ -885,7 +869,6 @@ namespace XiheBoss
             }
         }
 
-        // ---------------- SunDance2 ----------------
         private void AI_SunDance2(NPC npc, Player player)
         {
             if (_t == 30)
@@ -930,7 +913,6 @@ namespace XiheBoss
             }
         }
 
-        // ---------------- Lance1 ----------------
         private void AI_Lance1(NPC npc, Player player)
         {
             if (++_t < 30) StraightMove30(npc, player, 100f, 100f);
@@ -973,7 +955,6 @@ namespace XiheBoss
             }
         }
 
-        // ---------------- Dash2 ----------------
         private void AI_Dash2(NPC npc, Player player)
         {
             if (++_t <= 30)
@@ -1033,7 +1014,6 @@ namespace XiheBoss
             }
         }
 
-        // ---------------- CrossRay ----------------
         private void AI_CrossRay(NPC npc, Player player)
         {
             if (++_t <= 30) StraightMove30(npc, player, 120f, 150f);
@@ -1107,7 +1087,6 @@ namespace XiheBoss
             if (_t > 260) SwitchState();
         }
 
-        // ---------------- Prepare ----------------
         private void AI_Prepare(NPC npc, Player player)
         {
             _setAreaRadius = 1200f;
@@ -1183,7 +1162,6 @@ namespace XiheBoss
             if (TimerM > 4080) SwitchState();
         }
 
-        // ---------------- Speacial1 ----------------
         private void AI_Speacial1(NPC npc, Player player)
         {
             _t = TimerM - 4080;
@@ -1206,7 +1184,8 @@ namespace XiheBoss
             if (_t == 50)
             {
                 XiheVisuals.Create(VfxKind.Wave, npc.Center, Vector2.Zero);
-                XiheFx.RadialGlur(npc.Center, 50, false);
+
+                XiheFx.RadialGlur(npc.Center, 50, true);
                 SoundEngine.PlaySound(SoundID.Item159, npc.Center);
                 XiheSounds.PlayLaser(npc.Center);
 
@@ -1295,8 +1274,9 @@ namespace XiheBoss
                 }
                 if (TimerM == 4500)
                 {
+
                     var p = Spawn(npc, new Vector2(npc.Center.X, npc.Center.Y - 200f), Vector2.Zero,
-                        ModContent.ProjectileType<EoLBigLaser>(), npc.damage / 3, npc.whoAmI, 1f);
+                        ModContent.ProjectileType<EoLBigLaser>(), npc.damage / 3, 50f, 1f);
                     if (p != null) p.timeLeft = 350;
                 }
                 XiheFx.UseScreenPosition(player.Center + (npc.Center - player.Center) * 0.5f, 0.05f);
@@ -1335,7 +1315,6 @@ namespace XiheBoss
 
         private Vector2 _tPos;
 
-        // ---------------- Speacial2 ----------------
         private void AI_Speacial2(NPC npc, Player player)
         {
             _setAreaRadius = 750f;
@@ -1381,7 +1360,6 @@ namespace XiheBoss
             }
         }
 
-        // ---------------- Transition ----------------
         private void AI_Transition(NPC npc, Player player)
         {
             if (++_t < XiheHelper.BeatTime(2)) npc.Center = player.Center - new Vector2(0f, 300f);
@@ -1423,7 +1401,6 @@ namespace XiheBoss
             }
         }
 
-        // ---------------- Prepare2 ----------------
         private void AI_Prepare2(NPC npc, Player player)
         {
             _setAreaRadius = 1300f;
@@ -1511,7 +1488,6 @@ namespace XiheBoss
             }
         }
 
-        // ---------------- Speacial3 ----------------
         private void AI_Speacial3(NPC npc, Player player)
         {
             if (_t == 1) XiheVisuals.Create(VfxKind.Circle, npc.Center, Vector2.Zero);
@@ -1594,7 +1570,6 @@ namespace XiheBoss
             }
         }
 
-        // ---------------- Speacial4 ----------------
         private void AI_Speacial4(NPC npc, Player player)
         {
             if (TimerM < 11580)
@@ -1793,7 +1768,6 @@ namespace XiheBoss
             }
         }
 
-        // ---------------- Leave ----------------
         private void AI_Leave(NPC npc, Player player)
         {
             npc.velocity = Vector2.Zero;
@@ -1836,13 +1810,10 @@ namespace XiheBoss
             if (npc.life != 1) _t += 5;
         }
 
-        // ================= 状态切换（照抄 SwitchState） =================
-
         internal void SwitchState()
         {
             _t = 0;
             var npc = NPC;
-            
 
             if (BossState == State.Spawn) BossState = State.Roar;
             else if (BossState == State.Roar)
@@ -1918,8 +1889,6 @@ namespace XiheBoss
             }
         }
 
-        // ================= 小动作 =================
-
         private bool TimerOnBeat => Math.Abs(TimerM % XiheHelper.BeatTicks) < 1f;
         private bool TimerOnHalfBeat => Math.Abs(TimerM % XiheHelper.HalfBeatTicks) < 1f;
 
@@ -1954,20 +1923,16 @@ namespace XiheBoss
             if (type == 2) SoundEngine.PlaySound(SoundID.Item164, Center);
         }
 
-        // ================= 生成工具 =================
-
         private static Projectile Spawn(NPC owner, Vector2 pos, Vector2 vel, int type, int damage,
             float ai0, float ai1)
         {
             if (type <= 0) return null;
-            // MEAC 直接使用传入伤害（通常为 npc.damage / 5、/6、/4、/3）。
-            // 迁移版曾额外乘 4，会使玩家受到的弹幕伤害偏离源值。
+
             var idx = Projectile.NewProjectile(null, pos, vel, type, damage, 0f, Main.myPlayer, ai0, ai1, 0f);
             if (idx < 0 || idx >= Main.projectile.Length) return null;
             return Main.projectile[idx];
         }
 
-        /// <summary>EoLLaser1 的寿命门槛（原版是 public maxTime 字段，这里用 ai[2] 传）。</summary>
         private static void SetLaserTime(Projectile p, int maxTime)
         {
             if (p == null) return;
@@ -1976,7 +1941,6 @@ namespace XiheBoss
             p.ai = ai;
         }
 
-        /// <summary>EoLLance 的寿命（原版 maxtime 字段，ai[2] 传）。</summary>
         private static void SetLanceTime(Projectile p, int maxTime)
         {
             if (p == null) return;
@@ -2006,8 +1970,6 @@ namespace XiheBoss
             catch { }
         }
 
-        // ================= 绘制 =================
-
         public override bool PreDraw(SpriteBatch spriteBatch, Vector2 screenPos, Color drawColor)
         {
             var npc = NPC;
@@ -2027,10 +1989,6 @@ namespace XiheBoss
         private bool _drawLogged;
         private static int _waveDrawFrame = -1;
 
-        /// <summary>
-        /// MEAC Wave 的 ForceField 通道。波纹属于 NPC 绘制前的世界层，必须使用完整的
-        /// 1200px 噪声源矩形；提交后恢复 SpriteBatch、Textures[0]/[1]、uSourceRect 和 BoundEffect。
-        /// </summary>
         private static void DrawWaves(SpriteBatch spriteBatch, Vector2 screenPos)
         {
             var hasWave = false;
@@ -2039,8 +1997,7 @@ namespace XiheBoss
                 if (v.Kind == VfxKind.Wave && v.TimeLeft > 0) { hasWave = true; break; }
             }
             if (!hasWave) return;
-            // PreDraw may be reached more than once in a frame by NPC/bloom hooks;
-            // MEAC draws the VFX once from its dedicated pipeline.
+
             var frame = UnityEngine.Time.frameCount;
             if (_waveDrawFrame == frame) return;
             _waveDrawFrame = frame;
@@ -2063,9 +2020,6 @@ namespace XiheBoss
                     new Il2CppSystem.Nullable<Matrix>(Main.GameViewMatrix.TransformationMatrix));
                 begun = true;
 
-                // Every Wave uses the same ForceField parameters (ai0 = 1). Apply
-                // the effect once for this batch, then draw each live Wave. MEAC's
-                // canBatch=false controls VFX ordering, not repeated shader setup.
                 graphicsDevice.Textures[0] = waveTexture;
                 var shader = Terraria.Graphics.Shaders.GameShaders.Misc["ForceField"];
                 shader.UseColor(new Vector3(1f));
@@ -2080,9 +2034,6 @@ namespace XiheBoss
                     data.Draw(spriteBatch);
                 }
 
-                // MEAC Wave.useBloom=true: its bloom pass draws the same ForceField
-                // again with bloomColor=(0.8,0.5,0.2)*alpha. Keep this as a second
-                // ordered batch so the normal and bloom contributions match MEAC.
                 shader.UseColor(new Vector3(1f));
                 shader.Apply();
                 foreach (var v in XiheVisuals.All)
@@ -2129,7 +2080,6 @@ namespace XiheBoss
             var wingFrame = Utils.Frame(WingTexture, 1, wingFrames, 0, wingTime % wingFrames, 0, 0);
             var wingOrigin = new Vector2(WingTexture.Width, WingTexture.Height / wingFrames) / 2f;
 
-            // MEAC 原序：加色翅膀背光，然后 HallowBoss pass + XiHe_Wing 调色贴图。
             var wingGlow = WingGlowTexture ?? TextureAssets.Extra[159]?.Value;
             sb.End();
             sb.Begin(SpriteSortMode.Immediate, BlendState.Additive, SamplerState.PointClamp,
@@ -2138,7 +2088,6 @@ namespace XiheBoss
 
             if (wingGlow != null)
                 XiheDraw.Sprite(sb, wingGlow, pos, wingFrame, Color.Yellow * a, 0f, wingOrigin, 2f);
-
 
             sb.End();
             sb.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.PointClamp,
@@ -2168,8 +2117,7 @@ namespace XiheBoss
             finally
             {
                 sb.End();
-                // PixelShader is shared with the player-head renderer. Restoring only
-                // its pass leaves the wing frame in uSourceRect and indexes the wrong tile.
+
                 sourceParameter.SetValue(new Vector4(oldSourceRect.x, oldSourceRect.y, oldSourceRect.z, oldSourceRect.w));
                 graphicsDevice.Textures[0] = oldTexture0;
                 graphicsDevice.Textures[1] = oldTexture1;
@@ -2180,7 +2128,6 @@ namespace XiheBoss
                 DepthStencilState.None, RasterizerState.CullNone, null,
                 new Il2CppSystem.Nullable<Matrix>(Main.GameViewMatrix.TransformationMatrix));
 
-            // MEAC DrawEoL：Extra_187 八帧光幕和四向金色轮廓位于身体后方。
             var pulse = (float)Math.Sin(Main.GlobalTimeWrappedHourly * ((float)Math.PI * 2f) * 0.5f) * 0.5f + 0.5f;
             var veilColor = new Color(255, 231, 69, 0) * (0.3f * a);
             var veilOffset = MathHelper.Lerp(2f, 8f, pulse);
@@ -2196,7 +2143,6 @@ namespace XiheBoss
                 }
             }
 
-            // 身体（NPC_636 第 2 帧）
             if (BodyTexture != null)
             {
                 var bframe = Utils.Frame(BodyTexture, 1, 2, 0, 1, 0, 0);
@@ -2214,7 +2160,6 @@ namespace XiheBoss
                 }
             }
 
-            // Extra_188 的四向辉光与独立手臂按 MEAC 顺序覆盖在身体前方。
             if (_bodyVeilGlowTexture != null)
             {
                 var origin = new Vector2(_bodyVeilGlowTexture.Width, _bodyVeilGlowTexture.Height) / 2f;
@@ -2237,7 +2182,6 @@ namespace XiheBoss
                 0f, Utils.Size(frame) / 2f, 1f);
         }
 
-        /// <summary>源 DrawArea：场地环，半径 realAreaRadius、宽 25、颜色 (255,255,150)*alpha、Additive。</summary>
         internal void PushAura()
         {
             var npc = NPC;
@@ -2255,21 +2199,3 @@ namespace XiheBoss
         }
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

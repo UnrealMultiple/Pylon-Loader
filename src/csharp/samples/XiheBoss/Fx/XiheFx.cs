@@ -1,9 +1,3 @@
-// 羲和 Boss —— 屏幕效果总控。
-//
-// 和 XiheMagic 同一条路：不 patch SpriteBatch、不在绘制中途换混合模式，
-// 所有发光图元（球 / 光束 / 环）在 Main.DoDraw 之前提交成若干步全屏 shader pass（World 层，界面盖在上面）。
-// 每帧把 active 的弹幕 + VisualEffect + Boss 场地环收进批次，按 28 orb / 8 beam / 6 ring 分 pass，
-// 每个 pass 只画自己的包围盒（Box），手机端不会整屏跑十几次循环。
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -67,24 +61,22 @@ namespace XiheBoss
         public bool Additive;
     }
 
-    /// <summary>MEAC PreDraw 里的一次 SpriteBatch.Draw（原样搬运）。</summary>
     internal struct SpritePrim
     {
         public Vector2 World;
         public Tex Tex;
-        public Rectangle Source;       // 纹理像素；全图时 = (0,0,W,H)
+        public Rectangle Source;
         public Color Color;
         public float Rot;
         public Vector2 Scale;
-        public Vector2 Origin;         // 纹理像素
+        public Vector2 Origin;
         public bool Additive;
         public bool Colorize;
-        public bool WrapU;             // EoLLaser1 的 tex4：Rectangle 宽 = 5*texW，PointWrap
-        public float SrcRepeat;        // 1 或 5
-        public float WrapShift;        // PointWrap 的相位（源矩形 x / texW）
+        public bool WrapU;
+        public float SrcRepeat;
+        public float WrapShift;
     }
 
-    /// <summary>Trail.fx 的显式左右顶点（MEAC 的 triangle strip 原样）。</summary>
     internal struct TrailStripPoint
     {
         public Vector2 Left;
@@ -93,15 +85,13 @@ namespace XiheBoss
         public float W;
     }
 
-    /// <summary>MEAC triangle strip 的一个顶点（VertexPositionColorTexture 同口径）。</summary>
     internal struct TriVertex
     {
         public Vector2 World;
-        public Vector2 Uv;       // 贴图局部 uv（0..1，v=0 顶边）
+        public Vector2 Uv;
         public Color Color;
     }
 
-    /// <summary>一次 DrawUserPrimitives 的三角形列表。</summary>
     internal sealed class TriPrim
     {
         public Tex Tex;
@@ -112,7 +102,6 @@ namespace XiheBoss
         public TriVertex[] Verts;
     }
 
-    /// <summary>Trail.fx 的逐段几何：左/右两个顶点 + coord.x/coord.z。</summary>
     internal struct TrailQuad
     {
         public Vector2 L0, R0, L1, R1;
@@ -148,7 +137,6 @@ namespace XiheBoss
         public float Alpha;
     }
 
-    /// <summary>Cycloid 的全屏黄色闪光（源 PreDraw 的 screenTargetSwap + Hide 圆洞）。</summary>
     internal struct CycloidOverlayFx
     {
         public Vector2 World;
@@ -156,7 +144,6 @@ namespace XiheBoss
         public float HoleRadius;
     }
 
-    /// <summary>MEAC 的 isWarp 特效：不是可见精灵，而是用 screenTargetSwap 当遮罩扭曲屏幕。</summary>
     internal struct WarpFx
     {
         public Vector2 World;
@@ -221,19 +208,14 @@ namespace XiheBoss
         private static bool _loggedOverflow;
         private static readonly HashSet<int> _missingVisual = new();
 
-        // 屏幕亮度 / 灰度
         private static float _brightness;
         private static int _brightnessTime;
         private static int _brightnessMax = 1;
         private static float _gray;
         private static float _warp = 0.03f;
 
-        // 屏幕效果里的像素坐标 = GL viewport（例如 2608x1200）；游戏可能开着动态分辨率
-        // （Main.screenWidth/Height 只有 1920x882）。像素量先乘 viewport/screen，
-        // 否则会被 shader 的 uResolution 放大、超出自己的 Box，表现就是“矩形裁剪”。
         private static float _pxScaleX = 1f, _pxScaleY = 1f;
 
-        // 相机
         private static float _shake;
         private static bool _useSc;
         private static bool _cancelSc;
@@ -292,8 +274,6 @@ namespace XiheBoss
             XiheMesh.Reset();
         }
 
-        // ================= 图元 API（弹幕 / 特效调） =================
-
         private static void UpdatePixelScale()
         {
             try
@@ -351,8 +331,6 @@ namespace XiheBoss
             XiheBossMod.Log?.Warn($"[fx] 图元超过上限，后续 {kind} 丢弃（本帧）");
         }
 
-        // ================= MEAC 精灵 / Trail / 环（逐次 Draw 原样搬） =================
-
         internal static void Sprite(Vector2 world, Tex tex, Color color, float rot = 0f,
             Vector2? scale = null, Vector2? origin = null, bool additive = false, bool colorize = false)
         {
@@ -368,8 +346,7 @@ namespace XiheBoss
         {
             if (color.A == 0 && !additive) return;
             if (source.Width <= 0 || source.Height <= 0) return;
-            // 不再用固定 1024 截断：开场 CrystalArrow 雨会超过这个数，截断就是“一部分弹幕消失”。
-            // 真正的性能控制放在后面的空间分桶/可见性剔除。
+
             Sprites.Add(new SpritePrim
             {
                 World = world,
@@ -387,10 +364,6 @@ namespace XiheBoss
             });
         }
 
-        /// <summary>
-        /// MEAC Trail.fx 的精确几何：传显式左右顶点（每点两个顶点），逐段生成 quad。
-        /// 同一帧里同贴图/同混合的 trail 会自动合并到尽量少的 pass。
-        /// </summary>
         internal static void TrailStrip(IReadOnlyList<TrailStripPoint> points, Tex shape, Tex colorTex, Tex overlay,
             float t, bool additive, float alpha = 1f)
         {
@@ -428,10 +401,6 @@ namespace XiheBoss
             }
         }
 
-        /// <summary>
-        /// MEAC DrawUserPrimitives(VertexPositionColorTexture) 的三角形列表。
-        /// uv 用贴图局部坐标（v=0 顶边）；useTexture=false 时等价 MagicPixel。
-        /// </summary>
         internal static void Tri(Tex tex, bool useTexture, bool additive, bool colorize, bool wrapU,
             TriVertex[] verts)
         {
@@ -458,7 +427,6 @@ namespace XiheBoss
             });
         }
 
-        /// <summary>EoLSky.DrawSun：uScale=0.067*scale、uRayAlpha=ai[1]、整体乘 alpha=ai[0]*2.1。</summary>
         internal static void SunFxAt(Vector2 world, float scale, float rayAlpha, float alpha)
         {
             if (alpha <= 0.001f || scale <= 0.0001f) return;
@@ -469,9 +437,7 @@ namespace XiheBoss
         {
             var intensity = XiheSky.Intensity;
             var sun = XiheSky.SunIntensity;
-            // Match EoLSky.Draw's depth/timer gate.  Do not submit a zero-alpha
-            // Sun.fx pass: its reciprocal-distance formula still produces a
-            // corner glow when a stale/fallback position is supplied.
+
             if (PostShader == null || !XiheSky.SunVisible) return;
             var uv = XiheSky.SunUv();
             var fx = new ScreenEffect(PostShader)
@@ -494,14 +460,12 @@ namespace XiheBoss
             frame.Add(fx);
         }
 
-
         internal static void Line(Vector2[] points, float halfWidth, Color color, bool additive)
         {
             if (points == null || points.Length < 2 || halfWidth <= 0.01f || color.A == 0) return;
             Lines.Add(new LinePrim { Points = points, HalfWidth = halfWidth, Color = color, Additive = additive });
         }
 
-        /// <summary>Cycloid 的黄色全屏闪光；holeRadius 是源 Hide.fx 圆洞的半径（屏幕高度分数）。</summary>
         internal static void CycloidOverlay(Vector2 world, float alpha, float holeRadius)
         {
             if (alpha <= 0.002f) return;
@@ -514,11 +478,6 @@ namespace XiheBoss
             });
         }
 
-        /// <summary>
-        /// MEAC 的 isWarp 特效（RingWarp / RingWarp2 / CircleWarp / LineWarp）：源先把这些
-        /// 精灵画进 screenTargetSwap，再用 KScreen0 把红/绿通道当方向/强度扭曲屏幕。
-        /// 它们**不是可见的环**。这里按同一个语义提交屏幕扭曲。
-        /// </summary>
         internal static void Warp(Vector2 world, float radius, float width, float strength)
         {
             if (strength <= 0.0001f) return;
@@ -532,11 +491,6 @@ namespace XiheBoss
             });
         }
 
-        /// <summary>
-        /// IWarpProj 的独立提交入口。MEAC 先把弹幕的 Extra1/Trail 图形画到
-        /// screenTargetSwap，再由 EoLWarp/KScreen0 扭曲屏幕；这里以 trail 包围范围
-        /// 建立同一帧独立 warp pass，避免把 warp 误并入可见 additive trail。
-        /// </summary>
         internal static void WarpTrail(Vector2 center, float radiusPixels, float strength = 0.02f)
         {
             var h = Math.Max(1, Main.screenHeight);
@@ -580,7 +534,7 @@ namespace XiheBoss
             _cancelSc = false;
             _scTarget = target;
             _scAmount = amount;
-            _scTtl = 10;   // 真机可能 >60 帧；按帧递减要留够两次 Boss tick 的余量
+            _scTtl = 10;
         }
 
         internal static void CancelScreenPosition()
@@ -592,7 +546,6 @@ namespace XiheBoss
             }
         }
 
-        /// <summary>Mod.ModifyScreenPosition 里调：震屏 / 镜头推拉（等价 MEAC 在 Player.PreUpdate 里改 Main.screenPosition）。</summary>
         internal static void ApplyCamera()
         {
             if (Main.gameMenu) return;
@@ -628,15 +581,11 @@ namespace XiheBoss
             }
         }
 
-        // ================= 弹幕视觉注册 =================
-
         internal static void RegisterVisual<T>(Action<Projectile> push) where T : ModProjectile
         {
             var type = ModContent.ProjectileType<T>();
             if (type > 0) Visuals[type] = push;
         }
-
-        // ================= 每 tick =================
 
         internal static void Tick()
         {
@@ -663,8 +612,6 @@ namespace XiheBoss
                 if (!_loggedError) { _loggedError = true; XiheBossMod.Log?.Warn("[fx] Tick 异常：" + e.Message); }
             }
         }
-
-        // ================= 提交这一帧 =================
 
         internal static void Submit()
         {
@@ -714,9 +661,8 @@ namespace XiheBoss
 
                 var frame = new ScreenFrame();
 
-                // MEAC EoLSky.DrawSun: background sun with animated radial light/shadow.
                 AddBackgroundSun(frame);
-                // 时间由 Boss AI 按生命值推进；EoLSky 渐变由 XiheSky 在背景层绘制。
+
                 AddRingPasses(frame);
                 AddTrail2Passes(frame);
                 AddLinePasses(frame);
@@ -725,18 +671,19 @@ namespace XiheBoss
                 AddWarpPasses(frame);
                 AddPrimPasses(frame);
                 AddCycloidOverlays(frame);
-                // 大光柱本体由 PushVisual 提交四层 MEAC SpriteRect；这里仅收集 MagicRing。
+
                 XiheBigLaserFx.Submit(frame);
                 AddSuns(frame);
                 XiheMesh.Submit(frame);
+                XiheMesh.SubmitBloom(frame);
 
-                if (_gray > 0.004f)   // gray=0 时这一步是纯 no-op（源只在入场/转场用），别再每帧跑一遍全屏 pass
+                if (_gray > 0.004f)
                     AddPost(frame, 1f, boss != null && boss.NpcAlive ? boss.Center : XiheHelper.ScreenCenter,
                         _gray, _warp);
                 AddGlur(frame);
                 if (_brightnessTime > 0 && _brightness > 1f)
                 {
-                    // MEAC: progress = (max-timeleft)/max; progress2 = 2*(p<0.5?p:1-p)
+
                     var p = 1f - (float)_brightnessTime / _brightnessMax;
                     var p2 = 2f * (p < 0.5f ? p : 1f - p);
                     AddPost(frame, 3f, default, (_brightness - 1f) * p2, 0f);
@@ -791,8 +738,7 @@ namespace XiheBoss
 
         private static void AddSuns(ScreenFrame frame)
         {
-            // All Sun.fx instances share the same source image. Keep each post draw
-            // within the shader's 16-sun capacity, with independent reusable batch arrays.
+
             if (PostShader == null || Suns.Count == 0) return;
             var batchIndex = 0;
             var cursor = 0;
@@ -812,8 +758,7 @@ namespace XiheBoss
                     if (s.Alpha <= 0.001f || s.Scale <= 0.0001f) continue;
                     var uv = ToUv(s.World);
                     var k = count * 4;
-                    // Keep the world-projected center even when it is off-screen;
-                    // clamping would pin the reciprocal-distance glow to an edge.
+
                     sunA[k] = uv.X; sunA[k + 1] = uv.Y;
                     sunA[k + 2] = s.Scale; sunA[k + 3] = s.RayAlpha;
                     sunB[k] = s.Alpha; sunB[k + 1] = sunB[k + 2] = sunB[k + 3] = 0f;
@@ -867,9 +812,6 @@ namespace XiheBoss
             }
         }
 
-        // All warp entries previously required their own full-resolution screen copy
-        // and ping-pong pass. Compose their UV transforms before one screen sample.
-        // Reverse iteration is essential: drawing A then B samples A at B(uv).
         private static readonly float[] WarpCenters = new float[64 * 4];
         private static readonly float[] WarpParameters = new float[64 * 4];
         private static readonly float[] WarpMaskCells = new float[64 * 4];
@@ -919,8 +861,6 @@ namespace XiheBoss
             if (XiheTextures.Atlas != null) fx.Texture("uWarpMask", XiheTextures.Atlas);
             frame.Add(fx);
         }
-
-        // ================= 新图元：精灵 / Trail / 环 =================
 
         private static void AddRingPasses(ScreenFrame frame)
         {
@@ -980,8 +920,6 @@ namespace XiheBoss
         {
             if (TrailQuads.Count == 0) return;
 
-            // 硬件几何：同 shape/color/overlay/混合的 trail 合成一次画；逐像素公式仍在 XiheTrailFx.frag 里
-            // （和 MEAC Trail.fx pass 0 逐行一致），但只着色实际覆盖的像素。
             foreach (var group in TrailQuads)
             {
                 XiheMesh.AddTrailQuads(group);
@@ -992,8 +930,6 @@ namespace XiheBoss
         {
             if (Tris.Count == 0) return;
 
-            // 硬件几何：每个 TriPrim 是源 DrawUserPrimitives 的一次顶点列表。
-            // 同贴图/同混合会自动合并；不再按屏幕 4x4 分区，也不再有每像素 64 三角形的循环。
             foreach (var p in Tris)
             {
                 XiheMesh.AddGeometry(p.Tex, p.UseTexture, p.Colorize, p.WrapU, p.Additive, p.Verts);
@@ -1051,8 +987,6 @@ namespace XiheBoss
         {
             if (Sprites.Count == 0) return;
 
-            // 直接交给硬件几何批：同贴图/同混合的精灵合成一次画，GPU 只光栅化实际覆盖的像素。
-            // 屏幕外的精灵仍然不提交（省顶点，行为与旧版一致）。
             var sh = Math.Max(1, Main.screenHeight);
             foreach (var s in Sprites)
             {
@@ -1093,10 +1027,7 @@ namespace XiheBoss
 
         private static void AddSpritePass(List<SpritePrim> group, ScreenFrame frame)
         {
-            // 经验：手机 Adreno 上 XiheSprite 的逐像素 uv 反解会整批不显示（MagicPixel 正常、
-            // 带源矩形的图集贴图不显示）。这里不再走 XiheSprite，直接把每个 SpriteBatch.Draw
-            // 展开成两个三角形（与 MEAC 的 VertexPositionColorTexture 同一套几何），
-            // 复用已经验证可用的 XiheTri.frag。
+
             var sw = Math.Max(1, Main.screenWidth);
             var sh = Math.Max(1, Main.screenHeight);
             var sp = Main.screenPosition;
@@ -1147,7 +1078,7 @@ namespace XiheBoss
             if (PrimsShader == null) return;
             if (Orbs.Count == 0 && Beams.Count == 0 && Rings.Count == 0) return;
 
-            var maxPasses = 256;   // 只是防失控：正常一帧远到不了，别再静默丢 beam/orb
+            var maxPasses = 256;
             var pass = 0;
             var oi = 0; var bi = 0; var ri = 0;
             while ((oi < Orbs.Count || bi < Beams.Count || ri < Rings.Count) && pass < maxPasses)
@@ -1317,17 +1248,3 @@ namespace XiheBoss
             return new Vector2((world.X - sp.X) / sw, 1f - (world.Y - sp.Y) / sh);
         }    }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-

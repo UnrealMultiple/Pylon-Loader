@@ -1,7 +1,3 @@
-// 贴图：PNG 解码（照 XiheMagic 的实现，绕开 GetRawTextureData<T> 的 AOT 坑）→ 一张图集（atlas）。
-//
-// 为什么要图集：屏幕效果 shader 只能在 uniform 里传数据，sampler 数组又不能动态下标。把 Boss 用到的
-// 贴图（MEAC 原素材）打进一张 RGBA 图集，每个图元只带自己的 uv 矩形，shader 用一次 texture() 取样。
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -16,7 +12,7 @@ using Pylon.ModLoader.Logging;
 
 namespace XiheBoss
 {
-    /// <summary>图集里的贴图槽（顺序 = 打包顺序，Shaders 里也按这个顺序算 uv）。</summary>
+
     internal enum Tex
     {
         Ball = 0,
@@ -50,12 +46,12 @@ namespace XiheBoss
         EolProj,
         EolProjColor,
         Elip,
-        // MEAC 原素材/原版贴图（弹幕绘制用）
-        ProjTex,       // MEAC/Projectiles/projTex：EoLLight / CrystalArrow 的本体长条
-        Proj919,       // Terraria/Images/Projectile_919：EoLLance 的枪身
-        ImgColor,      // MEAC/Images/KnifeLight/img_color：EoLFire 的 Trail 颜色条
-        MagicPixel,    // 1x1 白：EoLLance 的顶点光矛 / Projectile_0 的等价物
-        Transparent,   // 1x1 全透明：Trail 的 uImage2（Projectile_0 在 MEAC 里是空白叠加）
+
+        ProjTex,
+        Proj919,
+        ImgColor,
+        MagicPixel,
+        Transparent,
         Count,
     }
 
@@ -66,16 +62,13 @@ namespace XiheBoss
 
     internal static class XiheTextures
     {
-        /// <summary>图集在 shader 里的 sampler（uAtlas）。</summary>
+
         internal static ScreenGraphics.Texture Atlas { get; private set; }
 
-        /// <summary>单独一张：Perlin 噪声（uNoise，屏幕效果里做抖动/扭曲）。</summary>
         internal static ScreenGraphics.Texture Noise { get; private set; }
 
-        /// <summary>原版 ForceField 波纹使用的 1200px 独立噪声贴图。</summary>
         internal static Texture2D WavePerlin1200 { get; private set; }
 
-        // EoLBigLaser 专用 shader（复用 XiheMagic 的 XiheBeam.frag）要单独绑 5 张 sampler。
         internal static ScreenGraphics.Texture BigOuter { get; private set; }
         internal static ScreenGraphics.Texture BigCore { get; private set; }
         internal static ScreenGraphics.Texture BigArc { get; private set; }
@@ -88,7 +81,6 @@ namespace XiheBoss
         private static int _atlasWidth;
         private static int _atlasHeight;
 
-        /// <summary>图集里每张贴图的原始像素尺寸（精灵绘制要按纹理像素算 origin/uv）。</summary>
         internal static int[] Widths { get; private set; }
         internal static int[] Heights { get; private set; }
 
@@ -116,7 +108,7 @@ namespace XiheBoss
             (Tex.Wave1, "assets/textures/Wave1.png"),
             (Tex.Wave2, "assets/textures/Wave2.png"),
             (Tex.Extra89, "assets/textures/Extra89.png"),
-            // MEAC/Items/ModWeapons/Arc.png：大光柱蓄力弧光。
+
             (Tex.Arc, "assets/textures/Arc.png"),
             (Tex.WarpRing, "assets/textures/WarpRing.png"),
             (Tex.WarpRing2, "assets/textures/WarpRing2.png"),
@@ -139,10 +131,9 @@ namespace XiheBoss
         private struct Image
         {
             public int W, H;
-            public byte[] Rgba;   // v=0 在底部
+            public byte[] Rgba;
         }
 
-        /// <summary>游戏线程（SetupContent）一次：解码所有 PNG → 打包 → 上传内核。</summary>
         internal static void Bind(Mod mod, ModLogger log)
         {
             var images = new Image[(int)Tex.Count];
@@ -166,7 +157,6 @@ namespace XiheBoss
                 }
             }
 
-            // 1x1 白（MEAC 的 MagicPixel / Projectile_0 等价物）。代码生成，不占素材文件。
             images[(int)Tex.MagicPixel] = new Image
             {
                 W = 1,
@@ -180,7 +170,6 @@ namespace XiheBoss
                 Rgba = new byte[4],
             };
 
-            // 行式打包：宽度 1024，每张之间留 2px 透明边，避免过滤串色。
             const int atlasW = 1024;
             const int pad = 2;
             var cells = new AtlasCell[(int)Tex.Count];
@@ -210,7 +199,7 @@ namespace XiheBoss
             }
 
             var atlasH = 1;
-            while (atlasH < maxY + pad) atlasH <<= 1;   // POT，兼容性最好
+            while (atlasH < maxY + pad) atlasH <<= 1;
 
             var rgba = new byte[atlasW * atlasH * 4];
             for (var i = 0; i < placements.Length; i++)
@@ -268,17 +257,13 @@ namespace XiheBoss
         internal static AtlasCell Cell(Tex tex) =>
             Cells == null || (int)tex < 0 || (int)tex >= Cells.Length ? default : Cells[(int)tex];
 
-        /// <summary>
-        /// CPU 端按局部 uv 采样图集（v=0 顶边，与 XNA 一致）。用于把 MEAC 的颜色图
-        /// （EoLProj_Color / img_color）直接接到三角图元的顶点色上。
-        /// </summary>
         internal static Color Sample(Tex tex, float u, float v)
         {
             if (_atlasRgba == null) return Color.White;
             var cell = Cell(tex);
             if (cell.DU <= 0f || cell.DV <= 0f) return Color.White;
             var x = (int)Math.Clamp((cell.U0 + Math.Clamp(u, 0f, 1f) * cell.DU) * _atlasWidth, 0, _atlasWidth - 1);
-            // 图集第 0 行在 GL v=0（底部）；局部 v=0 是纹理顶边，所以反一下。
+
             var y = (int)Math.Clamp((cell.V0 + (1f - Math.Clamp(v, 0f, 1f)) * cell.DV) * _atlasHeight, 0, _atlasHeight - 1);
             var i = (y * _atlasWidth + x) * 4;
             return new Color(_atlasRgba[i], _atlasRgba[i + 1], _atlasRgba[i + 2], _atlasRgba[i + 3]);
@@ -293,8 +278,6 @@ namespace XiheBoss
 
         private static ScreenGraphics.Texture Upload(string key, int width, int height, byte[] rgba, bool repeat,
             bool linear = true) => ScreenGraphics.Texture.FromRaw(key, width, height, rgba, linear, repeat);
-
-        // ---------------- 最小 PNG 解码（RGBA，v=0 在底部） ----------------
 
         private static byte[] Decode(byte[] data, out int width, out int height)
         {
@@ -394,7 +377,6 @@ namespace XiheBoss
                     cur[xi] = (byte)filtered;
                 }
 
-                // PNG 行序上→下；GL 要 v=0 在底部，写到翻转后的行。
                 var dst = (height - 1 - y) * width * 4;
                 for (var xi = 0; xi < width; xi++)
                 {
@@ -455,5 +437,3 @@ namespace XiheBoss
         }
     }
 }
-
-

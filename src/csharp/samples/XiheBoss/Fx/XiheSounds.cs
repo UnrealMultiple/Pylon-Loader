@@ -1,4 +1,3 @@
-// 音效：MEAC/Sounds/Customs/Laser.wav（Boss 的光柱点火音），其余全部用原版 SoundID。
 using System;
 using Il2CppMicrosoft.Xna.Framework;
 using Pylon.ModLoader;
@@ -17,9 +16,10 @@ namespace XiheBoss
         {
             try
             {
+
                 _laser = new SoundStyle("Sounds/Laser")
                 {
-                    Volume = 1f,
+                    Volume = 1.5f,
                     MaxInstances = 2,
                     SoundLimitBehavior = 1,
                 };

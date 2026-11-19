@@ -7,8 +7,9 @@ using Terraria.ID;
 using Pylon.ModLoader.Content;
 using Pylon.ModLoader.Core;
 
-namespace XiheMagic
+namespace XiheBoss.Wand
 {
+
     public sealed class XiHeMagicItem : ModItem
     {
         public override string DisplayName => "羲和魔杖";
@@ -19,11 +20,8 @@ namespace XiheMagic
             "激光柱维持期间持续消耗魔力\n" +
             "「羲和驭日，焚尽八荒」";
 
-        // MEAC 里这件武器直接借用原版 Item_4952（光之女皇的魔法武器）的图标；
-        // 这里不复制游戏美术，等贴图表定型后把槽位指到原版贴图（完全一致）。
         public override string TexturePath => null;
 
-        /// <summary>由 <see cref="XiheMagicMod.PostSetupContent"/> 调用：贴图表定型后指向原版图标。</summary>
         internal void ApplyIcon()
         {
             try
@@ -41,7 +39,6 @@ namespace XiheMagic
                 Mod.Logger.Warn("[item] 借用原版图标失败：" + e.Message);
             }
 
-            // 兜底：用 MEAC 的 Arc 贴图，至少不是空白。
             try { TextureAssets.Item[Type] = Mod.Assets.Request<Il2CppMicrosoft.Xna.Framework.Graphics.Texture2D>("assets/textures/Arc.png"); }
             catch (System.Exception e) { Mod.Logger.Warn("[item] Arc 兜底图标失败：" + e.Message); }
         }
@@ -52,7 +49,6 @@ namespace XiheMagic
             item.width = 30;
             item.height = 30;
 
-            // 原版：holdStyle = 6（HoldLamp）、useStyle = 14（RaiseLamp）
             item.holdStyle = (byte)ItemHoldStyleID.HoldLamp;
             item.useStyle = (byte)ItemUseStyleID.RaiseLamp;
 
@@ -68,17 +64,15 @@ namespace XiheMagic
 
             item.useTime = 30;
             item.useAnimation = 30;
+
             item.useTurn = false;
             item.autoReuse = true;
             item.channel = true;
 
-            // 原版 item.shoot = XiheMagicControler；手机版改成 UseItem 里手动发射，
-            // 不依赖 useStyle 是否走 ItemCheck_Shoot（RaiseLamp 不是 Shoot 样式）。
             item.shoot = 0;
             item.shootSpeed = 1f;
         }
 
-        /// <summary>每次「真正开始使用」问一次：场上没有控制器就造一个（原版 Shoot 的同一个判断）。</summary>
         public override bool? UseItem(Player player)
         {
             var item = Item;
@@ -92,8 +86,6 @@ namespace XiheMagic
             var type = ModContent.ProjectileType<XiheMagicControler>();
             if (type <= 0) return;
 
-            // ⚠ 手机版 Player.ownedProjectileCounts 是每实例定长数组，没扩到 mod 弹幕号，
-            // 直接索引会 IndexOutOfRange（真机实测）。改成自己扫场上弹幕。
             if (HasController(player, type)) return;
 
             var source = player.GetProjectileSource_Item(item);

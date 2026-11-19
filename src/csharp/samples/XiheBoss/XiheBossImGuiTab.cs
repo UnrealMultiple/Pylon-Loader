@@ -1,4 +1,3 @@
-// 羲和召唤与试玩物品入口。
 using Pylon.Mod;
 using Pylon.ModLoader;
 using Pylon.ModLoader.UI;
@@ -28,7 +27,69 @@ namespace XiheBoss
             TerrariaUI.SeparatorText("试玩物品");
             if (TerrariaUI.Button("给我一把天顶剑")) Give(Terraria.ID.ItemID.Zenith, "天顶剑");
             if (TerrariaUI.Button("给我一个扫把坐骑")) Give(Terraria.ID.ItemID.WitchBroom, "女巫扫帚");
+            if (TerrariaUI.Button("羲和魔杖（按住蓄力降激光柱）")) GiveWand(1);
+            if (TerrariaUI.Button("羲和的印章（召唤物，外摆线仪式）")) GiveSummon(1);
             if (!string.IsNullOrEmpty(_status)) TerrariaUI.Status(_status);
+        }
+
+        private static void GiveSummon(int stack)
+        {
+            try
+            {
+                var player = Main.player[Main.myPlayer];
+                if (player == null || !player.active)
+                {
+                    _status = "需要先进世界。";
+                    return;
+                }
+
+                var id = ModContent.ItemType<XiheSummonItem>();
+                if (id <= 0)
+                {
+                    _status = "物品还没注册好（等进世界后再点）。";
+                    return;
+                }
+
+                var source = player.GetItemSource_Misc(0);
+                player.QuickSpawnItem(source, id, stack);
+                _status = $"已添加 {stack} 枚羲和的印章（ID {id}）。";
+                XiheBossMod.Log?.Info($"[tab] 添加羲和的印章 x{stack}（ID {id}）");
+            }
+            catch (System.Exception e)
+            {
+                _status = "添加失败：" + e.Message;
+                XiheBossMod.Log?.Warn("[tab] 添加失败：" + e);
+            }
+        }
+
+        private static void GiveWand(int stack)
+        {
+            try
+            {
+                var player = Main.player[Main.myPlayer];
+                if (player == null || !player.active)
+                {
+                    _status = "需要先进世界。";
+                    return;
+                }
+
+                var id = ModContent.ItemType<Wand.XiHeMagicItem>();
+                if (id <= 0)
+                {
+                    _status = "物品还没注册好（等进世界后再点）。";
+                    return;
+                }
+
+                var source = player.GetItemSource_Misc(0);
+                player.QuickSpawnItem(source, id, stack);
+                _status = $"已添加 {stack} 把羲和魔杖（ID {id}）。";
+                XiheBossMod.Log?.Info($"[tab] 添加羲和魔杖 x{stack}（ID {id}）");
+            }
+            catch (System.Exception e)
+            {
+                _status = "添加失败：" + e.Message;
+                XiheBossMod.Log?.Warn("[tab] 添加失败：" + e);
+            }
         }
 
         private static void Give(int type, string name)

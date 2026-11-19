@@ -11,7 +11,7 @@ namespace XiheBoss
 {
     public sealed class EoLFire : ModProjectile
     {
-        /// <summary>MEAC.Entities.Node 的移植（按 MEAC.dll 的 Node.Update IL 还原）。</summary>
+
         private sealed class Node
         {
             public Vector2 Position;
@@ -33,8 +33,7 @@ namespace XiheBoss
 
             public void Update()
             {
-                // MEAC.Node.Update：type 0 在 timeleft < 0.6*max 时 velocity*=0.93、width*=0.92；
-                // type 1 无衰减；type 2 在 timeleft < 0.7*max 时 velocity*=0.92。
+
                 if (Type == 0)
                 {
                     if (TimeLeft < MaxTimeLeft * 0.6f)
@@ -56,7 +55,6 @@ namespace XiheBoss
             }
         }
 
-        /// <summary>按 whoAmI 索引的节点表（见文件头近似点 4）。</summary>
         private static readonly Dictionary<int, List<Node>> NodeTable = new();
 
         public override string TexturePath => null;
@@ -93,7 +91,6 @@ namespace XiheBoss
             NodeTable.Remove(proj.whoAmI);
         }
 
-        // 源：位置完全由 AI 钉在宿主身上。
         public override bool ShouldUpdatePosition() => false;
 
         public override void AI()
@@ -125,13 +122,11 @@ namespace XiheBoss
 
             for (var i = 0; i < nodes.Count; i++) nodes[i].Update();
 
-            // 源就是这种写法（RemoveAt 之后不回头，可能漏掉一个同 tick 到期的节点），照抄。
             for (var j = 0; j < nodes.Count; j++)
             {
                 if (nodes[j].TimeLeft <= 0) nodes.RemoveAt(j);
             }
 
-            // 源：velocity = Utils.RotatedBy(velocity, ai[1])。
             proj.velocity = XiheHelper.RotatedBy(proj.velocity, ai[1]);
             if (proj.timeLeft < 20) proj.velocity *= 0.8f;
 
@@ -146,11 +141,9 @@ namespace XiheBoss
                 }
             }
 
-            // 源：new Node(Center, velocity*10, timeleft 10, width 50, type 2)。
             nodes.Add(new Node(proj.Center, proj.velocity * 10f, 10, 50f, 2));
         }
 
-        // 源：沿节点折线每 2 个节点取一段，半宽 node.width*0.7；其余交给原生矩形。
         public override bool? Colliding(Rectangle projHitbox, Rectangle targetHitbox)
         {
             var proj = Projectile;
@@ -168,7 +161,6 @@ namespace XiheBoss
                 }
             }
 
-            // 源：return base.Colliding(...) —— Pylon 里 null 就是游戏原生矩形判定。
             return null;
         }
 
@@ -180,7 +172,6 @@ namespace XiheBoss
             return nodes;
         }
 
-        /// <summary>源 Draw：节点折线的 Trail.fx pass 0（tex4 + img_color + Projectile_0），逐点显式左右顶点。</summary>
         public static void PushVisual(Projectile p)
         {
             var nodes = NodesOf(p);
@@ -205,12 +196,9 @@ namespace XiheBoss
 
             if (points.Count < 2) return;
 
-            // 源 Draw：Trail.fx pass 0（tex4 + img_color + Projectile_0，Additive），
-            // t = timeLeft * 0.04。走精确的 Trail.fx 逐像素通道（硬件几何）。
             XiheFx.TrailStrip(points, Tex.Tex4, Tex.ImgColor, Tex.Transparent,
                 p.timeLeft * 0.04f, additive: true);
 
-            // MEAC IWarpProj.DrawWarp：Extra1 的火焰带单独进入 warp 阶段。
             var extent = 60f;
             for (var i = 0; i < nodes.Count; i++)
                 extent = Math.Max(extent, Vector2.Distance(p.Center, nodes[i].Position) + nodes[i].Width * 3f);
@@ -218,8 +206,3 @@ namespace XiheBoss
         }
     }
 }
-
-
-
-
-

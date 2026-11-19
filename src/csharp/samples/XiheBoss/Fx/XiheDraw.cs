@@ -1,5 +1,3 @@
-// SpriteBatch 的适配：手机版 XNA 的 Draw 重载只收 Il2CppSystem.Nullable<Rectangle> 的源矩形，
-// 直接传 Rectangle 会选到 Nullable<Vector2> 的怪重载（编译不过）。这里统一包一层。
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Terraria;
@@ -29,5 +27,3 @@ namespace XiheBoss
                 Utils.Size(tex) / 2f, scale, effects);
         }    }
 }
-
-

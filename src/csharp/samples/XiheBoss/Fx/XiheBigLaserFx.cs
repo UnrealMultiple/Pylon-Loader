@@ -1,8 +1,3 @@
-// EoLBigLaser 的专用渲染：直接复用 XiheMagic 的 XiheBeam.frag（同一套 tex3/tex0 滚动、落点柔光、
-// MagicRing 的逐像素 3D 投影反解）。这样 Boss 的大光柱与「羲和魔杖」的光柱是同一份着色器实现。
-//
-// 每个 EoLBigLaser 一步 pass；环由 EoLBigLaser 的 timeLeft 时刻表驱动（350/330/320/260，模式 0 是 210）。
-// 如果 shader 没加载成功，EoLBigLaser.PushVisual 会退回 XiheFx 的图元版本，画面不会完全消失。
 using System;
 using System.Collections.Generic;
 using Il2CppMicrosoft.Xna.Framework;
@@ -54,7 +49,7 @@ namespace XiheBoss
 
         internal static void Submit(ScreenFrame frame)
         {
-            // 光柱本体由 EoLBigLaser.PushVisual 绘制；这里只收集原版 MagicRing 几何。
+
             var type = ModContent.ProjectileType<EoLBigLaser>();
             if (type <= 0) return;
 
@@ -78,7 +73,6 @@ namespace XiheBoss
                     if (ai[1] == 0f) AddRing(state.Rings, p.timeLeft, 0f, -0.2f, 210);
                 }
 
-                // 源的 CreateRing 时刻（模式 1）。
                 var last = state.LastTimeLeft;
                 var now = p.timeLeft;
                 if (last > 350 && now <= 350) AddRing(state.Rings, now, 0f, -0.2f, 90);
@@ -92,14 +86,9 @@ namespace XiheBoss
                 }
                 state.LastTimeLeft = now;
 
-                // 环：按 MEAC.Entities.MagicRing.Draw 的 3D 顶点投影逐点生成（counts=50、sX=3、
-                // 半径 110*scale*ai0、带宽 10*scale*ai0、PointWrap、Additive），交给硬件几何通道。
-                // 旧实现用逐像素反解：环越大，包围盒里每个像素都要算 atan/acos/exp，这是
-                // “法阵一扩大就掉帧”的根因；现在 GPU 只光栅化环带本身。
                 BuildRings(p);
             }
 
-            // 清掉已经不存在的弹幕状态。
             if (seen.Count == 0)
             {
                 States.Clear();
@@ -113,7 +102,6 @@ namespace XiheBoss
             }
         }
 
-        /// <summary>MEAC MagicRing.AI（laserOwner 存在时的分支）逐 tick 复算 scale。</summary>
         private static float RingScale(Ring r, int laserTimeLeft, int age)
         {
             var scale = 0f;
@@ -132,7 +120,6 @@ namespace XiheBoss
             return scale;
         }
 
-        /// <summary>MagicRing.Draw 的顶点：50 段、画布中心投影（viewZ=1000）、sX=3 的 u 滚动。</summary>
         private static void BuildRings(Projectile p)
         {
             if (!States.TryGetValue(p.whoAmI, out var state) || state.Rings.Count == 0) return;
@@ -140,16 +127,14 @@ namespace XiheBoss
             var sw = Math.Max(1, Main.screenWidth);
             var sh = Math.Max(1, Main.screenHeight);
             var scCenter = Main.screenPosition + new Vector2(sw, sh) / 2f;
-            var t = -(float)(int)Main.timeForVisualEffects * 0.01f;   // MagicRing.cn = true
+            var t = -(float)(int)Main.timeForVisualEffects * 0.01f;
             const int counts = 50;
             var verts = new List<TriVertex>();
 
             foreach (var r in state.Rings)
             {
                 var age = r.Birth - p.timeLeft;
-                // MEAC：激光活着时环的 TimeLeft 被钳在 15~20，环跟着光柱全程存在；
-                // 激光濒死（timeLeft <= 20）才开始收束淡出——淡出由 RingScale 的 scale→0 负责。
-                // 这里不能再按 Life+32 硬砍年龄，否则环会在光柱中途集体消失。
+
                 if (age < 0) continue;
 
                 var s = RingScale(r, p.timeLeft, age);
@@ -161,7 +146,6 @@ namespace XiheBoss
 
                 var center = new Vector3(p.Center.X, p.Center.Y + r.Y, 0f);
 
-                // 屏幕外不提交（投影后半径最多约 (radius + width) * viewZ/(viewZ-radius)）。
                 var ringUv = XiheFx.ToUv(p.Center + new Vector2(0f, r.Y));
                 var rUv = (radius + width) * 1.4f / sh;
                 if (ringUv.X + rUv < 0f || ringUv.X - rUv > 1f || ringUv.Y + rUv < 0f || ringUv.Y - rUv > 1f)
@@ -178,10 +162,9 @@ namespace XiheBoss
                     var pb3 = center + rot + new Vector3(0f, width, 0f);
 
                     a[i] = XiheHelper.Projection(pa3, scCenter, 1000f);
-                    var k = -1000f / (pa3.Z - 1000f) + 0.05f;   // 源：第一个顶点 k += 0.05，第二个复用
+                    var k = -1000f / (pa3.Z - 1000f) + 0.05f;
                     b[i] = XiheHelper.Projection(pb3, scCenter, 1000f);
 
-                    // 源 drawColor = White（MagicRing 没改 drawColor），顶点色 = White * k。
                     var kc = MathHelper.Clamp(k, 0f, 1f);
                     colors[i] = new Color(kc, kc, kc, 1f);
                 }
@@ -210,4 +193,3 @@ namespace XiheBoss
         }
     }
 }
-

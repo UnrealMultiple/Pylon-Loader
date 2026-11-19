@@ -8,23 +8,21 @@ using Pylon.ModLoader.Core;
 
 namespace XiheBoss;
 
-// MEAC EoLSky 的原始 TSSky1 渐变在地表背景阶段绘制，避免盖住玩家和弹幕。
 internal static class XiheSky
 {
     private static Texture2D _gradient;
     private static bool _installed;
     private static float _intensity;
-    // EoLSky has a separate `sun` value.  It is not the sky intensity: the
-    // source only raises it during its two timer windows.  Keep that state
-    // explicit so the post pass is not submitted merely because the boss is alive.
+
     private static float _sun;
     private static float _black = 1f;
+
+    private static float _wand;
 
     internal static void Install()
     {
         if (_installed) return;
-        // 背景远景要挂在 BackMountainsStep1 之后：在总入口
-        // DrawSurfaceBG 挂载会落到最终背景层，覆盖玩家/弹幕。
+
         On.Terraria.Main.DrawSurfaceBG_BackMountainsStep1 += Draw;
         _installed = true;
     }
@@ -41,11 +39,6 @@ internal static class XiheSky
             return;
         }
 
-        // MEAC EoLSky.Update: sun is visible only in these timer windows,
-        // independently of sky intensity.  During the corona release MEAC's
-        // separate AmazingBugSky is driven by the live SunProj instead; keep
-        // that explicit here so the background ray does not vanish in the
-        // 9560..10620 EoLSky gap.  Spawn still submits no Sun.fx pass.
         var eolSunWindow = (boss.TimerM > 2480 && boss.TimerM < 9560) || boss.TimerM > 10620;
         var releaseSun = false;
         var sunType = ModContent.ProjectileType<SunProj>();
@@ -65,11 +58,35 @@ internal static class XiheSky
         if (boss.BossState == XiheBossNpc.State.Spawn) _black = 1f;
         else if (boss.BossState == XiheBossNpc.State.Roar) _black = MathHelper.Lerp(_black, 0f, 0.01f);
         else _black = 0f;
+
+        TickWand();
     }
 
+    private static void TickWand()
+    {
+        var controllerType = ModContent.ProjectileType<Wand.XiheMagicControler>();
+        var any = false;
+        if (controllerType > 0)
+        {
+            for (var i = 0; i < Main.projectile.Length; i++)
+            {
+                var p = Main.projectile[i];
+                if (p != null && p.active && p.type == controllerType)
+                {
+                    any = true;
+                    break;
+                }
+            }
+        }
+
+        _wand = MathHelper.Clamp(_wand + (any ? 0.005f : -0.05f), 0f, 1f);
+    }
+
+    internal static float WandIntensity => _wand;
+
     internal static float Intensity => _intensity;
-    internal static float SunIntensity => _sun;
-    internal static bool SunVisible => _sun > 0.001f && _intensity > 0.001f;
+    internal static float SunIntensity => Math.Max(_sun, _wand);
+    internal static bool SunVisible => SunIntensity > 0.001f && Math.Max(_intensity, _wand) > 0.001f;
 
     internal static Vector2 SunScreenPosition()
     {
@@ -81,11 +98,6 @@ internal static class XiheSky
             yOffset + progress * progress * 250f + 180f);
     }
 
-    /// <summary>
-    /// EoLSky.Draw's background-space position. The returned UV is bottom-origin,
-    /// matching XiheFx.ToUv and the native fullscreen quad; XihePost flips it
-    /// once when entering its top-origin Sun.fx formula.
-    /// </summary>
     internal static Vector2 SunUv()
     {
         var p = SunScreenPosition();
@@ -102,11 +114,21 @@ internal static class XiheSky
 
     internal static void Light(ref Color tile, ref Color background)
     {
-        if (_intensity <= 0f) return;
-        var gray = new Color(30, 30, 30, 255);
-        Main.ColorOfTheSkies = Color.Lerp(Main.ColorOfTheSkies, gray, _intensity);
-        tile = Color.Lerp(tile, gray, _intensity);
-        background = Color.Lerp(background, gray, _intensity);
+        if (_intensity > 0f)
+        {
+            var gray = new Color(30, 30, 30, 255);
+            Main.ColorOfTheSkies = Color.Lerp(Main.ColorOfTheSkies, gray, _intensity);
+            tile = Color.Lerp(tile, gray, _intensity);
+            background = Color.Lerp(background, gray, _intensity);
+        }
+
+        if (_wand > 0f)
+            Main.ColorOfTheSkies = Color.Lerp(Main.ColorOfTheSkies, new Color(80, 80, 80, 255), _wand);
+
+        var countdown = XiheBossNpc.SpawnCountdown;
+        if (countdown >= 0 && countdown < 400)
+            Main.ColorOfTheSkies = Color.Lerp(Main.ColorOfTheSkies,
+                new Color(40, 40, 40, 200), 1f - countdown / 400f);
     }
 
     private static void Draw(On.Terraria.Main.orig_DrawSurfaceBG_BackMountainsStep1 orig, Main self,
@@ -127,7 +149,26 @@ internal static class XiheSky
         if (_black > 0.001f)
             sb.Draw(Terraria.GameContent.TextureAssets.MagicPixel.Value,
                 new Rectangle(0, 0, Main.screenWidth, Main.screenHeight), Color.Black * (_black * _intensity));
+
+        if (_wand > 0.001f)
+        {
+            sb.End();
+            sb.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, SamplerState.LinearClamp,
+                DepthStencilState.None, RasterizerState.CullNone, null, new Il2CppSystem.Nullable<Matrix>(Matrix.Identity));
+            sb.Draw(Terraria.GameContent.TextureAssets.MagicPixel.Value,
+                new Rectangle(0, 0, Main.screenWidth, Main.screenHeight), Color.Black * _wand);
+            sb.End();
+            sb.Begin(SpriteSortMode.Deferred, BlendState.Additive, SamplerState.LinearClamp,
+                DepthStencilState.None, RasterizerState.CullNone, null, new Il2CppSystem.Nullable<Matrix>(Matrix.Identity));
+            sb.Draw(_gradient, new Rectangle(0, 0, Main.screenWidth, Main.screenHeight),
+                new Color(255, 255, 255, 200) * (_wand * 0.9f));
+            sb.End();
+
+            sb.Begin(SpriteSortMode.Deferred, BlendState.AlphaBlend, Main.DefaultSamplerState,
+                DepthStencilState.None, RasterizerState.CullNone, null,
+                new Il2CppSystem.Nullable<Matrix>(Main.GameViewMatrix.TransformationMatrix));
+        }
     }
 
-    internal static void Reset() { _intensity = 0f; _sun = 0f; _black = 1f; }
+    internal static void Reset() { _intensity = 0f; _sun = 0f; _black = 1f; _wand = 0f; }
 }

@@ -11,12 +11,9 @@ namespace XiheBoss
 {
     public sealed class CrystalArrow : ModProjectile
     {
-        /// <summary>源 SetStaticDefaults: Sets.TrailCacheLength[type] = 30。手机版代理数组没有 Length，固定用 30。</summary>
+
         private const int TrailCache = 30;
 
-
-        // 手机版 Projectile.oldPos/oldRot 是 IL2CPP 定长结构体，整体回写会丢；用按 whoAmI
-        // 索引的静态表保存，和 EoLProj 的做法一致。PushVisual 是 static，正好读这张表。
         private static Vector2[][] _oldPos;
         private static float[][] _oldRot;
 
@@ -88,14 +85,13 @@ namespace XiheBoss
             var proj = Projectile;
             var ai = proj.ai;
 
-            // 源：alpha = timeLeft > 10 ? Lerp(alpha, 0, 0.1) : Lerp(alpha, 255, 0.1)
             proj.alpha = proj.timeLeft > 10
                 ? (int)MathHelper.Lerp(proj.alpha, 0f, 0.1f)
                 : (int)MathHelper.Lerp(proj.alpha, 255f, 0.1f);
 
             if (ai[0] == -1f)
             {
-                // 源：velocity = Lerp(velocity, DirectionTo2(Main.MouseWorld) * 50, 0.1) + 粒子
+
                 proj.velocity = Vector2.Lerp(proj.velocity,
                     XiheHelper.DirectionTo(proj.Center, Main.MouseWorld) * 50f, 0.1f);
                 SparkBurst(proj.Center, ai[1]);
@@ -146,7 +142,6 @@ namespace XiheBoss
 
             proj.rotation = Utils.ToRotation(proj.velocity) + 1.57f;
 
-            // 源：整段 oldPos/oldRot 前移一格，再把当前 Center/rotation 放进 [0]。
             var oldPos = TrailOf(proj);
             var oldRot = RotOf(proj);
             if (oldPos != null && oldRot != null)
@@ -170,7 +165,6 @@ namespace XiheBoss
             if (proj.timeLeft == 1) SparkBurst(proj.Center, ai[1]);
         }
 
-        /// <summary>源 ParticleOrchestraType 5 的近似：一圈不带重力的小尘土。</summary>
         private static void SparkBurst(Vector2 center, float hue)
         {
             var color = XiheHelper.HsvToRgb(hue);
@@ -186,7 +180,6 @@ namespace XiheBoss
 
         public override bool PreDraw(Player player, ref Color lightColor) => false;
 
-        /// <summary>源 PreDraw：30 段 Ball 拖尾 + projTex 箭体 + 两笔 Ball 十字，全部 Colorize+Additive。</summary>
         public static void PushVisual(Projectile p)
         {
             var ai = p.ai;
@@ -202,11 +195,9 @@ namespace XiheBoss
             var texOrigin = new Vector2(texW, texH) / 2f;
             var ballOrigin = new Vector2(XiheTextures.WidthOf(Tex.Ball), XiheTextures.HeightOf(Tex.Ball)) / 2f;
             var length = (float)TrailCache;
-            // MEAC 使用完整的 30 段 oldPos 拖尾；保持段数一致以还原光弹长度。
+
             var drawCount = TrailCache;
 
-            // 源：for (i < oldPos.Length) Draw(Ball, oldPos[i], color*0.7*((length-i)/length),
-            //     oldRot[i], Utils.Size(tex)/2, projectile.scale * (0.2, 2.5))，Colorize+Additive。
             for (var i = 0; i < drawCount; i++)
             {
                 var pos = oldPos[i];
@@ -215,11 +206,9 @@ namespace XiheBoss
                     scale * new Vector2(0.2f, 2.5f), texOrigin, additive: true, colorize: true);
             }
 
-            // 箭体
             XiheFx.Sprite(p.Center, Tex.ProjTex, color, p.rotation, Vector2.One * scale,
                 texOrigin, additive: true, colorize: true);
 
-            // 十字
             var pulse = (1f + 0.2f * (float)Math.Sin(Main.timeForVisualEffects * 0.6f)) * 2f;
             XiheFx.Sprite(p.Center, Tex.Ball, color * 0.9f, 0f,
                 new Vector2(3f, 0.1f) * pulse, ballOrigin, additive: true, colorize: true);
@@ -228,10 +217,3 @@ namespace XiheBoss
         }
     }
 }
-
-
-
-
-
-
-

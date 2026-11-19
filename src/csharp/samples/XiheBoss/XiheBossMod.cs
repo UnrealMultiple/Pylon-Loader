@@ -1,4 +1,3 @@
-// 羲和 Boss Mod 入口：着色器/贴图/音效注册、屏幕效果提交、相机钩子、菜单页。
 using System;
 using System.Linq;
 using System.Reflection;
@@ -30,13 +29,23 @@ namespace XiheBoss
             XiheSounds.Init(Logger);
             XiheSky.Install();
             Logger.Info($"[fx] shader status prims={(XiheFx.PrimsShader != null)} post={(XiheFx.PostShader != null)} ring={(XiheFx.RingShader != null)} line={(XiheFx.LineShader != null)} bigLaser={(XiheBigLaserFx.Shader != null)}");
+
+            try
+            {
+                Wand.XiheWandFx.Shader = ScreenGraphics.Shader.FromFile(this, "assets/effects/XiheBeam.frag");
+                Logger.Info("[fx] XiheBeam.frag 已注册（激光柱屏幕着色器）");
+            }
+            catch (Exception e)
+            {
+                Logger.Error("[fx] XiheBeam.frag 加载失败，激光柱将没有主体画面：" + e.Message);
+            }
+
             RegisterImGuiTab(new XiheBossImGuiTab());
 
-            Logger.Info("[build] 2026-10-25 23:10；羲和 Boss 已加载（复刻 MEAC.Bosses.EoL.XiHe）");
+            Logger.Info("[build] 2026-11-20 04:05；羲和 Boss 已加载（复刻 MEAC.Bosses.EoL.XiHe；二合一：含魔杖；绿线修复+MEAC bloom 移植）");
         }
     }
 
-    /// <summary>系统时机：内容就绪后的视觉/钩子装配、每帧天空与图元提交、光照染色、世界卸载清理。</summary>
     public sealed class XiheBossSystem : ModSystem
     {
         private static bool _submitFromUpdate;
@@ -47,10 +56,15 @@ namespace XiheBoss
             SetupContent();
             SetupHooks();
 
-            // 游戏贴图表已就绪：先取 Boss 绘制用的原版贴图，再注册音乐。
             XiheBossNpc.LoadVisualAssets();
-            // 音乐注册放到内容就绪之后：音频引擎这时才稳定（失败也只是没 BGM）。
+
             XiheBossNpc.ResolveMusic(XiheBossMod.Instance);
+
+            Wand.XiheWandFx.Reset();
+            Wand.XiheWandFx.BindTextures(XiheBossMod.Instance);
+            Wand.XiheWandFx.Probe();
+            ModContent.GetInstance<Wand.XiHeMagicItem>()?.ApplyIcon();
+            ModContent.GetInstance<XiheSummonItem>()?.ApplyIcon();
         }
 
         private static void SetupContent()
@@ -59,7 +73,6 @@ namespace XiheBoss
             XiheVisuals.Clear();
             XiheTextures.Bind(XiheBossMod.Instance, XiheBossMod.Log);
 
-            // 弹幕视觉：每种弹幕只把自己的状态喂给屏幕效果，不自己画。
             XiheFx.RegisterVisual<EoLLance>(EoLLance.PushVisual);
             XiheFx.RegisterVisual<EoLProj>(EoLProj.PushVisual);
             XiheFx.RegisterVisual<EoLLaser1>(EoLLaser1.PushVisual);
@@ -70,12 +83,35 @@ namespace XiheBoss
             XiheFx.RegisterVisual<EoLFire>(EoLFire.PushVisual);
             XiheFx.RegisterVisual<SunProj>(SunProj.PushVisual);
             XiheFx.RegisterVisual<SolarProminence>(SolarProminence.PushVisual);
+
+            XiheFx.RegisterVisual<Wand.XiheMagicControler>(Wand.XiheWandFx.PushControllerVisual);
+            XiheFx.RegisterVisual<Wand.XiheLaserPillar>(static _ => { });
+            XiheFx.RegisterVisual<XiheSummonProj>(XiheSummonProj.PushVisual);
             XiheBossMod.Log.Info($"[fx] 弹幕视觉 {XiheFx.VisualCount} 种（EoLProj type={ModContent.ProjectileType<EoLProj>()}、EoLLance type={ModContent.ProjectileType<EoLLance>()}）");
+        }
+
+        public override void AddRecipes()
+        {
+            try
+            {
+                var recipe = new ModRecipe();
+                recipe.SetResult(ModContent.ItemType<Wand.XiHeMagicItem>());
+                recipe.AddIngredient(ItemID.Sunfury);
+                recipe.AddIngredient(ItemID.FragmentSolar, 20);
+                recipe.AddIngredient(ItemID.GoldBar, 10);
+                recipe.AddTile(TileID.LunarCraftingStation);
+                recipe.Register();
+                XiheBossMod.Log.Info("[recipe] 羲和魔杖配方已注册");
+            }
+            catch (Exception e)
+            {
+                XiheBossMod.Log.Warn("[recipe] 羲和魔杖配方注册失败：" + e.Message);
+            }
         }
 
         private static void SetupHooks()
         {
-            // 提交时机：Main.DoDraw 之前（世界画完、screenPosition 定稿，界面还没画）。
+
             try
             {
                 On.Terraria.Main.DoDraw += BeforeDraw;
@@ -87,7 +123,6 @@ namespace XiheBoss
                 XiheBossMod.Log.Warn("[fx] Main.DoDraw 挂载失败，改为 PostUpdateEverything 提交：" + e.Message);
             }
 
-            // 镜头锁：原版相机算完之后应用 XiheFx 的 UseScreenPosition，再按最终 screenPosition 提交。
             try
             {
                 On.Terraria.Main.DoDraw_UpdateCameraPosition += AfterCameraUpdate;
@@ -99,7 +134,6 @@ namespace XiheBoss
             try { ScreenGraphics.Install(); }
             catch (Exception e) { XiheBossMod.Log.Warn("[fx] 屏幕效果安装失败：" + e.Message); }
 
-            // MEAC 是在 Main.UpdateAudio_DecideOnNewMusic 里接管 Boss 曲；必须在选曲之后把 newMusic 压成 0。
             try
             {
                 On.Terraria.Main.UpdateAudio_DecideOnNewMusic += AfterDecideOnNewMusic;
@@ -108,16 +142,18 @@ namespace XiheBoss
             catch (Exception e) { XiheBossMod.Log.Warn("[music] DecideOnNewMusic 挂载失败：" + e.Message); }
         }
 
-        /// <summary>
-        /// 原版 UpdateAudio 在选出 newMusic 后调用它；这里把 newMusic 改成 0，让原版曲目按正常
-        /// 淡出逻辑停下。Mod 曲（TakeFlight）由 AndroidAudio/MusicPipeline 独立播放。
-        /// </summary>
         private static void AfterDecideOnNewMusic(On.Terraria.Main.orig_UpdateAudio_DecideOnNewMusic orig, Main self)
         {
             orig(self);
             try
             {
                 if (Main.gameMenu) return;
+
+                if (XiheBossNpc.SpawnCountdown > 0)
+                {
+                    Main.newMusic = 0;
+                    return;
+                }
                 var boss = XiheBossNpc.Current;
                 if (boss == null || !boss.NpcAlive) return;
                 if (XiheBossNpc.MusicSlot <= 0) return;
@@ -128,25 +164,34 @@ namespace XiheBoss
 
         private static void BeforeDraw(On.Terraria.Main.orig_DoDraw orig, Main self, GameTime gameTime)
         {
-            // 相机钩子装上了就等 DoDraw_UpdateCameraPosition 之后提交（那时 screenPosition 才是最终值），
-            // 否则镜头锁会把世界画面移走、而图元仍按旧 screenPosition 画。
-            if (!_cameraHookInstalled) XiheFx.Submit();
+
+            if (!_cameraHookInstalled)
+            {
+                XiheFx.Submit();
+                Wand.XiheWandFx.Submit();
+            }
             orig(self, gameTime);
         }
 
-        /// <summary>原版相机算完之后再应用镜头锁，并按最终 screenPosition 提交本帧图元。</summary>
         private static void AfterCameraUpdate(On.Terraria.Main.orig_DoDraw_UpdateCameraPosition orig)
         {
             orig();
             XiheFx.ApplyCamera();
             XiheFx.Submit();
+            Wand.XiheWandFx.Submit();
         }
 
         public override void PostUpdateEverything()
         {
             XiheSky.Tick();
             XiheFx.Tick();
-            if (_submitFromUpdate) XiheFx.Submit();
+            XiheBossNpc.TickSpawnCountdown();
+            Wand.XiheWandFx.Update();
+            if (_submitFromUpdate)
+            {
+                XiheFx.Submit();
+                Wand.XiheWandFx.Submit();
+            }
         }
 
         public override void ModifySunLightColor(ref Il2CppMicrosoft.Xna.Framework.Graphics.Color tileColor,
@@ -157,7 +202,9 @@ namespace XiheBoss
             XiheSky.Reset();
             XiheFx.Reset();
             XiheVisuals.Clear();
+            Wand.XiheWandFx.Reset();
             XiheBossNpc.Current = null;
+            XiheBossNpc.SpawnCountdown = -1;
         }
     }
 }

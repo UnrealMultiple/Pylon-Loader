@@ -33,7 +33,6 @@ namespace XiheBoss
             proj.alpha = 255;
         }
 
-        // 源：位置完全由 AI 钉在宿主身上。
         public override bool ShouldUpdatePosition() => false;
 
         public override void AI()
@@ -86,10 +85,8 @@ namespace XiheBoss
             proj.localAI = local;
         }
 
-        // 源：scale > 0.2 才造成伤害（第一圈「洗地」光棱只有 0.1，纯预警）。
         public override bool CanDamage() => Projectile.scale > 0.2f;
 
-        // 源：从 Center 沿 rotation 的一条长 localAI[1] 的线段，半宽 15*scale。
         public override bool? Colliding(Rectangle projHitbox, Rectangle targetHitbox)
         {
             var proj = Projectile;
@@ -101,14 +98,13 @@ namespace XiheBoss
 
         public override bool PreDraw(Player player, ref Color lightColor) => false;
 
-        /// <summary>源 PreDraw：projTex 沿 rotation 拉长，Colorize + 加色。</summary>
         public static void PushVisual(Projectile p)
         {
             var len = p.localAI[1];
             if (len <= 4f || p.scale <= 0.01f) return;
 
             var color = XiheHelper.HsvToRgb(p.localAI[0], 1f, 0.8f);
-            // MEAC: 单层 Colorize + Additive，宽度只由 projectile.scale 决定。
+
             var origin = new Vector2(XiheTextures.WidthOf(Tex.ProjTex) / 2f, XiheTextures.HeightOf(Tex.ProjTex));
             var h = XiheTextures.HeightOf(Tex.ProjTex);
             XiheFx.Sprite(p.Center, Tex.ProjTex, color, p.rotation + 1.57f,

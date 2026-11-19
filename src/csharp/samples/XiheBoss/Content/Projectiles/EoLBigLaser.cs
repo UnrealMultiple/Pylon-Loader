@@ -1,11 +1,3 @@
-// 大激光（MEAC EoLBigLaser）——源文件：.work/meac/MEAC.Bosses.EoL.Projectiles/EoLBigLaser.cs
-//
-// ai 约定：
-//   ai[0] = 宿主 NPC 下标（模式 1 用；源文件的 public int owner 字段）
-//   ai[1] = 模式（0 = 原地蓄力扩散，1 = 跟随 Boss 的竖直主炮）
-//
-// AI 逐行照抄源文件：
-//   模式 0：timeLeft 195..210 涨 scale，<210 撒黄尘，<20 缩 scale；
 using System;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
@@ -23,18 +15,16 @@ namespace XiheBoss
     {
         public override string TexturePath => null;
 
-        // ---------------- MagicRing 的近似：按弹幕 whoAmI 存的环事件表 ----------------
         private const int RingSlots = 6;
 
         private sealed class RingData
         {
-            public int Birth;      // 创建时的 projectile.timeLeft
-            public float Y;        // 源 CreateRing 的 yOffset
-            public float Scale;    // 源 CreateRing 的 scale（叠加到 ai0）
-            public int Life;       // 源 CreateRing 的 timeleft
+            public int Birth;
+            public float Y;
+            public float Scale;
+            public int Life;
         }
 
-        /// <summary>whoAmI → 环事件（PushVisual 是静态的，状态只能放静态表）。</summary>
         private static readonly System.Collections.Generic.Dictionary<int, System.Collections.Generic.List<RingData>> RingTable = new();
 
         public override void SetStaticDefaults()
@@ -62,12 +52,11 @@ namespace XiheBoss
         public override void OnSpawn(Terraria.DataStructures.IEntitySource source)
         {
             var proj = Projectile;
-            // 源 OnSpawn：ai[1] == 0 时 CreateRing(0f, -0.2f, 210)。
+
             var ai = proj.ai;
             if (ai[1] == 0f) AddRing(proj, 0f, -0.2f, 210);
         }
 
-        /// <summary>记录一个 MagicRing 事件（源 CreateRing 的移植入口）。</summary>
         private static void AddRing(Projectile proj, float yOffset, float scale, int life)
         {
             if (!RingTable.TryGetValue(proj.whoAmI, out var list))
@@ -87,7 +76,6 @@ namespace XiheBoss
             var ai = proj.ai;
             var mode = ai[1];
 
-            // ---------------- 模式 0 ----------------
             if (mode == 0f)
             {
                 var timeLeft = proj.timeLeft;
@@ -105,20 +93,14 @@ namespace XiheBoss
                 if (proj.timeLeft < 20) proj.scale -= 0.15f;
             }
 
-            // ---------------- 模式 1（跟 Boss 的竖直主炮） ----------------
             if (mode == 1f)
             {
-                var owner = (int)ai[0];
-                if (owner != -1)
-                {
-                    if (owner < 0 || owner >= Main.npc.Length)
-                    {
-                        proj.Kill();
-                        return;
-                    }
 
-                    var npc = Main.npc[owner];
-                    if (!npc.active || npc.type != ModContent.NPCType<XiheBossNpc>())
+                var ownerNpc = XiheBossNpc.Current;
+                if (ownerNpc != null && ownerNpc.NpcAlive)
+                {
+                    var npc = ownerNpc.NPC;
+                    if (npc.type != ModContent.NPCType<XiheBossNpc>())
                     {
                         proj.Kill();
                         return;
@@ -127,7 +109,6 @@ namespace XiheBoss
                     proj.Center = npc.Center - new Vector2(0f, 200f);
                 }
 
-                // 源文件四组 CreateRing 的时刻（timeLeft 350/330/320/260）。
                 if (proj.timeLeft == 350) AddRing(proj, 0f, -0.2f, 90);
                 if (proj.timeLeft == 330) AddRing(proj, 200f, -0.5f, 70);
                 if (proj.timeLeft == 320) AddRing(proj, 400f, 0f, 60);
@@ -137,11 +118,12 @@ namespace XiheBoss
                     AddRing(proj, 200f, -0.3f, 260);
                     AddRing(proj, 400f, 0.2f, 260);
 
-                    XiheFx.RadialGlur(proj.Center, 60, false);
+                    XiheFx.RadialGlur(proj.Center, 60, true);
                     SoundEngine.PlaySound(SoundID.Item159, proj.Center);
+
+                    XiheSounds.PlayLaser(proj.Center);
                 }
 
-                // 260..65：向左右两侧喷 EoLLance 雨（ai0=50 色相、ai1=4 模式）。
                 var timeLeft2 = proj.timeLeft;
                 if (timeLeft2 < 260 && timeLeft2 > 65)
                 {
@@ -176,7 +158,7 @@ namespace XiheBoss
                 {
                     XiheFx.ScreenShake(10f, proj.Center);
                     if (proj.timeLeft % 20 == 0 && proj.timeLeft > 175)
-                        XiheFx.RadialGlur(proj.Center + Vector2.UnitY * 200f, 25, false);
+                        XiheFx.RadialGlur(proj.Center + Vector2.UnitY * 200f, 25, true);
 
                     for (var i = 0; i < 2; i++)
                     {
@@ -190,7 +172,7 @@ namespace XiheBoss
                     proj.scale -= 0.25f;
 
                     var d2 = (20 - proj.timeLeft - 4) * 100;
-                    var target = owner >= 0 && owner < Main.npc.Length ? Main.npc[owner].target : Main.myPlayer;
+                    var target = ownerNpc != null && ownerNpc.NpcAlive ? ownerNpc.NPC.target : Main.myPlayer;
                     for (var m = 0; m < 3; m++)
                     {
                         var pos = proj.Center + new Vector2(
@@ -206,10 +188,8 @@ namespace XiheBoss
                 }
             }
 
-            // 环图元在 PushVisual 里按“年龄”重发（AI 阶段收集的图元会在提交前被清空，不能在这里画）。
         }
 
-        /// <summary>源文件 VisualEffect.Create&lt;LightDust&gt;(...).drawColor = Color.Yellow。</summary>
         private static void SpawnDust(Projectile proj)
         {
             var pos = proj.Center + new Vector2(
@@ -220,7 +200,6 @@ namespace XiheBoss
             vfx.DrawColor = Color.Yellow;
         }
 
-        /// <summary>源文件 LightDust_CN（bloomColor = Color.Yellow）。</summary>
         private static void SpawnDustCn(Projectile proj)
         {
             var pos = proj.Center + new Vector2(
@@ -238,10 +217,6 @@ namespace XiheBoss
                 damage, 0f, Main.myPlayer, 50f, 4f, 0f);
         }
 
-        /// <summary>
-        /// MagicRing 的近似：半径/宽度按源 MagicRing.Draw 的 110*scale*ai0 与 10*scale*ai0，
-        /// scale 前 20 tick 由 0 涨到 4（SmoothStep 的等效近似）；alpha 在最后 10 tick 淡出。
-        /// </summary>
         private static void PushRings(Projectile proj, Projectile from)
         {
             if (!RingTable.TryGetValue(from.whoAmI, out var rings)) return;
@@ -280,13 +255,12 @@ namespace XiheBoss
         public override bool? Colliding(Rectangle projHitbox, Rectangle targetHitbox)
         {
             var proj = Projectile;
-            // 源文件：只按 X 距离判定（一根竖直柱）。
+
             return Math.Abs(targetHitbox.Center.X - proj.Center.X) < proj.scale * 60f;
         }
 
         public override bool PreDraw(Player player, ref Color lightColor) => false;
 
-        /// <summary>画面：MEAC 原版的四次 PointWrap + Colorize 绘制，并保留独立环几何。</summary>
         public static void PushVisual(Projectile p)
         {
             if (p.scale <= 0.001f) return;
@@ -297,7 +271,6 @@ namespace XiheBoss
             var length = p.localAI[1];
             if (length <= 1f) return;
 
-            // 源 PreDraw：tex3 一层、tex0 三层，各自使用原始矩形滚动相位。
             var tex3W = XiheTextures.WidthOf(Tex.Tex3);
             var tex3H = XiheTextures.HeightOf(Tex.Tex3);
             var tex0W = XiheTextures.WidthOf(Tex.Tex0);
@@ -310,8 +283,6 @@ namespace XiheBoss
             DrawCore(center, p, color, tex0W, tex0H, 5f);
             DrawCore(center, p, color, tex0W, tex0H, 8f);
 
-            // MagicRing 由 XiheBigLaserFx.BuildRings 按源 3D 投影提交。
-            // 禁止再提交旧 PushRings 的正圆：它会覆盖光柱并制造“光柱变圆”的重复亮盘。
         }
 
         private static void DrawCore(Vector2 center, Projectile p, Color color, int width, int height, float phase)
@@ -323,5 +294,3 @@ namespace XiheBoss
         }
     }
 }
-
-

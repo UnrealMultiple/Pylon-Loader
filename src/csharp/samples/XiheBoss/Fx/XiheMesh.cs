@@ -1,13 +1,3 @@
-// 羲和 Boss —— 硬件几何批（Pylon mesh 通道）。
-//
-// 为什么有这层：旧的实现把每个精灵/三角形/拖尾段都塞进 uniform 数组，再用一个“全屏 pass”
-// 让每个像素循环测试 64 个三角形。同屏几十发 EoLProj / 25 圈太阳法阵时，每帧要跑几十个
-// 屏幕拷贝 + 每像素上百次重心计算——这就是第二阶段光柱、太阳、法阵掉帧的根因。
-// MEAC 用的是 SpriteBatch / DrawUserPrimitives（GPU 光栅化）；这里用 Pylon 新增的
-// PylonFx_SubmitAddMesh 走同一条路：C# 只提交顶点，混合/采样由 GPU 完成，不读屏幕、不拷贝。
-//
-// 视觉口径与旧的 XiheTri / XiheTrail2 完全一致（同一套局部 uv → 图集 cell、顶点色、Colorize、
-// Trail.fx pass 0），所以画面不变，只是不再逐像素循环。
 using System;
 using System.Collections.Generic;
 using Il2CppMicrosoft.Xna.Framework;
@@ -24,6 +14,7 @@ namespace XiheBoss
     {
         internal static ScreenGraphics.Shader GeoShader;
         internal static ScreenGraphics.Shader TrailShader;
+        internal static ScreenGraphics.Shader BloomShader;
 
         internal static int MeshBatchCount
         {
@@ -105,25 +96,31 @@ namespace XiheBoss
             {
                 log?.Error("[mesh] 几何着色器注册失败，退回旧的全屏图元通道：" + e.Message);
             }
+            try
+            {
+                BloomShader = ScreenGraphics.Shader.FromFile(mod, "assets/effects/XiheBloom.frag");
+                log?.Info("[mesh] XiheBloom 已注册（MEAC UseBloom：辉光层 + Kawase 3 轮 + SoftAdditive 合成）");
+            }
+            catch (Exception e)
+            {
+                log?.Error("[mesh] Bloom 着色器注册失败，本帧没有泛光：" + e.Message);
+            }
         }
 
         internal static void Reset()
         {
-            // Keep batch objects and their backing buffers across frames. Clearing the
-            // outer lists discarded every large vertex buffer during dense bullet waves.
+
             foreach (var batch in GeoBatches) batch.Verts.Clear();
             foreach (var batch in TrailBatches) batch.Verts.Clear();
+            GlowVerts.Clear();
         }
 
-        /// <summary>每帧在收集图元之前调一次：把世界坐标换成屏幕分数。</summary>
         internal static void BeginFrame()
         {
             _sw = Math.Max(1, Main.screenWidth);
             _sh = Math.Max(1, Main.screenHeight);
             _sp = Main.screenPosition;
         }
-
-        // ================= 收集 =================
 
         private static GeoBatch GeoFor(Tex tex, bool texOn, bool colorize, bool wrapU, ScreenMeshBlend blend)
         {
@@ -177,7 +174,6 @@ namespace XiheBoss
             v.Add(0f);
         }
 
-        /// <summary>MEAC 的一次 SpriteBatch.Draw（位置/旋转/缩放/origin/源矩形 照旧）。</summary>
         internal static void AddSprite(SpritePrim s)
         {
             var texW = XiheTextures.WidthOf(s.Tex);
@@ -217,7 +213,6 @@ namespace XiheBoss
             Vertex(verts, bl, u0, v1, c);
         }
 
-        /// <summary>MEAC DrawUserPrimitives(VertexPositionColorTexture) 的三角形列表。</summary>
         internal static void AddGeometry(Tex tex, bool texOn, bool colorize, bool wrapU, bool additive,
             IReadOnlyList<TriVertex> verts)
         {
@@ -231,7 +226,6 @@ namespace XiheBoss
             }
         }
 
-        /// <summary>Trail.fx pass 0 的显式左右顶点（每点两个顶点）。同贴图/同混合自动合成一次画。</summary>
         internal static void AddTrail(IReadOnlyList<TrailStripPoint> points, Tex shape, Tex colorTex,
             Tex overlay, float t, bool additive, float alpha = 1f)
         {
@@ -246,7 +240,6 @@ namespace XiheBoss
                 var a = points[i];
                 var b = points[i + 1];
 
-                // 源顶点顺序：+normal (v=1) 然后 -normal (v=0)；三角形条带按对展开。
                 Vertex(verts, a.Left, a.UvX, 1f, color, a.W, t);
                 Vertex(verts, a.Right, a.UvX, 0f, color, a.W, t);
                 Vertex(verts, b.Left, b.UvX, 1f, color, b.W, t);
@@ -257,7 +250,6 @@ namespace XiheBoss
             }
         }
 
-        /// <summary>已经展开好的 Trail.fx 四边形（C# 侧按源顶点对算好 L/R）。</summary>
         internal static void AddTrailQuads(TrailQuadGroup group)
         {
             if (group == null || group.Quads.Count == 0) return;
@@ -269,8 +261,6 @@ namespace XiheBoss
                 var color = new Color(255, 255, 255,
                     (byte)MathHelper.Clamp(q.Alpha * 255f, 0f, 255f));
 
-                // EoLProj 源 TriangleStrip 的首点是单个 Center/side=.5。
-                // 重复中心所形成的退化首三角形不绘制；第二个三角形保留准确 side=.5。
                 var left0 = q.L0 == q.R0 ? 0.5f : 1f;
                 var right0 = q.L0 == q.R0 ? 0.5f : 0f;
                 var left1 = q.L1 == q.R1 ? 0.5f : 1f;
@@ -285,7 +275,6 @@ namespace XiheBoss
             }
         }
 
-        /// <summary>MEAC EoLProj TriangleStrip, expanded directly without per-projectile lists/quads.</summary>
         internal static void AddEolTrail(Vector2 center, Vector2[] trail, float time)
         {
             var count = 0;
@@ -309,7 +298,7 @@ namespace XiheBoss
                 var right = middle - normal * 15f;
                 if (i == 0)
                 {
-                    // Source starts with ONE center vertex, not a duplicated pair.
+
                     Vertex(verts, center, 0f, 0.5f, Color.White, 2f, time);
                     Vertex(verts, left, u, 1f, Color.White, w, time);
                     Vertex(verts, right, u, 0f, Color.White, w, time);
@@ -330,7 +319,6 @@ namespace XiheBoss
             }
         }
 
-        /// <summary>Three premultiplied alpha-zero Ball sprites, one material batch for all light bullets.</summary>
         internal static void AddEolHead(Vector2 center, float rotation, float scale)
         {
             if (scale <= 0.01f) return;
@@ -365,13 +353,98 @@ namespace XiheBoss
             Vertex(vertices, c, 0f, 1f, color);
         }
 
-        // ================= 提交 =================
+        internal static readonly List<float> GlowVerts = new();
+        private static float[] _glowSubmit = Array.Empty<float>();
+
+        internal static void AddGlow(Vector2 world, float rot, Vector2 scale, Vector2 origin, Tex tex, Color color)
+        {
+            var texW = XiheTextures.WidthOf(tex);
+            var texH = XiheTextures.HeightOf(tex);
+            if (texW <= 0 || texH <= 0) return;
+
+            var w = texW * scale.X;
+            var h = texH * scale.Y;
+            var ox = origin.X * scale.X;
+            var oy = origin.Y * scale.Y;
+            var cr = (float)Math.Cos(rot);
+            var sr = (float)Math.Sin(rot);
+
+            Vector2 Corner(float lx, float ly) => world + new Vector2(lx * cr - ly * sr, lx * sr + ly * cr);
+            var tl = Corner(-ox, -oy);
+            var tr = Corner(w - ox, -oy);
+            var bl = Corner(-ox, h - oy);
+            var br = Corner(w - ox, h - oy);
+
+            Vertex(GlowVerts, tl, 0f, 0f, color);
+            Vertex(GlowVerts, tr, 1f, 0f, color);
+            Vertex(GlowVerts, bl, 0f, 1f, color);
+            Vertex(GlowVerts, tr, 1f, 0f, color);
+            Vertex(GlowVerts, br, 1f, 1f, color);
+            Vertex(GlowVerts, bl, 0f, 1f, color);
+        }
+
+        internal static void SubmitBloom(ScreenFrame frame)
+        {
+            if (frame == null || BloomShader == null || GlowVerts.Count < 72) return;
+            if (GeoShader == null)
+            {
+                GlowVerts.Clear();
+                return;
+            }
+
+            var a = frame.Target("XiheBoss/BloomA", 0.4f);
+            var b = frame.Target("XiheBoss/BloomB", 0.4f);
+
+            frame.Add(new ScreenEffect(BloomShader) { Layer = ScreenEffects.Layer.World, Dest = a.Texture, });
+
+            var cell = XiheTextures.Cell(Tex.Proj919);
+            var glow = new ScreenEffect(GeoShader)
+            {
+                Layer = ScreenEffects.Layer.World,
+                Mesh = true,
+                MeshBlend = ScreenMeshBlend.Premultiplied,
+                Dest = a.Texture,
+                MeshVertices = CopyForSubmit(GlowVerts, ref _glowSubmit),
+            };
+            glow.Uniform("uCell", cell.U0, cell.V0, cell.DU, cell.DV);
+            glow.Uniform("uTexOn", 1f);
+            glow.Uniform("uWrapU", 0f);
+            glow.Uniform("uColorize", 0f);
+            glow.Uniform("uAdditive", 0f);
+            if (XiheTextures.Atlas != null) glow.Texture("uAtlas", XiheTextures.Atlas);
+            frame.Add(glow);
+
+            var src = a;
+            var dst = b;
+            for (var i = 0; i < 6; i++)
+            {
+                var blur = new ScreenEffect(BloomShader)
+                {
+                    Layer = ScreenEffects.Layer.World,
+                    Source = src,
+                    Dest = dst.Texture,
+                };
+                blur.Uniform("uMode", 1f);
+                blur.Uniform("uDistance", i);
+                blur.Uniform("uIntensity", 1.045f);
+                frame.Add(blur);
+                (src, dst) = (dst, src);
+            }
+
+            var comp = new ScreenEffect(BloomShader)
+            {
+                Layer = ScreenEffects.Layer.World,
+                Source = ScreenGraphics.Sources.Screen,
+            };
+            comp.Uniform("uMode", 2f);
+            comp.Texture("uBloom", src);
+            frame.Add(comp);
+            GlowVerts.Clear();
+        }
 
         private static float[] CopyForSubmit(List<float> vertices, ref float[] buffer)
         {
-            // ScreenGraphics uses array.Length as the vertex count; capacity padding
-            // would upload stale triangles. Retain an exact-size array when counts are
-            // stable, and resize only when this material's actual geometry changes.
+
             if (buffer.Length != vertices.Count) buffer = new float[vertices.Count];
             vertices.CopyTo(buffer);
             return buffer;
@@ -381,11 +454,9 @@ namespace XiheBoss
         {
             if (frame == null) return;
 
-            // 拖尾先画（源里 trail 在精灵/环之前），再画三角形/精灵，最后太阳。
             if (TrailShader != null)
             {
-                // Dust can create the shared Ball batch before the first projectile.
-                // Draw order must depend on material role, not first-use frame history.
+
                 for (var headPass = 0; headPass < 2; headPass++)
                 foreach (var b in TrailBatches)
                 {
@@ -426,6 +497,8 @@ namespace XiheBoss
                     fx.Uniform("uTexOn", b.TexOn ? 1f : 0f);
                     fx.Uniform("uWrapU", b.WrapU ? 1f : 0f);
                     fx.Uniform("uColorize", b.Colorize ? 1f : 0f);
+
+                    fx.Uniform("uAdditive", b.Blend == ScreenMeshBlend.Additive ? 1f : 0f);
                     if (XiheTextures.Atlas != null) fx.Texture("uAtlas", XiheTextures.Atlas);
                     frame.Add(fx);
                 }

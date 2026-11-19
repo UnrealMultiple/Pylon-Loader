@@ -5,9 +5,10 @@ using Pylon.ModLoader;
 using Pylon.ModLoader.Effects;
 using Pylon.ModLoader.Textures;
 
-namespace XiheMagic
+namespace XiheBoss.Wand
 {
-    internal static class XiheTextures
+
+    internal static class XiheWandTextures
     {
         internal static ScreenGraphics.Texture Load(Mod mod, string path, bool repeat)
         {
@@ -16,11 +17,8 @@ namespace XiheMagic
             return LoadRaw(full, width, height, png, repeat);
         }
 
-        /// <summary>把已解好的 RGBA 交给内核（行序 v=0 在底部）。</summary>
         internal static ScreenGraphics.Texture LoadRaw(string key, int width, int height, byte[] rgba, bool repeat) =>
             ScreenGraphics.Texture.FromRaw(key, width, height, rgba, true, repeat);
-
-        // ---------------- 最小 PNG 解码 ----------------
 
         private static byte[] Decode(byte[] data, out int width, out int height)
         {
@@ -63,7 +61,7 @@ namespace XiheMagic
                         break;
                 }
 
-                pos = body + length + 4;   // 跳过 CRC
+                pos = body + length + 4;
                 if (type == "IEND") break;
             }
 
@@ -120,7 +118,6 @@ namespace XiheMagic
                     cur[x] = (byte)filtered;
                 }
 
-                // PNG 行序是上→下；GL 纹理要 v=0 在底部，所以写到翻转后的行。
                 var dst = (height - 1 - y) * width * 4;
                 for (var x = 0; x < width; x++)
                 {

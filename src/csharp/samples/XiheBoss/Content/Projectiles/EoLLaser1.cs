@@ -14,10 +14,8 @@ namespace XiheBoss
     {
         public override string TexturePath => null;
 
-        /// <summary>MEAC 的 maxTime 字段；来自 ai[2]。</summary>
         private int _maxTime;
 
-        /// <summary>MEAC 的 setTime（每种模式只初始化一次寿命）。</summary>
         private bool _setTime;
 
         public override void SetStaticDefaults()
@@ -52,7 +50,6 @@ namespace XiheBoss
             if (mode >= -1f && mode <= 2f)
                 proj.rotation = (float)Math.Atan2(proj.velocity.Y, proj.velocity.X);
 
-            // 源文件 OnSpawn 的 ai[1]==4 分支：固定 145 寿命、朝向速度方向、少一次 extraUpdate。
             if (mode == 4f)
             {
                 proj.timeLeft = 145;
@@ -68,18 +65,16 @@ namespace XiheBoss
         {
             var proj = Projectile;
             var ai = proj.ai;
-            // Boss 在生成后才写 ai[2]（maxTime），所以每 tick 都以 ai[2] 为准刷新一次。
+
             if (ai[2] > 0f) _maxTime = (int)ai[2];
             else if (_maxTime <= 0) _maxTime = proj.timeLeft;
 
-            // 源文件 AI 第一行：projectile.localAI[1] = 5000f（光束长度基数）。
             var local = proj.localAI;
             local[1] = 5000f;
             proj.localAI = local;
 
             var mode = ai[1];
 
-            // ---------------- 模式 0 ----------------
             if (mode == 0f)
             {
                 if (proj.timeLeft == 24)
@@ -91,7 +86,6 @@ namespace XiheBoss
                 else if (proj.timeLeft < 12) proj.scale -= 0.05f;
             }
 
-            // ---------------- 模式 -1 / 1（跟随宿主 NPC） ----------------
             else if (mode == 1f || mode == -1f)
             {
                 if (!_setTime)
@@ -119,7 +113,6 @@ namespace XiheBoss
                 if (proj.timeLeft < 10) proj.scale -= 0.03f;
             }
 
-            // ---------------- 模式 2（跟随宿主 NPC + 摆动） ----------------
             else if (mode == 2f)
             {
                 if (!_setTime)
@@ -139,13 +132,11 @@ namespace XiheBoss
                 proj.Center = Main.npc[ownerIndex].Center;
                 proj.rotation += 0.009f * (float)Math.Sin(proj.timeLeft * 0.03f);
 
-                // 源文件这里有一个 `if (timer >= 40) { _ = 50; }`，只是空操作，不留。
                 var t = Timer(proj);
                 if (t >= 54 && t < 60) proj.scale += 0.07f;
                 if (proj.timeLeft < 10) proj.scale -= 0.04f;
             }
 
-            // ---------------- 模式 3（定角柱） ----------------
             else if (mode == 3f)
             {
                 if (!_setTime)
@@ -162,7 +153,6 @@ namespace XiheBoss
                 else if (proj.timeLeft < 12) proj.scale -= 0.05f;
             }
 
-            // ---------------- 模式 4（大激光的四根角柱） ----------------
             else if (mode == 4f)
             {
                 var t = Timer(proj);
@@ -181,11 +171,10 @@ namespace XiheBoss
             }
         }
 
-        /// <summary>源文件的 LightDust 起手尘（30 颗，沿速度方向铺开）。</summary>
         private static void LaserDust(Projectile proj, Color color)
         {
             var dir = XiheHelper.Normalize2(proj.velocity);
-            for (var i = 0; i < 10; i++)
+            for (var i = 0; i < 30; i++)
             {
                 var pos = proj.Center
                           + dir * i * (80 + Main.rand.Next(100))
@@ -203,7 +192,7 @@ namespace XiheBoss
         public override bool? Colliding(Rectangle projHitbox, Rectangle targetHitbox)
         {
             var proj = Projectile;
-            // 源文件：Center → Center + Vxr(rotation) * localAI[1]，宽 18*scale 的线段。
+
             var unit = XiheHelper.Vxr(proj.rotation);
             float point = 0f;
             return Collision.CheckAABBvLineCollision(
@@ -214,20 +203,16 @@ namespace XiheBoss
 
         public override bool PreDraw(Player player, ref Color lightColor) => false;
 
-        /// <summary>源 PreDraw：tex4 的 5 倍宽 wrap 长条 + Laser0 两端 + Extra[89] 四层十字，全部 Colorize+Additive。</summary>
         public static void PushVisual(Projectile p)
         {
             if (p.scale <= 0.001f) return;
 
-            // 源 PreDraw 固定用 HsvToRgb(45,1,0.5)，不读 ai[0]。
             var color = XiheHelper.HsvToRgb(45f, 1f, 0.5f);
             var length = p.localAI[1];
             if (length <= 1f) return;
             var dir = XiheHelper.Vxr(p.rotation);
             var s = p.scale;
 
-            // tex4：源 Rectangle(timeLeft*8, 0, 256*5, 256) 是 PointWrap 滚动；
-            // 这里把源矩形 x 折成 u 相位（WrapShift），长度/颜色/两端与源文件一致。
             XiheFx.SpriteRect(p.Center, Tex.Tex4, new Rectangle(0, 0, 256 * 5, 256),
                 color, p.rotation, new Vector2(length / 256f / 5f, s), new Vector2(0f, 128f),
                 additive: true, colorize: true, wrapU: true, srcRepeat: 5f,
@@ -235,14 +220,12 @@ namespace XiheBoss
 
             var end = p.Center + dir * length;
 
-            // Laser0：两次，rotation=0，scale=scale*2，origin=中心。
             var originLaser = new Vector2(72f, 72f) / 2f;
             XiheFx.Sprite(p.Center, Tex.Laser0, color, 0f, Vector2.One * (s * 2f), originLaser,
                 additive: true, colorize: true);
             XiheFx.Sprite(end, Tex.Laser0, color, 0f, Vector2.One * (s * 2f), originLaser,
                 additive: true, colorize: true);
 
-            // Extra[89]：4 次，scale/rotation 照抄。
             var originStar = new Vector2(72f, 72f) / 2f;
             XiheFx.Sprite(p.Center, Tex.Extra89, color, p.timeLeft * 0.08f,
                 new Vector2(0.5f, 3f) * s * 3f, originStar, additive: true, colorize: true);
@@ -255,6 +238,3 @@ namespace XiheBoss
         }
     }
 }
-
-
-

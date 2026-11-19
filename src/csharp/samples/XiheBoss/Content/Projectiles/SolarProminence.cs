@@ -17,14 +17,11 @@ namespace XiheBoss
         private static readonly Dictionary<int, Vector2> Centers = new();
         private static readonly Dictionary<int, float> Radii = new();
         private static readonly Dictionary<int, List<Vector2>> TrailPos = new();
-        // Visual submission is synchronous; retain capacity per projectile instead of
-        // allocating up to 100 trail vertices again on every rendered frame.
+
         private static readonly Dictionary<int, List<TrailStripPoint>> DrawPoints = new();
 
         public override string TexturePath => null;
 
-        // MEAC SolarProminence uses 100 - projectile.timeLeft, even though its default
-        // lifetime is 120 ticks. Keep the original timing so the corona matches MEAC.
         private static int Timer(Projectile p, int maxTime) => 100 - p.timeLeft;
 
         public override void SetDefaults()
@@ -57,7 +54,6 @@ namespace XiheBoss
             DrawPoints.Remove(proj.whoAmI);
         }
 
-        /// <summary>源 SunProj 生成后直接写 solarCenter / solarRadius，再 SetTrail()。</summary>
         internal static void Configure(Projectile proj, Vector2 center, float radius, bool setTrail = true)
         {
             if (proj == null) return;
@@ -72,7 +68,7 @@ namespace XiheBoss
         private static void SetTrail(Projectile proj, List<Vector2> pos, Vector2 solarCenter, float solarRadius)
         {
             pos.Clear();
-            // 源 SetupTrail：固定最多 100 点（之前写成 40，火舌比 MEAC 短了一半）。
+
             for (var i = 0; i < 100; i++)
             {
                 pos.Add(proj.Center);
@@ -158,13 +154,10 @@ namespace XiheBoss
 
             if (points.Count < 2) return;
 
-            // 源 Draw：mode 0 = tex3、mode 1 = tex4，img_color 取色，Projectile_0 叠加，Additive。
-            // 走 Trail.fx 的精确逐像素通道（硬件几何），不再在 CPU 上采样颜色图。
             var tex = mode == 0 ? Tex.Tex3 : Tex.Tex4;
             XiheFx.TrailStrip(points, tex, Tex.ImgColor, Tex.Transparent,
                 p.timeLeft * 0.03f, additive: true);
 
-            // MEAC IWarpProj.DrawWarp：Timer > 45 时固定以 Extra1 绘制 warp 带。
             if (timer > 45)
             {
                 var extent = 60f;

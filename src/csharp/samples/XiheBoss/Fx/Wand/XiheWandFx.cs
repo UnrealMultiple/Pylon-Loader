@@ -7,21 +7,22 @@ using Terraria;
 using UVector2 = UnityEngine.Vector2;
 using XVector2 = Il2CppMicrosoft.Xna.Framework.Vector2;
 using UColor = UnityEngine.Color;
+using Color = Il2CppMicrosoft.Xna.Framework.Graphics.Color;
 using Pylon.ModLoader.Content;
 using Pylon.ModLoader.Core;
 
-namespace XiheMagic
+namespace XiheBoss.Wand
 {
-    internal static class XiheFx
+
+    internal static class XiheWandFx
     {
         internal static ScreenGraphics.Shader Shader;
 
-        // MEAC 原素材（从 MEAC 文件夹拷进来的那张图，不是新画的）。
-        private static ScreenGraphics.Texture _beamTex;   // Images/tex3（外层柱）
-        private static ScreenGraphics.Texture _coreTex;   // Images/tex0（内层柱）
-        private static ScreenGraphics.Texture _arcTex;    // Items/ModWeapons/Arc（蓄力耀斑）
-        private static ScreenGraphics.Texture _starTex;   // Images/Extra_89（十字辉光）
-        private static ScreenGraphics.Texture _ringStripTex; // Images/MagicCircle/tex1（MagicRing 的 600x70 环带条）
+        private static ScreenGraphics.Texture _beamTex;
+        private static ScreenGraphics.Texture _coreTex;
+        private static ScreenGraphics.Texture _arcTex;
+        private static ScreenGraphics.Texture _starTex;
+        private static ScreenGraphics.Texture _ringStripTex;
 
         private static int _controllerType;
         private static int _pillarType;
@@ -40,15 +41,6 @@ namespace XiheMagic
         private static float _flash;
         private static float _sky;
 
-        // ---------------- MagicRing 的独立视觉特效（与 MEAC 的 VisualEffect 列表同构）----------------
-        //
-        // MEAC 里 XiheMagicControler 只在两个时刻往 EoLBigLaser_Friendly 的 AI 里塞环：
-        //   timeLeft 360 / 340 / 320：CreateRing(0/200/400, ai0 0.7/0.4/0.9, 寿命 110/90/70)
-        //   timeLeft 250：CreateRing(0/200/400, ai0 0.85/0.6/1.1, 寿命 250, laserOwner=柱)
-        // 每个环是一个独立实体：自己 AI（SmoothStep 展开/收尾）、跟着柱子走、柱子死了还会自己
-        // 收尾 10 多 tick。所以这里照着 MEAC.Entities.MagicRing 的状态机逐 tick 复刻，
-        // 而不是在 shader 里用 age 猜。
-
         private const int MaxRings = 8;
         private const int PillarLife = 360;
 
@@ -58,16 +50,15 @@ namespace XiheMagic
             public bool LaserOwned;
             public int TimeLeft;
             public int MaxTimeLeft;
-            public float Ai0;        // MagicRing.ai0 = 1 + CreateRing 的 scale 参数
-            public float OffsetY;    // 相对柱心的世界 y 偏移
-            public float Scale;      // MagicRing.scale
+            public float Ai0;
+            public float OffsetY;
+            public float Scale;
             public float WorldX;
             public float WorldY;
         }
 
         private static readonly RingFx[] _rings = new RingFx[MaxRings];
 
-        // MEAC EoLBigLaser_Friendly.AI 里 CreateRing 的四个时刻（age = 360 - timeLeft）。
         private static readonly int[] RingSpawnAges = { 0, 20, 40, 110 };
 
         private static int _ringPillar = -1;
@@ -80,7 +71,6 @@ namespace XiheMagic
         private static bool _probeChecked;
         private static bool _warmed;
 
-        /// <summary>启动时提交一个 1px 的 pass，让内核立刻编译着色器；错误在 Update 里读出来。</summary>
         internal static void Probe()
         {
             try
@@ -98,23 +88,21 @@ namespace XiheMagic
                 frame.Add(fx);
                 frame.Submit();
             }
-            catch (Exception e) { XiheMagicMod.Log?.Warn("[fx] 着色器探针提交失败：" + e.Message); }
+            catch (Exception e) { XiheBossMod.Log?.Warn("[fx] 着色器探针提交失败：" + e.Message); }
         }
 
-        /// <summary>把 MEAC 的贴图登记进屏幕效果纹理表（只能游戏线程：SetupContent）。</summary>
         internal static void BindTextures(Mod mod)
         {
-            try { _beamTex = XiheTextures.Load(mod, "assets/textures/tex3.png", repeat: true); }
+            try { _beamTex = XiheWandTextures.Load(mod, "assets/textures/tex3.png", repeat: true); }
             catch (Exception e) { mod.Logger.Warn("[fx] tex3 绑定失败：" + e.Message); }
-            try { _coreTex = XiheTextures.Load(mod, "assets/textures/tex0.png", repeat: true); }
+            try { _coreTex = XiheWandTextures.Load(mod, "assets/textures/tex0.png", repeat: true); }
             catch (Exception e) { mod.Logger.Warn("[fx] tex0 绑定失败：" + e.Message); }
-            try { _arcTex = XiheTextures.Load(mod, "assets/textures/Arc.png", repeat: false); }
+            try { _arcTex = XiheWandTextures.Load(mod, "assets/textures/Arc.png", repeat: false); }
             catch (Exception e) { mod.Logger.Warn("[fx] Arc 绑定失败：" + e.Message); }
-            try { _starTex = XiheTextures.Load(mod, "assets/textures/Extra89.png", repeat: false); }
+            try { _starTex = XiheWandTextures.Load(mod, "assets/textures/Extra89.png", repeat: false); }
             catch (Exception e) { mod.Logger.Warn("[fx] Extra_89 绑定失败：" + e.Message); }
-            // MagicRing 用的是 MEAC/Images/MagicCircle/tex1（600x70）：横条按 sX=3 绕圆，
-            // 现在直接把原图交给 shader，由 shader 按 MEAC 的 3D 投影反解出 (θ, v) 再采样。
-            try { _ringStripTex = XiheTextures.Load(mod, "assets/textures/MagicRing.png", repeat: true); }
+
+            try { _ringStripTex = XiheWandTextures.Load(mod, "assets/textures/MagicRing.png", repeat: true); }
             catch (Exception e) { mod.Logger.Warn("[fx] MagicRing 绑定失败：" + e.Message); }
 
             mod.Logger.Info("[fx] MEAC 贴图：" +
@@ -123,8 +111,49 @@ namespace XiheMagic
                 $"MagicRing={(_ringStripTex != null ? "ok" : "失败")}");
         }
 
-        /// <summary>激光柱「炸开」的那一帧调一次（闪白）。</summary>
-        internal static void NotifyFlash() => _flash = 1f;
+        internal static void PushControllerVisual(Projectile p)
+        {
+            var lai = p.localAI;
+            var alpha = MathHelper.Clamp(lai[0], 0f, 1f);
+            if (alpha <= 0.01f) return;
+
+            var tPos = new Vector2(lai[1], lai[2]);
+            if (tPos == Vector2.Zero) return;
+
+            var t = (float)Main.timeForVisualEffects;
+            var center = p.Center;
+
+            var c = new Color(1f, 0.9f, 0.7f, 0f) * 0.2f * (alpha + MathF.Sin(t * 0.6f) * 0.2f);
+            var scaleFactor = 1f + alpha * 1.5f + MathF.Sin(t * 0.4f) * 0.2f + MathF.Sin(t * 0.5f) * 0.15f;
+            var originStar = new Vector2(XiheTextures.WidthOf(Tex.Extra89), XiheTextures.HeightOf(Tex.Extra89)) / 2f;
+            for (var i = -3; i < 3; i++)
+            {
+                XiheFx.Sprite(center + new Vector2(0f, i * 3f), Tex.Extra89, c, 0f,
+                    new Vector2(0.5f + alpha * 0.1f, scaleFactor * 0.6f), originStar, additive: true);
+                XiheFx.Sprite(center + new Vector2(i * 3f, 0f), Tex.Extra89, c, 1.57f,
+                    new Vector2(0.5f + alpha * 0.1f, scaleFactor), originStar, additive: true);
+            }
+
+            var dir = XiheHelper.DirectionTo(center, tPos);
+            if (dir == Vector2.Zero) dir = -Vector2.UnitY;
+            var flareAlpha = (alpha + MathF.Sin(t * 0.8f) * 0.1f) * 0.4f;
+            var rot = (float)Math.Atan2(dir.Y, dir.X);
+            var originArc = new Vector2(XiheTextures.WidthOf(Tex.Arc), XiheTextures.HeightOf(Tex.Arc)) / 2f;
+
+            var flareColors = new[]
+            {
+                new Color(1f, 0f, 0f, 0f),
+                new Color(0f, 0.8f, 0f, 0f),
+                new Color(0f, 0f, 0.6f, 0f),
+            };
+            for (var j = 0; j < 3; j++)
+            {
+                XiheFx.Sprite(center + dir * (90f + j * 3f), Tex.Arc, flareColors[j] * flareAlpha,
+                    rot, Vector2.One, originArc, additive: true);
+                XiheFx.Sprite(center - dir * (90f + j * 3f), Tex.Arc, flareColors[j] * flareAlpha,
+                    rot + 3.14f, Vector2.One, originArc, additive: true);
+            }
+        }
 
         internal static void Reset()
         {
@@ -142,10 +171,6 @@ namespace XiheMagic
             ResetRings(-1);
         }
 
-        /// <summary>
-        /// 预热：半屏「原样拷贝」的 pass —— uBeam/uCharge/uSky/uFlash 全 0、没有环，
-        /// 输出就是屏幕本身（看不出任何变化），但会把着色器和 5 张贴图真正跑一遍。
-        /// </summary>
         private static void WarmupSubmit()
         {
             try
@@ -181,19 +206,15 @@ namespace XiheMagic
                 frame.Add(fx);
                 frame.Submit();
             }
-            catch (Exception e) { XiheMagicMod.Log?.Warn("[fx] 预热提交失败：" + e.Message); }
+            catch (Exception e) { XiheBossMod.Log?.Warn("[fx] 预热提交失败：" + e.Message); }
         }
 
-        /// <summary>每 tick 一次（世界更新之后）：找弹幕、推进环/闪白/天幕。</summary>
         internal static void Update()
         {
             try
             {
                 if (Main.gameMenu) { Reset(); return; }
 
-                // 进世界的第一个 tick：先跑一次「什么都没加」的 pass，把着色器和 5 张贴图
-                // 在渲染线程上热起来（纹理是首次绑定才上传的）。不做的话，第一次放技能那一帧
-                // 才去建纹理/走动渲染路径，会出现「闪一下光环就没了」。
                 if (!_warmed)
                 {
                     _warmed = true;
@@ -207,9 +228,9 @@ namespace XiheMagic
                     {
                         _probeChecked = true;
                         if (state == ScreenGraphics.ShaderStatus.Failed)
-                            XiheMagicMod.Log?.Error("[fx] 着色器编译失败：" + Shader.Error);
+                            XiheBossMod.Log?.Error("[fx] 着色器编译失败：" + Shader.Error);
                         else
-                            XiheMagicMod.Log?.Info("[fx] 着色器编译通过");
+                            XiheBossMod.Log?.Info("[fx] 着色器编译通过");
                     }
                 }
 
@@ -237,7 +258,6 @@ namespace XiheMagic
                         _hasCharge = true;
                     }
 
-                    // 优先画自己的激光柱；没有才画别人的（多人大招同时在场时只画最粗的一根）。
                     var best = -1f;
                     for (var i = 0; i < Main.projectile.Length; i++)
                     {
@@ -274,11 +294,10 @@ namespace XiheMagic
                 }
                 else
                 {
-                    // 柱子没了：MagicRing 是独立实体，还要自己收尾（MEAC 里它们不属于柱子的绘制）。
+
                     StepRingsWithoutOwner();
                 }
 
-                // 引导越久天幕越亮（对应 MEAC 的 AmazingBugSky.intensity += 0.005）。
                 var skyTarget = _hasCharge ? MathHelper.Clamp((500f - _controllerTimeLeft) / 200f, 0f, 1f) : 0f;
                 if (_hasBeam) skyTarget = 1f;
                 _sky += (skyTarget - _sky) * 0.06f;
@@ -292,20 +311,15 @@ namespace XiheMagic
             }
             catch (Exception e)
             {
-                if (!_loggedError) { _loggedError = true; XiheMagicMod.Log?.Warn("[fx] 状态更新异常：" + e.Message); }
+                if (!_loggedError) { _loggedError = true; XiheBossMod.Log?.Warn("[fx] 状态更新异常：" + e.Message); }
             }
         }
 
-        // ---------------- MagicRing 状态机（MEAC.Entities.MagicRing）----------------
-
-        /// <summary>把柱子这一 tick 的状态喂给环的模拟（含首次观测到的补发）。</summary>
         private static void AdvanceRings(int index, Projectile pillar)
         {
             var age = PillarLife - pillar.timeLeft;
             if (age < 0) age = 0;
 
-            // 同一个 whoAmI 上换了一根新柱子（timeLeft 从 360 重来）→ 环重新来。
-            // 注意 age 从 130 跳到 340（控制器断掉 → 柱子 timeLeft=20）不是重置，不能清环。
             if (_ringPillar != index || (_ringAge >= 0 && age + 5 < _ringAge))
                 ResetRings(index);
             _ringAge = age;
@@ -313,7 +327,6 @@ namespace XiheMagic
             var center = pillar.Center;
             var timeLeft = pillar.timeLeft;
 
-            // 1) 生成：按时刻表补发（MEAC 的时间点一到就 CreateRing）。
             for (var k = 0; k < RingSpawnAges.Length; k++)
             {
                 if ((_ringSpawnMask & (1 << k)) != 0) continue;
@@ -323,8 +336,6 @@ namespace XiheMagic
                 SpawnRings(k, center);
             }
 
-            // 2) 每 tick 一步 AI。VisualEffect.Update 是每 tick 都跑的，与柱子 timeLeft 无关
-            //    （柱子续命时 timeLeft 会一直停在 229/230，这里不能按时长差推进）。
             StepRings(center, timeLeft, true);
         }
 
@@ -336,7 +347,6 @@ namespace XiheMagic
             _ringSpawnMask = 0;
         }
 
-        /// <summary>柱子已经消失：环不再跟随，但继续按自己的 AI 收尾，直到 timeLeft 归零。</summary>
         private static void StepRingsWithoutOwner()
         {
             if (_ringPillar < 0) return;
@@ -357,21 +367,20 @@ namespace XiheMagic
             StepRings(default, 0, false);
         }
 
-        /// <summary>MEAC EoLBigLaser_Friendly.AI 里的四组 CreateRing。</summary>
         private static void SpawnRings(int schedule, XVector2 center)
         {
             switch (schedule)
             {
-                case 0:   // timeLeft 360：CreateRing(0, -0.3, 110)
+                case 0:
                     AddRing(0f, -0.3f, 110, false, center);
                     break;
-                case 1:   // timeLeft 340：CreateRing(200, -0.6, 90)
+                case 1:
                     AddRing(200f, -0.6f, 90, false, center);
                     break;
-                case 2:   // timeLeft 320：CreateRing(400, -0.1, 70)
+                case 2:
                     AddRing(400f, -0.1f, 70, false, center);
                     break;
-                case 3:   // timeLeft 250：三个大环，laserOwner = 柱子
+                case 3:
                     AddRing(0f, -0.15f, 250, true, center);
                     AddRing(200f, -0.4f, 250, true, center);
                     AddRing(400f, 0.1f, 250, true, center);
@@ -391,7 +400,7 @@ namespace XiheMagic
                     LaserOwned = laserOwned,
                     TimeLeft = life,
                     MaxTimeLeft = life,
-                    Ai0 = 1f + ai0Delta,      // MagicRing.SetDefault: ai0 = 1，再 += scale
+                    Ai0 = 1f + ai0Delta,
                     OffsetY = offsetY,
                     Scale = 0f,
                     WorldX = center.X,
@@ -401,7 +410,6 @@ namespace XiheMagic
             }
         }
 
-        /// <summary>一步 AI + 一步 timeLeft--（VisualEffect.Update 的顺序）。</summary>
         private static void StepRings(XVector2 ownerCenter, int pillarTimeLeft, bool pillarAlive)
         {
             for (var i = 0; i < _rings.Length; i++)
@@ -436,7 +444,6 @@ namespace XiheMagic
                         r.Scale = SmoothStep(r.Scale, 0f, 0.35f);
                 }
 
-                // owner 还活着时环跟着柱子走（VisualEffect.AIWithOwner 的 offset）。
                 if (pillarAlive)
                 {
                     r.WorldX = ownerCenter.X;
@@ -450,7 +457,6 @@ namespace XiheMagic
             }
         }
 
-        /// <summary>XNA MathHelper.SmoothStep 的同一套平滑（0.2 / 0.35 的 amount 决定展开速度）。</summary>
         private static float SmoothStep(float from, float to, float amount)
         {
             if (amount < 0f) amount = 0f;
@@ -477,9 +483,8 @@ namespace XiheMagic
             _typesReady = _controllerType > 0 && _pillarType > 0;
         }
 
-        private const string EffectKey = "XiheMagic:beam";
+        private const string EffectKey = "XiheBoss:beam";
 
-        /// <summary>效果实例交给 ScreenEffects 统一推进与提交；这里只决定它该不该存在。</summary>
         internal static void Submit()
         {
             try
@@ -503,11 +508,11 @@ namespace XiheMagic
                     try
                     {
                         var status = Shader.Status;
-                        XiheMagicMod.Log?.Info($"[fx] 首次提交：shader={status}");
+                        XiheBossMod.Log?.Info($"[fx] 首次提交：shader={status}");
                         if (status == ScreenGraphics.ShaderStatus.Failed)
-                            XiheMagicMod.Log?.Error("[fx] 着色器编译失败：" + Shader.Error);
+                            XiheBossMod.Log?.Error("[fx] 着色器编译失败：" + Shader.Error);
                     }
-                    catch (Exception e) { XiheMagicMod.Log?.Warn("[fx] 查询着色器状态失败：" + e.Message); }
+                    catch (Exception e) { XiheBossMod.Log?.Warn("[fx] 查询着色器状态失败：" + e.Message); }
                 }
 
                 if (ScreenEffects.Find(EffectKey) is XiheBeamEffect { Active: true }) return;
@@ -520,11 +525,10 @@ namespace XiheMagic
             }
             catch (Exception e)
             {
-                if (!_loggedError) { _loggedError = true; XiheMagicMod.Log?.Warn("[fx] 提交失败：" + e.Message); }
+                if (!_loggedError) { _loggedError = true; XiheBossMod.Log?.Warn("[fx] 提交失败：" + e.Message); }
             }
         }
 
-        /// <summary>把当前状态翻成这一帧的 uniform/纹理，交给效果层提交。</summary>
         private static void DrawBeam(ScreenCommands cmd, ScreenGraphics.Shader shader)
         {
             var sw = Main.screenWidth;
@@ -538,8 +542,6 @@ namespace XiheMagic
             var chargeX = _hasCharge ? (_chargeCenter.X - screen.X) / sw : beamX;
             var chargeY = _hasCharge ? 1f - (_chargeCenter.Y - screen.Y) / sh : 0.5f;
 
-            // 震屏：MEAC EoLBigLaser_Friendly.AI 每 tick 调 EffectPlayer.ScreenShake(8f, 柱心)，
-            // 强度按「柱心到屏幕中心的距离」线性衰减（dis=2000），覆盖整个 245..20 窗口。
             var shake = 0f;
             if (_hasBeam && _beamTimeLeft < 245 && _beamTimeLeft > 20)
             {
@@ -550,7 +552,7 @@ namespace XiheMagic
 
             var beam = 0f;
             if (_hasBeam && _beamScale > 0.01f)
-                beam = 0.55f + 0.45f * MathHelper.Clamp(_beamScale / 3.16f, 0f, 1f);   // 细柱阶段也要看得见
+                beam = 0.55f + 0.45f * MathHelper.Clamp(_beamScale / 3.16f, 0f, 1f);
             var charge = _hasCharge ? MathHelper.Clamp(_chargeAlpha, 0f, 1f) : 0f;
 
             var options = new ScreenDrawOptions();
@@ -567,8 +569,6 @@ namespace XiheMagic
             options.Uniforms["uCenter"] = new XVector2(
                 MathHelper.Clamp(chargeX, 0f, 1f), MathHelper.Clamp(chargeY, 0f, 1f));
 
-            // 每个环一个 vec4：屏幕 uv 中心 + 半径/半宽（都以屏幕高度为单位，和 MEAC 的
-            // 世界 px 等价，投影常数 viewZ=1000 也换算进 uRingViewZ）。
             var ringData = new float[MaxRings * 4];
             var ringCount = 0;
             for (var i = 0; i < _rings.Length && ringCount < MaxRings; i++)
@@ -590,7 +590,7 @@ namespace XiheMagic
                 options.Uniforms["uRings"] = ScreenGraphics.Array(4, ringData.Take(ringCount * 4));
             options.Uniforms["uRingCount"] = ringCount;
             options.Uniforms["uRingViewZ"] = 1000f / sh;
-            // bloom 半径：MEAC 是三次 Kawase 模糊（很小），大了会把 4px 的描边糊成白带。
+
             options.Uniforms["uRingHalo"] = 3f / sh;
 
             if (_beamTex != null) options.Textures["uBeamTex"] = _beamTex;
@@ -602,7 +602,6 @@ namespace XiheMagic
             cmd.DrawShader(shader, options);
         }
 
-        /// <summary>光柱/蓄力/魔法环共用的一个全屏 pass；状态由 <see cref="XiheFx"/> 提供。</summary>
         public sealed class XiheBeamEffect : ModScreenEffect
         {
             public override string ShaderPath => "assets/effects/XiheBeam.frag";

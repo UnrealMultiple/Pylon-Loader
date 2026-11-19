@@ -8,11 +8,12 @@ using Terraria.ID;
 using Pylon.ModLoader.Content;
 using Pylon.ModLoader.Core;
 
-namespace XiheMagic
+namespace XiheBoss.Wand
 {
+
     public sealed class XiheMagicControler : ModProjectile
     {
-        // 画面全在屏幕效果里，弹幕自己不需要贴图。
+
         public override string TexturePath => null;
 
         private bool _inited;
@@ -52,7 +53,7 @@ namespace XiheMagic
                 : proj.Center;
 
             if (proj.owner == Main.myPlayer)
-                XiheMagicMod.Log?.Info($"[xihe] controller spawn dmg={proj.damage}");
+                XiheBossMod.Log?.Info($"[xihe] controller spawn dmg={proj.damage}");
         }
 
         public override void AI()
@@ -68,41 +69,39 @@ namespace XiheMagic
             if (!_inited) OnSpawn(null);
 
             var alpha = Math.Min(1f, proj.localAI[0] + 0.01f);
-            // localAI/ai 是定长结构体属性：改完必须整体写回，否则改的是副本。
+
             var localai = proj.localAI;
             localai[0] = alpha;
             proj.localAI = localai;
 
             Lighting.AddLight(proj.Center, 1.5f * alpha, 1.5f * alpha, 0.8f * alpha);
 
-            // 准星 X 缓慢跟随（Y 固定在玩家上方 1500）。
             if (proj.owner == Main.myPlayer)
                 _skyTarget.X = MathHelper.Lerp(_skyTarget.X, Main.MouseWorld.X, 0.01f);
             _skyTarget.Y = player.position.Y - 1500f;
 
-            // 引导金尘：越接近发射越密。
+            localai = proj.localAI;
+            localai[1] = _skyTarget.X;
+            localai[2] = _skyTarget.Y;
+            proj.localAI = localai;
+
             var chance = 12;
             if (proj.timeLeft < 300) chance = 5;
             if (proj.timeLeft < 190) chance = 2;
-            if (Main.rand.Next(chance) == 0) SpawnMote(proj, player);
+            if (Main.rand.Next(chance) == 0) SpawnMote(proj);
 
-            // 200 tick 后降下激光柱（只在本地拥有者上发射，别的客户端靠同步）。
             if (!_spawnedPillar && proj.timeLeft <= 300)
             {
                 _spawnedPillar = true;
                 if (proj.owner == Main.myPlayer) SpawnPillar(proj, player);
             }
 
-            // 松手就断。
             if (!player.controlUseItem)
             {
                 proj.Kill();
                 return;
             }
 
-            // 免费引导 310 tick；之后每 tick 扣 10 魔力续命。
-            // 原版 CheckMana(10, true, false) 的口径：实际消耗 = 10 * player.manaCost，扣不动就断。
-            // （CheckMana 在 IL2CPP 这边调过去 pay 没生效，只扣过一次，所以这里自己扣。）
             if (proj.timeLeft < 190)
             {
                 var cost = (int)(10f * player.manaCost);
@@ -119,7 +118,6 @@ namespace XiheMagic
                 }
             }
 
-            // 跟着玩家走。
             var target = player.Center + new Vector2(20 * player.direction, -3f);
             if (Vector2.Distance(proj.Center, target) > 30f)
                 proj.Center = Vector2.Lerp(proj.Center, target, 0.5f);
@@ -132,44 +130,20 @@ namespace XiheMagic
             var type = ModContent.ProjectileType<XiheLaserPillar>();
             if (type <= 0) return;
 
-            // MEAC：位置 = 鼠标上方 300，伤害继承控制器，ai0 记控制器槽位（激光柱据此判断引导是否还在）。
             var source = player.GetProjectileSource_Item(player.HeldItem);
             Projectile.NewProjectile(source, Main.MouseWorld - new Vector2(0f, 300f), Vector2.Zero, type,
                 proj.damage, 0f, proj.owner, proj.whoAmI, 0f, 0f);
         }
 
-        private void SpawnMote(Projectile proj, Player player)
+        private static void SpawnMote(Projectile proj)
         {
-            var pos = proj.Center + new Vector2(Main.rand.Next(-10, 11), Main.rand.Next(-10, 11));
-            var dust = Dust.NewDustDirect(pos, 1, 1, DustID.GoldFlame,
-                Main.rand.NextFloat() * 2f - 1f, Main.rand.NextFloat() * -2f, 0, default(Color), 1.1f);
-            dust.noGravity = true;
-            dust.velocity = (proj.Center - _skyTarget) * -0.018f + new Vector2(0f, -1.2f);
-
-            if (Main.rand.Next(4) == 0)
-            {
-                var spark = Dust.NewDustDirect(pos, 1, 1, DustID.YellowStarDust, 0f, 0f, 0, default(Color), 0.9f);
-                spark.noGravity = true;
-                spark.velocity = dust.velocity;
-            }
+            var mote = XiheVisuals.Create(VfxKind.LightDust00, proj.Center, XiheHelper.NextVector2Circular(8f));
+            mote.BloomColor = new Color(1f, 0.8f, 0.1f);
         }
 
         public override bool CanDamage() => false;
 
         public override bool PreDraw(Player player, ref Color lightColor) => false;
 
-        public override void OnKill(int timeLeft)
-        {
-            var proj = Projectile;
-            if (proj.owner != Main.myPlayer) return;
-
-            for (var i = 0; i < 18; i++)
-            {
-                var dust = Dust.NewDustDirect(proj.Center, 1, 1, DustID.GoldFlame,
-                    Main.rand.NextFloat() * 6f - 3f, Main.rand.NextFloat() * 6f - 3f,
-                    0, default(Color), 1.3f);
-                dust.noGravity = true;
-            }
-        }
     }
 }

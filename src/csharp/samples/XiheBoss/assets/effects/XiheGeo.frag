@@ -11,6 +11,7 @@ uniform vec4 uCell;       // 图集 uv 矩形（u0,v0,du,dv）
 uniform float uTexOn;     // 0 = MagicPixel/纯色顶点，1 = 采样图集
 uniform float uWrapU;     // 1 = u 在 cell 内循环（PointWrap）
 uniform float uColorize;  // 1 = 走 MEAC/Effects/Colorize.fx
+uniform float uAdditive;  // 1 = 加色批（混合因子钉 1，见下）
 
 vec4 sampleLocal(vec2 uv) {
     vec2 q = uv;
@@ -44,5 +45,9 @@ void main() {
         rgb = src.rgb * vColor.rgb;
         alpha = src.a * vColor.a;
     }
+    // MEAC 的 BlendState.Additive 是 (One, One)：加色不乘 alpha，亮度全部由 RGB 携带。
+    // 本引擎 mesh Additive 是 (SRC_ALPHA, ONE)，会把片元 alpha 再乘一遍——
+    // 预警线的"淡"、长枪残影的"粗"都来自这次多余的乘法。加色批把混合因子钉回 1。
+    if (uAdditive > 0.5) alpha = 1.0;
     fragColor = vec4(rgb, alpha);
 }

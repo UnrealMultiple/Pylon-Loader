@@ -2,16 +2,18 @@ using System;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader;
+using Pylon.ModLoader.Audio;
 using Terraria;
 using Terraria.ID;
 using Pylon.ModLoader.Content;
 using Pylon.ModLoader.Core;
 
-namespace XiheMagic
+namespace XiheBoss.Wand
 {
+
     public sealed class XiheLaserPillar : ModProjectile
     {
-        // 画面全在屏幕效果里，弹幕自己不需要贴图。
+
         public override string TexturePath => null;
 
         private bool _fired;
@@ -46,11 +48,11 @@ namespace XiheMagic
         public override void OnSpawn(Terraria.DataStructures.IEntitySource source)
         {
             var proj = Projectile;
-            // 兜底：控制器传过来的伤害若是 0（GetWeaponDamage 在个别路径返回 0），至少给武器基础伤害。
+
             if (proj.damage <= 0) proj.damage = 200;
             proj.originalDamage = proj.damage;
             if (proj.owner == Main.myPlayer)
-                XiheMagicMod.Log?.Info($"[xihe] pillar spawn dmg={proj.damage} scale={proj.scale}");
+                XiheBossMod.Log?.Info($"[xihe] pillar spawn dmg={proj.damage} scale={proj.scale}");
         }
 
         public override void AI()
@@ -63,22 +65,24 @@ namespace XiheMagic
 
             if (!_fired && proj.timeLeft <= 250)
             {
+
                 _fired = true;
-                XiheFx.NotifyFlash();
-                if (proj.owner == Main.myPlayer)
-                    XiheSounds.PlayLaser(proj.Center);
+                XiheFx.RadialGlur(proj.Center, 60, true);
+                SoundEngine.PlaySound(SoundID.Item159, proj.Center);
+                XiheSounds.PlayLaser(proj.Center);
             }
 
-            // 预热：慢慢变亮（MEAC：timeLeft <= 340 && > 260 时每 tick +0.002）。
             if (proj.timeLeft <= 340 && proj.timeLeft > 260)
                 proj.scale += 0.002f;
 
-            // 点火：250→230 快速变粗。
             if (proj.timeLeft > 230 && proj.timeLeft < 250)
                 proj.scale += 0.15f;
 
             if (proj.timeLeft < 245 && proj.timeLeft > 20)
             {
+
+                XiheFx.ScreenShake(8f, proj.Center);
+
                 if (proj.timeLeft < 230)
                 {
                     if (ControllerAlive(proj))
@@ -91,7 +95,7 @@ namespace XiheMagic
                     }
                     else
                     {
-                        // 控制器没了 → 立刻进入收尾。
+
                         proj.timeLeft = 20;
                     }
                 }
@@ -99,16 +103,12 @@ namespace XiheMagic
                 SpawnBeamDust(proj);
             }
 
-            // 收尾：快速收缩。
             if (proj.timeLeft < 20)
                 proj.scale = Math.Max(0f, proj.scale - 0.15f);
 
             var light = Math.Min(1.5f, proj.scale * 0.5f);
             Lighting.AddLight(proj.Center, 1.2f * light, 0.95f * light, 0.4f * light);
 
-            // Pylon 的战斗命中管线未接（见 docs/roadmap.md：命中/受伤管线），mod 弹幕的
-            // Projectile.Damage 打不到 NPC。这里按 MEAC 的 Colliding 规则直接结算：
-            // |NPC中心X - 柱心X| < scale*90（整柱竖直贯通），用 NPC.immune 做 3 tick 间隔。
             if (proj.scale > 0.2f && proj.owner == Main.myPlayer)
                 DamageColumn(proj);
         }
@@ -128,7 +128,6 @@ namespace XiheMagic
             }
         }
 
-        /// <summary>ai[0] 是控制器槽位；控制器还活着就继续维持激光柱。</summary>
         private static bool ControllerAlive(Projectile proj)
         {
             var index = (int)proj.ai[0];
@@ -142,14 +141,23 @@ namespace XiheMagic
 
         private static void SpawnBeamDust(Projectile proj)
         {
-            if (Main.rand.Next(2) != 0) return;
-
-            var x = proj.Center.X + Main.rand.Next(-80, 81) * proj.scale;
-            var y = Main.screenPosition.Y + Main.rand.Next(-500, Main.screenHeight + 400);
-            var dust = Dust.NewDustDirect(new Vector2(x, y), 1, 1,
-                Main.rand.Next(4) == 0 ? DustID.YellowStarDust : DustID.GoldFlame,
-                0f, Main.rand.Next(5, 10), 0, default(Color), 1.2f);
-            dust.noGravity = true;
+            for (var i = 0; i < 2; i++)
+            {
+                var pos = new Vector2(
+                    proj.Center.X + Main.rand.Next(-80, 81) * proj.scale,
+                    Main.screenPosition.Y + Main.rand.Next(-500, 1200));
+                var dust = XiheVisuals.Create(VfxKind.LightDust, pos, new Vector2(0f, Main.rand.Next(5, 10)));
+                dust.DrawColor = Color.Yellow;
+                if (XiheHelper.RandBool(3))
+                {
+                    var cn = XiheVisuals.Create(VfxKind.LightDustCn,
+                        new Vector2(
+                            proj.Center.X + Main.rand.Next(-70, 71) * proj.scale,
+                            Main.screenPosition.Y + Main.rand.Next(-500, 1200)),
+                        new Vector2(0f, Main.rand.Next(5, 10)));
+                    cn.BloomColor = Color.Yellow;
+                }
+            }
         }
 
         public override bool CanDamage() => Projectile.scale > 0.2f;
@@ -157,27 +165,11 @@ namespace XiheMagic
         public override bool? Colliding(Rectangle projHitbox, Rectangle targetHitbox)
         {
             var proj = Projectile;
-            // 只判 X：整根柱子在竖直方向贯穿（MEAC 原版行为）。
+
             return Math.Abs(targetHitbox.Center.X - proj.Center.X) < proj.scale * 90f;
         }
 
         public override bool PreDraw(Player player, ref Color lightColor) => false;
 
-        public override void OnKill(int timeLeft)
-        {
-            var proj = Projectile;
-            if (proj.owner != Main.myPlayer) return;
-
-            for (var i = 0; i < 40; i++)
-            {
-                var pos = new Vector2(
-                    proj.Center.X + Main.rand.Next(-90, 91) * Math.Max(proj.scale, 0.5f),
-                    Main.screenPosition.Y + Main.rand.Next(Main.screenHeight));
-                var dust = Dust.NewDustDirect(pos, 1, 1, DustID.GoldFlame,
-                    Main.rand.NextFloat() * 8f - 4f, Main.rand.NextFloat() * 8f - 4f,
-                    0, default(Color), 1.5f);
-                dust.noGravity = true;
-            }
-        }
     }
 }
