@@ -22,7 +22,7 @@ namespace Pylon.NaviteAPI.ImGui
         public static implicit operator ImDrawListSplitterPtr(IntPtr nativePtr) => new ImDrawListSplitterPtr(nativePtr);
         public ref int _Current => ref Unsafe.AsRef<int>(&NativePtr->_Current);
         public ref int _Count => ref Unsafe.AsRef<int>(&NativePtr->_Count);
-        public ImPtrVector<ImDrawChannelPtr> _Channels => new ImPtrVector<ImDrawChannelPtr>(NativePtr->_Channels, Unsafe.SizeOf<ImDrawChannel>());
+        public ImPtrVector<ImDrawChannelPtr> _Channels => new ImPtrVector<ImDrawChannelPtr>(&NativePtr->_Channels, Unsafe.SizeOf<ImDrawChannel>());
         public void Clear()
         {
             ImGuiNative.ImDrawListSplitter_Clear((ImDrawListSplitter*)(NativePtr));

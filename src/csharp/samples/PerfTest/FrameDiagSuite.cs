@@ -31,7 +31,7 @@ internal sealed class FrameDiagSuite
         if (!GuardedInvoke.FrameDiagnosticsAvailable)
             throw new NotSupportedException("framediag requires PylonFrameDiagnostics=true; production route is cache-only");
         _add=add; _save=save;
-        _visible=typeof(Pylon.ModLoader.UI.TerrariaUI).Assembly.GetType("Pylon.ModLoader.UI.ImGuiOverlay")?.GetProperty("Visible", System.Reflection.BindingFlags.Public|System.Reflection.BindingFlags.Static);
+        _visible=typeof(Pylon.ModLoader.UI.ModUI).Assembly.GetType("Pylon.ModLoader.ImGuiHost.ImGuiOverlay")?.GetProperty("Visible", System.Reflection.BindingFlags.Public|System.Reflection.BindingFlags.Static);
         _oldVisible=_visible?.GetValue(null);
         _visible?.SetValue(null,false);
         _loops=[BunnySuite.Clamp, BunnySuite.Distance, BunnySuite.Matrix, ConstantClamp, ConstantDistance, ConstantMatrix];

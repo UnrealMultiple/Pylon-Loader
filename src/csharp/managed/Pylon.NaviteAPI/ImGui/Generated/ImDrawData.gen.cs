@@ -31,7 +31,7 @@ namespace Pylon.NaviteAPI.ImGui
         public ref int CmdListsCount => ref Unsafe.AsRef<int>(&NativePtr->CmdListsCount);
         public ref int TotalIdxCount => ref Unsafe.AsRef<int>(&NativePtr->TotalIdxCount);
         public ref int TotalVtxCount => ref Unsafe.AsRef<int>(&NativePtr->TotalVtxCount);
-        public ImPtrVector<ImDrawListPtr> CmdLists => new ImPtrVector<ImDrawListPtr>(NativePtr->CmdLists, Unsafe.SizeOf<ImDrawList>());
+        public ImPtrVector<ImDrawListPtr> CmdLists => new ImPtrVector<ImDrawListPtr>(&NativePtr->CmdLists, Unsafe.SizeOf<ImDrawList>());
         public ref Vector2 DisplayPos => ref Unsafe.AsRef<Vector2>(&NativePtr->DisplayPos);
         public ref Vector2 DisplaySize => ref Unsafe.AsRef<Vector2>(&NativePtr->DisplaySize);
         public ref Vector2 FramebufferScale => ref Unsafe.AsRef<Vector2>(&NativePtr->FramebufferScale);

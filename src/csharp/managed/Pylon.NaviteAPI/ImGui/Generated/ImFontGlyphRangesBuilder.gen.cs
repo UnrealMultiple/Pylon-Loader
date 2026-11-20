@@ -18,7 +18,7 @@ namespace Pylon.NaviteAPI.ImGui
         public static implicit operator ImFontGlyphRangesBuilderPtr(ImFontGlyphRangesBuilder* nativePtr) => new ImFontGlyphRangesBuilderPtr(nativePtr);
         public static implicit operator ImFontGlyphRangesBuilder* (ImFontGlyphRangesBuilderPtr wrappedPtr) => wrappedPtr.NativePtr;
         public static implicit operator ImFontGlyphRangesBuilderPtr(IntPtr nativePtr) => new ImFontGlyphRangesBuilderPtr(nativePtr);
-        public ImVector<uint> UsedChars => new ImVector<uint>(NativePtr->UsedChars);
+        public ImVector<uint> UsedChars => new ImVector<uint>(&NativePtr->UsedChars);
         public void Clear()
         {
             ImGuiNative.ImFontGlyphRangesBuilder_Clear((ImFontGlyphRangesBuilder*)(NativePtr));

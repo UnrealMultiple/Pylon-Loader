@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Pylon.ModLoader.UI;
 using Pylon.NaviteAPI.ImGui;
@@ -13,8 +14,42 @@ internal static class ImGuiContext
     private static IntPtr _context;
     private static GCHandle _fontPin;
     private static float _appliedScale = 1f;
+    private static bool _fontSizesReady;
 
-    private static byte[]? _baseStyle;
+    public static readonly float[] FontSizeLadder = [9f, 12f, 16f, 21f, 27f, 36f, 48f, 64f];
+
+    internal static float SnapSize(float px)
+    {
+        var best = FontSizeLadder[0];
+        var bestDiff = MathF.Abs(px - best);
+        for (var i = 1; i < FontSizeLadder.Length; i++)
+        {
+            var diff = MathF.Abs(px - FontSizeLadder[i]);
+            if (diff < bestDiff)
+            {
+                best = FontSizeLadder[i];
+                bestDiff = diff;
+            }
+        }
+        return best;
+    }
+
+    private static float SnapScale(float scale)
+    {
+        var best = 1f;
+        var bestDiff = float.MaxValue;
+        foreach (var size in FontSizeLadder)
+        {
+            var candidate = size / 18f;
+            var diff = MathF.Abs(candidate - scale);
+            if (diff < bestDiff)
+            {
+                best = candidate;
+                bestDiff = diff;
+            }
+        }
+        return best;
+    }
 
     internal static bool Created => _context != IntPtr.Zero;
 
@@ -32,7 +67,7 @@ internal static class ImGuiContext
 
         if (!LoadFont()) return false;
         ImGui.StyleColorsDark();
-        TerrariaTheme.Apply();
+        UiTheme.Initialize(UiSettings.Theme);
         ApplyScale(UiSettings.Scale);
         EnableErrorRecovery();
         return true;
@@ -43,6 +78,7 @@ internal static class ImGuiContext
         var io = ImGui.GetIO();
         io.ConfigErrorRecovery = true;
         io.ConfigErrorRecoveryEnableDebugLog = true;
+        io.ConfigErrorRecoveryEnableAssert = false;
     }
 
     internal static void Destroy()
@@ -53,8 +89,24 @@ internal static class ImGuiContext
         ImGui.DestroyContext(_context);
         _context = IntPtr.Zero;
         _appliedScale = 1f;
-        _baseStyle = null;
+        _fontSizesReady = false;
         if (_fontPin.IsAllocated) _fontPin.Free();
+    }
+
+    internal static unsafe void EnsureFontSizes()
+    {
+        if (_fontSizesReady || _context == IntPtr.Zero) return;
+        _fontSizesReady = true;
+        try
+        {
+            var font = ImGui.GetFont();
+            foreach (var size in FontSizeLadder)
+                font.CalcTextSizeA(size, float.MaxValue, 0f, "A", null, out _);
+        }
+        catch (Exception e)
+        {
+            ModUI.Logger?.Warn("预烘字号失败：" + e.Message);
+        }
     }
 
     internal static unsafe void ApplyScale(float scale)
@@ -62,23 +114,8 @@ internal static class ImGuiContext
         if (_context == IntPtr.Zero) return;
         var target = Math.Clamp(scale, UiSettings.MinScale, UiSettings.MaxScale);
         if (Math.Abs(target - _appliedScale) < 0.0001f) return;
-
-        var style = ImGui.GetStyle();
-        var size = sizeof(ImGuiStyle);
-        var current = (byte*)style.NativePtr;
-
-        if (_baseStyle is null)
-        {
-            _baseStyle = new byte[size];
-            fixed (byte* basePtr = _baseStyle) Buffer.MemoryCopy(current, basePtr, size, size);
-        }
-        else
-        {
-            fixed (byte* basePtr = _baseStyle) Buffer.MemoryCopy(basePtr, current, size, size);
-        }
-
-        if (Math.Abs(target - 1f) > 0.0001f) style.ScaleAllSizes(target);
-        ImGui.GetIO().FontGlobalScale = target;
+        UiTheme.Apply(target);
+        ImGui.GetStyle().FontScaleMain = SnapScale(target);
         _appliedScale = target;
     }
 

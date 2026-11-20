@@ -100,6 +100,18 @@ void SyncMirrors(const Snapshot& snapshot) {
                          snap.pixels.data());
         }
     }
+    for (int i = static_cast<int>(g_mirrors.size()) - 1; i >= 0; --i) {
+        bool alive = false;
+        for (const Snapshot::TextureSnap& snap : snapshot.Textures())
+            if (snap.pointer == g_mirrors[static_cast<size_t>(i)].pointer) {
+                alive = true;
+                break;
+            }
+        if (!alive) {
+            g.DeleteTextures(1, &g_mirrors[static_cast<size_t>(i)].name);
+            g_mirrors.erase(g_mirrors.begin() + i);
+        }
+    }
 }
 
 void Draw(const Snapshot& snapshot) {

@@ -33,20 +33,20 @@ namespace Pylon.NaviteAPI.ImGui
         public static implicit operator ImDrawListPtr(ImDrawList* nativePtr) => new ImDrawListPtr(nativePtr);
         public static implicit operator ImDrawList* (ImDrawListPtr wrappedPtr) => wrappedPtr.NativePtr;
         public static implicit operator ImDrawListPtr(IntPtr nativePtr) => new ImDrawListPtr(nativePtr);
-        public ImPtrVector<ImDrawCmdPtr> CmdBuffer => new ImPtrVector<ImDrawCmdPtr>(NativePtr->CmdBuffer, Unsafe.SizeOf<ImDrawCmd>());
-        public ImVector<ushort> IdxBuffer => new ImVector<ushort>(NativePtr->IdxBuffer);
-        public ImPtrVector<ImDrawVertPtr> VtxBuffer => new ImPtrVector<ImDrawVertPtr>(NativePtr->VtxBuffer, Unsafe.SizeOf<ImDrawVert>());
+        public ImPtrVector<ImDrawCmdPtr> CmdBuffer => new ImPtrVector<ImDrawCmdPtr>(&NativePtr->CmdBuffer, Unsafe.SizeOf<ImDrawCmd>());
+        public ImVector<ushort> IdxBuffer => new ImVector<ushort>(&NativePtr->IdxBuffer);
+        public ImPtrVector<ImDrawVertPtr> VtxBuffer => new ImPtrVector<ImDrawVertPtr>(&NativePtr->VtxBuffer, Unsafe.SizeOf<ImDrawVert>());
         public ref ImDrawListFlags Flags => ref Unsafe.AsRef<ImDrawListFlags>(&NativePtr->Flags);
         public ref uint _VtxCurrentIdx => ref Unsafe.AsRef<uint>(&NativePtr->_VtxCurrentIdx);
         public ImDrawListSharedDataPtr _Data => new ImDrawListSharedDataPtr(NativePtr->_Data);
         public ImDrawVertPtr _VtxWritePtr => new ImDrawVertPtr(NativePtr->_VtxWritePtr);
         public ushort* _IdxWritePtr { get => NativePtr->_IdxWritePtr; set => NativePtr->_IdxWritePtr = value; }
-        public ImVector<Vector2> _Path => new ImVector<Vector2>(NativePtr->_Path);
+        public ImVector<Vector2> _Path => new ImVector<Vector2>(&NativePtr->_Path);
         public ref ImDrawCmdHeader _CmdHeader => ref Unsafe.AsRef<ImDrawCmdHeader>(&NativePtr->_CmdHeader);
         public ref ImDrawListSplitter _Splitter => ref Unsafe.AsRef<ImDrawListSplitter>(&NativePtr->_Splitter);
-        public ImVector<Vector4> _ClipRectStack => new ImVector<Vector4>(NativePtr->_ClipRectStack);
-        public ImVector<ImTextureRef> _TextureStack => new ImVector<ImTextureRef>(NativePtr->_TextureStack);
-        public ImVector<byte> _CallbacksDataBuf => new ImVector<byte>(NativePtr->_CallbacksDataBuf);
+        public ImVector<Vector4> _ClipRectStack => new ImVector<Vector4>(&NativePtr->_ClipRectStack);
+        public ImVector<ImTextureRef> _TextureStack => new ImVector<ImTextureRef>(&NativePtr->_TextureStack);
+        public ImVector<byte> _CallbacksDataBuf => new ImVector<byte>(&NativePtr->_CallbacksDataBuf);
         public ref float _FringeScale => ref Unsafe.AsRef<float>(&NativePtr->_FringeScale);
         public NullTerminatedString _OwnerName => new NullTerminatedString(NativePtr->_OwnerName);
         public void PushClipRect(Vector2 clip_rect_min, Vector2 clip_rect_max, bool intersect_with_current_clip_rect = false)

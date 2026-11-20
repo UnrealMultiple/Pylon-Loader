@@ -59,25 +59,10 @@ public static partial class ScreenGraphics
             try { fileBytes = File.ReadAllBytes(full); }
             catch (Exception e) { throw new ScreenEffectsException($"读取效果纹理失败：{full}（{e.Message}）"); }
 
-            var bytes = new Il2CppStructArray<byte>(fileBytes);
-            var unity = new Texture2D(2, 2);
-            bool decoded;
-            try { decoded = ImageConversion.LoadImage(unity, bytes, false); }
-            catch (Exception e)
-            {
-                UnityEngine.Object.Destroy(unity);
-                throw new ScreenEffectsException($"效果纹理解码抛异常：{full}（{e.Message}）");
-            }
-            if (!decoded)
-            {
-                UnityEngine.Object.Destroy(unity);
-                throw new ScreenEffectsException($"'{full}' 不是能解码的 PNG/JPG");
-            }
-
-            var width = unity.width;
-            var height = unity.height;
-            var rgba = FlipRows(unity.GetRawTextureData<byte>().ToArray(), width, height);
-            UnityEngine.Object.Destroy(unity);
+            // 内核 stb_image 解码：RGBA、首行为图像顶部（TextureLoad 要的就是这个行序）。
+            // 原先的 UnityEngine.ImageConversion + Texture2D 回读在 IL2CPP 下取不到像素（AOT 泛型缺失）。
+            var rgba = Pylon.NaviteAPI.ImGui.ImGui.DecodeImage(fileBytes, out var width, out var height);
+            if (rgba == null) throw new ScreenEffectsException($"'{full}' 不是能解码的 PNG/JPG");
 
             int id;
             try

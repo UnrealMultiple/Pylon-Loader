@@ -18,7 +18,7 @@ namespace Pylon.NaviteAPI.ImGui
         public static implicit operator ImGuiTextBufferPtr(ImGuiTextBuffer* nativePtr) => new ImGuiTextBufferPtr(nativePtr);
         public static implicit operator ImGuiTextBuffer* (ImGuiTextBufferPtr wrappedPtr) => wrappedPtr.NativePtr;
         public static implicit operator ImGuiTextBufferPtr(IntPtr nativePtr) => new ImGuiTextBufferPtr(nativePtr);
-        public ImVector<byte> Buf => new ImVector<byte>(NativePtr->Buf);
+        public ImVector<byte> Buf => new ImVector<byte>(&NativePtr->Buf);
         public byte* begin()
         {
             byte* ret = ImGuiNative.ImGuiTextBuffer_begin((ImGuiTextBuffer*)(NativePtr));

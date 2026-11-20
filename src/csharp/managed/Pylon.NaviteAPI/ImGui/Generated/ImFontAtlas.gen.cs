@@ -16,6 +16,7 @@ namespace Pylon.NaviteAPI.ImGui
         public int TexMaxWidth;
         public int TexMaxHeight;
         public void* UserData;
+        public ImTextureRef TexRef;
         public ImTextureData* TexData;
         public ImVector TexList;
         public byte Locked;
@@ -28,6 +29,39 @@ namespace Pylon.NaviteAPI.ImGui
         public ImVector Sources;
         public int TexNextUniqueID;
         public int FontNextUniqueID;
+        public Vector4 TexUvLines_0;
+        public Vector4 TexUvLines_1;
+        public Vector4 TexUvLines_2;
+        public Vector4 TexUvLines_3;
+        public Vector4 TexUvLines_4;
+        public Vector4 TexUvLines_5;
+        public Vector4 TexUvLines_6;
+        public Vector4 TexUvLines_7;
+        public Vector4 TexUvLines_8;
+        public Vector4 TexUvLines_9;
+        public Vector4 TexUvLines_10;
+        public Vector4 TexUvLines_11;
+        public Vector4 TexUvLines_12;
+        public Vector4 TexUvLines_13;
+        public Vector4 TexUvLines_14;
+        public Vector4 TexUvLines_15;
+        public Vector4 TexUvLines_16;
+        public Vector4 TexUvLines_17;
+        public Vector4 TexUvLines_18;
+        public Vector4 TexUvLines_19;
+        public Vector4 TexUvLines_20;
+        public Vector4 TexUvLines_21;
+        public Vector4 TexUvLines_22;
+        public Vector4 TexUvLines_23;
+        public Vector4 TexUvLines_24;
+        public Vector4 TexUvLines_25;
+        public Vector4 TexUvLines_26;
+        public Vector4 TexUvLines_27;
+        public Vector4 TexUvLines_28;
+        public Vector4 TexUvLines_29;
+        public Vector4 TexUvLines_30;
+        public Vector4 TexUvLines_31;
+        public Vector4 TexUvLines_32;
         public ImVector DrawListSharedDatas;
         public ImFontAtlasBuilder* Builder;
         public ImFontLoader* FontLoader;
@@ -54,19 +88,20 @@ namespace Pylon.NaviteAPI.ImGui
         public ref int TexMaxWidth => ref Unsafe.AsRef<int>(&NativePtr->TexMaxWidth);
         public ref int TexMaxHeight => ref Unsafe.AsRef<int>(&NativePtr->TexMaxHeight);
         public IntPtr UserData { get => (IntPtr)NativePtr->UserData; set => NativePtr->UserData = (void*)value.ToPointer(); }
+        public ImTextureRef TexRef { get => *(ImTextureRef*)&NativePtr->TexRef; set => *(ImTextureRef*)&NativePtr->TexRef = value; }
         public ImTextureDataPtr TexData => new ImTextureDataPtr(NativePtr->TexData);
-        public ImPtrVector<ImTextureDataPtr> TexList => new ImPtrVector<ImTextureDataPtr>(NativePtr->TexList, Unsafe.SizeOf<ImTextureData>());
+        public ImPtrVector<ImTextureDataPtr> TexList => new ImPtrVector<ImTextureDataPtr>(&NativePtr->TexList, Unsafe.SizeOf<ImTextureData>());
         public ref bool Locked => ref Unsafe.AsRef<bool>(&NativePtr->Locked);
         public ref bool RendererHasTextures => ref Unsafe.AsRef<bool>(&NativePtr->RendererHasTextures);
         public ref bool TexIsBuilt => ref Unsafe.AsRef<bool>(&NativePtr->TexIsBuilt);
         public ref bool TexPixelsUseColors => ref Unsafe.AsRef<bool>(&NativePtr->TexPixelsUseColors);
         public ref Vector2 TexUvScale => ref Unsafe.AsRef<Vector2>(&NativePtr->TexUvScale);
         public ref Vector2 TexUvWhitePixel => ref Unsafe.AsRef<Vector2>(&NativePtr->TexUvWhitePixel);
-        public ImPtrVector<ImFontPtr> Fonts => new ImPtrVector<ImFontPtr>(NativePtr->Fonts, Unsafe.SizeOf<ImFont>());
-        public ImPtrVector<ImFontConfigPtr> Sources => new ImPtrVector<ImFontConfigPtr>(NativePtr->Sources, Unsafe.SizeOf<ImFontConfig>());
+        public ImPtrVector<ImFontPtr> Fonts => new ImPtrVector<ImFontPtr>(&NativePtr->Fonts, Unsafe.SizeOf<ImFont>());
+        public ImPtrVector<ImFontConfigPtr> Sources => new ImPtrVector<ImFontConfigPtr>(&NativePtr->Sources, Unsafe.SizeOf<ImFontConfig>());
         public ref int TexNextUniqueID => ref Unsafe.AsRef<int>(&NativePtr->TexNextUniqueID);
         public ref int FontNextUniqueID => ref Unsafe.AsRef<int>(&NativePtr->FontNextUniqueID);
-        public ImPtrVector<ImDrawListSharedDataPtr> DrawListSharedDatas => new ImPtrVector<ImDrawListSharedDataPtr>(NativePtr->DrawListSharedDatas, Unsafe.SizeOf<ImDrawListSharedData>());
+        public ImPtrVector<ImDrawListSharedDataPtr> DrawListSharedDatas => new ImPtrVector<ImDrawListSharedDataPtr>(&NativePtr->DrawListSharedDatas, Unsafe.SizeOf<ImDrawListSharedData>());
         public ImFontAtlasBuilder* Builder { get => NativePtr->Builder; set => NativePtr->Builder = value; }
         public ImFontLoader* FontLoader { get => NativePtr->FontLoader; set => NativePtr->FontLoader = value; }
         public NullTerminatedString FontLoaderName => new NullTerminatedString(NativePtr->FontLoaderName);

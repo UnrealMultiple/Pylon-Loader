@@ -21,7 +21,7 @@ namespace Pylon.NaviteAPI.ImGui
         public static implicit operator ImGuiTextFilter* (ImGuiTextFilterPtr wrappedPtr) => wrappedPtr.NativePtr;
         public static implicit operator ImGuiTextFilterPtr(IntPtr nativePtr) => new ImGuiTextFilterPtr(nativePtr);
         public RangeAccessor<byte> InputBuf => new RangeAccessor<byte>(NativePtr->InputBuf, 256);
-        public ImPtrVector<ImGuiTextRangePtr> Filters => new ImPtrVector<ImGuiTextRangePtr>(NativePtr->Filters, Unsafe.SizeOf<ImGuiTextRange>());
+        public ImPtrVector<ImGuiTextRangePtr> Filters => new ImPtrVector<ImGuiTextRangePtr>(&NativePtr->Filters, Unsafe.SizeOf<ImGuiTextRange>());
         public ref int CountGrep => ref Unsafe.AsRef<int>(&NativePtr->CountGrep);
         public bool Draw(string label = "Filter(inc,-exc)", float width = 0.0f)
         {

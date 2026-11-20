@@ -23,7 +23,7 @@ namespace Pylon.NaviteAPI.ImGui
         public static implicit operator ImGuiMultiSelectIOPtr(ImGuiMultiSelectIO* nativePtr) => new ImGuiMultiSelectIOPtr(nativePtr);
         public static implicit operator ImGuiMultiSelectIO* (ImGuiMultiSelectIOPtr wrappedPtr) => wrappedPtr.NativePtr;
         public static implicit operator ImGuiMultiSelectIOPtr(IntPtr nativePtr) => new ImGuiMultiSelectIOPtr(nativePtr);
-        public ImPtrVector<ImGuiSelectionRequestPtr> Requests => new ImPtrVector<ImGuiSelectionRequestPtr>(NativePtr->Requests, Unsafe.SizeOf<ImGuiSelectionRequest>());
+        public ImPtrVector<ImGuiSelectionRequestPtr> Requests => new ImPtrVector<ImGuiSelectionRequestPtr>(&NativePtr->Requests, Unsafe.SizeOf<ImGuiSelectionRequest>());
         public ref long RangeSrcItem => ref Unsafe.AsRef<long>(&NativePtr->RangeSrcItem);
         public ref long NavIdItem => ref Unsafe.AsRef<long>(&NativePtr->NavIdItem);
         public ref bool NavIdSelected => ref Unsafe.AsRef<bool>(&NativePtr->NavIdSelected);

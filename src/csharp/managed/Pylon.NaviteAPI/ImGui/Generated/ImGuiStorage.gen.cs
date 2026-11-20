@@ -18,7 +18,7 @@ namespace Pylon.NaviteAPI.ImGui
         public static implicit operator ImGuiStoragePtr(ImGuiStorage* nativePtr) => new ImGuiStoragePtr(nativePtr);
         public static implicit operator ImGuiStorage* (ImGuiStoragePtr wrappedPtr) => wrappedPtr.NativePtr;
         public static implicit operator ImGuiStoragePtr(IntPtr nativePtr) => new ImGuiStoragePtr(nativePtr);
-        public ImPtrVector<ImGuiStoragePairPtr> Data => new ImPtrVector<ImGuiStoragePairPtr>(NativePtr->Data, Unsafe.SizeOf<ImGuiStoragePair>());
+        public ImPtrVector<ImGuiStoragePairPtr> Data => new ImPtrVector<ImGuiStoragePairPtr>(&NativePtr->Data, Unsafe.SizeOf<ImGuiStoragePair>());
         public void Clear()
         {
             ImGuiNative.ImGuiStorage_Clear((ImGuiStorage*)(NativePtr));

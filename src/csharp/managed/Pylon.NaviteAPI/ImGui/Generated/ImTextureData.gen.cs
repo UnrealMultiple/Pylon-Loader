@@ -44,7 +44,7 @@ namespace Pylon.NaviteAPI.ImGui
         public byte* Pixels { get => NativePtr->Pixels; set => NativePtr->Pixels = value; }
         public ref ImTextureRect UsedRect => ref Unsafe.AsRef<ImTextureRect>(&NativePtr->UsedRect);
         public ref ImTextureRect UpdateRect => ref Unsafe.AsRef<ImTextureRect>(&NativePtr->UpdateRect);
-        public ImPtrVector<ImTextureRectPtr> Updates => new ImPtrVector<ImTextureRectPtr>(NativePtr->Updates, Unsafe.SizeOf<ImTextureRect>());
+        public ImPtrVector<ImTextureRectPtr> Updates => new ImPtrVector<ImTextureRectPtr>(&NativePtr->Updates, Unsafe.SizeOf<ImTextureRect>());
         public ref int UnusedFrames => ref Unsafe.AsRef<int>(&NativePtr->UnusedFrames);
         public ref ushort RefCount => ref Unsafe.AsRef<ushort>(&NativePtr->RefCount);
         public ref bool UseColors => ref Unsafe.AsRef<bool>(&NativePtr->UseColors);

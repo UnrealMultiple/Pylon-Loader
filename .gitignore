@@ -77,3 +77,6 @@ obj/
 /.work_screen.png
 /scratch/one-ref-test
 /docs/testing
+
+# 原神角色壁纸素材：只允许本地预览（版权），不进仓库、不进发行物
+design/assets/

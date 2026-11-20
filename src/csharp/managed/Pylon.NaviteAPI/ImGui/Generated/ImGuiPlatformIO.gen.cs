@@ -8,6 +8,7 @@ namespace Pylon.NaviteAPI.ImGui
 {
     public unsafe partial struct ImGuiPlatformIO
     {
+        public void* Platform_GetClipboardTextFn;
         public void* Platform_SetClipboardTextFn;
         public void* Platform_ClipboardUserData;
         public void* Platform_OpenInShellFn;
@@ -28,6 +29,7 @@ namespace Pylon.NaviteAPI.ImGui
         public static implicit operator ImGuiPlatformIOPtr(ImGuiPlatformIO* nativePtr) => new ImGuiPlatformIOPtr(nativePtr);
         public static implicit operator ImGuiPlatformIO* (ImGuiPlatformIOPtr wrappedPtr) => wrappedPtr.NativePtr;
         public static implicit operator ImGuiPlatformIOPtr(IntPtr nativePtr) => new ImGuiPlatformIOPtr(nativePtr);
+        public IntPtr Platform_GetClipboardTextFn { get => (IntPtr)NativePtr->Platform_GetClipboardTextFn; set => NativePtr->Platform_GetClipboardTextFn = (void*)value.ToPointer(); }
         public IntPtr Platform_SetClipboardTextFn { get => (IntPtr)NativePtr->Platform_SetClipboardTextFn; set => NativePtr->Platform_SetClipboardTextFn = (void*)value.ToPointer(); }
         public IntPtr Platform_ClipboardUserData { get => (IntPtr)NativePtr->Platform_ClipboardUserData; set => NativePtr->Platform_ClipboardUserData = (void*)value.ToPointer(); }
         public IntPtr Platform_OpenInShellFn { get => (IntPtr)NativePtr->Platform_OpenInShellFn; set => NativePtr->Platform_OpenInShellFn = (void*)value.ToPointer(); }
@@ -38,6 +40,6 @@ namespace Pylon.NaviteAPI.ImGui
         public ref int Renderer_TextureMaxWidth => ref Unsafe.AsRef<int>(&NativePtr->Renderer_TextureMaxWidth);
         public ref int Renderer_TextureMaxHeight => ref Unsafe.AsRef<int>(&NativePtr->Renderer_TextureMaxHeight);
         public IntPtr Renderer_RenderState { get => (IntPtr)NativePtr->Renderer_RenderState; set => NativePtr->Renderer_RenderState = (void*)value.ToPointer(); }
-        public ImPtrVector<ImTextureDataPtr> Textures => new ImPtrVector<ImTextureDataPtr>(NativePtr->Textures, Unsafe.SizeOf<ImTextureData>());
+        public ImPtrVector<ImTextureDataPtr> Textures => new ImPtrVector<ImTextureDataPtr>(&NativePtr->Textures, Unsafe.SizeOf<ImTextureData>());
     }
 }

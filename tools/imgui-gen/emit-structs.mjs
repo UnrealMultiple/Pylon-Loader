@@ -147,9 +147,9 @@ function emitOne(name, fields, methods, model) {
       const elemRaw = f.type.match(/^ImVector<(.+)>$/)[1].trim().replace(/\*\s*$/, '');
       const elem = csElem(elemRaw);
       if (PTR_WRAP[elem]) {
-        P('        public ImPtrVector<' + PTR_WRAP[elem] + '> ' + f.name + ' => new ImPtrVector<' + PTR_WRAP[elem] + '>(NativePtr->' + f.name + ', Unsafe.SizeOf<' + elem + '>());');
+        P('        public ImPtrVector<' + PTR_WRAP[elem] + '> ' + f.name + ' => new ImPtrVector<' + PTR_WRAP[elem] + '>(&NativePtr->' + f.name + ', Unsafe.SizeOf<' + elem + '>());');
       } else {
-        P('        public ImVector<' + elem + '> ' + f.name + ' => new ImVector<' + elem + '>(NativePtr->' + f.name + ');');
+        P('        public ImVector<' + elem + '> ' + f.name + ' => new ImVector<' + elem + '>(&NativePtr->' + f.name + ');');
       }
     } else if (mapped === 'void*' || rawT === 'void*') {
       P('        public IntPtr ' + f.name + ' { get => (IntPtr)NativePtr->' + f.name + '; set => NativePtr->' + f.name + ' = (void*)value.ToPointer(); }');

@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Pylon.ModLoader.ImGuiHost;
 /// <summary>
-/// 软键盘（TouchScreenKeyboard）的唯一入口。输入框的外观与点击都在 <see cref="TerrariaUI.TextInput"/> 里，
+/// 软键盘（TouchScreenKeyboard）的唯一入口。输入框的外观与点击都在 <see cref="ModernUI.TextInput"/> 里。
 /// </summary>
 internal static class ImGuiInputText
 {

@@ -35,7 +35,7 @@ namespace Pylon.NaviteAPI.ImGui
         public ref float CurrentRasterizerDensity => ref Unsafe.AsRef<float>(&NativePtr->CurrentRasterizerDensity);
         public ref uint FontId => ref Unsafe.AsRef<uint>(&NativePtr->FontId);
         public ref float LegacySize => ref Unsafe.AsRef<float>(&NativePtr->LegacySize);
-        public ImPtrVector<ImFontConfigPtr> Sources => new ImPtrVector<ImFontConfigPtr>(NativePtr->Sources, Unsafe.SizeOf<ImFontConfig>());
+        public ImPtrVector<ImFontConfigPtr> Sources => new ImPtrVector<ImFontConfigPtr>(&NativePtr->Sources, Unsafe.SizeOf<ImFontConfig>());
         public ref ushort EllipsisChar => ref Unsafe.AsRef<ushort>(&NativePtr->EllipsisChar);
         public ref ushort FallbackChar => ref Unsafe.AsRef<ushort>(&NativePtr->FallbackChar);
         public ref bool EllipsisAutoBake => ref Unsafe.AsRef<bool>(&NativePtr->EllipsisAutoBake);

@@ -108,6 +108,12 @@ namespace XiheBoss
 
         public static float NextFloatDirection() => Main.rand.Next(2) == 0 ? -1f : 1f;
 
+        public static float NextFloat(float min, float max) =>
+            min + (float)Main.rand.NextDouble() * (max - min);
+
+        public static float AngleLerp(float a, float b, float n) =>
+            a + MathHelper.WrapAngle(b - a) * MathHelper.Clamp(n, 0f, 1f);
+
         public static Vector2 NextVector2Unit() =>
             Utils.NextVector2Unit(Main.rand, 0f, (float)(Math.PI * 2.0));
 
@@ -142,11 +148,24 @@ namespace XiheBoss
             return new[] { a[0], a[1], a[2] };
         }
 
+        public static float[] ReadLocalAi(NPC npc)
+        {
+            var a = npc.localAI;
+            return new[] { a[0], a[1], a[2] };
+        }
+
         public static void WriteLocalAi(Projectile proj, float a0, float a1, float a2, float a3)
         {
             var a = proj.localAI;
             a[0] = a0; a[1] = a1; a[2] = a2;
             proj.localAI = a;
+        }
+
+        public static void WriteLocalAi(NPC npc, float a0, float a1, float a2)
+        {
+            var a = npc.localAI;
+            a[0] = a0; a[1] = a1; a[2] = a2;
+            npc.localAI = a;
         }
 
         public static Color WithAlpha0(Color c) => new Color(c.R, c.G, c.B, (byte)0);

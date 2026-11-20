@@ -373,7 +373,7 @@ namespace Pylon.NaviteAPI.ImGui
         public ref bool AppFocusLost => ref Unsafe.AsRef<bool>(&NativePtr->AppFocusLost);
         public ref bool AppAcceptingEvents => ref Unsafe.AsRef<bool>(&NativePtr->AppAcceptingEvents);
         public ref ushort InputQueueSurrogate => ref Unsafe.AsRef<ushort>(&NativePtr->InputQueueSurrogate);
-        public ImVector<ushort> InputQueueCharacters => new ImVector<ushort>(NativePtr->InputQueueCharacters);
+        public ImVector<ushort> InputQueueCharacters => new ImVector<ushort>(&NativePtr->InputQueueCharacters);
         public ref float FontGlobalScale => ref Unsafe.AsRef<float>(&NativePtr->FontGlobalScale);
         public IntPtr SetClipboardTextFn { get => (IntPtr)NativePtr->SetClipboardTextFn; set => NativePtr->SetClipboardTextFn = (void*)value.ToPointer(); }
         public IntPtr ClipboardUserData { get => (IntPtr)NativePtr->ClipboardUserData; set => NativePtr->ClipboardUserData = (void*)value.ToPointer(); }

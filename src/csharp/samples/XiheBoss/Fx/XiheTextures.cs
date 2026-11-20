@@ -52,6 +52,9 @@ namespace XiheBoss
         ImgColor,
         MagicPixel,
         Transparent,
+        SlimeBall,
+        Extra196,
+        ColorBlood,
         Count,
     }
 
@@ -126,6 +129,9 @@ namespace XiheBoss
             (Tex.ProjTex, "assets/textures/ProjTex.png"),
             (Tex.Proj919, "assets/textures/Projectile_919.png"),
             (Tex.ImgColor, "assets/textures/ImgColor.png"),
+            (Tex.SlimeBall, "assets/textures/SlimeBall.png"),
+            (Tex.Extra196, "assets/textures/Extra_196.png"),
+            (Tex.ColorBlood, "assets/textures/Color_Blood.png"),
         };
 
         private struct Image

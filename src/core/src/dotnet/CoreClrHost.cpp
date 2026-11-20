@@ -226,6 +226,7 @@ Status PrepareOnce(const HostConfig& config) {
 
     setenv("DOTNET_ReadyToRun", "0", 1);
     setenv("DOTNET_EnableWriteXorExecute", "0", 1);
+    setenv("DOTNET_EnableCrashReport", "1", 1);
     setenv("PYLON_LOG_DIR", config.log_dir.c_str(), 1);
     if (!config.mods_dir.empty()) setenv("PYLON_MODS_DIR", config.mods_dir.c_str(), 1);
 

@@ -34,12 +34,12 @@ namespace Pylon.NaviteAPI.ImGui
         public static implicit operator ImFontBakedPtr(ImFontBaked* nativePtr) => new ImFontBakedPtr(nativePtr);
         public static implicit operator ImFontBaked* (ImFontBakedPtr wrappedPtr) => wrappedPtr.NativePtr;
         public static implicit operator ImFontBakedPtr(IntPtr nativePtr) => new ImFontBakedPtr(nativePtr);
-        public ImVector<float> IndexAdvanceX => new ImVector<float>(NativePtr->IndexAdvanceX);
+        public ImVector<float> IndexAdvanceX => new ImVector<float>(&NativePtr->IndexAdvanceX);
         public ref float FallbackAdvanceX => ref Unsafe.AsRef<float>(&NativePtr->FallbackAdvanceX);
         public ref float Size => ref Unsafe.AsRef<float>(&NativePtr->Size);
         public ref float RasterizerDensity => ref Unsafe.AsRef<float>(&NativePtr->RasterizerDensity);
-        public ImVector<ushort> IndexLookup => new ImVector<ushort>(NativePtr->IndexLookup);
-        public ImPtrVector<ImFontGlyphPtr> Glyphs => new ImPtrVector<ImFontGlyphPtr>(NativePtr->Glyphs, Unsafe.SizeOf<ImFontGlyph>());
+        public ImVector<ushort> IndexLookup => new ImVector<ushort>(&NativePtr->IndexLookup);
+        public ImPtrVector<ImFontGlyphPtr> Glyphs => new ImPtrVector<ImFontGlyphPtr>(&NativePtr->Glyphs, Unsafe.SizeOf<ImFontGlyph>());
         public ref int FallbackGlyphIndex => ref Unsafe.AsRef<int>(&NativePtr->FallbackGlyphIndex);
         public ref float Ascent => ref Unsafe.AsRef<float>(&NativePtr->Ascent);
         public ref float Descent => ref Unsafe.AsRef<float>(&NativePtr->Descent);

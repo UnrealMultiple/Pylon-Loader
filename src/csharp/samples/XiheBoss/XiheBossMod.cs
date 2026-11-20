@@ -53,6 +53,14 @@ namespace XiheBoss
 
         public override void PostSetupContent()
         {
+            XiheBossMod.Log.Info($"[sound] ids: ForceRoar={SoundID.ForceRoar} Roar={SoundID.Roar} NPCHit1={SoundID.NPCHit1} Item160={SoundID.Item160} Item4={SoundID.Item4}");
+            try
+            {
+                Terraria.Audio.SoundEngine.PlaySound(SoundID.Roar, -1, -1, 1, 1f, 0f);
+                Terraria.Audio.SoundEngine.PlaySound(SoundID.ForceRoar, -1, -1, 1, 1f, 0f);
+                XiheBossMod.Log.Info("[sound] 加载末试播 Roar/ForceRoar 各一声");
+            }
+            catch (Exception e) { XiheBossMod.Log.Warn("[sound] 试播失败：" + e.Message); }
             SetupContent();
             SetupHooks();
 
@@ -87,7 +95,9 @@ namespace XiheBoss
             XiheFx.RegisterVisual<Wand.XiheMagicControler>(Wand.XiheWandFx.PushControllerVisual);
             XiheFx.RegisterVisual<Wand.XiheLaserPillar>(static _ => { });
             XiheFx.RegisterVisual<XiheSummonProj>(XiheSummonProj.PushVisual);
-            XiheBossMod.Log.Info($"[fx] 弹幕视觉 {XiheFx.VisualCount} 种（EoLProj type={ModContent.ProjectileType<EoLProj>()}、EoLLance type={ModContent.ProjectileType<EoLLance>()}）");
+            XiheFx.RegisterVisual<KingSlime.SlimeBall>(KingSlime.SlimeBall.PushVisual);
+            XiheFx.RegisterVisual<EoC.EocProj>(EoC.EocProj.PushVisual);
+            XiheBossMod.Log.Info($"[fx] 弹幕视觉 {XiheFx.VisualCount} 种（EoLProj type={ModContent.ProjectileType<EoLProj>()}、EoLLance type={ModContent.ProjectileType<EoLLance>()}、SlimeBall type={ModContent.ProjectileType<KingSlime.SlimeBall>()}、EocProj type={ModContent.ProjectileType<EoC.EocProj>()}）");
         }
 
         public override void AddRecipes()

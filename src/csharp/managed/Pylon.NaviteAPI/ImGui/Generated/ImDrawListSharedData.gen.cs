@@ -44,8 +44,8 @@ namespace Pylon.NaviteAPI.ImGui
         public ref float InitialFringeScale => ref Unsafe.AsRef<float>(&NativePtr->InitialFringeScale);
         public ref ImDrawListFlags InitialFlags => ref Unsafe.AsRef<ImDrawListFlags>(&NativePtr->InitialFlags);
         public ref Vector4 ClipRectFullscreen => ref Unsafe.AsRef<Vector4>(&NativePtr->ClipRectFullscreen);
-        public ImVector<Vector2> TempBuffer => new ImVector<Vector2>(NativePtr->TempBuffer);
-        public ImPtrVector<ImDrawListPtr> DrawLists => new ImPtrVector<ImDrawListPtr>(NativePtr->DrawLists, Unsafe.SizeOf<ImDrawList>());
+        public ImVector<Vector2> TempBuffer => new ImVector<Vector2>(&NativePtr->TempBuffer);
+        public ImPtrVector<ImDrawListPtr> DrawLists => new ImPtrVector<ImDrawListPtr>(&NativePtr->DrawLists, Unsafe.SizeOf<ImDrawList>());
         public IntPtr Context { get => NativePtr->Context; set => NativePtr->Context = value; }
         public ref float ArcFastRadiusCutoff => ref Unsafe.AsRef<float>(&NativePtr->ArcFastRadiusCutoff);
         public RangeAccessor<byte> CircleSegmentCounts => new RangeAccessor<byte>(NativePtr->CircleSegmentCounts, 64);

@@ -14,9 +14,9 @@ namespace FrameMod
 
         public void Draw()
         {
-            TerrariaUI.SeparatorText("输入框");
-            TerrariaUI.TextInput("名字", ref _input);
-            TerrariaUI.DimText("当前内容：" + _input);
+            ModernUI.SectionTitle("输入框");
+            ModernUI.TextInput("名字", ref _input);
+            ModernUI.DimText("当前内容：" + _input);
         }
     }
 }
