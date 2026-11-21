@@ -1,34 +1,27 @@
 package dev.pylon.loader.game
 
 import android.content.Context
-import android.content.pm.ApplicationInfo
-import dev.pylon.loader.common.ElfDeps
-import dev.pylon.loader.common.ImportManifest
 import dev.pylon.loader.common.RuntimeLayout
 import dev.pylon.loader.game.core.PylonCore
+import dev.pylon.loader.game.core.RuntimeDeploy
 import java.io.File
 
 /**
- * 把运行时接通到本进程：注入游戏 dex → 按序 dlopen 四个 .so → 内核进场。
+ * 把运行时接通到本进程：解出游戏 dex 并注入 → 按序 dlopen 内置游戏 .so → 内核进场。
  *
  * 顺序由三条实测结论决定，改任何一条都会退化成 native 崩溃（tombstone 见 docs/07）：
  * ① 必须注入**系统给我们的那个** PathClassLoader：只有它注册过 ART 的 native loader namespace，
  *    自建 DexClassLoader 加载任何 .so 都会 `Check failed: class_loader_allocator != nullptr`；
  * ② 必须带游戏 dex：libmain.so 的 JNI_OnLoad 会对游戏的 com.unity3d.player.NativeLoader
  *    调 RegisterNatives，找不到就 SIGABRT；
- * ③ `loadLibrary` 传**库名**而非文件名，否则去找 `liblibc++_shared.so.so`。
- *
- * 运行时来源（M5 用户导入形态）：游戏 .so 优先从导入目录（filesDir/runtime/lib）绝对路径 System.load，
- * 并把目录追加进 classloader 的 native 搜索路径供 Unity 自己 loadLibrary("il2cpp")；游戏 assets 由
- * GameAssets 挂载所选游戏的 base.apk；宿主 APK 只留内核/CoreCLR，APK 内副本仅作 -PpylonStageRefs=true
- * 的本地回退；导入清单仍逐文件核大小，防止半导入/混了另一个构建。
+ * ③ 运行时来源：游戏 .so 随 APK 内置（jniLibs → nativeLibraryDir）、游戏 assets 随 APK 内置
+ *    （bin/Data）、游戏 dex 内置于 assets/pylon-game/classes.dex（启动时解到 filesDir 再注入）。
  */
 internal class GameRuntimeLoader(private val context: Context) {
 
     data class Outcome(
         val loaded: Boolean,
         val classLoader: ClassLoader? = null,
-        val gameApplicationInfo: ApplicationInfo? = null,
         /** 内核（libpylon.so）是否已就绪启动。false 不影响游戏启动，只表示本次没有 Mod 能力。 */
         val kernelStarted: Boolean = false,
         val reason: String? = null,
@@ -37,89 +30,33 @@ internal class GameRuntimeLoader(private val context: Context) {
     fun load(
         refSpecs: List<String> = emptyList(),
         probe: Boolean = false,
-        gamePackage: String = RuntimeLayout.GAME_PACKAGE,
     ): Outcome {
-        val runtimeDir = File(context.filesDir, RuntimeLayout.IMPORT_DIR_NAME)
-        val manifest = ImportManifest.readFrom(File(runtimeDir, RuntimeLayout.MANIFEST_FILE_NAME))
-            ?: return fail("没有可用的导入清单：$runtimeDir/${RuntimeLayout.MANIFEST_FILE_NAME}")
-
-        if (!RuntimeLayout.isSupportedVersion(manifest.gameVersionName)) {
-            return fail("导入的运行时不在 ${RuntimeLayout.GAME_VERSION_LINE} 线：清单 ${manifest.gameVersionName}")
-        }
-        val unityLib = File(runtimeDir, "${RuntimeLayout.NATIVE_SUBDIR}/libunity.so")
-        if (manifest.pairip || ElfDeps.dependsOn(unityLib, ElfDeps.PAIRIP_LIB)) {
-            return fail(
-                "导入的运行时来自带 PairIP 的 Google Play 构建（libunity.so 依赖 ${ElfDeps.PAIRIP_LIB}），" +
-                    "本加载器无法启动它；请换无校验的构建重新导入"
-            )
-        }
-        if (manifest.gamePackage.isNotEmpty() && manifest.gamePackage != gamePackage) {
-            return fail("导入的运行时来自 ${manifest.gamePackage}，当前选择的是 $gamePackage（请重新导入）")
-        }
-
-        // 清单只证明"导入那一刻成功过"，所以这里按清单核一遍文件是否还在、大小是否一致。
-        verifyImportedTree(manifest, runtimeDir)?.let { return fail(it) }
-
-        val gameInfo = try {
-            context.packageManager.getPackageInfo(gamePackage, 0).applicationInfo
+        // dex 注入必须先于 .so：libmain 的 JNI_OnLoad 要在 classpath 上找游戏类。
+        val layout = try {
+            RuntimeDeploy.ensureDeployed(context)
         } catch (t: Throwable) {
-            return fail("取 $gamePackage 的 ApplicationInfo 失败：${t.message}", t)
-        } ?: return fail("$gamePackage 没有 ApplicationInfo")
-        Log.stage("host", "游戏包可访问：${gameInfo.packageName}(${manifest.gameVersionName})")
-
-        // 把所选游戏 APK 的 assets 挂到同一个 AssetManager 上；debug 预置资源仍在时作为回退。
-        GameAssets.mountGameApk(context, gameInfo)
-
-        val classLoader = GameDexInjector.inject(context, gameInfo)
+            return fail("内置运行时解包失败：${t.javaClass.simpleName}: ${t.message}", t)
+        }
+        if (!layout.gameDex.isFile) {
+            return fail("游戏 dex 未随包提供：${layout.gameDex}（检查 assets/pylon-game/classes.dex）")
+        }
+        val classLoader = GameDexInjector.inject(context, layout.gameDex.absolutePath)
             ?: return fail("无法把游戏 dex 注入系统 classloader")
 
-        // 导入目录里的 .so 优先进本进程；失败再回退到宿主编进 APK 的那份。
-        val importedLibDir = File(runtimeDir, RuntimeLayout.NATIVE_SUBDIR)
-        Log.stage("host", "导入原生库目录=${importedLibDir.absolutePath}")
-        if (importedLibDir.isDirectory) {
-            NativeLibraryPath.add(classLoader, importedLibDir)
-        }
-
+        // 游戏 .so 随 APK 内置：安装时已解到 nativeLibraryDir，按序绝对路径加载。
+        val nativeDir = File(context.applicationInfo.nativeLibraryDir)
+        Log.stage("host", "内置原生库目录=${nativeDir.absolutePath}")
         RuntimeLayout.NATIVE_LIB_LOAD_ORDER.forEachIndexed { index, libName ->
-            val imported = File(importedLibDir, libName)
-            if (manifest.nativeLibs[libName] != null && imported.isFile) {
-                try {
-                    // 绝对路径加载：不经过 classloader 的 nativeLibraryDir 搜索路径。
-                    System.load(imported.absolutePath)
-                    Log.stage(
-                        "host",
-                        "已从导入目录加载 $libName（第 ${index + 1} 个，${imported.length() / 1024} KB）",
-                    )
-                    return@forEachIndexed
-                } catch (t: Throwable) {
-                    Log.w(
-                        "导入目录加载 $libName 失败，回退宿主 APK：${t.javaClass.simpleName}: ${t.message}",
-                    )
-                }
-            }
-
-            // 回退路径：宿主 APK 的 nativeLibraryDir（系统 classloader 的 namespace 内）。
-            val nativeDir = File(context.applicationInfo.nativeLibraryDir)
-            val hostCopy = File(nativeDir, libName)
-            if (!hostCopy.isFile) {
-                return fail(
-                    "本构建的 APK 内没有 $libName，导入目录里也没有可用副本" +
-                        "（release 形态需要用户导入的运行时进加载路径，见 docs/07）"
-                )
-            }
-            // 宿主内的库与导入的那份不同构建时，混用会出现偶发 SIGSEGV，这里留证据。
-            manifest.nativeLibs[libName]?.let { imported ->
-                if (imported.size != hostCopy.length()) {
-                    Log.w(
-                        "注意：$libName 与导入的游戏库可能不是同一构建" +
-                            "（APK ${hostCopy.length()} B ≠ 清单 ${imported.size} B）"
-                    )
-                }
+            val file = File(nativeDir, libName)
+            if (!file.isFile) {
+                return fail("本构建的 APK 内没有 $libName（构建未内置完整运行时，检查 refs/lib/arm64-v8a）")
             }
             try {
-                // 传"库名"而非文件名：loadLibrary0 会自己拼 lib<name>.so。
-                classLoader.loadLibrary(libName.toLibraryName())
-                Log.stage("host", "已加载 $libName（第 ${index + 1} 个，${hostCopy.length() / 1024} KB）")
+                System.load(file.absolutePath)
+                Log.stage(
+                    "host",
+                    "已加载 $libName（第 ${index + 1} 个，${file.length() / 1024} KB）",
+                )
             } catch (t: Throwable) {
                 return fail(
                     "加载 $libName 失败（第 ${index + 1} 个，共 ${RuntimeLayout.NATIVE_LIB_LOAD_ORDER.size} 个）：" +
@@ -137,14 +74,10 @@ internal class GameRuntimeLoader(private val context: Context) {
             Log.w("libpylon.so 未就绪，本次运行没有 Mod 能力")
         } else {
             // 测试 Mod 只在带有该文件的变体中加载：缺文件是预期情况，文件存在但加载失败必须保留警告。
-            val testMod = File(importedLibDir, "libpylontestmod.so")
-            val apkTestMod = File(context.applicationInfo.nativeLibraryDir, "libpylontestmod.so")
-            if (testMod.isFile || apkTestMod.isFile) {
-                runCatching {
-                    if (testMod.isFile) System.load(testMod.absolutePath)
-                    else classLoader.loadLibrary("pylontestmod")
-                }
-                    .onSuccess { Log.stage("host", "测试 Mod libpylontestmod.so 已加载（${if (testMod.isFile) "导入目录" else "APK nativeLibraryDir"}）") }
+            val testMod = File(nativeDir, "libpylontestmod.so")
+            if (testMod.isFile) {
+                runCatching { System.load(testMod.absolutePath) }
+                    .onSuccess { Log.stage("host", "测试 Mod libpylontestmod.so 已加载（APK nativeLibraryDir）") }
                     .onFailure { Log.w("测试 Mod 已提供但加载失败：${it.message}", it) }
             } else {
                 Log.i("测试 Mod 未随包提供（当前变体跳过）")
@@ -152,39 +85,8 @@ internal class GameRuntimeLoader(private val context: Context) {
         }
 
         Log.stage("host", "运行时装载完成，classLoader=${classLoader.javaClass.name}")
-        // 让 Unity 自己的 loadLibrary/路径解析也优先看导入目录（如果它读 ApplicationInfo 的字段）。
-        if (RuntimeLayout.NATIVE_LIB_LOAD_ORDER.all { File(importedLibDir, it).isFile }) {
-            context.applicationInfo.nativeLibraryDir = importedLibDir.absolutePath
-            Log.stage("host", "ApplicationInfo.nativeLibraryDir → ${importedLibDir.absolutePath}")
-        }
-        return Outcome(true, classLoader, gameInfo, kernelStarted)
+        return Outcome(true, classLoader, kernelStarted)
     }
-
-    /** @return null = 校验通过；否则是给用户看的原因。 */
-    private fun verifyImportedTree(manifest: ImportManifest, runtimeDir: File): String? {
-        val libDir = File(runtimeDir, RuntimeLayout.NATIVE_SUBDIR)
-        for (lib in RuntimeLayout.NATIVE_LIB_LOAD_ORDER) {
-            val file = File(libDir, lib)
-            if (!file.isFile) return "导入不完整：缺少 $lib（请重新导入）"
-            val expected = manifest.nativeLibs[lib] ?: continue
-            if (file.length() != expected.size) {
-                return "导入不完整：$lib 大小 ${file.length()} B ≠ 清单 ${expected.size} B（请重新导入）"
-            }
-        }
-        val metadata = File(runtimeDir, "${RuntimeLayout.DATA_SUBDIR}/Managed/Metadata/global-metadata.dat")
-        if (!metadata.isFile) return "导入不完整：缺少 global-metadata.dat（请重新导入）"
-        return null
-    }
-
-    /** 通过反射调用 ClassLoader.loadLibrary：它不是公开 API（实现在 java.lang.Runtime 里）。 */
-    private fun ClassLoader.loadLibrary(libName: String) {
-        val method = Class.forName("java.lang.Runtime")
-            .getDeclaredMethod("loadLibrary0", ClassLoader::class.java, String::class.java)
-        method.isAccessible = true
-        method.invoke(Runtime.getRuntime(), this, libName)
-    }
-
-    private fun String.toLibraryName(): String = removePrefix("lib").removeSuffix(".so")
 
     private fun fail(reason: String, cause: Throwable? = null): Outcome {
         if (cause != null) Log.e(reason, cause) else Log.e(reason)

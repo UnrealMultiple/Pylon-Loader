@@ -17,6 +17,7 @@ internal data class ModInfo(
     val id: String,
     val name: String,
     val version: String,
+    val description: String?,
     val source: String,
     val kind: ModKind,
     val dll: File?,
@@ -176,6 +177,7 @@ internal object ModCatalog {
         var id = fallbackId
         var name = fallbackId
         var version = "0.0.0"
+        var description: String? = null
         var manifestEnabled = true
         var iconPath: String? = null
         var error: String? = null
@@ -188,6 +190,7 @@ internal object ModCatalog {
                 root.optString("id").takeIf { it.isNotBlank() }?.let { id = it }
                 root.optString("name").takeIf { it.isNotBlank() }?.let { name = it }
                 root.optString("version").takeIf { it.isNotBlank() }?.let { version = it }
+                root.optString("description").takeIf { it.isNotBlank() }?.let { description = it }
                 root.optString("icon").takeIf { it.isNotBlank() }?.let { iconPath = it }
                 if (root.has("enabled")) manifestEnabled = root.optBoolean("enabled", true)
             } catch (t: Throwable) {
@@ -200,6 +203,7 @@ internal object ModCatalog {
             id = id,
             name = name,
             version = version,
+            description = description,
             source = source,
             kind = kind,
             dll = dll,
@@ -216,6 +220,7 @@ internal object ModCatalog {
         var id = fallbackId
         var name = fallbackId
         var version = "0.0.0"
+        var description: String? = null
         var manifestEnabled = true
         var iconPath: String? = null
         var icon: Bitmap? = null
@@ -232,6 +237,7 @@ internal object ModCatalog {
                         root.optString("id").takeIf { it.isNotBlank() }?.let { id = it }
                         root.optString("name").takeIf { it.isNotBlank() }?.let { name = it }
                         root.optString("version").takeIf { it.isNotBlank() }?.let { version = it }
+                        root.optString("description").takeIf { it.isNotBlank() }?.let { description = it }
                         root.optString("icon").takeIf { it.isNotBlank() }?.let { iconPath = it }
                         if (root.has("enabled")) manifestEnabled = root.optBoolean("enabled", true)
                     } else {
@@ -253,6 +259,7 @@ internal object ModCatalog {
             id = id,
             name = name,
             version = version,
+            description = description,
             source = packageFile.name,
             kind = ModKind.PACKAGE,
             dll = null,

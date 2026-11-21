@@ -1,14 +1,13 @@
 package dev.pylon.loader.game
 
 import android.content.Context
-import android.content.pm.ApplicationInfo
 import java.io.File
 import java.io.IOException
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 
 /**
- * 把游戏 APK 的 dex 注入**系统创建的那个 classloader**。
+ * 把内置的游戏 dex 注入**系统创建的那个 classloader**。
  * 必须用它而非自建：只有系统 classloader 在 ART 里注册过 native loader namespace，自建
  * DexClassLoader 加载任何 .so 都会 `Check failed: class_loader_allocator != nullptr`（实测 tombstone）。
  * 必须注入：libmain.so 的 JNI_OnLoad 会对游戏类 com.unity3d.player.NativeLoader 调 RegisterNatives，
@@ -19,24 +18,22 @@ import java.lang.reflect.Method
 internal object GameDexInjector {
 
     /**
-     * @param gameInfo 提供游戏 APK 路径（dex 只可能来自它）。
-     * 这里**只注入 dex**：.so 由 GameRuntimeLoader 从导入目录加载并追加 native 搜索路径，
-     * assets 由 GameAssets 挂载所选游戏的 APK；注入 dex 仍是"系统 classloader 才有 ART native namespace"这条硬约束。
+     * @param dexPath 游戏 dex 的真实文件路径（RuntimeDeploy 从 assets/pylon-game/classes.dex 解出）。
+     * 这里**只注入 dex**：.so 由 GameRuntimeLoader 从 APK 的 nativeLibraryDir 按序加载。
      */
-    fun inject(context: Context, gameInfo: ApplicationInfo): ClassLoader? {
+    fun inject(context: Context, dexPath: String): ClassLoader? {
         val loader = context.classLoader
-        val gameApk = gameInfo.sourceDir
-        Log.stage("host", "准备注入游戏 dex：loader=${loader.javaClass.name} apk=$gameApk")
+        Log.stage("host", "准备注入游戏 dex：loader=${loader.javaClass.name} dex=$dexPath")
 
-        if (tryAddDexPath(loader, gameApk)) {
+        if (tryAddDexPath(loader, dexPath)) {
             Log.stage("host", "注入成功（ClassLoader.addDexPath）")
             return verify(loader)
         }
-        if (tryInjectDexElements(context, loader, gameApk)) {
+        if (tryInjectDexElements(context, loader, dexPath)) {
             Log.stage("host", "注入成功（pathList.dexElements）")
             return verify(loader)
         }
-        if (tryPatchDexPath(loader, gameApk)) {
+        if (tryPatchDexPath(loader, dexPath)) {
             Log.stage("host", "注入成功（pathList.dexPath）")
             return verify(loader)
         }
@@ -59,16 +56,16 @@ internal object GameDexInjector {
     }
 
     /** 方式 1：新 ART 上 ClassLoader 直接暴露 addDexPath。 */
-    private fun tryAddDexPath(loader: ClassLoader, apk: String): Boolean = try {
+    private fun tryAddDexPath(loader: ClassLoader, dexPath: String): Boolean = try {
         val method: Method = loader.javaClass.getMethod("addDexPath", String::class.java)
-        method.invoke(loader, apk)
+        method.invoke(loader, dexPath)
         true
     } catch (_: Throwable) {
         false
     }
 
-    /** 方式 2：PathClassLoader.pathList.dexElements 是 Element[]，追加一个游戏 APK 的元素。 */
-    private fun tryInjectDexElements(context: Context, loader: ClassLoader, apk: String): Boolean {
+    /** 方式 2：PathClassLoader.pathList.dexElements 是 Element[]，追加一个 dex 文件的元素。 */
+    private fun tryInjectDexElements(context: Context, loader: ClassLoader, dexPath: String): Boolean {
         return try {
             val pathList = field(loader.javaClass, "pathList")?.get(loader) ?: return false
             val elementsField = field(pathList.javaClass, "dexElements") ?: return false
@@ -81,9 +78,7 @@ internal object GameDexInjector {
             } ?: return false
             makeDexElements.isAccessible = true
 
-            // 形参跨版本不同，按 AOSP 语义顺序凑（files, optimizedDirectory, suppressed, loader）；
-            // 第二个 List 必须**可变**：dex 加载失败时 ART 会往里 add，传 listOf 会抛 UnsupportedOperationException 盖掉真因。
-            val files: List<File> = listOf(File(apk))
+            val files: List<File> = listOf(File(dexPath))
             var listIndex = 0
             val args: Array<Any?> = makeDexElements.parameterTypes.map { type: Class<*> ->
                 when {
@@ -109,15 +104,15 @@ internal object GameDexInjector {
         }
     }
 
-    /** 方式 3：最粗暴——直接把游戏 APK 拼到 dexPath 字符串上（新 ART 可能忽略它）。 */
-    private fun tryPatchDexPath(loader: ClassLoader, apk: String): Boolean {
+    /** 方式 3：把 dex 路径拼到 pathList.dexPath 字符串上（新 ART 可能忽略它）。 */
+    private fun tryPatchDexPath(loader: ClassLoader, dexPath: String): Boolean {
         return try {
             val pathList = field(loader.javaClass, "pathList")?.get(loader) ?: return false
             val dexPathField = field(pathList.javaClass, "dexPath") ?: return false
             dexPathField.isAccessible = true
             val current = dexPathField.get(pathList) as? String ?: return false
-            if (current.contains(apk)) return true
-            dexPathField.set(pathList, "$current:$apk")
+            if (current.contains(dexPath)) return true
+            dexPathField.set(pathList, "$current:$dexPath")
             true
         } catch (t: Throwable) {
             Log.w("pathList.dexPath 注入失败：${t.javaClass.simpleName}: ${t.message}")

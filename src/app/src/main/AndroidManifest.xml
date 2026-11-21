@@ -3,12 +3,8 @@
   层：启动器层（:app）的清单
 
   职责：
-   1. 声明 <queries>，否则 API 30+ 上 PackageManager 看不见游戏包，
-      表现为"未找到 com.and.games505.Terraria"，会把排查方向带偏（RuntimeImport 里对这点有日志）。
-   2. 声明外部 UI 入口 MainActivity。
-   3. 声明宿主层入口 GameActivity，并把它放进 :game 进程。
-   4. 与游戏对齐的属性 + **Unity 会从宿主包读取的 meta-data**。后者曾经漏掉，是 M1
-      卡住的原因之一（见 docs/07）。
+   1. 声明外部 UI 入口 MainActivity（主页 / Mod 双页 + 底部导航）。
+   2. 声明宿主层入口 GameActivity，并把它放进 :game 进程。
 
   属性取值（launchMode / screenOrientation / configChanges / hardwareAccelerated /
   resizeableActivity）取自设备上游戏 AndroidManifest 的 aapt2 解码结果，原文备份在
@@ -28,15 +24,6 @@
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- API 30+ 的包可见性：目标包 + 可启动应用（启动器里的"选择已安装游戏"要用）。 -->
-    <queries>
-        <package android:name="com.and.games505.Terraria" />
-        <intent>
-            <action android:name="android.intent.action.MAIN" />
-            <category android:name="android.intent.category.LAUNCHER" />
-        </intent>
-    </queries>
-
     <!-- 照抄游戏声明的权限（游戏进程 = 我们的进程，权限归宿主）。 -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -48,8 +35,7 @@
     <uses-feature android:glEsVersion="0x00030000" android:required="true" />
 
     <!-- appCategory=game：让系统按"游戏"来调度（游戏模式、性能策略）。
-         largeHeap：Terraria 的资源和 il2cpp 堆远超普通 app 的默认堆上限。
-         图标是自绘的塔形标记（矢量自适应图标），不含游戏美术。 -->
+         largeHeap：Terraria 的资源和 il2cpp 堆远超普通 app 的默认堆上限。 -->
     <application
         android:allowBackup="false"
         android:appCategory="game"
@@ -77,15 +63,9 @@
             </intent-filter>
         </activity>
 
-        <!-- 独立 Mod 管理页：导入/启停/删除；只由启动器打开。 -->
-        <activity
-            android:name="dev.pylon.loader.ModsActivity"
-            android:exported="false"
-            android:screenOrientation="portrait" />
-
         <!--
           宿主层入口。属性对齐游戏（见文件头注释）；android:process=":game" 是本项目的核心约定：
-          docs/02 要求"把游戏运行时加载进我们自己的 :game 进程"。
+          把游戏运行时加载进我们自己的 :game 进程。
           exported=false：只由我们自己的 MainActivity 显式启动，不对外开放。
 
           theme 用平台的无标题全屏主题：宿主窗口必须和游戏一样是"无标题栏 + 全屏"，

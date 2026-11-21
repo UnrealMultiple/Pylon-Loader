@@ -1,38 +1,37 @@
 package dev.pylon.loader.common
 
 /**
- * 运行时目录布局：启动器层与宿主层共用的唯一契约。
- * 两端分属两个进程，路径不一致就是"游戏起不来"且日志无线索，所以共享一份定义。
+ * 运行时契约：启动器层与宿主层共用的常量。
+ * 两端分属两个进程，路径/名字不一致就是"游戏起不来"且日志无线索，所以共享一份定义。
+ * 运行时（游戏 .so、bin/Data、classes.dex）随构建内置在宿主 APK 里，不再有"用户导入"。
  */
 object RuntimeLayout {
 
-    /** 目标游戏包名（docs/01：第一阶段只针对这一份构建）。 */
+    /** 内置运行时对应的游戏（信息展示与日志用）。 */
     const val GAME_PACKAGE: String = "com.and.games505.Terraria"
 
-    /** 只认这条线（开发基线 1.4.5.8.6）：小版本放开，游戏打补丁不用改代码。 */
+    /** 内置运行时的游戏版本线（信息展示用）。 */
     const val GAME_VERSION_LINE: String = "1.4.5"
-
-    fun isSupportedVersion(versionName: String?): Boolean =
-        versionName != null && versionName.trim().split('.').take(3).joinToString(".") == GAME_VERSION_LINE
 
     /** 只保留 arm64-v8a。 */
     const val ABI: String = "arm64-v8a"
 
-    const val APK_LIB_DIR: String = "lib/$ABI"
-    const val APK_ASSETS_PREFIX: String = "assets/bin/Data"
+    /** 游戏数据在 APK assets 里的前缀。 */
+    const val GAME_DATA_ASSET_PREFIX: String = "bin/Data"
 
-    /** 加载顺序固定：libc++_shared 必须最先，否则后续 .so 会 UnsatisfiedLinkError。 */
+    /** 游戏 dex 在 APK assets 里的位置；宿主启动时解到 filesDir 再注入 classloader。 */
+    const val GAME_DEX_ASSET: String = "pylon-game/classes.dex"
+
+    /** 游戏dex 解包落盘目录（filesDir 下）。 */
+    const val GAME_DEX_DIR_NAME: String = "pylon-game"
+
+    /** 内置游戏 .so 的加载顺序：libmain 的 JNI_OnLoad 要先于 Unity/il2cpp 进场。 */
     val NATIVE_LIB_LOAD_ORDER: List<String> = listOf(
-        "libc++_shared.so",
         "libmain.so",
         "libunity.so",
         "libil2cpp.so",
     )
 
-    const val IMPORT_DIR_NAME: String = "runtime"
-    const val MANIFEST_FILE_NAME: String = "import-manifest.properties"
-    const val NATIVE_SUBDIR: String = "lib"
-    const val DATA_SUBDIR: String = "Data"
     /** 宿主自己写的崩溃日志（Java 未捕获异常、启动失败）。 */
     const val CRASH_LOG_NAME: String = "crash-last.txt"
 
@@ -43,7 +42,4 @@ object RuntimeLayout {
     const val GAME_PROCESS_SUFFIX: String = ":game"
 
     const val LOG_TAG: String = "PylonLoader"
-
-    /** 归一化成 `/` 分隔路径：Windows 上 relativeTo 给 `Data\...`，不归一化会让清单键跨平台静默不一致。 */
-    fun normalizeRelativePath(path: String): String = path.replace('\\', '/').trimStart('/')
 }

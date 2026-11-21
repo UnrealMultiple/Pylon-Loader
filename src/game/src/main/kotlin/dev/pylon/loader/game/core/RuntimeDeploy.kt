@@ -2,6 +2,7 @@ package dev.pylon.loader.game.core
 
 import android.content.Context
 import android.content.res.AssetManager
+import dev.pylon.loader.common.RuntimeLayout
 import dev.pylon.loader.game.Log
 import java.io.File
 import java.io.FileNotFoundException
@@ -23,7 +24,7 @@ internal object RuntimeDeploy {
     const val NATIVE_API_DLL = "Pylon.NaviteAPI.dll"
 
     /// 改了 assets 里的东西就让版本号 +1，整树重解。
-    private const val DEPLOY_VERSION = 28
+    private const val DEPLOY_VERSION = 34
 
     private const val DEPTH_LIMIT = 8
 
@@ -32,6 +33,7 @@ internal object RuntimeDeploy {
         val managedDir: File,
         val interopDir: File,
         val entryAssembly: File,
+        val gameDex: File,
     )
 
     fun ensureDeployed(context: Context): Layout {
@@ -41,6 +43,7 @@ internal object RuntimeDeploy {
             managedDir = managedDir,
             interopDir = File(context.filesDir, DIR_INTEROP),
             entryAssembly = File(managedDir, MANAGED_DLL),
+            gameDex = File(File(context.filesDir, RuntimeLayout.GAME_DEX_DIR_NAME), "classes.dex"),
         )
         val markerFile = File(context.filesDir, MARKER)
         val marker = Marker.read(markerFile)
@@ -75,6 +78,8 @@ internal object RuntimeDeploy {
         val redeployManaged = versionChanged || !layout.hasEntry() ||
             (!sameApk && managedFingerprint != marker.managedFingerprint)
         if (redeployManaged) replaceTree(context, ASSET_MANAGED, managedDir)
+
+        deployGameDex(assets, layout.gameDex)
 
         if (redeployCore || redeployManaged) {
             Log.stage(
@@ -129,6 +134,22 @@ internal object RuntimeDeploy {
             File(managedDir, FRAMEWORK_DLL).isFile &&
             File(managedDir, NATIVE_API_DLL).isFile
 
+    /** 内置游戏 dex（assets/pylon-game/classes.dex）解到 filesDir，注入 classloader 前必须有真实文件。 */
+    private fun deployGameDex(assets: AssetManager, dest: File) {
+        if (!dest.isFile) {
+            dest.parentFile?.mkdirs()
+            assets.open(RuntimeLayout.GAME_DEX_ASSET).use { input ->
+                dest.outputStream().use { output -> input.copyTo(output, DEFAULT_BUFFER_SIZE) }
+            }
+            Log.stage("host", "已解出游戏 dex：${dest.absolutePath}（${dest.length() / 1024} KB）")
+        }
+        // API 29+ 的 DexFile 拒绝可写 dex（Writable dex file is not allowed）：注入前强制只读。
+        if (dest.canWrite()) {
+            dest.setWritable(false, false)
+            Log.stage("host", "游戏 dex 已设为只读：${dest.absolutePath}")
+        }
+    }
+
     private fun fingerprint(assets: AssetManager, assetPath: String, depth: Int = 0): String {
         if (depth > DEPTH_LIMIT) return "0:0"
         val children = runCatching { assets.list(assetPath) }.getOrNull() ?: return "0:0"
@@ -160,7 +181,7 @@ internal object RuntimeDeploy {
     private fun requireAssetTree(assets: AssetManager, assetPath: String) {
         val children = runCatching { assets.list(assetPath) }.getOrNull()
         if (children.isNullOrEmpty()) {
-            throw IllegalStateException("本构建未内置运行时（assets/$assetPath 不存在）；release 形态应走用户导入")
+            throw IllegalStateException("本构建未内置运行时（assets/$assetPath 不存在）：检查打包是否带了完整 assets")
         }
     }
 

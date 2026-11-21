@@ -332,23 +332,14 @@ public static partial class ModConfigMenu
 
     internal static GameTexture2D? _builtinIcon;
 
+    /// <summary>框架内建图标（Textures/pylon.png）：Mod 设置入口与缺图 Mod 的占位。</summary>
     internal static GameTexture2D BuiltinIcon()
     {
         if (_builtinIcon != null) return _builtinIcon;
         var assembly = typeof(ModConfigMenu).Assembly;
-        string? name = null;
-        foreach (var candidate in assembly.GetManifestResourceNames())
-        {
-            if (candidate.EndsWith(".loaderIcon.png", StringComparison.Ordinal)) { name = candidate; break; }
-        }
-        if (name == null)
-        {
-            foreach (var candidate in assembly.GetManifestResourceNames())
-            {
-                if (candidate.EndsWith(".pylon.png", StringComparison.Ordinal)) { name = candidate; break; }
-            }
-        }
-        if (name == null) throw new InvalidOperationException("框架内建图标缺失（Textures/loaderIcon.png 没嵌进来）");
+        var name = assembly.GetManifestResourceNames()
+            .FirstOrDefault(c => c.EndsWith(".pylon.png", StringComparison.Ordinal))
+            ?? throw new InvalidOperationException("框架内建图标缺失（Textures/pylon.png 没嵌进来）");
         using var stream = assembly.GetManifestResourceStream(name);
         if (stream == null) throw new InvalidOperationException("框架内建图标读不出来");
         var data = new byte[stream.Length];

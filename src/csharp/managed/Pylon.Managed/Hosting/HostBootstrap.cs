@@ -3,6 +3,7 @@ using Pylon.Managed.Interop;
 using Pylon.Managed.Mods;
 using Pylon.ModLoader;
 using Pylon.ModLoader.Core;
+using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Textures;
 
 namespace Pylon.Managed.Hosting;
@@ -30,6 +31,19 @@ internal static class HostBootstrap
         // 框架 UI / ImGui 是加载器能力：没有 Mod 时也要起。
         var roots = ParseRoots(Environment.GetEnvironmentVariable(ModsDirectoryVariable));
         var hostDirectory = roots.Length > 0 ? roots[0] : AppContext.BaseDirectory;
+
+        // 会话文件日志：启动器崩溃后读它展示 Mod 侧错误；越早开越好，后面的日志才落得全。
+        SessionLog.Initialize(hostDirectory);
+        ModLogger.Captured += (level, id, message) => SessionLog.Write(
+            level switch
+            {
+                "error" => 'E',
+                "warn" => 'W',
+                _ => 'I',
+            },
+            id,
+            message);
+
         Framework.Initialize(new ModContext("Pylon", "host", hostDirectory));
 
         if (roots.Length == 0)

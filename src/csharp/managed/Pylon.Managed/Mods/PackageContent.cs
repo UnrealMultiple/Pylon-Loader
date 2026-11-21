@@ -5,40 +5,41 @@ using Pylon.ModLoader.Textures;
 namespace Pylon.Managed.Mods;
 
 /// <summary>
-/// .pmod 包内容的惰性解包缓存。
+/// .pmod 包内容的全量解包缓存。
 ///
-/// 程序集永远走内存（见 ModLoadContext），这里只处理两件无法纯内存的事：
-///   · native .so —— dlopen 需要真实文件；
-///   · assets/icon 等内容文件 —— Mod API 按磁盘路径读贴图。
-/// 缓存键含包大小与 mtime：包一变缓存即失效重建；缓存目录可随时整删，下次按需重建。
-/// 大多数 Mod 没有 native 库、资源也少，实际落盘远小于包体。
+/// 程序集永远走内存（见 ModLoadContext）；native .so、assets 等内容文件解到缓存目录，
+/// Mod 按磁盘路径/目录枚举访问。缓存键含包大小与 mtime：包一变缓存即失效重建；
+/// 缓存目录可随时整删，下次整包重建。
 /// </summary>
 internal static class PackageContent
 {
     /// <summary>缓存目录 → 包路径。PylonTexture 等按磁盘路径读文件的 API 用它做惰性解包（托管层内部用）。</summary>
     internal static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string> CacheRoots = new(StringComparer.Ordinal);
     private const string ManifestName = "manifest.json";
+    private const string CompleteMarker = ".complete";
 
-    /// <summary>保证 manifest.json 与 icon 类小文件已在缓存里，返回缓存根目录（即 Mod 的 Directory）。</summary>
+    /// <summary>
+    /// 把包内容全量解到缓存，返回缓存根目录（即 Mod 的 Directory）。
+    /// 全量而非按需：Mod 会按目录枚举 assets、直读任意路径，懒解只覆盖 PylonTexture 一条路，
+    /// 其余访问会拿到空目录/缺文件（实测"资源解不出来/不完整"的根因）。
+    /// </summary>
     public static string EnsureExtracted(string packagePath)
     {
         var cacheDir = CacheDirectory(packagePath);
-        var manifest = Path.Combine(cacheDir, ManifestName);
-        if (!File.Exists(manifest))
+        if (File.Exists(Path.Combine(cacheDir, CompleteMarker)))
+            return cacheDir;
+
+        Directory.CreateDirectory(cacheDir);
+        using var archive = PylonArchive.Open(packagePath);
+        foreach (var entryPath in archive.EntryNames)
         {
-            Directory.CreateDirectory(cacheDir);
-            using var archive = PylonArchive.Open(packagePath);
-            if (archive.Contains(ManifestName))
-                File.WriteAllBytes(manifest, archive.Read(ManifestName));
-            // 图标在多处按固定路径直读（Mod 管理页、配置页、按钮），随 manifest 一起解出。
-            foreach (var icon in new[] { "icon.png", "assets/icon.png" })
-            {
-                if (!archive.Contains(icon)) continue;
-                var target = Path.Combine(cacheDir, icon.Replace('/', Path.DirectorySeparatorChar));
-                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-                File.WriteAllBytes(target, archive.Read(icon));
-            }
+            var target = Path.Combine(cacheDir, entryPath.Replace('/', Path.DirectorySeparatorChar));
+            var parent = Path.GetDirectoryName(target);
+            if (!string.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
+            File.WriteAllBytes(target, archive.Read(entryPath));
         }
+        // 标记最后写：解包中途被杀时下次进来整包重解，不会留下半成品。
+        File.WriteAllText(Path.Combine(cacheDir, CompleteMarker), packagePath);
         return cacheDir;
     }
 

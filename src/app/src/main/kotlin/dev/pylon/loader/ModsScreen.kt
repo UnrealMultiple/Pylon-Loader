@@ -4,15 +4,14 @@ import android.app.Activity
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
 import android.net.Uri
 import android.os.Build
-import android.os.Bundle
 import android.view.Gravity
 import android.view.View
 import android.view.WindowInsets
-import android.view.WindowInsetsController
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -35,87 +34,52 @@ import dev.pylon.loader.ui.withAlpha
 import java.io.File
 
 /**
- * 独立的 Mod 管理页：扫描 Mods/、启停、导入 .dll/.zip/文件夹、删除。
- * 与主页面分开后，主页面只留摘要入口，这一页承担文件操作。
+ * Mod 管理页：扫描 Mods/、启停、导入 .dll/.zip/文件夹、打包/解包 .pmod、删除。
+ * 由 MainActivity 内嵌为底部导航的第二个页面，不再独立持有一个 Activity。
  * 导入走 SAF 无需存储权限；写入先落临时目录，校验主程序集后再换入。
  */
-class ModsActivity : Activity() {
+internal class ModsScreen(private val host: Activity) {
 
-    private lateinit var root: FrameLayout
-    private lateinit var scroll: ScrollView
-    private lateinit var topScrim: View
-    private lateinit var importButton: ActionButton
-    private lateinit var folderButton: ActionButton
-    private lateinit var packButton: ActionButton
+    val root: FrameLayout = FrameLayout(host)
+
+    private val context: Activity get() = host
+    private val scroll = ScrollView(host)
+    private val topScrim: View
+    private val importButton: ActionButton
+    private val folderButton: ActionButton
+    private val packButton: ActionButton
     private lateinit var countBadge: TextView
-    private lateinit var modsList: LinearLayout
-    private lateinit var snackbar: SnackbarView
-    private lateinit var overlay: FrameLayout
+    private val modsList: LinearLayout
+    private val snackbar: SnackbarView
+    private val overlay: FrameLayout
     private lateinit var overlayLabel: TextView
-    private lateinit var overlayProgress: ProgressBar
 
-    private val modsDir: File by lazy { ModStorage.ensure(this) }
+    private val modsDir: File by lazy { ModStorage.ensure(host) }
     private var busy = false
+    private var extraBottomInset = 0
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        configureWindow()
-        build()
-        setContentView(root)
-        applySystemBarAppearance()
-        refresh()
-    }
+    // 页面里统一走裸名调用，避免每处都写 context. 前缀。
+    private fun dp(value: Int): Int = context.dp(value)
+    private fun dpf(value: Float): Float = context.dpf(value)
+    private fun bodyText(
+        text: CharSequence,
+        sizeSp: Float,
+        color: Int,
+        typeface: Typeface = Fonts.regular,
+    ): TextView = context.bodyText(text, sizeSp, color, typeface)
 
-    override fun onResume() {
-        super.onResume()
-        if (!busy) refresh()
-    }
+    init {
+        root.setBackgroundColor(Palette.BackgroundBottom)
+        root.addView(AmbientBackdrop(host), FrameLayout.LayoutParams(MATCH, MATCH))
 
-    // ------------------------------------------------------------------
-    // 窗口 / 视图
-    // ------------------------------------------------------------------
-
-    @Suppress("DEPRECATION")
-    private fun configureWindow() {
-        window.statusBarColor = Color.TRANSPARENT
-        window.navigationBarColor = Color.TRANSPARENT
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            window.isNavigationBarContrastEnforced = false
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.setDecorFitsSystemWindows(false)
-        } else {
-            window.decorView.systemUiVisibility =
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-                    View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                    View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-        }
-    }
-
-    private fun applySystemBarAppearance() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.insetsController?.setSystemBarsAppearance(
-                0,
-                WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or
-                    WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
-            )
-        }
-    }
-
-    private fun build() {
-        root = FrameLayout(this).apply { setBackgroundColor(Palette.BackgroundBottom) }
-        root.addView(AmbientBackdrop(this), FrameLayout.LayoutParams(MATCH, MATCH))
-
-        scroll = ScrollView(this).apply {
-            isVerticalScrollBarEnabled = false
-            clipToPadding = false
-            isFillViewport = true
-        }
-        val content = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        scroll.isVerticalScrollBarEnabled = false
+        scroll.clipToPadding = false
+        scroll.isFillViewport = true
+        val content = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL }
         scroll.addView(content, FrameLayout.LayoutParams(MATCH, WRAP))
         root.addView(scroll, FrameLayout.LayoutParams(MATCH, MATCH))
 
-        topScrim = View(this).apply {
+        topScrim = View(host).apply {
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
                 intArrayOf(Palette.BackgroundTop, Palette.BackgroundTop, Color.TRANSPARENT),
@@ -133,21 +97,32 @@ class ModsActivity : Activity() {
             topMargin(14, MATCH, WRAP),
         )
 
-        importButton = ActionButton(this, ActionButton.Kind.PRIMARY).apply {
+        val card = PylonCard(host)
+        val column = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL }
+        card.addView(column, FrameLayout.LayoutParams(MATCH, WRAP))
+        column.addView(
+            bodyText("已安装的 Mod", 12f, Palette.TextPrimary, Fonts.medium),
+            LinearLayout.LayoutParams(MATCH, WRAP),
+        )
+        modsList = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL }
+        column.addView(modsList, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(10) })
+        content.addView(card, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(20) })
+
+        importButton = ActionButton(host, ActionButton.Kind.PRIMARY).apply {
             text = "导入 Mod 文件"
             setIcon(R.drawable.ic_download)
             setOnClickListener { pickFile() }
         }
         content.addView(importButton, LinearLayout.LayoutParams(MATCH, dp(58)).apply { topMargin = dp(22) })
 
-        folderButton = ActionButton(this, ActionButton.Kind.GHOST).apply {
+        folderButton = ActionButton(host, ActionButton.Kind.GHOST).apply {
             text = "导入 Mod 文件夹"
             setIcon(R.drawable.ic_folder)
             setOnClickListener { pickFolder() }
         }
         content.addView(folderButton, LinearLayout.LayoutParams(MATCH, dp(50)).apply { topMargin = dp(10) })
 
-        packButton = ActionButton(this, ActionButton.Kind.GHOST).apply {
+        packButton = ActionButton(host, ActionButton.Kind.GHOST).apply {
             text = "打包为 .pmod"
             setIcon(R.drawable.ic_archive)
             setOnClickListener { pickPackSource() }
@@ -164,21 +139,9 @@ class ModsActivity : Activity() {
             topMargin(10, MATCH, WRAP),
         )
 
-        val card = PylonCard(this)
-        val column = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        card.addView(column, FrameLayout.LayoutParams(MATCH, WRAP))
-        column.addView(
-            bodyText("已安装的 Mod", 12f, Palette.TextPrimary, Fonts.medium),
-            LinearLayout.LayoutParams(MATCH, WRAP),
-        )
-        modsList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        column.addView(modsList, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(10) })
-        content.addView(card, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(20) })
+        content.addView(Space(host), LinearLayout.LayoutParams(1, 0, 1f))
 
-        content.addView(Space(this), LinearLayout.LayoutParams(1, 0, 1f))
-        content.addView(buildFooter(), LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(22) })
-
-        snackbar = SnackbarView(this)
+        snackbar = SnackbarView(host)
         root.addView(
             snackbar,
             FrameLayout.LayoutParams(MATCH, WRAP, Gravity.BOTTOM).apply {
@@ -187,126 +150,18 @@ class ModsActivity : Activity() {
             },
         )
 
-        buildOverlay()
+        overlay = buildOverlay()
         root.addView(overlay, FrameLayout.LayoutParams(MATCH, MATCH))
         installInsets()
     }
 
-    private fun buildHeader(): View {
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-
-        val back = ImageView(this).apply {
-            setImageResource(R.drawable.ic_arrow_back)
-            setColorFilter(Palette.TextPrimary)
-            contentDescription = "返回"
-            isClickable = true
-            isFocusable = true
-            background = rippleCircle(Palette.SurfaceInput, Palette.Stroke)
-            setOnClickListener { finish() }
-        }
-        row.addView(back, LinearLayout.LayoutParams(dp(42), dp(42)))
-
-        val title = bodyText("Mod 管理", 20f, Palette.TextPrimary, Fonts.medium).apply {
-            setPadding(dp(14), 0, 0, 0)
-        }
-        row.addView(title, LinearLayout.LayoutParams(0, WRAP, 1f))
-
-        countBadge = pill("", Palette.TextTertiary, Palette.SurfaceInput, Palette.StrokeSoft)
-        row.addView(countBadge)
-        return row
-    }
-
-    private fun buildFooter(): View {
-        val column = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        column.addView(
-            View(this).apply { setBackgroundColor(Palette.StrokeSoft) },
-            LinearLayout.LayoutParams(MATCH, dp(1)),
-        )
-        column.addView(
-            bodyText(ModStorage.directory(this).absolutePath, 9.5f, Palette.TextSecondary, Fonts.mono).apply {
-                setTextIsSelectable(true)
-                setLineSpacing(dpf(2f), 1.2f)
-            },
-            topMargin(12, MATCH, WRAP),
-        )
-        val actions = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        actions.addView(
-            bodyText("Mod 目录", 10f, Palette.TextTertiary).apply { letterSpacing = 0.08f },
-            LinearLayout.LayoutParams(0, WRAP, 1f),
-        )
-        actions.addView(link("复制路径", Palette.Accent) { copyPath() })
-        column.addView(actions, LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(4) })
-        return column
-    }
-
-    private fun buildOverlay() {
-        overlay = FrameLayout(this).apply {
-            visibility = View.GONE
-            isClickable = true
-            isFocusable = true
-            setBackgroundColor(Color.argb(232, 5, 7, 12))
-        }
-        val card = PylonCard(this).apply {
-            layoutParams = FrameLayout.LayoutParams(MATCH, WRAP, Gravity.CENTER).apply {
-                leftMargin = dp(6)
-                rightMargin = dp(6)
-            }
-            elevation = dpf(16f)
-        }
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-        }
-        overlayProgress = ProgressBar(this, null, android.R.attr.progressBarStyleSmall).apply {
-            indeterminateTintList = ColorStateList.valueOf(Palette.Accent)
-        }
-        row.addView(overlayProgress, LinearLayout.LayoutParams(dp(22), dp(22)))
-        overlayLabel = bodyText("正在处理…", 14f, Palette.TextPrimary, Fonts.medium).apply {
-            setPadding(dp(10), 0, 0, 0)
-        }
-        row.addView(overlayLabel, LinearLayout.LayoutParams(0, WRAP, 1f))
-        card.addView(row, FrameLayout.LayoutParams(MATCH, WRAP))
-        overlay.addView(card)
-    }
-
-    private fun installInsets() {
-        root.setOnApplyWindowInsetsListener { _, insets ->
-            val top: Int
-            val bottom: Int
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-                top = bars.top
-                bottom = bars.bottom
-            } else {
-                @Suppress("DEPRECATION")
-                top = insets.systemWindowInsetTop
-                @Suppress("DEPRECATION")
-                bottom = insets.systemWindowInsetBottom
-            }
-            scroll.setPadding(dp(20), top + dp(16), dp(20), bottom + dp(24))
-            overlay.setPadding(dp(24), top + dp(24), dp(24), bottom + dp(24))
-            (topScrim.layoutParams as? FrameLayout.LayoutParams)?.height = top + dp(14)
-            topScrim.requestLayout()
-            (snackbar.layoutParams as? FrameLayout.LayoutParams)?.let {
-                it.bottomMargin = bottom + dp(14)
-                snackbar.layoutParams = it
-            }
-            insets
-        }
+    /** 底部导航栏占位高度，随 insets 到达后由 MainActivity 更新，防止内容被导航栏盖住。 */
+    fun setExtraBottomInset(px: Int) {
+        extraBottomInset = px
         root.requestApplyInsets()
     }
 
-    // ------------------------------------------------------------------
-    // 列表
-    // ------------------------------------------------------------------
-
-    private fun refresh() {
+    fun refresh() {
         val mods = ModCatalog.scan(modsDir)
         val enabled = mods.count { it.enabled }
         stylePill(
@@ -327,7 +182,7 @@ class ModsActivity : Activity() {
         mods.forEachIndexed { index, mod ->
             if (index > 0) {
                 modsList.addView(
-                    View(this).apply { setBackgroundColor(Palette.StrokeSoft) },
+                    View(host).apply { setBackgroundColor(Palette.StrokeSoft) },
                     LinearLayout.LayoutParams(MATCH, dp(1)).apply {
                         topMargin = dp(2)
                         bottomMargin = dp(2)
@@ -338,15 +193,91 @@ class ModsActivity : Activity() {
         }
     }
 
+    private fun buildHeader(): View {
+        val row = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        row.addView(
+            bodyText("Mod 管理", 20f, Palette.TextPrimary, Fonts.medium),
+            LinearLayout.LayoutParams(0, WRAP, 1f),
+        )
+        countBadge = pill("", Palette.TextTertiary, Palette.SurfaceInput, Palette.StrokeSoft)
+        row.addView(countBadge)
+        return row
+    }
+
+    private fun buildOverlay(): FrameLayout {
+        val frame = FrameLayout(host).apply {
+            visibility = View.GONE
+            isClickable = true
+            isFocusable = true
+            setBackgroundColor(Color.argb(232, 5, 7, 12))
+        }
+        val card = PylonCard(host).apply {
+            layoutParams = FrameLayout.LayoutParams(MATCH, WRAP, Gravity.CENTER).apply {
+                leftMargin = dp(6)
+                rightMargin = dp(6)
+            }
+            elevation = dpf(16f)
+        }
+        val row = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        val progress = ProgressBar(host, null, android.R.attr.progressBarStyleSmall).apply {
+            indeterminateTintList = ColorStateList.valueOf(Palette.Accent)
+        }
+        row.addView(progress, LinearLayout.LayoutParams(dp(22), dp(22)))
+        overlayLabel = bodyText("正在处理…", 14f, Palette.TextPrimary, Fonts.medium).apply {
+            setPadding(dp(10), 0, 0, 0)
+        }
+        row.addView(overlayLabel, LinearLayout.LayoutParams(0, WRAP, 1f))
+        card.addView(row, FrameLayout.LayoutParams(MATCH, WRAP))
+        frame.addView(card)
+        return frame
+    }
+
+    private fun installInsets() {
+        root.setOnApplyWindowInsetsListener { _, insets ->
+            val top: Int
+            val bottom: Int
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
+                top = bars.top
+                bottom = bars.bottom
+            } else {
+                @Suppress("DEPRECATION")
+                top = insets.systemWindowInsetTop
+                @Suppress("DEPRECATION")
+                bottom = insets.systemWindowInsetBottom
+            }
+            scroll.setPadding(dp(20), top + dp(16), dp(20), bottom + dp(24) + extraBottomInset)
+            overlay.setPadding(dp(24), top + dp(24), dp(24), bottom + dp(24))
+            (topScrim.layoutParams as? FrameLayout.LayoutParams)?.height = top + dp(14)
+            topScrim.requestLayout()
+            (snackbar.layoutParams as? FrameLayout.LayoutParams)?.let {
+                it.bottomMargin = bottom + dp(14) + extraBottomInset
+                snackbar.layoutParams = it
+            }
+            insets
+        }
+        root.requestApplyInsets()
+    }
+
     private fun modRow(mod: ModInfo): LinearLayout {
-        val row = LinearLayout(this).apply {
+        val row = LinearLayout(host).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(0, dp(9), 0, dp(9))
             layoutParams = LinearLayout.LayoutParams(MATCH, WRAP)
+            isClickable = true
+            isFocusable = true
+            contentDescription = "查看 ${mod.name.ifBlank { mod.id }} 详情"
+            setOnClickListener { showModDialog(mod) }
         }
 
-        val iconTile = FrameLayout(this).apply {
+        val iconTile = FrameLayout(host).apply {
             background = GradientDrawable().apply {
                 cornerRadius = dpf(11f)
                 setColor(Palette.SurfaceInput)
@@ -354,7 +285,7 @@ class ModsActivity : Activity() {
             }
             clipToOutline = true
         }
-        val icon = ImageView(this).apply {
+        val icon = ImageView(host).apply {
             if (mod.icon != null) {
                 setImageBitmap(mod.icon)
                 scaleType = ImageView.ScaleType.CENTER_CROP
@@ -368,7 +299,7 @@ class ModsActivity : Activity() {
         iconTile.addView(icon, FrameLayout.LayoutParams(MATCH, MATCH))
         row.addView(iconTile, LinearLayout.LayoutParams(dp(38), dp(38)))
 
-        val info = LinearLayout(this).apply {
+        val info = LinearLayout(host).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(12), 0, dp(8), 0)
             alpha = if (mod.enabled) 1f else 0.55f
@@ -395,7 +326,7 @@ class ModsActivity : Activity() {
         )
         row.addView(info, LinearLayout.LayoutParams(0, WRAP, 1f))
 
-        val toggle = ToggleSwitch(this).apply {
+        val toggle = ToggleSwitch(host).apply {
             setChecked(mod.enabled, animate = false)
             contentDescription = "${if (mod.enabled) "停用" else "启用"} ${mod.name.ifBlank { mod.id }}"
             onCheckedChange = { checked -> setEnabled(mod, checked) }
@@ -403,7 +334,7 @@ class ModsActivity : Activity() {
         row.addView(toggle, LinearLayout.LayoutParams(dp(46), dp(28)))
 
         if (mod.kind == ModKind.PACKAGE && mod.error == null) {
-            val unpack = ImageView(this).apply {
+            val unpack = ImageView(host).apply {
                 setImageResource(R.drawable.ic_archive)
                 setColorFilter(Palette.TextSecondary)
                 contentDescription = "解包 ${mod.name.ifBlank { mod.id }} 为文件夹"
@@ -415,7 +346,7 @@ class ModsActivity : Activity() {
             row.addView(unpack, LinearLayout.LayoutParams(dp(40), dp(40)).apply { marginStart = dp(4) })
         }
 
-        val delete = ImageView(this).apply {
+        val delete = ImageView(host).apply {
             setImageResource(R.drawable.ic_trash)
             setColorFilter(Palette.Danger)
             contentDescription = "删除 ${mod.name.ifBlank { mod.id }}"
@@ -428,6 +359,161 @@ class ModsActivity : Activity() {
         return row
     }
 
+    /** Mod 详情对话框：图标 + 基本信息 + 本 Mod 最近的报错/输出（会话日志按来源过滤）。 */
+    private fun showModDialog(mod: ModInfo) {
+        val column = LinearLayout(host).apply { orientation = LinearLayout.VERTICAL }
+
+        // 头部：图标 + 名称/版本
+        val header = LinearLayout(host).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 0, 0, dp(10))
+        }
+        val iconTile = FrameLayout(host).apply {
+            background = GradientDrawable().apply {
+                cornerRadius = dpf(11f)
+                setColor(Palette.SurfaceInput)
+                setStroke(dp(1), Palette.StrokeSoft)
+            }
+            clipToOutline = true
+        }
+        val icon = ImageView(host).apply {
+            if (mod.icon != null) {
+                setImageBitmap(mod.icon)
+                scaleType = ImageView.ScaleType.CENTER_CROP
+            } else {
+                setImageResource(R.drawable.ic_folder)
+                setColorFilter(Palette.TextSecondary)
+                scaleType = ImageView.ScaleType.CENTER_INSIDE
+                setPadding(dp(9), dp(9), dp(9), dp(9))
+            }
+        }
+        iconTile.addView(icon, FrameLayout.LayoutParams(MATCH, MATCH))
+        header.addView(iconTile, LinearLayout.LayoutParams(dp(46), dp(46)))
+
+        val nameColumn = LinearLayout(host).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(12), 0, 0, 0)
+        }
+        nameColumn.addView(
+            bodyText(mod.name.ifBlank { mod.id }, 14f, Palette.TextPrimary, Fonts.medium).apply {
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            },
+            LinearLayout.LayoutParams(MATCH, WRAP),
+        )
+        nameColumn.addView(
+            bodyText("v${mod.version} · ${if (mod.enabled) "已启用" else "已停用"}", 10f, Palette.TextTertiary, Fonts.mono),
+            LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(3) },
+        )
+        header.addView(nameColumn, LinearLayout.LayoutParams(0, WRAP, 1f))
+        column.addView(header, LinearLayout.LayoutParams(MATCH, WRAP))
+
+        if (!mod.description.isNullOrBlank()) {
+            column.addView(
+                bodyText("介绍", 10f, Palette.TextTertiary),
+                LinearLayout.LayoutParams(MATCH, WRAP).apply { bottomMargin = dp(2) },
+            )
+            column.addView(
+                bodyText(mod.description, 10.5f, Palette.TextSecondary).apply {
+                    setLineSpacing(dpf(2f), 1.2f)
+                },
+                LinearLayout.LayoutParams(MATCH, WRAP).apply { bottomMargin = dp(6) },
+            )
+        }
+
+        fun infoRow(label: String, value: CharSequence, mono: Boolean = false) {
+            val row = LinearLayout(host).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(0, dp(4), 0, dp(4))
+            }
+            row.addView(
+                bodyText(label, 10f, Palette.TextTertiary),
+                LinearLayout.LayoutParams(dp(64), WRAP),
+            )
+            row.addView(
+                bodyText(value, 10f, Palette.TextPrimary, if (mono) Fonts.mono else Fonts.regular).apply {
+                    setTextIsSelectable(true)
+                },
+                LinearLayout.LayoutParams(0, WRAP, 1f),
+            )
+            column.addView(row, LinearLayout.LayoutParams(MATCH, WRAP))
+        }
+
+        val name = mod.name.ifBlank { mod.id }
+        infoRow("名称", name)
+        infoRow("ID", mod.id, mono = true)
+        infoRow("版本", "v${mod.version}")
+        infoRow("类型", when (mod.kind) {
+            ModKind.FOLDER -> "文件夹"
+            ModKind.LOOSE_DLL -> "松散 dll"
+            ModKind.PACKAGE -> "单文件包（.pmod）"
+        })
+        infoRow("路径", mod.dll?.absolutePath ?: mod.packageFile?.absolutePath ?: "-", mono = true)
+        val size = when (mod.kind) {
+            ModKind.LOOSE_DLL -> mod.dll?.length()
+            ModKind.PACKAGE -> mod.packageFile?.length()
+            ModKind.FOLDER -> mod.dll?.parentFile?.let { dir -> dir.walkBottomUp().filter { it.isFile }.sumOf { it.length() } }
+        }
+        infoRow("大小", dev.pylon.loader.ui.formatBytes(size ?: 0L))
+        infoRow("状态", if (mod.enabled) "已启用" else "已停用")
+        mod.error?.let { infoRow("问题", it) }
+
+        val own = runCatching { RunLogs.modRecentLines(host, mod.id) }.getOrNull()
+        column.addView(
+            View(host).apply { setBackgroundColor(Palette.StrokeSoft) },
+            LinearLayout.LayoutParams(MATCH, dp(1)).apply { topMargin = dp(10); bottomMargin = dp(6) },
+        )
+        column.addView(
+            bodyText(
+                if (own == null) "最近日志（本 Mod）\n本次会话没有这个 Mod 的输出。"
+                else "最近日志（本 Mod，末尾 ${own.size} 行）",
+                10f, Palette.TextTertiary,
+            ),
+            LinearLayout.LayoutParams(MATCH, WRAP),
+        )
+        val logText = own?.joinToString("\n") ?: "(空)"
+        column.addView(
+            bodyText(logText, 9f, if (own != null && own.any { it.length > 13 && it[13] == 'E' }) Palette.Danger else Palette.TextSecondary, Fonts.mono).apply {
+                setPadding(dp(8), dp(6), dp(8), dp(6))
+                background = GradientDrawable().apply {
+                    cornerRadius = dpf(10f)
+                    setColor(Palette.SurfaceInput)
+                    setStroke(dp(1), Palette.StrokeSoft)
+                }
+            },
+            LinearLayout.LayoutParams(MATCH, WRAP).apply { topMargin = dp(6) },
+        )
+
+        val scroller = ScrollView(host).apply {
+            addView(column)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+            background = GradientDrawable().apply {
+                cornerRadius = dpf(12f)
+                setColor(Palette.SurfaceInput)
+                setStroke(dp(1), Palette.StrokeSoft)
+            }
+            // 高度按内容估：信息区固定 + 日志行数，封顶 56% 屏高；内容少时对话框收紧，不再撑满。
+            val logLines = own?.size ?: 0
+            val estimated = dp(400) + logLines * dp(24)
+            val maxH = (host.resources.displayMetrics.heightPixels * 0.56f).toInt()
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                minOf(estimated, maxH).coerceAtLeast(dp(280)),
+            )
+        }
+
+        PylonDialog(
+            host = host,
+            title = name,
+            content = scroller,
+            positiveLabel = "关闭",
+            negativeLabel = null,
+            positiveColor = Palette.TextSecondary,
+        ).show()
+    }
+
     private fun setEnabled(mod: ModInfo, enabled: Boolean) {
         if (busy) return
         runCatching { ModCatalog.setEnabled(modsDir, mod.id, enabled) }
@@ -438,10 +524,6 @@ class ModsActivity : Activity() {
             .onFailure { showError("保存选择失败：${it.javaClass.simpleName}") }
     }
 
-    // ------------------------------------------------------------------
-    // 导入 / 删除
-    // ------------------------------------------------------------------
-
     private fun pickFile() {
         if (busy) return
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
@@ -450,7 +532,7 @@ class ModsActivity : Activity() {
             putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        startActivityForResult(intent, REQUEST_FILE)
+        host.startActivityForResult(intent, REQUEST_FILE)
     }
 
     private fun pickFolder() {
@@ -458,7 +540,7 @@ class ModsActivity : Activity() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        startActivityForResult(intent, REQUEST_TREE)
+        host.startActivityForResult(intent, REQUEST_TREE)
     }
 
     private fun pickPackSource() {
@@ -466,12 +548,11 @@ class ModsActivity : Activity() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT_TREE).apply {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        startActivityForResult(intent, REQUEST_PACK_SOURCE)
+        host.startActivityForResult(intent, REQUEST_PACK_SOURCE)
     }
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (resultCode != RESULT_OK || data == null) return
+    fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (resultCode != Activity.RESULT_OK || data == null) return
         when (requestCode) {
             REQUEST_FILE -> {
                 val uris = mutableListOf<Uri>()
@@ -489,11 +570,10 @@ class ModsActivity : Activity() {
     private fun importDocuments(uris: List<Uri>) {
         if (busy) return
         showBusy("正在导入…")
-        val appContext = applicationContext
+        val appContext = host.applicationContext
         Thread({
             val results = uris.map { uri -> ModImporter.importDocument(appContext, modsDir, uri) }
-            runOnUiThread {
-                if (isFinishing || isDestroyed) return@runOnUiThread
+            onUiThread {
                 hideBusy()
                 refresh()
                 val failures = results.filterNot { it.success }
@@ -512,11 +592,10 @@ class ModsActivity : Activity() {
     private fun importTree(treeUri: Uri) {
         if (busy) return
         showBusy("正在导入文件夹…")
-        val appContext = applicationContext
+        val appContext = host.applicationContext
         Thread({
             val result = ModImporter.importTree(appContext, modsDir, treeUri)
-            runOnUiThread {
-                if (isFinishing || isDestroyed) return@runOnUiThread
+            onUiThread {
                 hideBusy()
                 refresh()
                 if (result.success) showSuccess(result.message) else showError(result.message)
@@ -527,11 +606,10 @@ class ModsActivity : Activity() {
     private fun packTree(treeUri: Uri) {
         if (busy) return
         showBusy("正在打包…")
-        val appContext = applicationContext
+        val appContext = host.applicationContext
         Thread({
             val result = ModPackager.pack(appContext, treeUri, modsDir)
-            runOnUiThread {
-                if (isFinishing || isDestroyed) return@runOnUiThread
+            onUiThread {
                 hideBusy()
                 refresh()
                 if (result.success) showSuccess(result.message) else showError(result.message)
@@ -542,7 +620,7 @@ class ModsActivity : Activity() {
     private fun confirmUnpack(mod: ModInfo) {
         if (busy) return
         PylonDialog(
-            host = this,
+            host = host,
             title = "解包 ${mod.id}？",
             message = "会把 ${mod.source} 展开成 Mods/${mod.id}/ 文件夹并删除原包；之后可直接改文件。重启游戏后生效。",
             positiveLabel = "解包",
@@ -552,7 +630,7 @@ class ModsActivity : Activity() {
 
     private fun unpack(mod: ModInfo) {
         showBusy("正在解包…")
-        val appContext = applicationContext
+        val appContext = host.applicationContext
         Thread({
             val result = try {
                 val name = ModCatalog.unpack(modsDir, mod)
@@ -560,8 +638,7 @@ class ModsActivity : Activity() {
             } catch (t: Throwable) {
                 ModImportResult(false, mod.id, "解包失败：${t.message}")
             }
-            runOnUiThread {
-                if (isFinishing || isDestroyed) return@runOnUiThread
+            onUiThread {
                 hideBusy()
                 refresh()
                 if (result.success) showSuccess(result.message) else showError(result.message)
@@ -577,7 +654,7 @@ class ModsActivity : Activity() {
             ModKind.FOLDER -> mod.dll?.parentFile
         }
         PylonDialog(
-            host = this,
+            host = host,
             title = "删除 ${mod.id}？",
             message = "会删除 ${target?.absolutePath}，不可恢复。",
             positiveLabel = "删除",
@@ -588,11 +665,10 @@ class ModsActivity : Activity() {
 
     private fun delete(mod: ModInfo) {
         showBusy("正在删除…")
-        val appContext = applicationContext
+        val appContext = host.applicationContext
         Thread({
             val ok = ModCatalog.delete(modsDir, mod)
-            runOnUiThread {
-                if (isFinishing || isDestroyed) return@runOnUiThread
+            onUiThread {
                 hideBusy()
                 refresh()
                 if (ok) showInfo("已删除 ${mod.id}") else showError("删除失败：${mod.id}（检查文件权限）")
@@ -601,11 +677,18 @@ class ModsActivity : Activity() {
     }
 
     private fun copyPath() {
-        val clipboard = getSystemService(android.content.ClipboardManager::class.java)
+        val clipboard = host.getSystemService(android.content.ClipboardManager::class.java)
         clipboard?.setPrimaryClip(
-            android.content.ClipData.newPlainText("Pylon Mods", ModStorage.directory(this).absolutePath),
+            android.content.ClipData.newPlainText("Pylon Mods", ModStorage.directory(host).absolutePath),
         )
         showInfo("Mod 目录路径已复制")
+    }
+
+    private fun onUiThread(task: () -> Unit) {
+        host.runOnUiThread {
+            if (host.isFinishing || host.isDestroyed) return@runOnUiThread
+            task()
+        }
     }
 
     private fun showBusy(label: String) {
@@ -634,10 +717,6 @@ class ModsActivity : Activity() {
     private fun showSuccess(message: String) = snackbar.show(message, SnackbarView.Kind.SUCCESS)
     private fun showError(message: String) = snackbar.show(message, SnackbarView.Kind.ERROR, 7_000L)
     private fun showInfo(message: String) = snackbar.show(message, SnackbarView.Kind.INFO)
-
-    // ------------------------------------------------------------------
-    // 小部件
-    // ------------------------------------------------------------------
 
     private fun pill(text: String, textColor: Int, bgColor: Int, border: Int): TextView =
         bodyText(text, 9.5f, textColor, Fonts.medium).apply {
@@ -684,7 +763,7 @@ class ModsActivity : Activity() {
         }
 
     private fun topMargin(dp: Int, width: Int, height: Int): LinearLayout.LayoutParams =
-        LinearLayout.LayoutParams(width, height).apply { topMargin = this@ModsActivity.dp(dp) }
+        LinearLayout.LayoutParams(width, height).apply { topMargin = this@ModsScreen.context.dp(dp) }
 
     private companion object {
         const val MATCH = LinearLayout.LayoutParams.MATCH_PARENT

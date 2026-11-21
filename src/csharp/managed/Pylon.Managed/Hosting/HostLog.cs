@@ -3,7 +3,7 @@ using Pylon.NaviteAPI.Host;
 
 namespace Pylon.Managed.Hosting;
 
-/// <summary>托管层的唯一日志出口：写进内核 logcat。</summary>
+/// <summary>托管层的唯一日志出口：写进内核 logcat，同时落会话文件（启动器崩溃后展示用）。</summary>
 internal static class HostLog
 {
     private const string Prefix = "[managed] ";
@@ -11,6 +11,7 @@ internal static class HostLog
     /// <summary>写一行日志。日志自身永不抛异常——它常出现在错误处理路径上。</summary>
     public static void Write(string message)
     {
+        SessionLog.Write('I', "host", message);
         try
         {
             LogNative.Write(Prefix + message);

@@ -23,7 +23,6 @@ internal class HostBootstrap(
         val outcome = GameRuntimeLoader(activity).load(
             refSpecs = RefSpecs.resolve(customSpecs = options.refsProbe, bogus = options.bogusRef),
             probe = options.probe,
-            gamePackage = options.gamePackage,
         )
         if (!outcome.loaded) {
             activity.showStartupFailure(outcome.reason ?: "未知原因")

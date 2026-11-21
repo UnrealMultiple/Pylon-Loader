@@ -5,12 +5,8 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.LinearGradient
 import android.graphics.Outline
 import android.graphics.Paint
-import android.graphics.Path
-import android.graphics.RectF
-import android.graphics.Shader
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.RippleDrawable
@@ -20,7 +16,6 @@ import android.view.View
 import android.view.ViewOutlineProvider
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.animation.DecelerateInterpolator
-import android.view.animation.LinearInterpolator
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -240,128 +235,6 @@ internal class PulseDotView(context: Context) : View(context) {
 
     override fun onDetachedFromWindow() {
         pulse.cancel()
-        super.onDetachedFromWindow()
-    }
-}
-
-/** 导入进度条。fraction == null 表示阶段未知（扫描安装包），显示滑动片段；
- * 有值按百分比填充，260ms 补间平滑追上去，避免 100ms 一次的回调一跳一跳。 */
-internal class ImportProgressBar(context: Context) : View(context) {
-
-    private val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Palette.StrokeSoft
-    }
-    private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG)
-    private val trackPath = Path()
-    private val rect = RectF()
-    private var fraction: Float? = null
-    private var displayed = 0f
-    private var shimmer = 0f
-    private var fillShader: LinearGradient? = null
-    private var valueAnimator: ValueAnimator? = null
-
-    private val shimmerAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
-        duration = 1_200L
-        repeatCount = ValueAnimator.INFINITE
-        interpolator = LinearInterpolator()
-        addUpdateListener {
-            shimmer = it.animatedFraction
-            invalidate()
-        }
-    }
-
-    private val heightDp = context.dpf(8f)
-    private val radius = heightDp / 2f
-
-    fun setFraction(value: Float?) {
-        val target = value?.coerceIn(0f, 1f)
-        if (target == null) {
-            fraction = null
-            updateShimmer()
-        } else {
-            fraction = target
-            shimmerAnimator.cancel()
-            valueAnimator?.cancel()
-            valueAnimator = ValueAnimator.ofFloat(displayed, target).apply {
-                duration = 260L
-                interpolator = DecelerateInterpolator()
-                addUpdateListener {
-                    displayed = it.animatedValue as Float
-                    invalidate()
-                }
-                start()
-            }
-        }
-        invalidate()
-    }
-
-    /** 只在真正可见且处于不确定阶段时跑 shimmer，避免隐藏的进度条在后台空转。 */
-    private fun updateShimmer() {
-        val shouldRun = fraction == null && isShown
-        if (shouldRun) {
-            if (!shimmerAnimator.isRunning) shimmerAnimator.start()
-        } else if (shimmerAnimator.isRunning) {
-            shimmerAnimator.cancel()
-        }
-    }
-
-    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
-        setMeasuredDimension(getDefaultSize(suggestedMinimumWidth, widthMeasureSpec), heightDp.toInt())
-    }
-
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        super.onSizeChanged(w, h, oldw, oldh)
-        if (w > 0) {
-            fillShader = LinearGradient(
-                0f, 0f, w.toFloat(), 0f,
-                Palette.PrimaryGradient, null,
-                Shader.TileMode.CLAMP,
-            )
-        }
-    }
-
-    override fun onDraw(canvas: Canvas) {
-        val w = width.toFloat()
-        val h = height.toFloat()
-        if (w <= 0f || h <= 0f) return
-
-        rect.set(0f, 0f, w, h)
-        trackPath.reset()
-        trackPath.addRoundRect(rect, radius, radius, Path.Direction.CW)
-        canvas.drawPath(trackPath, trackPaint)
-
-        fillPaint.shader = fillShader
-        canvas.save()
-        canvas.clipPath(trackPath)
-        val value = fraction
-        if (value == null) {
-            val segment = w * 0.30f
-            val x = -segment + (w + segment) * shimmer
-            canvas.drawRect(x, 0f, x + segment, h, fillPaint)
-        } else {
-            canvas.drawRect(0f, 0f, w * displayed, h, fillPaint)
-        }
-        canvas.restore()
-    }
-
-    override fun onAttachedToWindow() {
-        super.onAttachedToWindow()
-        updateShimmer()
-    }
-
-    override fun onVisibilityChanged(changedView: View, visibility: Int) {
-        super.onVisibilityChanged(changedView, visibility)
-        updateShimmer()
-    }
-
-    override fun onWindowVisibilityChanged(visibility: Int) {
-        super.onWindowVisibilityChanged(visibility)
-        updateShimmer()
-    }
-
-    override fun onDetachedFromWindow() {
-        shimmerAnimator.cancel()
-        valueAnimator?.cancel()
         super.onDetachedFromWindow()
     }
 }

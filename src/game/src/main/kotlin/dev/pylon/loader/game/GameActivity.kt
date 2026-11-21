@@ -39,13 +39,6 @@ class GameActivity : Activity() {
     @Volatile
     private var runtimeLoaded = false
 
-    /**
-     * 引擎拿 `getPackageCodePath()` 打开 base APK 的 zip（assets/bin/Data）；
-     * 导入形态要指到所选游戏的 APK，onCreate 解析 options 后才设置，之前回落到宿主 APK。
-     */
-    @Volatile
-    private var gameApkPath: String? = null
-
     // 引擎可能晚于生命周期创建，所以自己记一份当前状态，创建后补投（见 replayLifecycle）。
     private var startedState = false
     private var resumedState = false
@@ -80,12 +73,13 @@ class GameActivity : Activity() {
         super.onCreate(savedInstanceState)
         installCrashHandler()
 
+        // 会话轨迹：boot 落文件 + 自进程 logcat 摘录，崩溃后启动器才有现场可展示。
+        PylonBootLog.reset(this)
+        PylonBootLog.attachBootSink(this)
+        PylonBootLog.captureLogcat(this)
+
         val debuggable = (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0
         options = HostOptions.from(intent, debuggable)
-        gameApkPath = runCatching {
-            packageManager.getPackageInfo(options.gamePackage, 0).applicationInfo?.sourceDir
-        }.getOrNull()
-        Log.stage("host", "游戏 APK 路径：${gameApkPath ?: "（回落到宿主 APK）"}")
         Log.stage("host", "GameActivity.onCreate 进程=${android.os.Process.myPid()} 线程=${Thread.currentThread().name}")
 
         // 游戏的 onCreate 会把 `unity` extra 原样写回（本构建里 updateUnityCommandLineArguments 是恒等函数）。
@@ -98,13 +92,6 @@ class GameActivity : Activity() {
         bootstrap = HostBootstrap(this, options) { player }
         loadRuntimeThenStartUnity()
     }
-
-    /**
-     * Unity 打开 base APK 资源走这两个路径；导入形态指向已装游戏 APK，options 解析后才有效，之前回落宿主 APK。
-     */
-    override fun getPackageCodePath(): String = gameApkPath ?: super.getPackageCodePath()
-
-    override fun getPackageResourcePath(): String = gameApkPath ?: super.getPackageResourcePath()
 
     /**
      * 运行时装载放工作线程（dex 注入 + 四次 dlopen，含 57MB 的 libil2cpp.so）；

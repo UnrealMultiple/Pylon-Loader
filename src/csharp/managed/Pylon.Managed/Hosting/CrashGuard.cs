@@ -33,6 +33,7 @@ internal static class CrashGuard
         {
             if (e.Exception is not NullReferenceException) return;
             if (FirstChance++ >= 5) return;
+            SessionLog.Error("host", "first-chance NRE: " + e.Exception.Message);
             HostLog.Write("[error] first-chance NRE: " + e.Exception.Message);
             if (e.Exception.StackTrace is { } stack) HostLog.Write(stack.TrimEnd());
         };
@@ -55,8 +56,18 @@ internal static class CrashGuard
         var key = label + "|" + exception.GetType().Name;
         if (Reported.Count < MaxRemembered && !Reported.Add(key)) return;
 
-        HostLog.Write($"[error] {label}: {HostLog.Describe(exception)}");
-        if (exception.StackTrace is { } stack) HostLog.Write(stack.TrimEnd());
-        else HostLog.Write("[error] 异常没有堆栈；当前栈（用于定位是在哪个 native→managed 回调里漏出来的）：" + Environment.StackTrace.Replace("\r", "").TrimEnd());
+        SessionLog.Error("host", $"{label}: {HostLog.Describe(exception)}");
+        var stackLine = exception.StackTrace?.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(l => l.Trim()).FirstOrDefault();
+        if (stackLine is { } first)
+        {
+            SessionLog.Error("host", $"  at {first}");
+            HostLog.Write($"[error] {label}: {HostLog.Describe(exception)}\n{stackLine}");
+        }
+        else
+        {
+            HostLog.Write($"[error] {label}: {HostLog.Describe(exception)}");
+            HostLog.Write("[error] 异常没有堆栈；当前栈（用于定位是在哪个 native→managed 回调里漏出来的）：" + Environment.StackTrace.Replace("\r", "").TrimEnd());
+        }
     }
 }

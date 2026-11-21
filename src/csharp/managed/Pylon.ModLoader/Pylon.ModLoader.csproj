@@ -8,14 +8,11 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <PublishTrimmed>false</PublishTrimmed>
     <InvariantGlobalization>true</InvariantGlobalization>
-    <!-- 本工程已零警告：任何新警告都当作错误，防止回潮 -->
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Pylon.Mod.Abstractions\Pylon.Mod.Abstractions.csproj" />
-
-    <!-- 唯一一套 hook：引擎与 On.* 都在 Il2CppInterop 里（On.* 直接生成进代理程序集） -->
     <ProjectReference Include="..\..\il2cppinterop\Il2CppInterop.RuntimeDetour\Il2CppInterop.RuntimeDetour.csproj" />
 
     <Reference Include="Assembly-CSharp">
@@ -57,32 +54,24 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- 仓库内自带的 Il2CppInterop（已打 BepInEx-Android 的 ARM64/Disarm 补丁） -->
     <ProjectReference Include="..\..\il2cppinterop\Il2CppInterop.Runtime\Il2CppInterop.Runtime.csproj" />
     <ProjectReference Include="..\..\il2cppinterop\Il2CppInterop.Common\Il2CppInterop.Common.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <!-- 内核导出面的唯一绑定层：ig* / PylonFx_* / PylonMod_* 全在那边声明 -->
     <ProjectReference Include="..\Pylon.NaviteAPI\Pylon.NaviteAPI.csproj" />
   </ItemGroup>
 
-  <!-- Managed disassembly only. Native CodeSite validation and writes remain authoritative. -->
   <PropertyGroup>
     <DefineConstants>$(DefineConstants);PYLON_ASM_ARM64</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="AsmArm64" Version="[2.4.0]" GeneratePathProperty="true" />
-    <!-- Class libraries do not copy NuGet assets by default. The Android host loads
-         AsmArm64 from files/pylon-managed, so make it an explicit output artifact. -->
-    <None Include="$(PkgAsmArm64)/lib/net8.0/AsmArm64.dll" Link="AsmArm64.dll"
-          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="$(PkgAsmArm64)/lib/net8.0/AsmArm64.dll" Link="AsmArm64.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Textures\loaderIcon.png" />
     <EmbeddedResource Include="Textures\pylon.png" />
-    <!-- ImGui 字体随程序集内嵌，避免在安卓上依赖外部文件路径 -->
     <EmbeddedResource Include="ImGuiHost\Fonts\ui.ttf">
       <LogicalName>Pylon.ModLoader.ImGuiHost.Fonts.ui.ttf</LogicalName>
     </EmbeddedResource>
