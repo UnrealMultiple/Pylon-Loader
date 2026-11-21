@@ -197,7 +197,17 @@ internal sealed class RecipePipeline : ILoaderModule
         var globals = GlobalRecipeRegistry.For(HookId.ConsumeItem);
         if (!owned && globals.Count == 0) return amount;
 
-        var type = req.itemIdOrRecipeGroup;
+        int type;
+        try
+        {
+            type = req.IsRecipeGroup ? req.RecipeGroup.GetPlaceholderItemType() : req.itemIdOrRecipeGroup;
+        }
+        catch (Exception e)
+        {
+            Fail("recipe.consume", HookId.ConsumeItem, e);
+            return amount;
+        }
+
         var result = req.stack - amount;
 
         if (consume is not null)
