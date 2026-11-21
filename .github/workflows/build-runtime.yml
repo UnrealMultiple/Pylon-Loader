@@ -40,7 +40,7 @@ jobs:
       # 精确版本：上游 CI 注释里写明不能用 '10.0.x'，浮版本会让同一提交在不同日子编出不同结果
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '10.0.401'
+          dotnet-version: '10.0.404'
 
       # 1) 按 provenance/bepinex.env 的钉克隆上游 BepInEx 并打 13 个补丁
       - name: 打补丁（上游 BepInEx 按钉克隆）
