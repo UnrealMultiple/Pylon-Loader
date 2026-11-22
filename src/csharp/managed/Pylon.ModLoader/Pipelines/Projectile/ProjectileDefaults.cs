@@ -152,8 +152,8 @@ internal sealed class ProjectileDefaults(ProjectileBinding binding)
         p.rotation = d.rotation;
         p.alpha = d.alpha;
         p.sentry = d.sentry;
-        p.ai = d.ai;
-        p.localAI = d.localAI;
+        p.aiCopy = d.aiCopy;
+        p.localAICopy = d.localAICopy;
         p.aiStyle = d.aiStyle;
         p.timeLeft = d.timeLeft;
         p.soundDelay = d.soundDelay;

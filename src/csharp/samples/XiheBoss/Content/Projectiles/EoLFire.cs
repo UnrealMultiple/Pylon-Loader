@@ -96,9 +96,8 @@ namespace XiheBoss
         public override void AI()
         {
             var proj = Projectile;
-            var ai = proj.ai;
 
-            var idx = (int)ai[0];
+            var idx = (int)proj.ai[0];
             if (idx < 0 || idx >= Main.npc.Length)
             {
                 proj.Kill();
@@ -127,7 +126,7 @@ namespace XiheBoss
                 if (nodes[j].TimeLeft <= 0) nodes.RemoveAt(j);
             }
 
-            proj.velocity = XiheHelper.RotatedBy(proj.velocity, ai[1]);
+            proj.velocity = XiheHelper.RotatedBy(proj.velocity, proj.ai[1]);
             if (proj.timeLeft < 20) proj.velocity *= 0.8f;
 
             for (var k = 0; k < nodes.Count; k++)

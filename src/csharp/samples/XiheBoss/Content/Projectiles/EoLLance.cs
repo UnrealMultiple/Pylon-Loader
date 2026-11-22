@@ -40,8 +40,8 @@ namespace XiheBoss
         public override void OnSpawn(Terraria.DataStructures.IEntitySource source)
         {
             var proj = Projectile;
-            var ai = proj.ai;
-            _maxTime = ai[2] > 1f ? (int)ai[2] : 600;
+            
+            _maxTime = proj.ai[2] > 1f ? (int)proj.ai[2] : 600;
         }
 
         private int Timer(Projectile proj) => _maxTime - proj.timeLeft;
@@ -57,15 +57,12 @@ namespace XiheBoss
             var color = XiheHelper.HsvToRgb(proj.ai[0] % 360f, 0.5f);
             Lighting.AddLight(center, color.R / 255f * 0.5f, color.G / 255f * 0.5f, color.B / 255f * 0.5f);
 
-            var local = proj.localAI;
-            if (local[0] < 1f)
+            if (proj.localAI[0] < 1f)
             {
-                local[0] += 0.1f;
-                proj.localAI = local;
+                proj.localAI[0] += 0.1f;
             }
 
-            var ai = proj.ai;
-            var mode = ai[1];
+            var mode = proj.ai[1];
 
             if (mode == 0f)
             {
@@ -147,8 +144,7 @@ namespace XiheBoss
             {
                 proj.timeLeft = 200;
                 _maxTime = 200;
-                ai[1] = 0f;
-                proj.ai = ai;
+                proj.ai[1] = 0f;
             }
             else if (mode == 5f)
             {
@@ -164,9 +160,8 @@ namespace XiheBoss
                     var p = NewProjectile(proj, ModContent.ProjectileType<EoLLaser1>(), 50f, 3f);
                     if (p != null)
                     {
-                        var lai = p.ai;
-                        lai[2] = 50f;
-                        p.ai = lai;
+                        
+                        p.ai[2] = 50f;
                     }
                 }
             }
@@ -174,9 +169,8 @@ namespace XiheBoss
             {
                 if (proj.timeLeft > 315)
                 {
-                    local = proj.localAI;
-                    local[0] -= 0.1f;
-                    proj.localAI = local;
+                    
+                    proj.localAI[0] -= 0.1f;
                 }
                 if (proj.timeLeft < 315 && proj.timeLeft > 300) proj.alpha += 15;
                 if (proj.timeLeft < 285 && proj.timeLeft > 270) proj.alpha -= 15;
@@ -221,9 +215,8 @@ namespace XiheBoss
 
         public static void PushVisual(Projectile p)
         {
-            var ai = p.ai;
-
-            var color = XiheHelper.HsvToRgb(ai[0] % 360f);
+            
+            var color = XiheHelper.HsvToRgb(p.ai[0] % 360f);
 
             var rot = (float)Math.Atan2(p.velocity.Y, p.velocity.X);
             var tex = Tex.Proj919;
@@ -232,7 +225,7 @@ namespace XiheBoss
 
             var l = XiheHelper.Normalize2(p.velocity);
             var pos = p.Center;
-            var color2 = XiheHelper.HsvToRgb(ai[0] % 360f);
+            var color2 = XiheHelper.HsvToRgb(p.ai[0] % 360f);
 
             var a200 = XiheHelper.MulClamp(color2, p.alpha / 200f);
             var a205 = XiheHelper.MulClamp(color2, p.alpha / 205f);
@@ -244,7 +237,7 @@ namespace XiheBoss
             };
             XiheFx.Tri(Tex.MagicPixel, false, true, false, false, verts);
 
-            if (p.velocity.Length() > 20f && ai[1] != 3f && ai[1] != -3f)
+            if (p.velocity.Length() > 20f && p.ai[1] != 3f && p.ai[1] != -3f)
             {
 
                 for (var i = 0; i < 8; i++)

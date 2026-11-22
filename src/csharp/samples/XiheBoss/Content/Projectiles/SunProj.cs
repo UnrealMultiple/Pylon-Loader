@@ -84,8 +84,6 @@ namespace XiheBoss
                 }
             }
 
-            var ai = proj.ai;
-
             if (proj.timeLeft > 313)
             {
                 if (proj.timeLeft > 364.5f && XiheHelper.RandBool(15))
@@ -94,8 +92,8 @@ namespace XiheBoss
                 }
 
                 proj.scale = MathHelper.Lerp(proj.scale, 3.5f, 0.06f);
-                ai[0] = MathHelper.Lerp(ai[0], 0.3f, 0.1f);
-                ai[1] = MathHelper.Lerp(ai[1], 1.5f, 0.05f);
+                proj.ai[0] = MathHelper.Lerp(proj.ai[0], 0.3f, 0.1f);
+                proj.ai[1] = MathHelper.Lerp(proj.ai[1], 1.5f, 0.05f);
             }
             else
             {
@@ -108,18 +106,17 @@ namespace XiheBoss
                     SpawnProminence(proj, 120f, 70, 110, false);
                 }
 
-                ai[0] = MathHelper.Lerp(ai[0], 0.275f, 0.1f);
+                proj.ai[0] = MathHelper.Lerp(proj.ai[0], 0.275f, 0.1f);
                 proj.scale = MathHelper.Lerp(proj.scale, 5.6f, 0.02f);
             }
 
             if (proj.timeLeft < 10)
             {
                 proj.scale = MathHelper.Lerp(proj.scale, 10f, 0.2f);
-                ai[0] = MathHelper.Lerp(ai[0], 0f, 0.15f);
-                ai[1] = MathHelper.Lerp(ai[1], 0f, 0.1f);
+                proj.ai[0] = MathHelper.Lerp(proj.ai[0], 0f, 0.15f);
+                proj.ai[1] = MathHelper.Lerp(proj.ai[1], 0f, 0.1f);
             }
 
-            proj.ai = ai;
         }
 
         private static void SpawnProminence(Projectile proj, float radiusFactor, int minSpeed, int maxSpeed,
@@ -155,10 +152,10 @@ namespace XiheBoss
 
         public static void PushVisual(Projectile p)
         {
-            var ai = p.ai;
+            
             if (p.scale <= 0.01f) return;
 
-            XiheFx.SunFxAt(p.Center, p.scale, ai[1], ai[0] * 2.1f);
+            XiheFx.SunFxAt(p.Center, p.scale, p.ai[1], p.ai[0] * 2.1f);
         }
     }
 }

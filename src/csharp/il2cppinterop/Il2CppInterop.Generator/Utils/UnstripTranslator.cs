@@ -152,7 +152,8 @@ public static class UnstripTranslator
                     return false;
 
                 var fieldDeclarerContext = globalContext.GetContextForNewType(fieldDeclarerDefinition);
-                var propertyName = fieldDeclarerContext.Fields.SingleOrDefault(it => it.OriginalField.Name == fieldArg.Name)?.UnmangledName;
+                var fieldContext = fieldDeclarerContext.Fields.SingleOrDefault(it => it.OriginalField.Name == fieldArg.Name);
+                string? propertyName = fieldContext?.CopyAccessor?.Name?.ToString() ?? fieldContext?.UnmangledName;
 
                 var newField = fieldDeclarerDefinition.Fields.SingleOrDefault(it => it.Name == fieldArg.Name)
                     ?? fieldDeclarerDefinition.Fields.SingleOrDefault(it => it.Name == propertyName);
@@ -173,6 +174,7 @@ public static class UnstripTranslator
                             .SingleOrDefault(it => it.Name == propertyName)?.GetMethod;
                         if (getterMethod == null)
                             return false;
+                        // CopyAccessor preserves the original value signature for unstripped IL.
 
                         var newInstruction = targetBuilder.Add(OpCodes.Call, imports.Module.DefaultImporter.ImportMethod(getterMethod));
                         instructionMap.Add(bodyInstruction, newInstruction);

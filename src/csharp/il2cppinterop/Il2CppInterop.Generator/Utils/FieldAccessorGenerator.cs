@@ -11,6 +11,52 @@ namespace Il2CppInterop.Generator.Utils;
 
 internal static class FieldAccessorGenerator
 {
+    public static void MakeViewGetter(FieldDefinition field, FieldRewriteContext fieldContext, PropertyDefinition property,
+        RuntimeAssemblyReferences imports, TypeSignature viewTypeSig)
+    {
+        var attributes = Field2MethodAttrs(field.Attributes) | MethodAttributes.SpecialName | MethodAttributes.HideBySig;
+        var getter = new MethodDefinition("get_" + property.Name,
+            attributes,
+            MethodSignatureCreator.CreateMethodSignature(attributes, property.Signature!.ReturnType, 0));
+        getter.CilMethodBody = new() { InitializeLocals = true };
+        var getterBody = getter.CilMethodBody.Instructions;
+        property.DeclaringType!.Methods.Add(getter);
+
+        var addressLocal = new CilLocalVariable(imports.Module.IntPtr());
+        var viewLocal = new CilLocalVariable(property.Signature.ReturnType);
+        getter.CilMethodBody.LocalVariables.Add(addressLocal);
+        getter.CilMethodBody.LocalVariables.Add(viewLocal);
+
+        getterBody.EmitObjectToPointer(fieldContext.DeclaringType.OriginalType.ToTypeSignature(), fieldContext.DeclaringType.NewType.ToTypeSignature(),
+            fieldContext.DeclaringType, 0, false, false, true, false, out _);
+        if (fieldContext.CachedOffsetField is not null)
+            getterBody.Add(OpCodes.Ldsfld, fieldContext.CachedOffsetField);
+        else
+        {
+            getterBody.Add(OpCodes.Ldsfld, fieldContext.PointerField);
+            getterBody.Add(OpCodes.Call, imports.IL2CPP_il2cpp_field_get_offset.Value);
+        }
+        getterBody.Add(OpCodes.Add);
+        getterBody.Add(OpCodes.Stloc, addressLocal);
+
+        getterBody.Add(OpCodes.Ldloca, viewLocal);
+        getterBody.Add(OpCodes.Initobj, viewTypeSig.ToTypeDefOrRef());
+        getterBody.Add(OpCodes.Ldloca, viewLocal);
+        getterBody.Add(OpCodes.Ldloc, addressLocal);
+        getterBody.Add(OpCodes.Stfld, ViewPointerFieldRef(viewTypeSig, imports));
+        getterBody.Add(OpCodes.Ldloca, viewLocal);
+        getterBody.Add(OpCodes.Ldarg_0);
+        getterBody.Add(OpCodes.Stfld, new MemberReference(viewTypeSig.ToTypeDefOrRef(), "_owner",
+            new FieldSignature(imports.Il2CppObjectBase)));
+        getterBody.Add(OpCodes.Ldloc, viewLocal);
+        getterBody.Add(OpCodes.Ret);
+
+        property.GetMethod = getter;
+    }
+
+    private static MemberReference ViewPointerFieldRef(TypeSignature viewTypeSig, RuntimeAssemblyReferences imports) =>
+        new(viewTypeSig.ToTypeDefOrRef(), "_p", new FieldSignature(imports.Module.IntPtr()));
+
     public static void MakeGetter(FieldDefinition field, FieldRewriteContext fieldContext, PropertyDefinition property,
         RuntimeAssemblyReferences imports)
     {
@@ -19,7 +65,7 @@ internal static class FieldAccessorGenerator
             attributes,
             MethodSignatureCreator.CreateMethodSignature(attributes, property.Signature!.ReturnType, 0));
 
-        getter.CilMethodBody = new();
+        getter.CilMethodBody = new() { InitializeLocals = true };
         var getterBody = getter.CilMethodBody.Instructions;
         property.DeclaringType!.Methods.Add(getter);
 
@@ -79,7 +125,7 @@ internal static class FieldAccessorGenerator
         }
 
         if (fieldContext.OriginalField.Signature!.FieldType is GenericParameterSignature)
-            EmitGenericFieldRead(getterBody, property.Signature.ReturnType, fieldContext.DeclaringType, local0, !field.IsStatic);
+            EmitGenericFieldRead(getterBody, property.Signature.ReturnType, fieldContext.DeclaringType, local0, true);
         else
             getterBody.EmitPointerToObject(fieldContext.OriginalField.Signature!.FieldType, property.Signature.ReturnType,
                 fieldContext.DeclaringType, local0, !field.IsStatic, false);

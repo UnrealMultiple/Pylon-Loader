@@ -59,9 +59,7 @@ namespace XiheBoss.Wand
         {
             var proj = Projectile;
             proj.rotation = 1.57f;
-            var localai = proj.localAI;
-            localai[1] = 10000f;
-            proj.localAI = localai;
+            proj.localAI[1] = 10000f;
 
             if (!_fired && proj.timeLeft <= 250)
             {

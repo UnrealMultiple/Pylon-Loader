@@ -299,7 +299,7 @@ function Command-Interop {
     # --direct-invoke：生成受保护直调代理（GuardedInvoke + methodPointer，内核 PylonMod_CallFrame）。
     # 不带这个 flag 就是旧 runtime_invoke 代理（对照组的生成方式）。
     $args = @($cliDll, 'generate', '--input', (Resolve-Path $DummyDir), '--output', (Join-Path $root $interopGen), '--direct-invoke')
-    if (Test-Path $gameAsm) { $args += @('--game-assembly', (Resolve-Path $gameAsm)) }
+    if (Test-Path $gameAsm) { $args += @('--game-assembly', (Resolve-Path $gameAsm), '--inline-array-native-image', (Resolve-Path $gameAsm)) }
     & dotnet @args 2>&1 | Select-Object -Last 4
     if ($LASTEXITCODE -ne 0) { Die '生成失败' }
     foreach ($need in @('Assembly-CSharp.dll', 'Il2Cppmscorlib.dll', 'MethodAddressToToken.db')) {

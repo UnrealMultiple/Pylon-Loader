@@ -70,9 +70,7 @@ namespace XiheBoss.Wand
 
             var alpha = Math.Min(1f, proj.localAI[0] + 0.01f);
 
-            var localai = proj.localAI;
-            localai[0] = alpha;
-            proj.localAI = localai;
+            proj.localAI[0] = alpha;
 
             Lighting.AddLight(proj.Center, 1.5f * alpha, 1.5f * alpha, 0.8f * alpha);
 
@@ -80,10 +78,8 @@ namespace XiheBoss.Wand
                 _skyTarget.X = MathHelper.Lerp(_skyTarget.X, Main.MouseWorld.X, 0.01f);
             _skyTarget.Y = player.position.Y - 1500f;
 
-            localai = proj.localAI;
-            localai[1] = _skyTarget.X;
-            localai[2] = _skyTarget.Y;
-            proj.localAI = localai;
+            proj.localAI[1] = _skyTarget.X;
+            proj.localAI[2] = _skyTarget.Y;
 
             var chance = 12;
             if (proj.timeLeft < 300) chance = 5;

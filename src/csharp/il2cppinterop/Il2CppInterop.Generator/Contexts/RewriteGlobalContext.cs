@@ -21,6 +21,8 @@ public class RewriteGlobalContext : IDisposable
 
     internal readonly Dictionary<ModuleDefinition, RuntimeAssemblyReferences> ImportsMap = new();
 
+    internal readonly Dictionary<TypeRewriteContext, TypeDefinition> StructViews = new();
+
     public RewriteGlobalContext(GeneratorOptions options, IIl2CppMetadataAccess gameAssemblies,
         IMetadataAccess unityAssemblies)
     {
@@ -104,6 +106,32 @@ public class RewriteGlobalContext : IDisposable
 
         var fieldTypeContext = GetNewTypeForOriginal(typeRef.Resolve() ?? throw new($"Could not resolve {typeRef.FullName}"));
         return fieldTypeContext.ComputedTypeSpecifics;
+    }
+
+    public bool IsViewEligibleFieldType(TypeSignature fieldType)
+    {
+        if (fieldType is GenericInstanceTypeSignature or GenericParameterSignature
+            or ArrayBaseTypeSignature or ByReferenceTypeSignature or PointerTypeSignature)
+            return false;
+        if (fieldType.IsPrimitive())
+            return false;
+
+        var originalType = fieldType.Resolve();
+        if (originalType is null || originalType.IsEnum || originalType.HasGenericParameters())
+            return false;
+
+        var typeContext = TryGetNewTypeForOriginal(originalType);
+        return typeContext is not null
+            && typeContext.ComputedTypeSpecifics == TypeRewriteContext.TypeSpecifics.BlittableStruct;
+    }
+
+    public TypeDefinition? TryGetStructView(TypeSignature fieldType)
+    {
+        if (!IsViewEligibleFieldType(fieldType))
+            return null;
+
+        var typeContext = TryGetNewTypeForOriginal(fieldType.Resolve()!)!;
+        return StructViews.TryGetValue(typeContext, out var view) ? view : null;
     }
 
     public AssemblyRewriteContext GetAssemblyByName(string name)

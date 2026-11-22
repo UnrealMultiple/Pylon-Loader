@@ -43,10 +43,9 @@ namespace XiheBoss
         public override void OnSpawn(Terraria.DataStructures.IEntitySource source)
         {
             var proj = Projectile;
-            var ai = proj.ai;
-            _maxTime = ai[2] > 0f ? (int)ai[2] : proj.timeLeft;
+            _maxTime = proj.ai[2] > 0f ? (int)proj.ai[2] : proj.timeLeft;
 
-            var mode = ai[1];
+            var mode = proj.ai[1];
             if (mode >= -1f && mode <= 2f)
                 proj.rotation = (float)Math.Atan2(proj.velocity.Y, proj.velocity.X);
 
@@ -64,23 +63,20 @@ namespace XiheBoss
         public override void AI()
         {
             var proj = Projectile;
-            var ai = proj.ai;
 
-            if (ai[2] > 0f) _maxTime = (int)ai[2];
+            if (proj.ai[2] > 0f) _maxTime = (int)proj.ai[2];
             else if (_maxTime <= 0) _maxTime = proj.timeLeft;
 
-            var local = proj.localAI;
-            local[1] = 5000f;
-            proj.localAI = local;
+            proj.localAI[1] = 5000f;
 
-            var mode = ai[1];
+            var mode = proj.ai[1];
 
             if (mode == 0f)
             {
                 if (proj.timeLeft == 24)
                 {
                     proj.rotation = (float)Math.Atan2(proj.velocity.Y, proj.velocity.X);
-                    LaserDust(proj, Color.Lerp(XiheHelper.HsvToRgb(ai[0] % 360f), Color.White, 0.5f));
+                    LaserDust(proj, Color.Lerp(XiheHelper.HsvToRgb(proj.ai[0] % 360f), Color.White, 0.5f));
                 }
                 if (proj.timeLeft > 16) proj.scale += 0.06f;
                 else if (proj.timeLeft < 12) proj.scale -= 0.05f;
@@ -95,7 +91,7 @@ namespace XiheBoss
                     _setTime = true;
                 }
 
-                var ownerIndex = (int)ai[0];
+                var ownerIndex = (int)proj.ai[0];
                 if (ownerIndex < 0 || ownerIndex >= Main.npc.Length || !Main.npc[ownerIndex].active)
                 {
                     proj.Kill();
@@ -103,13 +99,13 @@ namespace XiheBoss
                 }
 
                 proj.Center = Main.npc[ownerIndex].Center;
-                proj.rotation += ai[1] * 0.00525f;
+                proj.rotation += proj.ai[1] * 0.00525f;
 
                 var t = Timer(proj);
                 if (t >= 20 && t < 30) proj.scale -= 0.002f;
                 if (t >= 45 && t < 50) proj.scale += 0.07f;
                 if (t > 50) proj.scale += 0.06f * (float)Math.Sin(proj.timeLeft * 0.8f);
-                if (t > 150) proj.rotation += (t - 150) * 0.00022f * ai[1];
+                if (t > 150) proj.rotation += (t - 150) * 0.00022f * proj.ai[1];
                 if (proj.timeLeft < 10) proj.scale -= 0.03f;
             }
 
@@ -122,7 +118,7 @@ namespace XiheBoss
                     _setTime = true;
                 }
 
-                var ownerIndex = (int)ai[0];
+                var ownerIndex = (int)proj.ai[0];
                 if (ownerIndex < 0 || ownerIndex >= Main.npc.Length || !Main.npc[ownerIndex].active)
                 {
                     proj.Kill();
@@ -145,7 +141,7 @@ namespace XiheBoss
                     proj.timeLeft = _maxTime;
                     _setTime = true;
                     proj.rotation = (float)Math.Atan2(proj.velocity.Y, proj.velocity.X);
-                    LaserDust(proj, XiheHelper.HsvToRgb(ai[0] % 360f));
+                    LaserDust(proj, XiheHelper.HsvToRgb(proj.ai[0] % 360f));
                 }
 
                 var t = Timer(proj);

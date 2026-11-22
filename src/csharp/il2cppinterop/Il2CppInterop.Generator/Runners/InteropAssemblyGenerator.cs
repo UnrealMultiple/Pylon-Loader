@@ -134,6 +134,11 @@ internal class InteropAssemblyGeneratorRunner : IRunner
             Pass30GenerateGenericMethodStoreConstructors.DoPass(rewriteContext);
         }
 
+        using (new TimingCookie("Creating struct array views"))
+        {
+            Pass39GenerateStructViews.DoPass(rewriteContext);
+        }
+
         using (new TimingCookie("Creating field accessors"))
         {
             Pass40GenerateFieldAccessors.DoPass(rewriteContext);

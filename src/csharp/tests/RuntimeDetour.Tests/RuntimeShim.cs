@@ -27,6 +27,12 @@ namespace Il2CppInterop.Runtime
 {
     public static unsafe class RawValueBox
     {
+        public static T? WrapNullable<T>(IntPtr klass, IntPtr data, int size) where T:InteropTypes.Il2CppObjectBase
+        {
+            if (data == IntPtr.Zero || System.Runtime.InteropServices.Marshal.ReadByte(data) == 0) return null;
+            return Wrap<T>(klass, data, size);
+        }
+
         public static T Wrap<T>(IntPtr klass, IntPtr data, int size) where T:InteropTypes.Il2CppObjectBase
         {
             var p=IL2CPP.Allocate(size);

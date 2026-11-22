@@ -22,6 +22,28 @@ public static class Pass40GenerateFieldAccessors
                     var field = fieldContext.OriginalField;
                     var unmangleFieldName = fieldContext.UnmangledName;
 
+                    if (!field.IsStatic && !typeContext.NewType.IsValueType &&
+                        context.TryGetStructView(field.Signature!.FieldType) is { } viewType)
+                    {
+                        var viewSig = typeContext.NewType.DeclaringModule!.DefaultImporter.ImportType(viewType).ToTypeSignature();
+                        var viewProperty = new PropertyDefinition(unmangleFieldName, PropertyAttributes.None,
+                            PropertySignature.CreateInstance(viewSig));
+                        typeContext.NewType.Properties.Add(viewProperty);
+                        FieldAccessorGenerator.MakeViewGetter(field, fieldContext, viewProperty, assemblyContext.Imports, viewSig);
+                        // Keep value semantics available explicitly; a view cannot be passed as the
+                        // original native struct or assigned as a struct value.
+                        var copyName = unmangleFieldName + "Copy";
+                        while (typeContext.NewType.Properties.Any(p => p.Name == copyName) ||
+                               typeContext.Fields.Any(f => f.UnmangledName == copyName)) copyName += "_";
+                        var copyProperty = new PropertyDefinition(copyName, PropertyAttributes.None,
+                            PropertySignature.CreateInstance(assemblyContext.RewriteTypeRef(field.Signature.FieldType)));
+                        typeContext.NewType.Properties.Add(copyProperty);
+                        FieldAccessorGenerator.MakeGetter(field, fieldContext, copyProperty, assemblyContext.Imports);
+                        FieldAccessorGenerator.MakeSetter(field, fieldContext, copyProperty, assemblyContext.Imports);
+                        fieldContext.CopyAccessor = copyProperty;
+                        continue;
+                    }
+
                     var propertyType = assemblyContext.RewriteTypeRef(fieldContext.OriginalField.Signature!.FieldType);
                     var signature = field.IsStatic
                         ? PropertySignature.CreateStatic(propertyType)

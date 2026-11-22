@@ -17,6 +17,13 @@ public static unsafe class RawValueBox
     private static readonly Dictionary<IntPtr, Allocation> Owned = new();
 
     /// <summary>Creates a rooted proxy with the original value type and complete payload.</summary>
+    public static T? WrapNullable<T>(IntPtr klass, IntPtr data, int size) where T : Il2CppObjectBase
+    {
+        if (data == IntPtr.Zero)
+            return null;
+        return Wrap<T>(klass, data, size);
+    }
+
     public static T Wrap<T>(IntPtr klass, IntPtr data, int size) where T : Il2CppObjectBase
     {
         if (klass == IntPtr.Zero) throw new ArgumentException("A native class is required", nameof(klass));

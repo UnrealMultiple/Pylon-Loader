@@ -52,8 +52,8 @@ namespace XiheBoss
         public override void OnSpawn(Terraria.DataStructures.IEntitySource source)
         {
             var proj = Projectile;
-            var ai = proj.ai;
-            var mode = ai[1];
+
+            var mode = proj.ai[1];
 
             _speedMuti = 1f;
 
@@ -75,8 +75,7 @@ namespace XiheBoss
             var proj = Projectile;
             proj.rotation += 0.05f;
 
-            var ai = proj.ai;
-            var mode = ai[1];
+            var mode = proj.ai[1];
 
             if (mode == 0f)
             {
@@ -98,7 +97,7 @@ namespace XiheBoss
             else if (mode == 3f)
             {
 
-                var idx = (int)ai[0];
+                var idx = (int)proj.ai[0];
                 if (idx < 0 || idx >= Main.player.Length)
                 {
                     proj.Kill();
@@ -124,7 +123,7 @@ namespace XiheBoss
             else if (mode == 4f)
             {
 
-                var idx = (int)ai[0];
+                var idx = (int)proj.ai[0];
                 if (idx < 0 || idx >= Main.npc.Length)
                 {
                     proj.Kill();
@@ -143,7 +142,7 @@ namespace XiheBoss
             }
             else if (mode == 5f)
             {
-                var idx = (int)ai[0];
+                var idx = (int)proj.ai[0];
                 if (idx < 0 || idx >= Main.npc.Length)
                 {
                     proj.Kill();
@@ -162,7 +161,7 @@ namespace XiheBoss
             }
             else if (mode == 7f)
             {
-                var idx = (int)ai[0];
+                var idx = (int)proj.ai[0];
                 if (idx < 0 || idx >= Main.npc.Length)
                 {
                     proj.Kill();
@@ -175,7 +174,7 @@ namespace XiheBoss
             }
             else if (mode == 8f)
             {
-                if (proj.timeLeft > 340) proj.velocity = XiheHelper.RotatedBy(proj.velocity, 0.05f * ai[0]);
+                if (proj.timeLeft > 340) proj.velocity = XiheHelper.RotatedBy(proj.velocity, 0.05f * proj.ai[0]);
             }
             else if (mode == 9f)
             {

@@ -1936,17 +1936,15 @@ namespace XiheBoss
         private static void SetLaserTime(Projectile p, int maxTime)
         {
             if (p == null) return;
-            var ai = p.ai;
-            ai[2] = maxTime;
-            p.ai = ai;
+            
+            p.ai[2] = maxTime;
         }
 
         private static void SetLanceTime(Projectile p, int maxTime)
         {
             if (p == null) return;
-            var ai = p.ai;
-            ai[2] = maxTime;
-            p.ai = ai;
+            
+            p.ai[2] = maxTime;
         }
 
         private void LaserRing(NPC npc, int counts, float offset, float spin, int maxTime)

@@ -244,6 +244,11 @@ internal static class CorlibReferences
         return MakeConstructorReference(module, module.FlagsAttribute().ToTypeDefOrRef());
     }
 
+    public static MemberReference IndexOutOfRangeExceptionCtor(this ModuleDefinition module)
+    {
+        return MakeConstructorReference(module, module.ImportCorlibReference("System.IndexOutOfRangeException").ToTypeDefOrRef());
+    }
+
     public static MemberReference NotSupportedExceptionCtor(this ModuleDefinition module)
     {
         return MakeConstructorReference(module, module.NotSupportedException().ToTypeDefOrRef(), module.String());

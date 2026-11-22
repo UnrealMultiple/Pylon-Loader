@@ -19,6 +19,9 @@ public class FieldRewriteContext
     public readonly MemberReference PointerField;
     public readonly string UnmangledName;
 
+    public MemberReference? CachedOffsetField;
+    public PropertyDefinition? CopyAccessor;
+
     public FieldRewriteContext(TypeRewriteContext declaringType, FieldDefinition originalField,
         Dictionary<string, int>? renamedFieldCounts = null)
     {

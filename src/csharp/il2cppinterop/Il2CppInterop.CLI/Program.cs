@@ -19,6 +19,7 @@ var generateCommand = new Command("generate")
     new Option<DirectoryInfo>("--output", "Directory to write generated assemblies to") {IsRequired = true},
     new Option<DirectoryInfo>("--unity", "Directory with original Unity assemblies for unstripping").ExistingOnly(),
     new Option<FileInfo>("--game-assembly", "Path to GameAssembly.dll. Used for certain analyses").ExistingOnly(),
+    new Option<FileInfo>("--inline-array-native-image", "ARM64 ELF image for fail-closed inline array accessor proofs").ExistingOnly(),
     new Option<bool>("--no-xref-cache", "Don't generate xref scanning cache. All scanning will be done at runtime."),
     new Option<string[]>("--add-prefix-to",
         "Assemblies and namespaces starting with these will get an Il2Cpp prefix in generated assemblies. Allows multiple values. Obsolete."),
@@ -277,6 +278,7 @@ internal record GenerateCommandOptions(
     DirectoryInfo Output,
     DirectoryInfo? Unity,
     FileInfo? GameAssembly,
+    FileInfo? InlineArrayNativeImage,
     bool NoXrefCache,
     string[]? AddPrefixTo,
     string[]? DontAddPrefixTo,
@@ -300,6 +302,7 @@ internal record GenerateCommandOptions(
         opts.OutputDir = Output.FullName;
         opts.UnityBaseLibsDir = Unity?.FullName;
         opts.GameAssemblyPath = GameAssembly?.FullName ?? "";
+        opts.InlineArrayNativeImage = InlineArrayNativeImage?.FullName;
         opts.NoXrefCache = NoXrefCache;
         opts.TypeDeobfuscationCharsPerUniquifier = DeobfUniqChars;
         opts.TypeDeobfuscationMaxUniquifiers = DeobfUniqMax;

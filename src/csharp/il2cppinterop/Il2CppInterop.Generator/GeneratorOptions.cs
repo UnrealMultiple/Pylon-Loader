@@ -15,6 +15,8 @@ public class GeneratorOptions
     public int TypeDeobfuscationCharsPerUniquifier { get; set; } = 2;
     public int TypeDeobfuscationMaxUniquifiers { get; set; } = 10;
     public string? GameAssemblyPath { get; set; }
+    /// <summary>ARM64 ELF image used only to prove inline indexer addressing; absent means copy fallback.</summary>
+    public string? InlineArrayNativeImage { get; set; }
     public bool Verbose { get; set; }
     public bool NoXrefCache { get; set; }
     public Regex? ObfuscatedNamesRegex { get; set; }

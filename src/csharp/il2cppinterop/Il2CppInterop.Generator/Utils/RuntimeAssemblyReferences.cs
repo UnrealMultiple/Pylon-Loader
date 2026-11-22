@@ -75,7 +75,7 @@ public class RuntimeAssemblyReferences
     public Lazy<IMethodDefOrRef> Il2CppSystemDelegateCombine { get; private set; }
     public Lazy<IMethodDefOrRef> Il2CppSystemDelegateRemove { get; private set; }
     public Lazy<IMethodDefOrRef> Il2CppSystemRuntimeTypeHandleGetRuntimeTypeHandle { get; private set; }
-    public Lazy<IMethodDefOrRef> RawValueBox_Wrap { get; private set; }
+    public Lazy<IMethodDefOrRef> RawValueBox_WrapNullable { get; private set; }
 
     public IMethodDescriptor WriteFieldWBarrier => globalCtx.HasGcWbarrierFieldWrite
         ? IL2CPP_il2cpp_gc_wbarrier_set_field.Value
@@ -541,13 +541,12 @@ public class RuntimeAssemblyReferences
             return Module.DefaultImporter.ImportMethod(methodReference);
         });
 
-        // public static T Wrap<T>(IntPtr klass, IntPtr data, int size) where T : Il2CppObjectBase
-        RawValueBox_Wrap = new Lazy<IMethodDefOrRef>(() =>
+        RawValueBox_WrapNullable = new Lazy<IMethodDefOrRef>(() =>
         {
             var gp0 = new GenericParameterSignature(GenericParameterType.Method, 0);
             var signature = MethodSignature.CreateStatic(gp0, 1, ResolveType("System.IntPtr"), ResolveType("System.IntPtr"),
                 ResolveType("System.Int32"));
-            return new MemberReference(RawValueBox.ToTypeDefOrRef(), "Wrap", signature);
+            return new MemberReference(RawValueBox.ToTypeDefOrRef(), "WrapNullable", signature);
         });
     }
 }

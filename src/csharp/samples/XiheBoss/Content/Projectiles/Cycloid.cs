@@ -50,11 +50,10 @@ namespace XiheBoss
         public override void OnSpawn(Terraria.DataStructures.IEntitySource source)
         {
             var proj = Projectile;
-            var ai = proj.ai;
             var l = proj.localAI;
-            _ownerIndex = (int)ai[0];
-            _p2 = ai[1] == 1f;
-            _r1 = ai[2];
+            _ownerIndex = (int)proj.ai[0];
+            _p2 = proj.ai[1] == 1f;
+            _r1 = proj.ai[2];
             _angle = l[2];
             _local0 = l[0];
             _local1 = l[1];
@@ -224,15 +223,12 @@ namespace XiheBoss
 
         private void Sync(Projectile proj)
         {
-            var ai = proj.ai;
-            ai[2] = _r1;
-            proj.ai = ai;
+            proj.ai[2] = _r1;
 
             var l = proj.localAI;
             l[0] = _local0;
             l[1] = _local1;
             l[2] = _angle;
-            proj.localAI = l;
         }
 
         public override bool? Colliding(Rectangle projHitbox, Rectangle targetHitbox)
@@ -251,7 +247,7 @@ namespace XiheBoss
 
         public static void PushVisual(Projectile p)
         {
-            var ai = p.ai;
+            
             var l = p.localAI;
 
             var alpha = 1f - p.alpha / 255f;
@@ -260,7 +256,7 @@ namespace XiheBoss
             var scale = p.scale;
             var center = p.Center;
             var rot = p.rotation;
-            var r1 = ai[2];
+            var r1 = p.ai[2];
             var angle = l[2];
             var local0 = l[0];
             var local1 = l[1];

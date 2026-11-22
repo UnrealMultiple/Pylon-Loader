@@ -83,27 +83,26 @@ namespace XiheBoss
         public override void AI()
         {
             var proj = Projectile;
-            var ai = proj.ai;
-
+            
             proj.alpha = proj.timeLeft > 10
                 ? (int)MathHelper.Lerp(proj.alpha, 0f, 0.1f)
                 : (int)MathHelper.Lerp(proj.alpha, 255f, 0.1f);
 
-            if (ai[0] == -1f)
+            if (proj.ai[0] == -1f)
             {
 
                 proj.velocity = Vector2.Lerp(proj.velocity,
                     XiheHelper.DirectionTo(proj.Center, Main.MouseWorld) * 50f, 0.1f);
-                SparkBurst(proj.Center, ai[1]);
+                SparkBurst(proj.Center, proj.ai[1]);
             }
 
-            if (ai[0] == 0f)
+            if (proj.ai[0] == 0f)
             {
                 if (proj.timeLeft > 160) proj.velocity *= 0.95f;
                 if (proj.timeLeft == 145) proj.velocity = Vector2.Normalize(proj.velocity) * 3f;
                 if (proj.timeLeft < 145) proj.velocity *= 1.035f;
             }
-            else if (ai[0] == 1f)
+            else if (proj.ai[0] == 1f)
             {
                 var player = Main.player[Player.FindClosest(proj.Center, 1000, 1000)];
                 if (proj.timeLeft > 150)
@@ -117,7 +116,7 @@ namespace XiheBoss
                         XiheHelper.DirectionTo(proj.Center, player.Center) * 30f, 0.04f);
                 }
             }
-            else if (ai[0] == 2f)
+            else if (proj.ai[0] == 2f)
             {
                 var player = Main.player[Player.FindClosest(proj.Center, 1000, 1000)];
                 if (proj.timeLeft > 140)
@@ -131,11 +130,11 @@ namespace XiheBoss
                         XiheHelper.DirectionTo(proj.Center, player.Center) * 30f, 0.03f);
                 }
             }
-            else if (ai[0] == 3f)
+            else if (proj.ai[0] == 3f)
             {
                 if (proj.velocity.Y < 6f) proj.velocity = new Vector2(proj.velocity.X, proj.velocity.Y + 0.1f);
             }
-            else if (ai[0] == 4f && proj.velocity.Y < 10f)
+            else if (proj.ai[0] == 4f && proj.velocity.Y < 10f)
             {
                 proj.velocity = new Vector2(proj.velocity.X, proj.velocity.Y + 0.1f);
             }
@@ -158,11 +157,11 @@ namespace XiheBoss
             if (proj.timeLeft % 5 == 0)
             {
                 var d = Dust.NewDustDirect(proj.Center, 1, 1, 267, 0f, 0f, 0,
-                    XiheHelper.HsvToRgb(ai[1]), 1f);
+                    XiheHelper.HsvToRgb(proj.ai[1]), 1f);
                 d.noGravity = true;
             }
 
-            if (proj.timeLeft == 1) SparkBurst(proj.Center, ai[1]);
+            if (proj.timeLeft == 1) SparkBurst(proj.Center, proj.ai[1]);
         }
 
         private static void SparkBurst(Vector2 center, float hue)
@@ -182,8 +181,8 @@ namespace XiheBoss
 
         public static void PushVisual(Projectile p)
         {
-            var ai = p.ai;
-            var color = XiheHelper.HsvToRgb(ai[1]) * (1f - p.alpha / 255f);
+            
+            var color = XiheHelper.HsvToRgb(p.ai[1]) * (1f - p.alpha / 255f);
             if (color.A == 0) return;
 
             var scale = p.scale;

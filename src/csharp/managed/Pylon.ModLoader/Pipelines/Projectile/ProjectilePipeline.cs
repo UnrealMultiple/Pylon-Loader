@@ -274,11 +274,10 @@ internal sealed class ProjectilePipeline : ILoaderModule
 
             try
             {
+                // ai 是活视图(ref 索引器直写原生内存),无需再写回
                 if (rangeCheck && self.ai[0] == 0f && rangeDistance > mod!.GrappleRange())
                 {
-                    var ai = self.ai;
-                    ai[0] = 1f;
-                    self.ai = ai;
+                    self.ai[0] = 1f;
                 }
             }
             catch (Exception e)

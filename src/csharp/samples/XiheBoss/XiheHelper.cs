@@ -156,9 +156,10 @@ namespace XiheBoss
 
         public static void WriteLocalAi(Projectile proj, float a0, float a1, float a2, float a3)
         {
-            var a = proj.localAI;
-            a[0] = a0; a[1] = a1; a[2] = a2;
-            proj.localAI = a;
+            // localAI 是活视图:直写即写穿,无需拷出再写回
+            proj.localAI[0] = a0;
+            proj.localAI[1] = a1;
+            proj.localAI[2] = a2;
         }
 
         public static void WriteLocalAi(NPC npc, float a0, float a1, float a2)

@@ -296,6 +296,12 @@ public static class ILGeneratorEx
         }
 
         var imports = enclosingType.AssemblyContext.Imports;
+        if (!unboxValueType && IsIl2CppNullable(originalReturnType, enclosingType))
+        {
+            EmitNullableProxy(body, convertedReturnType, enclosingType, pointerVariable);
+            return;
+        }
+
         if (originalReturnType.FullName == "System.Void")
         {
             // do nothing
@@ -312,34 +318,6 @@ public static class ILGeneratorEx
                 body.Add(OpCodes.Ldloc, pointerVariable);
                 if (unboxValueType) body.Add(OpCodes.Call, imports.IL2CPP_il2cpp_object_unbox.Value);
                 body.Add(OpCodes.Ldobj, convertedReturnType.ToTypeDefOrRef());
-            }
-            else if (!unboxValueType && IsIl2CppNullable(originalReturnType, enclosingType))
-            {
-                // il2cpp_value_box erases Nullable's hasValue prefix in this runtime (see
-                // Il2CppInterop.Runtime.RawValueBox). A payload pointer must be boxed through
-                // Wrap, which builds a rooted box holding the complete Nullable payload.
-                Debug.Assert(enclosingType.NewType.DeclaringModule is not null);
-                var classPointerTypeRef = new GenericInstanceTypeSignature(imports.Il2CppClassPointerStore.ToTypeDefOrRef(), imports.Il2CppClassPointerStore.IsValueType(), convertedReturnType);
-                var classPointerFieldRef =
-                    ReferenceCreator.CreateFieldReference("NativeClassPtr", imports.Module.IntPtr(),
-                        classPointerTypeRef.ToTypeDefOrRef());
-                var classPtrField = enclosingType.NewType.DeclaringModule!.DefaultImporter.ImportField(classPointerFieldRef);
-                var sizeLocal = new CilLocalVariable(imports.Module.Int());
-                var alignLocal = new CilLocalVariable(imports.Module.UInt());
-                body.Owner.LocalVariables.Add(sizeLocal);
-                body.Owner.LocalVariables.Add(alignLocal);
-
-                // size = il2cpp_class_value_size(NativeClassPtr, out _)
-                body.Add(OpCodes.Ldsfld, classPtrField);
-                body.Add(OpCodes.Ldloca, alignLocal);
-                body.Add(OpCodes.Call, imports.IL2CPP_il2cpp_class_value_size.Value);
-                body.Add(OpCodes.Stloc, sizeLocal);
-
-                // Wrap<Nullable<T>>(NativeClassPtr, payload, size)
-                body.Add(OpCodes.Ldsfld, classPtrField);
-                body.Add(OpCodes.Ldloc, pointerVariable);
-                body.Add(OpCodes.Ldloc, sizeLocal);
-                body.Add(OpCodes.Call, imports.Module.DefaultImporter.ImportMethod(imports.RawValueBox_Wrap.Value.MakeGenericInstanceMethod(convertedReturnType)));
             }
             else
             {
@@ -402,15 +380,44 @@ public static class ILGeneratorEx
         }
     }
 
-    /// <summary>True when the original signature is the native <c>System.Nullable&lt;T&gt;</c>.</summary>
     private static bool IsIl2CppNullable(TypeSignature originalType, TypeRewriteContext enclosingType)
     {
         if (originalType is not GenericInstanceTypeSignature genericInstance) return false;
         var definition = genericInstance.GenericType?.Resolve();
-        if (definition is null) return false;
-        var nullable = enclosingType.AssemblyContext.GlobalContext
-            .TryGetAssemblyByName("mscorlib")?.TryGetTypeByName("System.Nullable`1");
-        return nullable is not null && nullable.OriginalType == definition;
+        return definition?.FullName is "Il2CppSystem.Nullable`1" or "System.Nullable`1";
+    }
+
+    private static void EmitNullableProxy(ILProcessor body, TypeSignature convertedReturnType,
+        TypeRewriteContext enclosingType, CilLocalVariable pointerVariable)
+    {
+        var imports = enclosingType.AssemblyContext.Imports;
+        var module = enclosingType.NewType.DeclaringModule!;
+        var classPointerTypeRef = new GenericInstanceTypeSignature(imports.Il2CppClassPointerStore.ToTypeDefOrRef(),
+            imports.Il2CppClassPointerStore.IsValueType(), convertedReturnType);
+        var classPointerFieldRef = ReferenceCreator.CreateFieldReference("NativeClassPtr", imports.Module.IntPtr(),
+            classPointerTypeRef.ToTypeDefOrRef());
+        var classPtrField = module.DefaultImporter.ImportField(classPointerFieldRef);
+        var sizeLocal = new CilLocalVariable(imports.Module.Int());
+        var alignLocal = new CilLocalVariable(imports.Module.UInt());
+        body.Owner.LocalVariables.Add(sizeLocal);
+        body.Owner.LocalVariables.Add(alignLocal);
+        body.Add(OpCodes.Ldloc, pointerVariable);
+        var nonNull = new CilInstructionLabel();
+        body.Add(OpCodes.Brtrue_S, nonNull);
+        body.Add(OpCodes.Ldnull);
+        var end = new CilInstructionLabel();
+        body.Add(OpCodes.Br_S, end);
+        nonNull.Instruction = body.Add(OpCodes.Nop);
+        body.Add(OpCodes.Ldsfld, classPtrField);
+        body.Add(OpCodes.Ldloca, alignLocal);
+        body.Add(OpCodes.Call, imports.IL2CPP_il2cpp_class_value_size.Value);
+        body.Add(OpCodes.Stloc, sizeLocal);
+        body.Add(OpCodes.Ldsfld, classPtrField);
+        body.Add(OpCodes.Ldloc, pointerVariable);
+        body.Add(OpCodes.Ldloc, sizeLocal);
+        body.Add(OpCodes.Call, module.DefaultImporter.ImportMethod(
+            imports.RawValueBox_WrapNullable.Value.MakeGenericInstanceMethod(convertedReturnType)));
+        end.Instruction = body.Add(OpCodes.Nop);
     }
 
     private static void EmitPointerToObjectGeneric(ILProcessor body, TypeSignature originalReturnType,

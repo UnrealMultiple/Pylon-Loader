@@ -38,9 +38,8 @@ namespace XiheBoss
         public override void AI()
         {
             var proj = Projectile;
-            var ai = proj.ai;
 
-            var idx = (int)ai[0];
+            var idx = (int)proj.ai[0];
             if (idx < 0 || idx >= Main.npc.Length)
             {
                 proj.Kill();
@@ -55,34 +54,32 @@ namespace XiheBoss
                 return;
             }
 
-            var local = proj.localAI;
-            var mode = ai[1];
+            var mode = proj.ai[1];
 
             if (mode == 1f || mode == -1f)
             {
-                local[1] = proj.timeLeft > 10
-                    ? MathHelper.Lerp(local[1], 320f, 0.1f)
-                    : MathHelper.Lerp(local[1], 0f, 0.2f);
-                proj.rotation += 0.1f * ai[1];
+                proj.localAI[1] = proj.timeLeft > 10
+                    ? MathHelper.Lerp(proj.localAI[1], 320f, 0.1f)
+                    : MathHelper.Lerp(proj.localAI[1], 0f, 0.2f);
+                proj.rotation += 0.1f * mode;
             }
             else if (mode == 2f || mode == -2f)
             {
-                local[1] = proj.timeLeft > 10
-                    ? MathHelper.Lerp(local[1], 200f, 0.1f)
-                    : MathHelper.Lerp(local[1], 0f, 0.2f);
+                proj.localAI[1] = proj.timeLeft > 10
+                    ? MathHelper.Lerp(proj.localAI[1], 200f, 0.1f)
+                    : MathHelper.Lerp(proj.localAI[1], 0f, 0.2f);
                 proj.scale = MathHelper.Lerp(proj.scale, 1f, 0.05f);
-                proj.rotation += ai[1] * 0.05f;
+                proj.rotation += mode * 0.05f;
             }
             else if (mode == 3f || mode == -3f)
             {
-                local[1] = proj.timeLeft > 10
-                    ? MathHelper.Lerp(local[1], 650f, 0.1f)
-                    : MathHelper.Lerp(local[1], 0f, 0.2f);
+                proj.localAI[1] = proj.timeLeft > 10
+                    ? MathHelper.Lerp(proj.localAI[1], 650f, 0.1f)
+                    : MathHelper.Lerp(proj.localAI[1], 0f, 0.2f);
                 proj.scale = MathHelper.Lerp(proj.scale, 1f, 0.05f);
-                proj.rotation += ai[1] * -0.011f;
+                proj.rotation += mode * -0.011f;
             }
 
-            proj.localAI = local;
         }
 
         public override bool CanDamage() => Projectile.scale > 0.2f;

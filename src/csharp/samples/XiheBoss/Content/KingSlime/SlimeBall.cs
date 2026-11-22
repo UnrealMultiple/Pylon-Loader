@@ -35,7 +35,6 @@ namespace XiheBoss.KingSlime
         public override bool OnTileCollide(Vector2 oldVelocity)
         {
             var proj = Projectile;
-            var ai = proj.ai;
             for (int i = 0; i < 10; i++)
             {
                 var v = Utils.NextVector2Unit(Main.rand, 0f, (float)Math.PI * 2f) * XiheHelper.NextFloat(1f, 5f);
@@ -43,9 +42,8 @@ namespace XiheBoss.KingSlime
                 obj.velocity = v;
                 obj.noGravity = true;
             }
-            ai[0] += 1f;
-            proj.ai = ai;
-            if (ai[0] < 2f)
+            proj.ai[0] += 1f;
+            if (proj.ai[0] < 2f)
             {
                 if (proj.velocity.X != oldVelocity.X)
                 {
@@ -78,9 +76,7 @@ namespace XiheBoss.KingSlime
             var vel = proj.velocity;
             vel.Y += 0.15f;
             proj.velocity = vel;
-            var ai = proj.ai;
-            ai[1] = 1.5f + (float)Math.Sin((float)proj.timeLeft * 0.3f) * 0.2f;
-            proj.ai = ai;
+            proj.ai[1] = 1.5f + (float)Math.Sin((float)proj.timeLeft * 0.3f) * 0.2f;
             proj.rotation = Utils.ToRotation(proj.velocity);
         }
 
@@ -88,13 +84,13 @@ namespace XiheBoss.KingSlime
 
         public static void PushVisual(Projectile p)
         {
-            var ai = p.ai;
+            
             var light = Lighting.GetColor((int)(p.Center.X / 16f), (int)(p.Center.Y / 16f));
             var color = XiheHelper.MulClamp(light, (255 - p.alpha) / 255f);
             var w = XiheTextures.WidthOf(Tex.SlimeBall);
             var h = XiheTextures.HeightOf(Tex.SlimeBall);
             XiheFx.Sprite(p.Center, Tex.SlimeBall, color, p.rotation,
-                new Vector2(ai[1], 1f) * p.scale, new Vector2(w, h) / 2f, additive: false);
+                new Vector2(p.ai[1], 1f) * p.scale, new Vector2(w, h) / 2f, additive: false);
         }
     }
 }

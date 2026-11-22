@@ -79,20 +79,17 @@ namespace XiheBoss.EoC
 
         public override bool OnTileCollide(Vector2 oldVelocity)
         {
-            var ai = Projectile.ai;
-            ai[1] = 1f;
-            Projectile.ai = ai;
+            Projectile.ai[1] = 1f;
             return false;
         }
 
         public override void AI()
         {
             var proj = Projectile;
-            var ai = proj.ai;
             var lai = XiheHelper.ReadLocalAi(proj);
             var trail = TrailOf(proj);
 
-            if (ai[1] == 1f)
+            if (proj.ai[1] == 1f)
             {
                 proj.velocity = Vector2.Zero;
                 if ((lai[1] += 1f) > 60f)
@@ -104,7 +101,7 @@ namespace XiheBoss.EoC
             {
                 proj.rotation = Utils.ToRotation(proj.velocity) + (float)Math.PI / 2f;
                 var vel = proj.velocity;
-                if (ai[0] == 0f)
+                if (proj.ai[0] == 0f)
                 {
                     if (vel.Y < 10f)
                     {

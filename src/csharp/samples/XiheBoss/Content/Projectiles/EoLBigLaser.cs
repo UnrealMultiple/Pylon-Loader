@@ -53,8 +53,7 @@ namespace XiheBoss
         {
             var proj = Projectile;
 
-            var ai = proj.ai;
-            if (ai[1] == 0f) AddRing(proj, 0f, -0.2f, 210);
+            if (proj.ai[1] == 0f) AddRing(proj, 0f, -0.2f, 210);
         }
 
         private static void AddRing(Projectile proj, float yOffset, float scale, int life)
@@ -69,12 +68,9 @@ namespace XiheBoss
         {
             var proj = Projectile;
             proj.rotation = 1.57f;
-            var lai = proj.localAI;
-            lai[1] = 10000f;
-            proj.localAI = lai;
+            proj.localAI[1] = 10000f;
 
-            var ai = proj.ai;
-            var mode = ai[1];
+            var mode = proj.ai[1];
 
             if (mode == 0f)
             {
@@ -265,8 +261,7 @@ namespace XiheBoss
         {
             if (p.scale <= 0.001f) return;
 
-            var ai = p.ai;
-            var color = XiheHelper.HsvToRgb(ai[0] % 360f, 1f, 0.5f);
+            var color = XiheHelper.HsvToRgb(p.ai[0] % 360f, 1f, 0.5f);
             var center = p.Center - new Vector2(0f, 2000f);
             var length = p.localAI[1];
             if (length <= 1f) return;

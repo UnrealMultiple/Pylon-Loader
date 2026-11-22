@@ -51,9 +51,7 @@ namespace XiheBoss
 
             if (proj.timeLeft > 20)
             {
-                var ai = proj.ai;
-                ai[0] = MathHelper.Lerp(ai[0], 63.636364f, 0.1f);
-                proj.ai = ai;
+                proj.ai[0] = MathHelper.Lerp(proj.ai[0], 63.636364f, 0.1f);
                 proj.scale = MathHelper.Lerp(proj.scale, 4f, 0.05f);
             }
             proj.rotation += 0.01f;

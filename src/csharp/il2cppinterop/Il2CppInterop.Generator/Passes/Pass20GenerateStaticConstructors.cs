@@ -118,6 +118,7 @@ public static class Pass20GenerateStaticConstructors
             ctorBuilder.Add(OpCodes.Ldstr, field.OriginalField.Name!);
             ctorBuilder.Add(OpCodes.Call, assemblyContext.Imports.IL2CPP_GetIl2CppField.Value);
             ctorBuilder.Add(OpCodes.Stsfld, field.PointerField);
+
         }
 
         foreach (var method in typeContext.Methods)

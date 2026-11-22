@@ -279,15 +279,20 @@ public static unsafe class IL2CPP
 
     public static T? PointerToValueGeneric<T>(IntPtr objectPointer, bool isFieldPointer, bool valueTypeWouldBeBoxed)
     {
+        var fieldValueWasBoxed = false;
         if (isFieldPointer)
         {
             if (il2cpp_class_is_valuetype(Il2CppClassPointerStore<T>.NativeClassPtr))
+            {
                 objectPointer = il2cpp_value_box(Il2CppClassPointerStore<T>.NativeClassPtr, objectPointer);
+                fieldValueWasBoxed = true;
+            }
             else
                 objectPointer = *(IntPtr*)objectPointer;
         }
 
-        if (!valueTypeWouldBeBoxed && il2cpp_class_is_valuetype(Il2CppClassPointerStore<T>.NativeClassPtr))
+        if (!valueTypeWouldBeBoxed && !fieldValueWasBoxed &&
+            il2cpp_class_is_valuetype(Il2CppClassPointerStore<T>.NativeClassPtr))
             objectPointer = il2cpp_value_box(Il2CppClassPointerStore<T>.NativeClassPtr, objectPointer);
 
         if (typeof(T) == typeof(string))
