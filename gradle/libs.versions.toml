@@ -6,7 +6,7 @@
 #   - minSdk 28 / arm64-v8a only：docs/00 的硬要求
 [versions]
 agp = "8.8.0"
-kotlin = "2.0.21"
+kotlin = "2.4.21"
 androidxCore = "1.13.1"
 compileSdk = "36"
 minSdk = "28"
