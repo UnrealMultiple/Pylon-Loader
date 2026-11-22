@@ -1,6 +1,8 @@
 using AsmResolver.DotNet;
 using AsmResolver.DotNet.Code.Cil;
+using AsmResolver.DotNet.Collections;
 using AsmResolver.DotNet.Signatures;
+using AsmResolver.PE.DotNet.Cil;
 using AsmResolver.PE.DotNet.Metadata.Tables;
 using Il2CppInterop.Generator.Contexts;
 using Il2CppInterop.Generator.Extensions;
@@ -76,8 +78,11 @@ internal static class FieldAccessorGenerator
             getterBody.Add(OpCodes.Stloc_0);
         }
 
-        getterBody.EmitPointerToObject(fieldContext.OriginalField.Signature!.FieldType, property.Signature.ReturnType,
-            fieldContext.DeclaringType, local0, !field.IsStatic, false);
+        if (fieldContext.OriginalField.Signature!.FieldType is GenericParameterSignature)
+            EmitGenericFieldRead(getterBody, property.Signature.ReturnType, fieldContext.DeclaringType, local0, !field.IsStatic);
+        else
+            getterBody.EmitPointerToObject(fieldContext.OriginalField.Signature!.FieldType, property.Signature.ReturnType,
+                fieldContext.DeclaringType, local0, !field.IsStatic, false);
 
         if (property.Signature.ReturnType.IsPointerLike())
             getterBody.Add(OpCodes.Ldind_I);
@@ -126,5 +131,33 @@ internal static class FieldAccessorGenerator
         if ((fieldAttributes & FieldAttributes.Static) != 0)
             return MethodAttributes.Public | MethodAttributes.Static;
         return MethodAttributes.Public;
+    }
+
+    private static void EmitGenericFieldRead(CilInstructionCollection getterBody, TypeSignature newType,
+        TypeRewriteContext declaringType, CilLocalVariable pointerVariable, bool isFieldPointer)
+    {
+        var module = declaringType.NewType.DeclaringModule!;
+        var imports = declaringType.AssemblyContext.Imports;
+
+        var valueTypeNop = new CilInstructionLabel();
+        var finalNop = new CilInstructionLabel();
+
+        getterBody.Add(OpCodes.Ldtoken, newType.ToTypeDefOrRef());
+        getterBody.Add(OpCodes.Call, module.TypeGetTypeFromHandle());
+        getterBody.Add(OpCodes.Callvirt, module.TypeGetIsValueType());
+        getterBody.Add(OpCodes.Brtrue_S, valueTypeNop);
+
+        getterBody.Add(OpCodes.Ldloc, pointerVariable);
+        getterBody.Add(isFieldPointer ? OpCodes.Ldc_I4_1 : OpCodes.Ldc_I4_0);
+        getterBody.Add(OpCodes.Ldc_I4_0);
+        getterBody.Add(OpCodes.Call, module.DefaultImporter.ImportMethod(
+            imports.IL2CPP_PointerToValueGeneric.Value.MakeGenericInstanceMethod(newType)));
+        getterBody.Add(OpCodes.Br_S, finalNop);
+
+        valueTypeNop.Instruction = getterBody.Add(OpCodes.Nop);
+        getterBody.Add(OpCodes.Ldloc, pointerVariable);
+        getterBody.Add(OpCodes.Ldobj, newType.ToTypeDefOrRef());
+
+        finalNop.Instruction = getterBody.Add(OpCodes.Nop);
     }
 }

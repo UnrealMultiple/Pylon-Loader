@@ -230,218 +230,218 @@ internal static class HideLayerHooks
 
     private static void Layer_15_SkinLongCoat(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_15_SkinLongCoat orig, PlayerDrawSet drawInfo)
     {
-        PlayerDrawLayerLoader.Before(drawInfo, 23);
-        if (!PlayerDrawLayerLoader.IsHidden(23)) orig(drawInfo);
-        PlayerDrawLayerLoader.After(drawInfo, 23);
-    }
-
-    private static void Layer_16_ArmorLongCoat(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_16_ArmorLongCoat orig, PlayerDrawSet drawInfo)
-    {
         PlayerDrawLayerLoader.Before(drawInfo, 24);
         if (!PlayerDrawLayerLoader.IsHidden(24)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 24);
     }
 
-    private static void Layer_17_Torso(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_17_Torso orig, PlayerDrawSet drawInfo)
+    private static void Layer_16_ArmorLongCoat(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_16_ArmorLongCoat orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 25);
         if (!PlayerDrawLayerLoader.IsHidden(25)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 25);
     }
 
-    private static void Layer_17_TorsoComposite(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_17_TorsoComposite orig, PlayerDrawSet drawInfo)
+    private static void Layer_17_Torso(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_17_Torso orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 26);
         if (!PlayerDrawLayerLoader.IsHidden(26)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 26);
     }
 
-    private static void Layer_18_OffhandAcc(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_18_OffhandAcc orig, PlayerDrawSet drawInfo)
+    private static void Layer_17_TorsoComposite(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_17_TorsoComposite orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 27);
         if (!PlayerDrawLayerLoader.IsHidden(27)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 27);
     }
 
-    private static void Layer_19_WaistAcc(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_19_WaistAcc orig, PlayerDrawSet drawInfo)
+    private static void Layer_18_OffhandAcc(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_18_OffhandAcc orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 28);
         if (!PlayerDrawLayerLoader.IsHidden(28)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 28);
     }
 
-    private static void Layer_20_NeckAcc(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_20_NeckAcc orig, PlayerDrawSet drawInfo)
+    private static void Layer_19_WaistAcc(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_19_WaistAcc orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 29);
         if (!PlayerDrawLayerLoader.IsHidden(29)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 29);
     }
 
-    private static void Layer_21_Head(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_21_Head orig, PlayerDrawSet drawInfo)
+    private static void Layer_20_NeckAcc(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_20_NeckAcc orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 30);
         if (!PlayerDrawLayerLoader.IsHidden(30)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 30);
     }
 
-    private static void Layer_21_Head_TheFace(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_21_Head_TheFace orig, PlayerDrawSet drawInfo)
+    private static void Layer_21_Head(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_21_Head orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 31);
         if (!PlayerDrawLayerLoader.IsHidden(31)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 31);
     }
 
-    private static void Layer_21_Head_TheFace_Eyelid(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_21_Head_TheFace_Eyelid orig, PlayerDrawSet drawInfo)
+    private static void Layer_21_Head_TheFace(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_21_Head_TheFace orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 32);
         if (!PlayerDrawLayerLoader.IsHidden(32)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 32);
     }
 
-    private static void Layer_21_1_Magiluminescence(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_21_1_Magiluminescence orig, PlayerDrawSet drawInfo)
+    private static void Layer_21_Head_TheFace_Eyelid(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_21_Head_TheFace_Eyelid orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 33);
         if (!PlayerDrawLayerLoader.IsHidden(33)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 33);
     }
 
-    private static void Layer_22_FaceAcc(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_22_FaceAcc orig, PlayerDrawSet drawInfo)
+    private static void Layer_21_1_Magiluminescence(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_21_1_Magiluminescence orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 34);
         if (!PlayerDrawLayerLoader.IsHidden(34)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 34);
     }
 
-    private static void Layer_23_MountFront(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_23_MountFront orig, PlayerDrawSet drawInfo)
+    private static void Layer_22_FaceAcc(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_22_FaceAcc orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 35);
         if (!PlayerDrawLayerLoader.IsHidden(35)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 35);
     }
 
-    private static void Layer_24_Pulley(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_24_Pulley orig, PlayerDrawSet drawInfo)
+    private static void Layer_23_MountFront(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_23_MountFront orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 36);
         if (!PlayerDrawLayerLoader.IsHidden(36)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 36);
     }
 
-    private static void Layer_25_Shield(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_25_Shield orig, PlayerDrawSet drawInfo)
+    private static void Layer_24_Pulley(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_24_Pulley orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 37);
         if (!PlayerDrawLayerLoader.IsHidden(37)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 37);
     }
 
-    private static void Layer_26_SolarShield(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_26_SolarShield orig, PlayerDrawSet drawInfo)
+    private static void Layer_25_Shield(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_25_Shield orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 38);
         if (!PlayerDrawLayerLoader.IsHidden(38)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 38);
     }
 
-    private static void Layer_27_HeldItem(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_27_HeldItem orig, PlayerDrawSet drawInfo)
+    private static void Layer_26_SolarShield(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_26_SolarShield orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 39);
         if (!PlayerDrawLayerLoader.IsHidden(39)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 39);
     }
 
-    private static void Layer_28_ArmOverItem(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_28_ArmOverItem orig, PlayerDrawSet drawInfo)
+    private static void Layer_27_HeldItem(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_27_HeldItem orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 40);
         if (!PlayerDrawLayerLoader.IsHidden(40)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 40);
     }
 
-    private static void Layer_28_ArmOverItemComposite(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_28_ArmOverItemComposite orig, PlayerDrawSet drawInfo)
+    private static void Layer_28_ArmOverItem(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_28_ArmOverItem orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 41);
         if (!PlayerDrawLayerLoader.IsHidden(41)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 41);
     }
 
-    private static void Layer_29_OnhandAcc(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_29_OnhandAcc orig, PlayerDrawSet drawInfo)
+    private static void Layer_28_ArmOverItemComposite(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_28_ArmOverItemComposite orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 42);
         if (!PlayerDrawLayerLoader.IsHidden(42)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 42);
     }
 
-    private static void Layer_30_BladedGlove(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_30_BladedGlove orig, PlayerDrawSet drawInfo)
+    private static void Layer_29_OnhandAcc(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_29_OnhandAcc orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 43);
         if (!PlayerDrawLayerLoader.IsHidden(43)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 43);
     }
 
-    private static void Layer_31_ProjectileOverArm(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_31_ProjectileOverArm orig, PlayerDrawSet drawInfo)
+    private static void Layer_30_BladedGlove(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_30_BladedGlove orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 44);
         if (!PlayerDrawLayerLoader.IsHidden(44)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 44);
     }
 
-    private static void Layer_32_FrontAcc(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_32_FrontAcc orig, PlayerDrawSet drawInfo)
+    private static void Layer_31_ProjectileOverArm(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_31_ProjectileOverArm orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 45);
         if (!PlayerDrawLayerLoader.IsHidden(45)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 45);
     }
 
-    private static void Layer_32_FrontAcc_FrontPart(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_32_FrontAcc_FrontPart orig, PlayerDrawSet drawInfo)
+    private static void Layer_32_FrontAcc(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_32_FrontAcc orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 46);
         if (!PlayerDrawLayerLoader.IsHidden(46)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 46);
     }
 
-    private static void Layer_32_FrontAcc_BackPart(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_32_FrontAcc_BackPart orig, PlayerDrawSet drawInfo)
+    private static void Layer_32_FrontAcc_FrontPart(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_32_FrontAcc_FrontPart orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 47);
         if (!PlayerDrawLayerLoader.IsHidden(47)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 47);
     }
 
-    private static void Layer_33_FrozenOrWebbedDebuff(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_33_FrozenOrWebbedDebuff orig, PlayerDrawSet drawInfo)
+    private static void Layer_32_FrontAcc_BackPart(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_32_FrontAcc_BackPart orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 48);
         if (!PlayerDrawLayerLoader.IsHidden(48)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 48);
     }
 
-    private static void Layer_34_ElectrifiedDebuffFront(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_34_ElectrifiedDebuffFront orig, PlayerDrawSet drawInfo)
+    private static void Layer_33_FrozenOrWebbedDebuff(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_33_FrozenOrWebbedDebuff orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 49);
         if (!PlayerDrawLayerLoader.IsHidden(49)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 49);
     }
 
-    private static void Layer_35_IceBarrier(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_35_IceBarrier orig, PlayerDrawSet drawInfo)
+    private static void Layer_34_ElectrifiedDebuffFront(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_34_ElectrifiedDebuffFront orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 50);
         if (!PlayerDrawLayerLoader.IsHidden(50)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 50);
     }
 
-    private static void Layer_36_CTG(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_36_CTG orig, PlayerDrawSet drawInfo)
+    private static void Layer_35_IceBarrier(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_35_IceBarrier orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 51);
         if (!PlayerDrawLayerLoader.IsHidden(51)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 51);
     }
 
-    private static void Layer_37_BeetleBuff(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_37_BeetleBuff orig, PlayerDrawSet drawInfo)
+    private static void Layer_36_CTG(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_36_CTG orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 52);
         if (!PlayerDrawLayerLoader.IsHidden(52)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 52);
     }
 
-    private static void Layer_38_EyebrellaCloud(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_38_EyebrellaCloud orig, PlayerDrawSet drawInfo)
+    private static void Layer_37_BeetleBuff(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_37_BeetleBuff orig, PlayerDrawSet drawInfo)
     {
         PlayerDrawLayerLoader.Before(drawInfo, 53);
         if (!PlayerDrawLayerLoader.IsHidden(53)) orig(drawInfo);
         PlayerDrawLayerLoader.After(drawInfo, 53);
+    }
+
+    private static void Layer_38_EyebrellaCloud(On.Terraria.DataStructures.PlayerDrawLayers.orig_DrawPlayer_38_EyebrellaCloud orig, PlayerDrawSet drawInfo)
+    {
+        PlayerDrawLayerLoader.Before(drawInfo, 54);
+        if (!PlayerDrawLayerLoader.IsHidden(54)) orig(drawInfo);
+        PlayerDrawLayerLoader.After(drawInfo, 54);
     }
 }

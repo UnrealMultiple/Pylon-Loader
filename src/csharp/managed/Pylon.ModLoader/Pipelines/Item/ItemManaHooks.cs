@@ -41,13 +41,13 @@ internal static class ItemManaHooks
         if (ItemPipeline.Instance.InstanceOf(item) is { } m && m.Plan.Has(HookId.ModifyManaCost))
         {
             try { m.ModifyManaCost(player, ref reduce, ref mult); }
-            catch (Exception e) { Report(m.FullKey, e); }
+            catch (Exception e) { Report(m.FullKey, HookId.ModifyManaCost, e); }
         }
 
         foreach (var g in GlobalItemRegistry.For(item, HookId.ModifyManaCost))
         {
             try { g.ModifyManaCost(item, player, ref reduce, ref mult); }
-            catch (Exception e) { Report(g.FullKey, e); }
+            catch (Exception e) { Report(g.FullKey, HookId.ModifyManaCost, e); }
         }
 
         var mods = PlayerPipeline.Instance.ModsOf(player);
@@ -57,7 +57,7 @@ internal static class ItemManaHooks
             if (!mod.HookEnabled(HookId.ModifyManaCost)) continue;
 
             try { mod.ModifyManaCost(item, ref reduce, ref mult); }
-            catch (Exception e) { Report(PlayerKey(mod), e); }
+            catch (Exception e) { Report(PlayerKey(mod), HookId.ModifyManaCost, e); }
         }
 
         var value = reduce * mult;
@@ -114,13 +114,13 @@ internal static class ItemManaHooks
         if (ItemPipeline.Instance.InstanceOf(item) is { } m && m.Plan.Has(HookId.OnMissingMana))
         {
             try { m.OnMissingMana(player, neededMana); }
-            catch (Exception e) { Report(m.FullKey, e); }
+            catch (Exception e) { Report(m.FullKey, HookId.OnMissingMana, e); }
         }
 
         foreach (var g in GlobalItemRegistry.For(item, HookId.OnMissingMana))
         {
             try { g.OnMissingMana(item, player, neededMana); }
-            catch (Exception e) { Report(g.FullKey, e); }
+            catch (Exception e) { Report(g.FullKey, HookId.OnMissingMana, e); }
         }
 
         var mods = PlayerPipeline.Instance.ModsOf(player);
@@ -130,7 +130,7 @@ internal static class ItemManaHooks
             if (!mod.HookEnabled(HookId.OnMissingMana)) continue;
 
             try { mod.OnMissingMana(item, neededMana); }
-            catch (Exception e) { Report(PlayerKey(mod), e); }
+            catch (Exception e) { Report(PlayerKey(mod), HookId.OnMissingMana, e); }
         }
     }
 
@@ -139,13 +139,13 @@ internal static class ItemManaHooks
         if (ItemPipeline.Instance.InstanceOf(item) is { } m && m.Plan.Has(HookId.OnConsumeMana))
         {
             try { m.OnConsumeMana(player, manaConsumed); }
-            catch (Exception e) { Report(m.FullKey, e); }
+            catch (Exception e) { Report(m.FullKey, HookId.OnConsumeMana, e); }
         }
 
         foreach (var g in GlobalItemRegistry.For(item, HookId.OnConsumeMana))
         {
             try { g.OnConsumeMana(item, player, manaConsumed); }
-            catch (Exception e) { Report(g.FullKey, e); }
+            catch (Exception e) { Report(g.FullKey, HookId.OnConsumeMana, e); }
         }
 
         var mods = PlayerPipeline.Instance.ModsOf(player);
@@ -155,12 +155,12 @@ internal static class ItemManaHooks
             if (!mod.HookEnabled(HookId.OnConsumeMana)) continue;
 
             try { mod.OnConsumeMana(item, manaConsumed); }
-            catch (Exception e) { Report(PlayerKey(mod), e); }
+            catch (Exception e) { Report(PlayerKey(mod), HookId.OnConsumeMana, e); }
         }
     }
 
     private static string PlayerKey(ModPlayer mod) => $"{mod.Mod?.Name}/{mod.GetType().Name}";
 
-    private static void Report(string key, Exception e) =>
-        ContentErrors.Report($"[item] {key} 异常：{Safe.Describe(e)}");
+    private static void Report(string key, HookId hook, Exception e) =>
+        ContentErrors.Callback($"[item] {key}.{hook}", e);
 }

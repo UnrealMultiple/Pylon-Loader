@@ -313,6 +313,34 @@ public static class ILGeneratorEx
                 if (unboxValueType) body.Add(OpCodes.Call, imports.IL2CPP_il2cpp_object_unbox.Value);
                 body.Add(OpCodes.Ldobj, convertedReturnType.ToTypeDefOrRef());
             }
+            else if (!unboxValueType && IsIl2CppNullable(originalReturnType, enclosingType))
+            {
+                // il2cpp_value_box erases Nullable's hasValue prefix in this runtime (see
+                // Il2CppInterop.Runtime.RawValueBox). A payload pointer must be boxed through
+                // Wrap, which builds a rooted box holding the complete Nullable payload.
+                Debug.Assert(enclosingType.NewType.DeclaringModule is not null);
+                var classPointerTypeRef = new GenericInstanceTypeSignature(imports.Il2CppClassPointerStore.ToTypeDefOrRef(), imports.Il2CppClassPointerStore.IsValueType(), convertedReturnType);
+                var classPointerFieldRef =
+                    ReferenceCreator.CreateFieldReference("NativeClassPtr", imports.Module.IntPtr(),
+                        classPointerTypeRef.ToTypeDefOrRef());
+                var classPtrField = enclosingType.NewType.DeclaringModule!.DefaultImporter.ImportField(classPointerFieldRef);
+                var sizeLocal = new CilLocalVariable(imports.Module.Int());
+                var alignLocal = new CilLocalVariable(imports.Module.UInt());
+                body.Owner.LocalVariables.Add(sizeLocal);
+                body.Owner.LocalVariables.Add(alignLocal);
+
+                // size = il2cpp_class_value_size(NativeClassPtr, out _)
+                body.Add(OpCodes.Ldsfld, classPtrField);
+                body.Add(OpCodes.Ldloca, alignLocal);
+                body.Add(OpCodes.Call, imports.IL2CPP_il2cpp_class_value_size.Value);
+                body.Add(OpCodes.Stloc, sizeLocal);
+
+                // Wrap<Nullable<T>>(NativeClassPtr, payload, size)
+                body.Add(OpCodes.Ldsfld, classPtrField);
+                body.Add(OpCodes.Ldloc, pointerVariable);
+                body.Add(OpCodes.Ldloc, sizeLocal);
+                body.Add(OpCodes.Call, imports.Module.DefaultImporter.ImportMethod(imports.RawValueBox_Wrap.Value.MakeGenericInstanceMethod(convertedReturnType)));
+            }
             else
             {
                 if (unboxValueType)
@@ -372,6 +400,17 @@ public static class ILGeneratorEx
                 imports.Module.DefaultImporter.ImportMethod(imports.Il2CppObjectPool_Get.Value.MakeGenericInstanceMethod(convertedReturnType)));
             endNop.Instruction = body.Add(OpCodes.Nop);
         }
+    }
+
+    /// <summary>True when the original signature is the native <c>System.Nullable&lt;T&gt;</c>.</summary>
+    private static bool IsIl2CppNullable(TypeSignature originalType, TypeRewriteContext enclosingType)
+    {
+        if (originalType is not GenericInstanceTypeSignature genericInstance) return false;
+        var definition = genericInstance.GenericType?.Resolve();
+        if (definition is null) return false;
+        var nullable = enclosingType.AssemblyContext.GlobalContext
+            .TryGetAssemblyByName("mscorlib")?.TryGetTypeByName("System.Nullable`1");
+        return nullable is not null && nullable.OriginalType == definition;
     }
 
     private static void EmitPointerToObjectGeneric(ILProcessor body, TypeSignature originalReturnType,

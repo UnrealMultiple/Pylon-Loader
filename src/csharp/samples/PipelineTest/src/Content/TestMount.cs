@@ -32,7 +32,7 @@ public sealed class TestMountBuff : ModBuff
     {
         UpdateCount++;
         player.mount.SetMount(ModContent.MountType<TestMount>(), player);
-        player.buffTime[buffIndex] = 10;
+        player.buffTime[buffIndex] = 300;
     }
 }
 

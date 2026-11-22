@@ -1,3 +1,4 @@
+using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Pylon.ModLoader.Content;
 using Pylon.ModLoader.Contracts;
 using Pylon.ModLoader.Core;
@@ -14,6 +15,8 @@ internal sealed class RecipePipeline : ILoaderModule
     public static RecipePipeline Instance { get; } = new();
 
     private readonly HashSet<int> _reported = [];
+
+    private static bool _beyond;
 
     public string Name => "recipe";
 
@@ -60,6 +63,25 @@ internal sealed class RecipePipeline : ILoaderModule
                 Log.Info("[recipe] 已挂（条件过滤 / 向导过滤 / 配方组名 / 材料折扣 / 制作回调）");
             }
         }
+
+        /// <summary>惰性门：配方总数越过原版上限要到注册期才知道，由 RecipeTable 在首条超限配方登记时触发安装。</summary>
+        internal struct Beyond : ILazyGate
+        {
+            public static bool Wanted() => false;
+
+            public static void Install()
+            {
+                GateHub<RecipePipeline>.Trigger<Gates.Filter>();
+                On.Terraria.Recipe.UpdateItemVariants += Instance.UpdateVariants;
+                Log.Info("[recipe] 超上限补扫已挂（可制作表 / 向导 / 物品变体）");
+            }
+        }
+    }
+
+    internal static void MarkBeyond()
+    {
+        _beyond = true;
+        GateHub<RecipePipeline>.Trigger<Gates.Beyond>();
     }
 
     public bool Install() => GateHub<RecipePipeline>.Run();
@@ -80,7 +102,31 @@ internal sealed class RecipePipeline : ILoaderModule
 
     private void FindRecipes(On.Terraria.Recipe.orig_FindRecipes orig, bool canDelayCheck)
     {
+        var beyondNow = !canDelayCheck && _beyond && Recipe.numRecipes > Recipe.maxRecipes;
+
+        var oldRecipe = 0;
+        if (beyondNow)
+        {
+            try
+            {
+                GrowAvailable(Recipe.numRecipes);
+                var snapshot = Main.availableRecipe;
+                var focusAt = Main.focusRecipe;
+                if (snapshot is not null && focusAt >= 0 && focusAt < snapshot.Length) oldRecipe = snapshot[focusAt];
+            }
+            catch (Exception e)
+            {
+                Safe.Report("recipe.beyond.prepare", e);
+            }
+        }
+
         orig(canDelayCheck);
+
+        if (beyondNow)
+        {
+            try { FindBeyondMax(oldRecipe); }
+            catch (Exception e) { Safe.Report("recipe.beyond.scan", e); }
+        }
 
         var available = Main.availableRecipe;
         if (available is null) return;
@@ -128,6 +174,12 @@ internal sealed class RecipePipeline : ILoaderModule
     {
         orig(self);
 
+        if (_beyond && Recipe.numRecipes > Recipe.maxRecipes)
+        {
+            try { FindGuideBeyondMax(self); }
+            catch (Exception e) { Safe.Report("recipe.beyond.guide", e); }
+        }
+
         var available = Main.availableRecipe;
         var count = Main.numAvailableRecipes;
         if (available is null || count <= 0 || count > available.Length) return;
@@ -164,6 +216,102 @@ internal sealed class RecipePipeline : ILoaderModule
         }
 
         Main.focusRecipe = 0;
+    }
+
+    #endregion
+
+    #region 超上限补扫
+
+    private static void GrowAvailable(int total)
+    {
+        var available = Main.availableRecipe;
+        if (available is not null && available.Length < total && Tables.ArrayGrow.Grow(ref available, total))
+            Main.availableRecipe = available;
+
+        var positions = Main.availableRecipeY;
+        if (positions is not null && positions.Length < total && Tables.ArrayGrow.Grow(ref positions, total))
+            Main.availableRecipeY = positions;
+    }
+
+    private static void FindBeyondMax(int oldRecipe)
+    {
+        var recipes = Main.recipe;
+        var total = Math.Min(Recipe.numRecipes, recipes.Length);
+        var available = Main.availableRecipe;
+        var present = new HashSet<int>();
+        for (var k = 0; k < Main.numAvailableRecipes; k++) present.Add(available[k]);
+        Player player = Main.LocalPlayer;
+        Recipe.CollectItemsToCraftWithFrom(player);
+        for (var i = Recipe.maxRecipes; i < total; i++)
+        {
+            var recipe = recipes[i];
+            if (recipe is null || recipe.createItem.type == 0) break;
+            if (present.Contains(i)) continue;
+            if (Recipe.PlayerMeetsTileRequirements(player, recipe) && Recipe.PlayerMeetsEnvironmentConditions(player, recipe) &&
+                Recipe.CollectedEnoughItemsToCraft(recipe))
+                Recipe.AddToAvailableRecipes(i);
+        }
+        Recipe.TryRefocusingRecipe(oldRecipe);
+    }
+
+    private static void FindGuideBeyondMax(GUICraftGuidePopup popup)
+    {
+        Item item = Main.guideItem;
+        if (item is null || item.type < 1 || item.stack < 1) return;
+        var recipes = Main.recipe;
+        var total = Math.Min(Recipe.numRecipes, recipes.Length);
+        var found = popup.availableGuideRecipe;
+        if (found is null || found.Length < total)
+        {
+            var grown = new Il2CppStructArray<int>(total);
+            if (found is not null) for (var i = 0; i < found.Length; i++) grown[i] = found[i];
+            popup.availableGuideRecipe = grown;
+            found = grown;
+        }
+        var present = new HashSet<int>();
+        for (var k = 0; k < popup.numAvailableGuideRecipes; k++) present.Add(found[k]);
+        var type = item.type;
+        for (var i = Recipe.maxRecipes; i < total; i++)
+        {
+            var recipe = recipes[i];
+            if (recipe is null || recipe.createItem.type == 0) break;
+            if (!present.Contains(i) && UsesItem(recipe, type)) found[popup.numAvailableGuideRecipes++] = i;
+        }
+    }
+
+    private static bool UsesItem(Recipe recipe, int type)
+    {
+        var lookup = recipe.requiredItemQuickLookup;
+        for (var j = 0; j < lookup.Length; j++)
+        {
+            Recipe.RequiredItemEntry entry = lookup[j];
+            if (entry.itemIdOrRecipeGroup == 0) return false;
+            if (entry.Matches(type)) return true;
+        }
+        return false;
+    }
+
+    private void UpdateVariants(On.Terraria.Recipe.orig_UpdateItemVariants orig)
+    {
+        orig();
+        if (Recipe.numRecipes <= Recipe.maxRecipes) return;
+        try
+        {
+            var recipes = Main.recipe;
+            var total = Math.Min(Recipe.numRecipes, recipes.Length);
+            for (var i = Recipe.maxRecipes; i < total; i++)
+            {
+                var recipe = recipes[i];
+                if (recipe is null) break;
+                recipe.createItem.Refresh(true);
+                var ingredients = recipe.requiredItem;
+                for (var j = 0; j < ingredients.Length && ingredients[j].type != 0; j++) ingredients[j].Refresh(true);
+            }
+        }
+        catch (Exception e)
+        {
+            Safe.Report("recipe.beyond.variants", e);
+        }
     }
 
     #endregion

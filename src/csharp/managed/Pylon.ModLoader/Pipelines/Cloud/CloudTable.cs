@@ -26,6 +26,25 @@ internal static class CloudTable
 
     private static int _vanilla;
 
+    internal static int VanillaCommonPool => 22;
+
+    internal static int VanillaRarePool
+    {
+        get
+        {
+            if (Main.tenthAnniversaryWorld)
+            {
+                var celebration = Terraria.ID.CloudID.Sets.RareClouds_Celebration;
+                if (celebration is not null && celebration.Count > 0) return celebration.Count;
+                return 15;
+            }
+
+            var normal = Terraria.ID.CloudID.Sets.RareClouds_Normal;
+            if (normal is not null && normal.Count > 0) return normal.Count;
+            return 18;
+        }
+    }
+
     internal static int Count => _next;
 
     internal static int Total => Base + _next;
@@ -107,7 +126,7 @@ internal static class CloudTable
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[cloud] {cloud.Name}.SpawnChance 异常：{Safe.Describe(e)}");
+            ContentErrors.Callback($"[cloud] {cloud.Name}.SpawnChance", e);
             return 0;
         }
     }

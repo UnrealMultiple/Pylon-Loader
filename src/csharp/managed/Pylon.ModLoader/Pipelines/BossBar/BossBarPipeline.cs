@@ -10,7 +10,8 @@ using Terraria.GameContent;
 using Terraria.GameContent.UI.BigProgressBar;
 
 namespace Pylon.ModLoader.Pipelines;
-/// <summary>Boss 血条管线：拦在 BigProgressBarSystem 上抓目标与换条（NPC 与血条的绑定在 NPC.BossBar 上），GUI 层接管条身皮肤。</summary>
+/// <summary>Boss 血条管线：拦在 BigProgressBarSystem 上抓目标与换条（NPC 与血条的绑定在 NPC.BossBar 上），GUI 层接管条身皮肤；
+/// 安装期对 ModBossBar 与 GlobalBossBar 派发 SetStaticDefaults，作者的共享状态在第一次绘制前就绪。</summary>
 internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
 {
     public static BossBarPipeline Instance { get; } = new();
@@ -87,6 +88,7 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         On.GUIBossBar.Draw += GuiDraw;
         On.GUIPanel.DrawBacking += Backing;
         On.GUIPanel.Region += CapturedRegion;
+        On.GUITransactionButton.Draw_TransactionButton_Layout_Texture2D_Rectangle_string_bool_floatRef_Nullable_Color_bool_bool_bool_bool += Icon;
         On.GUIString.Draw_String_Layout_string += Text;
         On.GUIString.Draw_String_Layout_string_Color_bool += TextColor;
         On.GUIString.Draw_String_Layout_StringBuilder += TextBuilder;
@@ -114,6 +116,18 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         }
 
         _globals = [.. ModContent.GetContent<GlobalBossBar>()];
+        foreach (var global in _globals)
+        {
+            try
+            {
+                global.SetStaticDefaults();
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[bossbar] {global.Name}.SetStaticDefaults 异常：{Safe.Describe(e)}");
+            }
+        }
+
         BossBarTable.Rebuild();
 
         if (BossBarTable.Count > 0) Log.Info($"[bossbar] 安装：{BossBarTable.Count} 条血条");
@@ -365,7 +379,7 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
     private static void GuiDraw(On.GUIBossBar.orig_Draw orig, GUIBossBar self, float life, float lifeMax,
                                 Texture2D icon, Rectangle frame, float shield, float shieldMax)
     {
-        if (_inModBarDraw || _globals.Length == 0)
+        if (_inModBarDraw || _skin is not null || _globals.Length == 0)
         {
             orig(self, life, lifeMax, icon, frame, shield, shieldMax);
             return;
@@ -425,8 +439,16 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         if (keep)
         {
             var shielded = draw.ShieldMax > 0f;
-            orig(self, draw.Life, draw.LifeMax, draw.IconTexture, draw.IconFrame,
-                 shielded ? draw.Shield : -1f, shielded ? draw.ShieldMax : 1f);
+            _skin = draw;
+            try
+            {
+                orig(self, draw.Life, draw.LifeMax, draw.IconTexture, draw.IconFrame,
+                     shielded ? draw.Shield : -1f, shielded ? draw.ShieldMax : 1f);
+            }
+            finally
+            {
+                _skin = null;
+            }
         }
 
         foreach (var global in _globals)
@@ -446,6 +468,22 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         }
 
         orig(position, size, texture, color, frame);
+    }
+
+    private static GUITransactionButton.InputState Icon(On.GUITransactionButton.orig_Draw_TransactionButton_Layout_Texture2D_Rectangle_string_bool_floatRef_Nullable_Color_bool_bool_bool_bool orig,
+                                                        TransactionButton_Layout layout, Texture2D itemTexture, Rectangle srcRect,
+                                                        string label, bool disabled, ref float scale,
+                                                        Il2CppSystem.Nullable<Color> overloadedItemColour,
+                                                        bool forcedPressed, bool hasControllerFocus, bool forceOver, bool disablePressedState)
+    {
+        if (_skin is { } skin && skin.IconColor != Color.White && itemTexture is not null &&
+            itemTexture.Pointer == skin.IconTexture?.Pointer)
+        {
+            overloadedItemColour = new Il2CppSystem.Nullable<Color>(skin.IconColor);
+        }
+
+        return orig(layout, itemTexture, srcRect, label, disabled, ref scale, overloadedItemColour,
+                    forcedPressed, hasControllerFocus, forceOver, disablePressedState);
     }
 
     private static Vector2 Center()

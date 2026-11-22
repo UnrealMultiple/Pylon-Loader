@@ -372,7 +372,7 @@ public static class SystemLoader
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[interfacelayer] {systems[i].FullKey}.ModifyInterfaceLayers 异常：" + Safe.Describe(e));
+                ContentErrors.Callback($"[interfacelayer] {systems[i].FullKey}.ModifyInterfaceLayers", e);
             }
         }
     }
@@ -388,7 +388,7 @@ public static class SystemLoader
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[interface] {systems[i].FullKey}.PostDrawInterface 异常：" + Safe.Describe(e));
+                ContentErrors.Callback($"[interface] {systems[i].FullKey}.PostDrawInterface", e);
             }
         }
     }

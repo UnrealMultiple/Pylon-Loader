@@ -24,6 +24,7 @@ internal static class TileInteractionHooks
         On.Terraria.GameContent.PlayerSleepingHelper.GetSleepingTargetInfo += Sleeping;
         On.Terraria.WorldGen.SlopeTile += Slope;
         On.Terraria.WorldGen.PoundTile += Pound;
+        On.Terraria.Player.CheckSpawn += CheckSpawn;
         On.Terraria.GameContent.ObjectInteractions.TileSmartInteractCandidateProvider.FillPotentialTargetTiles += SmartInteract;
     }
 
@@ -219,4 +220,32 @@ internal static class TileInteractionHooks
 
     private static bool Pound(On.Terraria.WorldGen.orig_PoundTile orig, int x, int y) =>
         AllowSlope(x, y) && orig(x, y);
+
+    /// <summary>
+    /// TileID.Sets.IsValidSpawnPoint：标了 true 的 mod 方块在出生判定里临时换装成床
+    /// （原版 CheckSpawn 只认床；跟 Bunny/tML 同一套交换手法）。
+    /// </summary>
+    private static bool CheckSpawn(On.Terraria.Player.orig_CheckSpawn orig, int x, int y)
+    {
+        if (Main.tile is not null && x >= 0 && x < Main.maxTilesX && y > 0 && y < Main.maxTilesY)
+        {
+            var tile = Main.tile[x, y - 1];
+            if (tile.active())
+            {
+                var type = tile.type;
+                if (TileTable.Has(type) && TileIdTml.IsSpawnPoint(type))
+                {
+                    tile.type = TileID.Beds;
+                    try { return orig(x, y); }
+                    finally
+                    {
+                        var restore = Main.tile[x, y - 1];
+                        restore.type = type;
+                    }
+                }
+            }
+        }
+
+        return orig(x, y);
+    }
 }

@@ -20,6 +20,7 @@ internal static class InstallPlan
 
             new GrowTablesStep(host),
 
+            new Step("本地化加载完成", InstallStage.Static, ModEnvironmentHooks.LocalizationsLoaded),
             new Step("名字接管", InstallStage.Static, () => ItemNamePatch.Install(host.Log)),
 
             new Step("buff 静态默认值", InstallStage.Static, InstallSteps.BuffStaticDefaults),
@@ -42,6 +43,7 @@ internal static class InstallPlan
             new Step("写贴图与文本", InstallStage.Surface, () => InstallSteps.WriteTextures(host)),
             new Step("水贴图安装", InstallStage.Surface, () => WaterPipeline.Instance.SetupTextures()),
 
+            new Step("物品静态默认值", InstallStage.Samples, InstallSteps.ItemStaticDefaults),
             new Step("物品样例", InstallStage.Samples, InstallSteps.RegisterItemSamples),
             new Step("聊天标签上限", InstallStage.Samples, () => ChatTagPatches.Build(host.Log)),
             new Step("物品排序白名单", InstallStage.Samples, ItemSortingHooks.Classify),
@@ -74,13 +76,10 @@ internal static class InstallPlan
 
             new Step("System.ResizeArrays", InstallStage.Mods, SystemLoader.ResizeArrays),
             new Step("System.SetStaticDefaults", InstallStage.Mods, SystemStaticDefaults),
-            new HookStep("Mod.AddRecipeGroups", InstallStage.Mods, HookId.AddRecipeGroups, static mod => mod.AddRecipeGroups()),
-            new Step("System.AddRecipeGroups", InstallStage.Mods, SystemRecipeGroups),
-            new Step("GlobalNPC 配方组", InstallStage.Mods, GlobalRecipeGroups),
-            new HookStep("Mod.PostSetupContent", InstallStage.Mods, HookId.PostSetupContent, static mod => mod.PostSetupContent()),
-            new Step("System.PostSetupContent", InstallStage.Mods, SystemPostSetupContent),
+            new NestedSystemStep("PostSetupContent（逐 mod）", InstallStage.Mods, HookId.PostSetupContent, static mod => mod.PostSetupContent(), SystemLoader.PostSetupContent),
             new Step("渔夫任务鱼", InstallStage.Mods, ItemAnglerQuest.Build),
-            new Step("本地化加载完成", InstallStage.Mods, ModEnvironmentHooks.LocalizationsLoaded),
+            new NestedSystemStep("AddRecipeGroups（逐 mod）", InstallStage.Mods, HookId.AddRecipeGroups, static mod => mod.AddRecipeGroups(), SystemLoader.AddRecipeGroups),
+            new Step("GlobalNPC 配方组", InstallStage.Mods, GlobalRecipeGroups),
             new Step("提示重建开关", InstallStage.Mods, () => TooltipPipeline.Instance.Build()),
             new Step("GlobalNPC 静态与配方", InstallStage.Mods, GlobalNpcTasks),
 
@@ -123,16 +122,6 @@ internal static class InstallPlan
         foreach (var mod in LoaderHost.Current.Mods.Mods) SystemLoader.SetupContent(mod);
     }
 
-    private static void SystemPostSetupContent()
-    {
-        foreach (var mod in LoaderHost.Current.Mods.Mods) SystemLoader.PostSetupContent(mod);
-    }
-
-    private static void SystemRecipeGroups()
-    {
-        foreach (var mod in LoaderHost.Current.Mods.Mods) SystemLoader.AddRecipeGroups(mod);
-    }
-
     private static void SystemPostAddRecipes()
     {
         foreach (var mod in LoaderHost.Current.Mods.Mods) SystemLoader.PostAddRecipes(mod);
@@ -149,6 +138,37 @@ internal static class InstallPlan
         {
             Safe.Run(global.Name + ".SetStaticDefaults", global.SetStaticDefaults);
             Safe.Run(global.Name + ".AddRecipes", global.AddRecipes);
+        }
+    }
+
+    /// <summary>
+    /// mod 虚方法与其 system 实例的成对派发：逐 mod 走"先 mod、再该 mod 的 system 实例"。
+    /// 这两类时机里 mod 们互相读对方刚写入的状态（配方组、内容收尾），按 mod 分批才能让
+    /// "mod A 全套跑完再轮到 mod B"成为可预期的次序；拆成先全体 mod 后全体 system 的平铺，
+    /// system 批读到的是所有 mod 叠加后的中间态，与作者从单 mod 视角推出的结果不一致。
+    /// </summary>
+    private sealed class NestedSystemStep(string name, InstallStage stage, HookId hook, Action<Mod> modHook, Action<Mod> systemHook) : IInstallStep
+    {
+        public string Name { get; } = name;
+
+        public InstallStage Stage { get; } = stage;
+
+        public bool Run()
+        {
+            var mods = LoaderHost.Current.Mods.Mods;
+            var timed = HookProfile.Enabled;
+            for (var i = 0; i < mods.Count; i++)
+            {
+                var mod = mods[i];
+                if (mod.Plan.Has(hook))
+                {
+                    var start = timed ? Stopwatch.GetTimestamp() : 0;
+                    Safe.Run(mod.Name + "." + hook, () => modHook(mod));
+                    if (timed) HookProfile.Record((int)hook, mod.Index, HookProfile.TicksToNs(Stopwatch.GetTimestamp() - start));
+                }
+                systemHook(mod);
+            }
+            return true;
         }
     }
 

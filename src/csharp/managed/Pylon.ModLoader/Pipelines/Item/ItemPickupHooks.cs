@@ -27,7 +27,7 @@ internal static class ItemPickupHooks
     }
 
     private static void Report(string who, Exception e) =>
-        ContentErrors.Report($"[item] {who} 异常：{Safe.Describe(e)}");
+        ContentErrors.Callback($"[item] {who}", e);
 
     private static bool Wanted(Item item, HookId hook) =>
         GlobalItemRegistry.AnyWith(hook) || ModContent.IsCustom(ContentKind.Item, item.type);

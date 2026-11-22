@@ -7,7 +7,8 @@ using Pylon.ModLoader.Content;
 namespace PipelineTest.Content;
 
 /// <summary>
-/// 测试旗子 NPC（代表）：自己就是旗子号；KillsToBanner 改成 3，验证管线读物品表而不是写死 50。
+/// 测试旗子 NPC（代表）：自己就是旗子号；作者显式声明 BannerStrength=Reduced、KillsToBanner=3
+/// （加载器不代补默认值，想要减伤与领取节奏必须自己声明），验证管线读的是声明的值。
 /// 贴图 assets/npcs/TestZBannerNpc.png（40x36）。
 /// </summary>
 public sealed class TestZBannerNpc : ModNpc
@@ -20,8 +21,7 @@ public sealed class TestZBannerNpc : ModNpc
 
     public override void SetStaticDefaults()
     {
-        // 约定：新物品默认 BannerStrength=Reduced、KillsToBanner=50，作者可以改。
-        // 这里改成 3，测试一次性把"读作者值"也覆盖到。
+        ItemID.Sets.BannerStrength[ModContent.ItemType<TestZBannerItem>()] = ItemID.BannerEffect.Reduced;
         ItemID.Sets.KillsToBanner[ModContent.ItemType<TestZBannerItem>()] = 3;
     }
 

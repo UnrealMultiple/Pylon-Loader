@@ -112,7 +112,7 @@ internal sealed class CloudPipeline : ILoaderModule, ILoaderModuleRefresh
 
         if (CloudTable.Count == 0) return vanilla;
 
-        var type = CloudTable.Roll(CloudTable.Base, true);
+        var type = CloudTable.Roll(CloudTable.VanillaRarePool, true);
         if (type == 0) return vanilla;
 
         if (CloudTable.Of(type)?.Texture?.Value is not { } texture) return vanilla;
@@ -131,7 +131,8 @@ internal sealed class CloudPipeline : ILoaderModule, ILoaderModuleRefresh
         if (clouds is null || index < 0 || (uint)index >= (uint)clouds.Length) return;
         if (clouds[index] is not { } cloud) return;
 
-        var type = CloudTable.Roll(CloudTable.Base, CloudTable.IsRare(cloud.type));
+        var rare = CloudTable.IsRare(cloud.type);
+        var type = CloudTable.Roll(rare ? CloudTable.VanillaRarePool : CloudTable.VanillaCommonPool, rare);
         if (type == 0) return;
 
         if (CloudTable.Of(type) is not { } picked) return;
@@ -148,7 +149,7 @@ internal sealed class CloudPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[cloud] {picked.Name}.OnSpawn 异常：{Safe.Describe(e)}");
+            ContentErrors.Callback($"[cloud] {picked.Name}.OnSpawn", e);
         }
     }
 
@@ -171,7 +172,7 @@ internal sealed class CloudPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[cloud] {mod.Name}.Draw 异常：{Safe.Describe(e)}");
+            ContentErrors.Callback($"[cloud] {mod.Name}.Draw", e);
             vanilla = true;
         }
 

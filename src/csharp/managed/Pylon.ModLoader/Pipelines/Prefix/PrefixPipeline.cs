@@ -132,7 +132,7 @@ internal sealed class PrefixPipeline : ILoaderModule
 
         foreach (var id in extra) Add(id);
 
-        if (result.Count == 0) return vanilla is null ? new Il2CppStructArray<int>(0) : vanilla;
+        if (result.Count == 0) return new Il2CppStructArray<int>(0);
 
         int[] merged = [.. result];
         return merged;
@@ -205,7 +205,7 @@ internal sealed class PrefixPipeline : ILoaderModule
             }
 
             var list = self.GetRollablePrefixes();
-            if (list is null || list.Length == 0) return orig(self, random, ref rolledPrefix);
+            if (list is null || list.Length == 0) return false;
 
             var ids = new List<int>(list.Length);
             var weights = new List<double>(list.Length);

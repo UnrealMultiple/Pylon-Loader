@@ -2,108 +2,122 @@
 
 ## 1. 职责
 
-| 游戏时机 | 分派的作者数据 |
+| 游戏时机 | 本管线做的事 |
 |---|---|
-| 安装期（`Static`） | 已 `Register()` 的 `NpcShop` 进表 |
-| `InventoryStorage.SetupShop(type)` | mod 店的槽号 → 按 `Entries` 现填（条件、价格、货币都生效） |
-| 作者 `NpcShop.Open()` | 走游戏自己的 `Main.instance.OpenShop(Index)` + 打开商店页 |
+| 安装期（`Static`） | `ModNpc.AddShops` 注册的店进注册表占号（99 往下发）；25 家原版店按槽 1..25 预置 |
+| `InventoryStorage.SetupShop(type)` | 注册槽：原版店首开收编 + 装货，mod 店按条目装货；未注册槽：派发一轮 `ModifyActiveShop` 并补 `isAShopItem` |
+| 作者 `NpcShop.Open()` / mod NPC 对话按钮 | `Main.instance.OpenShop(Index)` + 打开商店页 |
+| `InventoryStorage.SetupTravelShop` | 原版旅行店装货后，把前半段交给 `GlobalNpc.SetupTravelShop` 续填 |
+| 货架物品定价 | 代理属性 `Item.shopCustomPrice` / `Item.shopSpecialCurrency` 读写游戏字段（见 2.7） |
+| 内容收尾 | 迟注册的店补 `ModifyShop` / 晶塔注入 / `FinishSetup` |
 
-**不接**：原版商店的预置与改写、商店刷新/重进时的重建、`InstallTravel` 里的旅行商人逻辑。价格浮动按条可选（`happinessPrice`，见 4.6）。
+**不接**：商店界面的绘制与排版（归游戏）、商店刷新的额外通知（每次装货本来就会现填，见 2.4）、多人同步（逐端各自构建）、价格随好感度自动浮动（作者可自读 `Main.ShopHelper` 的 `PriceAdjustment` 自算）。
 
-**NPC 聊天里的商店按钮：本构建没有这个入口**（已核对，不是省略）——`refs/dump.cs` 全文搜 `DrawNPCChatButton` / `NPCChatButton` 均 0 命中，只有 `ChatButton` 这种**布局字段**（`TransactionButton_Layout ChatButton`）；`OnChatButtonClicked` 是 `ModPlayer` 侧的钩子、只在游戏已有的聊天按钮被点时触发。也就是说这一版没法「给 NPC 加一个商店按钮」，mod 店只能走 `NpcShop.Open()`（`Main.instance.OpenShop(Index)`）。
+开店入口现状：**mod NPC 的对话按钮开店已通**——`ModNpc.SetChatButtons` 摆按钮、`OnChatButtonClicked(bool, ref shopName)` 回店名，`NpcShopDatabase.Find` 查到就 `Open()`（管线在 `NpcTown` 的对话按钮链里）；程序化开店走 `NpcShop.Open()`。**原版 NPC 的对话按钮入口未接**——`GlobalNpc.OnChatButtonClicked` 等全局钩收不到原版 NPC 的对话事件（见 5）。
 
 ## 2. 我们的设计
 
-### 2.1 两个文件
+### 2.1 文件
 
-`Pipelines/Shop/ShopTable.cs`（槽号 ↔ 店）、`Pipelines/Shop/ShopPipeline.cs`（`SetupShop` 分派 + 填表）。
+```
+Contracts/AbstractNpcShop.cs + Contracts/NpcShop.cs   条目模型：Entry、条件、排序、装货
+Content/Registration/NpcShopDatabase.cs               注册表：店名 ↔ 店、槽号 ↔ 店、原版店预置
+Pipelines/Shop/ShopPipeline.cs                        SetupShop 分派：收编、填货、改货钩、旅行店
+```
 
-### 2.2 槽号已经在契约里，管线只管"摆"
+### 2.2 注册表与槽号
 
-`NpcShop.Register()` 已经从 99 往下发号并查重（同一 `NPC类型/店名` 重复注册直接抛）。管线只做两件事：**把已注册的店收进表**、**在游戏要给这个槽装商品时按作者的表填**。
+店名是 `NPC类型全名/店名`（原版 NPC 前缀 `Terraria/`），重复注册直接抛。槽号从 99 往下发，落到 25 就抛（低号段是原版店自己的）。25 家原版店在 `Initialize` 里预置占号——`ByIndex` 查找、`NoPylons` 排除名单（旅商/骷髅商人/酒保/圣诞老人）、`GetShopName` 都在首次使用时懒触发，保证任何店槽查找前原版店已在表里。
 
-发号逻辑留在契约里是有意的：作者 `Register()` 的返回值和 `Index` 是他自己也要用的（`Open()` 依赖它），管线不该成为"必须再调一次"的第二道关。
+`Initialize` 之后才 `Register()` 的店，在 `AddShop` 尾部就地补 `ModifyShop + AddShopEntries + Modified + FinishSetup`，迟注册的店不必等下一次装货。
 
-### 2.3 为什么挂在 `InventoryStorage.SetupShop`
+### 2.3 条目模型
 
-游戏的商店是"每个槽一个 `InventoryStorage`，装货时调 `SetupShop(type)`"。挂这里的好处是：**只对 mod 槽号接管，其它槽原样交给游戏**——原版商店的复杂逻辑（旅行商人、条件商品、价格浮动）一行都不用碰，也就不会因为我们的介入而变形。
+`AbstractNpcShop.Entry` 包一个游戏 `Item`（强 GCHandle 钉住防回收）+ `Condition[]`，带 `Disable` / `ConditionsMet`；`NpcShop.Entry` 补排序面（`SortBefore` / `SortAfter` / `OrderLast` / `ReserveSlot`）与 `AddShopOpenedCallback`。`FinishSetup` 对排序声明做拓扑排序，环直接抛。条目没有价格/货币字段——定价写在条目 `Item` 或货架物品上（见 2.7），条目模型只管"什么货、什么条件、什么顺序"。
 
-mod 槽号的分支里我们不调 `orig`：原版 `SetupShop` 是按它自己的 shopType 分支填货的，对我们的槽号它没有内容可填，调它只会白跑一遍分支。
+`FillShop` 两个重载分别喂 `ICollection<Item>` 与定长 `Item[]`（溢出标志），条件与排序语义一致，作者自建店和管线装货共用。
 
-### 2.4 每次装货都现填
+### 2.4 挂在 `InventoryStorage.SetupShop`：每次装货现填
 
-`Entries` 里的 `Condition` 是"现在能不能摆"的判定，所以填货时逐条求值，而不是注册时求值一次再缓存。这与原版商店的行为一致（同一家店在不同时间可以有不同的货）。
+游戏的商店是"每个槽一个 `InventoryStorage`，装货时调 `SetupShop(type)`"。挂这里能拿到**货架装货这个权威时机**：条件逐条现算（`Condition` 每次开这家店都会重新求值，不在注册时冻结），mod 条目克隆进槽。反过来说：**条件里不要做开销大的事**——它每次开这家店都会被求值一遍。
 
-反过来说：**条件里不要做开销大的事**——它每次开这家店都会被求值一遍。
+原版店首开时先**收编**：把 native 货架条目克隆进条目表、跑 `GlobalNpc.ModifyShop`、注入晶塔货架（`ModPylon.GetNPCShopEntry`）、`FinishSetup`，然后才按条目表装货。收编只做一次（`Modified` 标记），且带 `Phase==Ready` 门——安装期预热触发的装货不收编（见 3）。
 
-### 2.5 与契约里 `Build()` 的关系
+装货收尾统一两件事：把本槽物品交给 `ModNpc.ModifyActiveShop(shopName, items)` 与 `GlobalNpc.ModifyActiveShop(npc, shopName, items)` 改货，然后给 `type > 0` 的物品补 `isAShopItem = true`。`AddShopOpenedCallback` 在有对话 NPC 时逐条回调。
 
-`NpcShop.Build()` 是"作者自己 `Open()` 时把货装进 `Main.instance.shop[Index]`"，本管线是"游戏给这个槽装货时把货填进它递过来的 storage"。两条路来源相同（同一份 `Entries`）、去向不同，所以填表逻辑各写一份；共同点是都按 3.4 现算条件。
+### 2.5 未注册槽
+
+`SetupShop` 的槽号查不到注册店时（1..25、26..99 之外的特殊店槽），不接管装货，但对这槽货快照跑一轮 `ModifyActiveShop` 分派（shopName 同为 "Shop"，作者按 NPC 区分）并补 `isAShopItem`——特殊店的改货钩有门可入。
+
+### 2.6 旅行商店
+
+`SetupTravelShop` 的 orig 跑完后，扫描 `Main.travelShop` 找第一个空槽，把数组与续写位置交给覆写了 `SetupTravelShop` 的 `GlobalNpc`（只有声明了覆写才挂这个钩），改完写回。安装门因此是独立的。
+
+### 2.7 货架定价：生成代理的 Nullable 属性（生成器级根治后）
+
+游戏的定价字段是 `Item.shopCustomPrice`（`Nullable<int>`：`hasValue` + `value`）与 `Item.shopSpecialCurrency`（`int`），货架按它们显示价格。定价直接用生成代理属性——2026-11-21 起，Il2CppInterop 生成器对 `Nullable<T>` 类型的**字段属性 getter 改走 `RawValueBox.Wrap` 完整载荷造盒**（`il2cpp_value_box` 在本构建会抹掉 `Nullable` 的 `hasValue` 前缀，详见 `src/csharp/il2cppinterop/VENDOR.md` 补丁条目），代理属性读写全程可靠：
+
+```csharp
+item.shopCustomPrice = new Il2CppSystem.Nullable<int>(500);   // 写 hasValue + value
+var price = item.shopCustomPrice;                             // Wrap 盒：HasValue/Value/hasValue/value 一致
+item.shopSpecialCurrency = 3;                                 // 特殊货币（如 3 = defender medals 这类自定义货币号）
+```
+
+setter 保持生成的 unbox + cpblk 形状：入参盒只要载荷完整（显式构造、Wrap 盒、runtime_invoke 返回盒都完整），cpblk 落盘就是正确的。写值用显式构造 `new Il2CppSystem.Nullable<int>(500)`——包装类没有托管 `int?` 的隐式转换，这是生成代理的固有形状；清价用 `new Il2CppSystem.Nullable<int>()`（object_new 全零载荷，`HasValue=false`）。
+
+曾经的 `ItemTml.ShopCustomPrice/ShopSpecialCurrency` 扩展属性（指针直读写）已删除：根治后代理属性是唯一可靠路径，不留双轨。
+
+### 2.8 开店入口
+
+`NpcShop.Open()` → `NpcShopDatabase.OpenShop(fullName)` → `Main.instance.OpenShop(Index)` + 商店页打开，程序化开店与按钮开店同一出口。mod NPC 的对话按钮链在 `NpcTown`：按钮文字来自 `SetChatButtons`，点击进 `OnChatButtonClicked(bool, ref shopName)`，回填店名后 `Find(npc.type, shopName)` 查表开店；店名对不上时一次性提示（不抛给玩家）。
 
 ## 3. 取舍理由
 
-* **为什么不接管聊天按钮？** 聊天按钮要做三件事：在 NPC 对话里多画一个按钮、按钮点了要回传、回来还要认是哪家店。这套入口在 NPC 聊天界面里，属于界面侧的活；本版先把"店能开、货对"做实，按钮留成缺口（作者可以 `Open()` 显式开）。
-* **为什么槽号从 99 往下？** 游戏自己的商店槽是低号段，从高位往下发不会撞上；`Main.instance.shop` 的长度足够容纳。
-* **为什么不在注册时就把货装进 `Main.instance.shop`？** 那样条件就冻结在注册那一刻了（见 2.4），而且世界还没加载完时求值条件经常读到空数据。
+* **为什么挂在 `InventoryStorage.SetupShop`？** 货架装货是"这个槽现在要摆什么"的唯一权威时机：条件在这里现算才不会冻结，mod 店与原版店也在这里自然汇合。挂在更早的时机（注册时写死货架）会把条件变成快照。
+* **为什么收编只做一次且带 `Phase==Ready` 门？** 收编时晶塔货架可能还没发完号——安装期的预热装货会把不完整的一次收编固化（`Modified=true` 后不再重跑），晶塔商品就永久缺席（探针实证过）。Ready 门让首收编发生在世界就绪之后。
+* **为什么槽号从 99 往下？** 原版店槽在低号段，高位往下发不撞；发号留在 `Register()` 是因为 `Index` 是作者开店也要用的。
+* **为什么定价直接用生成代理属性？** 生成器已对 `Nullable<T>` 字段属性的 getter 做完整载荷造盒（见 2.7），读写全程可靠；不再绕开（曾用的指针直读写扩展属性已随根治删除，双轨反而是负担）。
+* **为什么条目模型不带价格字段？** 定价的入口已经存在——条目 `Item`（填货前写价，随克隆进货架）或 `ModifyActiveShop` 的货架物品（每次开店改价）；条目上再造一层价格只会出现两条真相。字段读写不可用的问题在 2.7 解决，不需要新 API 层。
+* **为什么原版 NPC 的对话按钮没接？** 按钮链要"原版 NPC 也进自定义对话流程"，牵动对话分派的边界判定，与商店填货无关；mod 店的按钮开店已可用，先把这条留作入口扩展（见 5）。
 
 ## 4. 失败语义
 
-| 情况 | 游戏侧表现 |
+| 情况 | 表现 |
 |---|---|
 | 同一 `NPC类型/店名` 注册两次 | `Register()` 抛异常（作者声明的错，安装期就炸） |
-| 商品的 `Condition` 抛异常 | 这一条不摆，记一次，继续摆后面的 |
-| 商品 item 类型不存在（作者写错编号） | `SetDefaults` 由游戏处理（通常是空气物品），本管线不吞 |
-| 槽号没注册（`Index < 0`） | 不接管，交给游戏 |
-| `Entries` 为空 | 装一个空店（能开、什么都没有） |
-| 店被打开两次 | 每次装货都重新填，不缓存 |
-| `happinessPrice` 但找不到对话中的 NPC | 原价（不报错） |
-| 好感度倍率 ≤ 0 | 原价 |
-| 乘完 < 1 | 取 1（不出现 0 元商品） |
-
-### 4.6 价格随好感度浮动（`happinessPrice`）
-
-原版城镇商店的价格 = 基础价 × `CurrentShoppingSettings.PriceAdjustment`（0.75 最低、1.5 最高，由 NPC 对玩家的心情算出来）。mod 店的价格是我们写 `shopCustomPrice` 的，所以那条链路要不要参与，得我们自己决定：
-
-```csharp
-type.Register().Add(ModContent.ItemType<Foo>(), price: 500, happinessPrice: true);
-```
-
-* 开了开关：`Price` 先乘 `Main.ShopHelper.GetShoppingSettings(Main.LocalPlayer, 对话中的 NPC).PriceAdjustment`，四舍五入、不低于 1；
-* 没开（默认）：`Price` 原样写进 `shopCustomPrice`。
-
-**为什么默认关**：原版是否已经对 `shopCustomPrice` 乘过折扣，从 `refs/dump.cs` 的方法体看不出来（`ApplyTaxesToPrice` 那类调用都在方法体里，dump 没有方法体）。默认关 = 最多少打折，不会出现打两次折；作者按自己的观察打开即可。参考实现（参考实现）也完全没有碰这块。
-
-**另一个用途**：作者想在 `Condition` 里按好感度改条件（比如心情好才卖稀有货），直接读 `Main.ShopHelper.GetShoppingSettings(player, npc).PriceAdjustment` 就行，不用我们提供 API。
+| mod 店槽耗尽（发号落到 25） | `Register()` 抛异常 |
+| 注册的不是 `NpcShop`（手机端自定义店基类） | `NotSupportedException` |
+| 条目 `Condition` 抛错 | 本次装货中止，记一条（含堆栈描述），货架维持原状；下次开店重试 |
+| `GlobalNpc.ModifyShop` 抛错 | 记一条，跳过这个全局钩，其余继续 |
+| `ModifyActiveShop` / `AddShopOpenedCallback` 抛错 | 记一条，本次装货中止（同条件抛错的处理） |
+| 晶塔 `GetNPCShopEntry` 抛错 | 记一条，跳过这个晶塔，其余照常注入 |
+| `OpenShop` 店名未注册 | 抛 `ArgumentException` |
+| 聊天按钮要开的店没注册 | 一次性提示（含店名），不开店 |
+| 货架条目超过槽容量 | 记 Warn，停止继续装（已装的保留） |
 
 ## 5. 扩展方式
 
-接聊天按钮：在 `ShopPipeline` 里挂 NPC 对话界面的按钮绘制/点击入口，把"这家 NPC 有哪些店"从表里查出来，点击后调 `Main.instance.OpenShop(Index)`。表与填货逻辑都不需要改。
-
-接原版商店改写：需要按 shopType 反查原版店的商品表（本版没有这张表），属于另一个方向的扩展。
+* **原版 NPC 的对话按钮**：把对话按钮链放宽到"有全局钩的 NPC"，按钮/点击分派复用现有 `NPCInteraction` 面；注册表与填货零改动。
+* **条目级价格/货币 API**：`NpcShop.Entry` 需要时可以加 `Price`/`Currency` 之类的便捷成员，底下就是 2.7 的代理属性读写，不新增真相层。
+* **商店页图标**：按对话 NPC 换商店页图标属于界面侧接线（`GUIPageIcons`），与本管线的填货解耦。
 
 ## 6. 与其它管线的边界
 
-* **NPC 管线**：`NpcType` 开门的是哪个 NPC 归 NPC 管线；本管线只在表里用它做键。
-* **物品管线**：商品的价格/货币写的是 `Item` 的 `shopCustomPrice` / `shopSpecialCurrency`，物品本身的定义归物品管线。
-* **界面**：商店界面的绘制与 `OpenShop` 归游戏自己，本管线只触发。
+* **NPC 管线**：店归属哪个 NPC 由 `NpcType` 决定，对话按钮开店链在 NPC 管线（`NpcTown`）；本管线只按类型查表。
+* **物品管线**：货架物品本身的定义/克隆归物品管线；本管线只写价格与货币字段、补 `isAShopItem`。
+* **晶塔（Pylon）管线**：`ModPylon.GetNPCShopEntry` 提供货架条目，注入时机与排除名单在本管线。
 * **条件系统**：`Condition` 是作者自己的 `Func<bool>`，本管线只求值。
+* **界面**：商店页绘制、`OpenShop` 的 UI 侧归游戏。
 
-### 这一版没接
+## 2026-11-21 批：货架定价字段直读写（SHOP-W3 改写）
 
-1. **NPC 聊天里的商店按钮**：mod 店不会出现在对话按钮里，作者要自己 `Open()`。原因：这个构建里没有 `DrawNPCChatButtons` 这样的入口（`dump.cs` 查无），聊天这块只有 `RemadeChatMonitor.DrawChat(bool)`，它画的是聊天文本，不含商店按钮。
-2. **原版商店的预置与改写**：本版只接管 mod 槽号（见 2.3）。
-3. **商店刷新时机**：不挂"重进商店要重填"的钩子；游戏每次装货都会走到 `SetupShop`，所以行为上不缺，但没有额外的刷新通知。
-4. ~~**价格浮动**（NPC 好感度、折扣）~~：**已接（显式开关）**——`Add(..., happinessPrice: true)` 时把 `Price` 乘 `Main.ShopHelper.GetShoppingSettings(player, npc).PriceAdjustment`（0.75~1.5），取整且不低于 1。默认关，理由见 4.6。
-5. **多人同步**：商店内容逐端各自构建，本管线不加通道。
+- 旧结论作废：「生成代理写值丢失（ctor 对、写后读 0）→ 定价货架层失效，SKIP 归 interop 层」。机制已查清：生成代理的 `Item.shopCustomPrice`（`Il2CppSystem.Nullable<int>` 属性）getter 用 `il2cpp_value_box` 造盒、setter `unbox` 包装盒 + `il2cpp_class_value_size`（运行时膨胀类）+ `cpblk` 落盘，读写都锚在装箱对象上；本构建的装箱会抹 `Nullable` 的 `hasValue` 前缀（`Il2CppInterop.Runtime/RawValueBox.cs` 注记同款缺陷，HookGen 转换层已为此改走手工造盒）——run4 探针的「ctor 盒对（`object_new` + 原生 `.ctor` 双写）读回 True/50、属性写后读 0」与该机制吻合。
+- 修法（当批）：`ItemTml` 扩展属性 `Item.ShopCustomPrice`（`int?`）/ `Item.ShopSpecialCurrency`（`int`）——按运行时解析的字段偏移（0x140：`hasValue`@+0、`value`@+4；0x13C）在对象指针上直读写，不经装箱链；偏移来自 `refs/dump.cs` 与 `refs/il2cpp.h` 的本构建布局，运行时再按元数据解析、失败降级提示。
+- 验证（当批）：SHOP-W3 复测时把探针写读改走新属性（写价 → 即读一致 → 真开店看货架价签）；SHOP-R1..R3/W1/W2/W5/W6 的既有结论不受影响（收编/注入/按钮开店路径未动）。
 
-### 对作者 API 的影响
+## 2026-11-21 批（二）：生成器级根治，扩展属性删除（SHOP-W3 复活）
 
-| 变更 | 说明 |
-|---|---|
-| 语义明确 | `Register()` 发号（99 往下）+ 查重，重复注册抛异常 |
-| 语义明确 | `Condition` 每次开这家店都会重新求值，别在里面做重活 |
-| 本版不生效 | 聊天按钮入口；作者需要显式 `NpcShop.Open()` |
-
-## 2026-11-17 批：ModifyActiveShop
-
-- 原版店（shopName="Shop"）与 mod 店装货后把快照 Item[] 交给作者（ModNpc → GlobalNpc），写回货架并统一补 isAShopItem；旅行商店维持原批的全局模板分派。
+- 「归 interop 层」的欠条兑现：`Il2CppInterop.Generator` 对 `Nullable<T>` 类型的字段属性 getter 改发 `RawValueBox.Wrap`（完整载荷造盒），同分支连带修掉直调方法返回 `Nullable<T>` 的造盒（同形 emit 路径）；setter 维持 unbox + cpblk 不动——载荷在源头就完整，落盘天然正确。改动点与理由见 `src/csharp/il2cppinterop/VENDOR.md` 补丁条目 7。
+- 收敛：`ItemTml.ShopCustomPrice` / `ShopSpecialCurrency` 扩展属性与整套字段偏移解析删除——代理属性已可靠，双轨只会留下「哪条是真」的分歧。作者入口回到代理属性：`item.shopCustomPrice = new Il2CppSystem.Nullable<int>(500)`，清价 `new Il2CppSystem.Nullable<int>()`。
+- 验证：SHOP-W3 从 SKIP 复活为真实断言（显式构造写 → 代理属性读 → Wrap 盒小写字段读 → Marshal 原生字段直读，四路一致；Wrap 盒写回另一物品验证 setter 落盘；清价写法验证 HasValue=false）。运行：`pwsh -File src/csharp/tools/pylon.ps1 push -Samples PipelineTest` 后 `pylon.ps1 run -WaitFor 'SHOP-W3'`（真机）；SHOP-R1..R3/W1/W2/W5/W6 既有结论不受影响。
+- 对齐结论：另一侧加载器以手写托管 struct 包装 `Nullable<T>` 字段读写绕开同一缺陷；本侧在生成器层根治后，两侧的 `shopCustomPrice` 写读都可用（D4 对齐）。

@@ -106,7 +106,7 @@ internal static class GateHub<P> where P : class
 
         foreach (var gate in Gates)
         {
-            if (!gate.Lazy && !HookGuard.IsDone(gate.Type)) return false;
+            if (!gate.Lazy && !HookGuard.IsDone(gate.Type) && gate.Wanted()) return false;
         }
 
         return true;

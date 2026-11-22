@@ -10,7 +10,7 @@ namespace PipelineTest.Tests;
 
 /// <summary>
 /// 管线 25：Banner（敌人旗子）。
-/// Ready：NPC → 旗子 → 物品的映射，物品表（BannerStrength / KillsToBanner）有没有给 mod 物品补上。
+/// Ready：NPC → 旗子 → 物品的映射，作者声明的物品表值（BannerStrength / KillsToBanner）是否生效。
 /// World：击杀计数（代表 + 同族共用一面）、新旗标、领取、插地方块 → 减伤 buff。
 /// </summary>
 internal static class BannerTests

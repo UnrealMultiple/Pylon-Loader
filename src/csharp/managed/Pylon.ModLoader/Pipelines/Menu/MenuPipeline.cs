@@ -33,7 +33,8 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
             public static void Install()
             {
                 On.GUILogo.Draw += DrawLogo;
-                Log.Info("[menu] 已挂（logo 绘制回调 / Tick 时钟；音乐 / 背景 / 日月按覆写分装）");
+                MenuSettingsRow.Install();
+                Log.Info("[menu] 已挂（logo 绘制回调 / Tick 时钟 / 设置行主题切换；音乐 / 背景 / 日月按覆写分装）");
             }
         }
 
@@ -207,11 +208,36 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
 
     // ===================== 选择 =====================
 
+    /// <summary>当前生效的主题（null = 原版标题画面）；设置行的文案与循环切换读它。</summary>
+    internal static ModMenu? Current => _current;
+
     /// <summary>作者/界面切换主题：切完落盘（下次启动还是它）。</summary>
     internal void SelectAndSave(ModMenu? menu)
     {
         Select(menu);
         Save(menu);
+    }
+
+    /// <summary>
+    /// 设置行的循环切换：原版项在最前、注册序在后，从当前主题往后找第一个可用的就切过去。
+    /// 先落盘再切换（回调里再怎么折腾，这次的选择已经写进存档）；原版项永远可用，循环必有去处。
+    /// </summary>
+    internal static ModMenu? Next()
+    {
+        var all = new List<ModMenu?>(MenuTable.Count + 1) { null };
+        foreach (var menu in MenuTable.All) all.Add(menu);
+
+        var index = _current is null ? 0 : all.IndexOf(_current);
+        for (var n = 0; n < all.Count; n++)
+        {
+            index = (index + 1) % all.Count;
+            if (all[index] is { } menu && !MenuTable.Available(menu)) continue;
+            Save(all[index]);
+            Select(all[index]);
+            return all[index];
+        }
+
+        return _current;
     }
 
     /// <summary>换主题：先让旧的失效，再让新的生效；null = 回到游戏原值。</summary>

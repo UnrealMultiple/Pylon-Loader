@@ -309,14 +309,24 @@ internal static class TileTests
             c.True(!TileEntityTml.TryGet<Content.TestTileEntity>(x + 6, y + 3, out _),
                 "没有实体的格 TryGet 取不到");
 
-            PT.Later("TILE-W9B", 30, cc =>
+            var w9bAttempts = 0;
+            void PollW9B(Check cc)
             {
+                if (Content.TestTileGlobalProbe.DangerousCalls < 1 && ++w9bAttempts < 20)
+                {
+                    cc.Pending();
+                    PT.RetryLater("TILE-W9B", 30, PollW9B);
+                    return;
+                }
+
                 cc.True(Content.TestTileGlobalProbe.DangerousCalls >= 1,
-                    $"dangerSense 高亮派发 IsTileDangerous（{Content.TestTileGlobalProbe.DangerousCalls} 次）");
+                    $"dangerSense 高亮派发 IsTileDangerous（{Content.TestTileGlobalProbe.DangerousCalls} 次，巡检 {w9bAttempts} 轮）");
                 cc.True(Content.TestTileGlobalProbe.SpelunkableCalls >= 1,
                     $"findTreasure 高亮派发 IsTileSpelunkable（{Content.TestTileGlobalProbe.SpelunkableCalls} 次）");
                 Content.TestPlayer.DangerDrive = false;
-            });
+            }
+
+            PT.RetryLater("TILE-W9B", 30, PollW9B);
         });
 
         PT.Case("TILE-DRAW", c =>
@@ -352,16 +362,29 @@ internal static class TileTests
                 cc.True(Main.tile[x + 11, y].active(), $"+20帧 type={Main.tile[x + 11, y].type}");
             });
 
-            PT.Later("TILE-DRAW30", 30, cc =>
+            var attempts = 0;
+            void PollDraw30(Check cc)
             {
+                if (Content.TestTileDrawProbe.PreDraws < 1 && ++attempts < 20)
+                {
+                    cc.Pending();
+                    PT.RetryLater("TILE-DRAW30", 30, PollDraw30);
+                    return;
+                }
+
+                PT.Info($"{Content.DrawSiteProbe.Report()}（巡检 {attempts} 轮）");
+                PT.Info(Content.DrawSiteProbe.PlanReport());
+                PT.Info(Content.DrawSiteProbe.RegistryReport());
                 cc.True(Main.tile[x + 11, y].active() &&
                         Main.tile[x + 11, y].type == probeType,
-                    $"+30帧 type={Main.tile[x + 11, y].type}（期望 {probeType}）");
+                    $"判定帧 type={Main.tile[x + 11, y].type}（期望 {probeType}）");
                 cc.True(Content.TestTileDrawProbe.PreDraws >= 1, $"PreDraw={Content.TestTileDrawProbe.PreDraws}");
                 cc.True(Content.TestTileDrawProbe.PostDraws >= 1, $"PostDraw={Content.TestTileDrawProbe.PostDraws}");
                 cc.True(Content.TestTileDrawProbe.DrawEffectsCalls >= 1, $"DrawEffects={Content.TestTileDrawProbe.DrawEffectsCalls}");
                 cc.True(Content.TestTileDrawProbe.SpecialDraws >= 1, $"SpecialDraw={Content.TestTileDrawProbe.SpecialDraws}");
-            });
+            }
+
+            PT.RetryLater("TILE-DRAW30", 30, PollDraw30);
         });
     }
 

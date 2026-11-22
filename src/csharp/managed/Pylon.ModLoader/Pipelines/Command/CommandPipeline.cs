@@ -98,7 +98,7 @@ internal sealed class CommandPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[command] 分派异常：" + Safe.Describe(e));
+            ContentErrors.Callback("[command] 分派", e);
             return false;
         }
     }
@@ -115,7 +115,7 @@ internal sealed class CommandPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report("[command] 客户端分派异常：" + Safe.Describe(e));
+                ContentErrors.Callback("[command] 客户端分派", e);
             }
         }
 

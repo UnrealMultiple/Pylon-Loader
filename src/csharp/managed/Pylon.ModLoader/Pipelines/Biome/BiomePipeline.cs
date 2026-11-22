@@ -5,7 +5,7 @@ using Pylon.ModLoader.Pipeline;
 using Terraria;
 
 namespace Pylon.ModLoader.Pipelines;
-/// <summary>生物群系管线：场景扫描后算"在不在每个群落里"，边沿触发进/出回调。</summary>
+/// <summary>生物群系管线：随原版逐玩家更新区旗后算"在不在每个群落里"，边沿触发进/出回调。</summary>
 internal sealed class BiomePipeline : ILoaderModule, ILoaderModuleRefresh
 {
     public static BiomePipeline Instance { get; } = new();
@@ -44,9 +44,9 @@ internal sealed class BiomePipeline : ILoaderModule, ILoaderModuleRefresh
 
             public static void Install()
             {
-                On.Terraria.SceneMetrics.Scan += Instance.Scan;
+                On.Terraria.Player.UpdateBiomes += Instance.UpdateBiomes;
                 On.Terraria.Player.Update += Instance.UpdateOther;
-                Log.Info("[biome] 已挂（扫描后判定 / 进-在-出回调 / 别人的群落走网络）；音乐与背景归场景效果管线");
+                Log.Info("[biome] 已挂（区旗更新后逐玩家判定 / 进-在-出回调 / 别人的群落走网络）；音乐与背景归场景效果管线");
             }
         }
 
@@ -141,22 +141,17 @@ internal sealed class BiomePipeline : ILoaderModule, ILoaderModuleRefresh
         }
     }
 
-    private void Scan(On.Terraria.SceneMetrics.orig_Scan orig, SceneMetrics self, SceneMetricsScanSettings settings)
+    private void UpdateBiomes(On.Terraria.Player.orig_UpdateBiomes orig, Player self)
     {
-        orig(self, settings);
+        orig(self);
 
         var total = BiomeTable.Count;
         if (total == 0) return;
 
-        var who = Main.myPlayer;
+        var who = self.whoAmI;
         if ((uint)who >= (uint)_flags.Length) return;
 
-        var players = Main.player;
-        if (players is null || (uint)who >= (uint)players.Length) return;
-
-        if (players[who] is not { } player || !player.active) return;
-
-        Update(player, who, total);
+        Update(self, who, total);
     }
 
     private void UpdateOther(On.Terraria.Player.orig_Update orig, Player self, int i)
@@ -184,13 +179,13 @@ internal sealed class BiomePipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[biome] {biome.Name}.IsBiomeActive 异常：{Safe.Describe(e)}");
+                ContentErrors.Callback($"[biome] {biome.Name}.IsBiomeActive", e);
                 now = false;
             }
 
             if (index < flags.Length) flags[index] = now;
 
-            if (now != before && who == Main.myPlayer && Main.netMode == 1)
+            if (now != before && Main.netMode != 0)
                 _net.SendValues(_kind, [ActionFlag, who, index, now], -1, -1);
 
             if (now && !before) Enter(biome, player);
@@ -207,7 +202,7 @@ internal sealed class BiomePipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[biome] {biome.Name}.OnEnter 异常：{Safe.Describe(e)}");
+            ContentErrors.Callback($"[biome] {biome.Name}.OnEnter", e);
         }
     }
 
@@ -219,7 +214,7 @@ internal sealed class BiomePipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[biome] {biome.Name}.OnInBiome 异常：{Safe.Describe(e)}");
+            ContentErrors.Callback($"[biome] {biome.Name}.OnInBiome", e);
         }
     }
 
@@ -231,7 +226,7 @@ internal sealed class BiomePipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[biome] {biome.Name}.OnLeave 异常：{Safe.Describe(e)}");
+            ContentErrors.Callback($"[biome] {biome.Name}.OnLeave", e);
         }
     }
 

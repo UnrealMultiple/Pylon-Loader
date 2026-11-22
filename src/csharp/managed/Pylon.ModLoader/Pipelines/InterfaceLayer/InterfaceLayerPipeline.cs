@@ -14,6 +14,10 @@ namespace Pylon.ModLoader.Pipelines;
 /// 界面层管线：游戏每帧按 <c>Main._gameInterfaceLayers</c> 里的顺序逐层画界面。
 /// 我们把这份列表抓下来、交给作者改（增删/换序/隐藏），再把结果写回去；
 /// 作者层的绘制通过"游戏会调用每一层的 <c>DrawSelf</c>"这一条转回托管。
+/// 重抓的基准是上一次写回的指针序列，而不是抓取那一刻的层数：隐藏层已被自己移出原生列表，
+/// 若按抓取时的层数对比，自己的写回就会被当成外部改动触发重抓，而重抓从当前原生列表整体
+/// 重建包装，被隐藏的层会连同包装一起从作者列表里消失（按名查找落空、也无法恢复显示）。
+/// 原版包装只在重抓时重建、其余帧跨帧复用，作者的按名查找与缓存引用都不因写回失效。
 /// </summary>
 internal sealed class InterfaceLayerPipeline : ILoaderModule, ILoaderModuleRefresh
 {
@@ -64,7 +68,6 @@ internal sealed class InterfaceLayerPipeline : ILoaderModule, ILoaderModuleRefre
     }
 
     private static IntPtr _capturedList;
-    private static int _capturedCount;
 
     /// <summary>interfacelayer 管线的安装门：有 ModSystem 改层钩子或加载器自身层时安装。</summary>
     internal static class Gates
@@ -106,7 +109,6 @@ internal sealed class InterfaceLayerPipeline : ILoaderModule, ILoaderModuleRefre
         ShellsByPointer.Clear();
         NativePtrs.Clear();
         _capturedList = IntPtr.Zero;
-        _capturedCount = 0;
     }
 
     private static void DrawInterface(On.Terraria.Main.orig_DrawInterface orig, Main self, GameTime gameTime)
@@ -146,7 +148,7 @@ internal sealed class InterfaceLayerPipeline : ILoaderModule, ILoaderModuleRefre
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[interfacelayer] {layer.Name} 绘制异常：" + Safe.Describe(e));
+                ContentErrors.Callback($"[interfacelayer] {layer.Name}.Draw", e);
                 return true;
             }
         }
@@ -174,7 +176,7 @@ internal sealed class InterfaceLayerPipeline : ILoaderModule, ILoaderModuleRefre
         var list = main._gameInterfaceLayers;
         if (list is null || list.Count == 0) return;
 
-        if (_capturedList != list.Pointer || list.Count != _capturedCount) Capture(list);
+        if (_capturedList != list.Pointer || list.Count != Applied.Count) Capture(list);
 
         Layers.Clear();
         for (var i = 0; i < Vanilla.Count; i++)
@@ -233,6 +235,7 @@ internal sealed class InterfaceLayerPipeline : ILoaderModule, ILoaderModuleRefre
     {
         Vanilla.Clear();
         NativePtrs.Clear();
+        Applied.Clear();
         ByPointer.Clear();
 
         for (var i = 0; i < list.Count; i++)
@@ -246,10 +249,10 @@ internal sealed class InterfaceLayerPipeline : ILoaderModule, ILoaderModuleRefre
 
             Vanilla.Add(new GameInterfaceLayer(native.Name ?? "", native.ScaleType, native.Pointer));
             NativePtrs.Add(native.Pointer);
+            Applied.Add(native.Pointer);
         }
 
         _capturedList = list.Pointer;
-        _capturedCount = list.Count;
     }
 
     /// <summary>作者层的外壳：同一名字的第 n 次出现复用一个外壳。</summary>

@@ -11,6 +11,10 @@ namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 触屏按钮管线：注册发号、状态机、游戏侧接入（控制器数组、触点、编辑器、快捷栏、布局保存）。
 /// 按钮状态在 TouchButtonTable（密集 struct 数组），布局在 TouchButtonLayouts。
+/// 落在 mod 按钮上的触点由本管线接管、不放行原生触点处理；按下统一经 Press 派发，
+/// 派发只认按压前沿（控制器的 WasPressed 在按住期间记着已按，抬手才清），
+/// 同一按压周期内落进同一槽位的后续触点只置按下标记，多指与重复触点不会把 OnPress 打多次。
+/// 主菜单中或按钮禁用时 latch 与 OnPress 都不发生，让「禁用」在状态与回调两条路上语义一致。
 /// </summary>
 internal sealed class TouchButtonPipeline : ILoaderModule
 {
@@ -259,13 +263,24 @@ internal sealed class TouchButtonPipeline : ILoaderModule
         }
     }
 
-    /// <summary>程序触发：只置 latch，和手指按在同一帧的判定里合并。</summary>
+    /// <summary>统一按下入口：主菜单中或按钮禁用时直接返回；通过后置 latch 并派发 OnPress。</summary>
     internal void Press(TouchButtonEntry entry)
     {
         if (entry is null) return;
+        if (Main.gameMenu || !EnabledOf(entry)) return;
 
         _table.Latch(entry.Index);
-        Tick();
+
+        if (entry.OnPress is null) return;
+
+        try
+        {
+            entry.OnPress(Main.player[Main.myPlayer]);
+        }
+        catch (Exception e)
+        {
+            Fail(entry, HookId.RightClick, e);
+        }
     }
 
     internal bool VisibleOf(TouchButtonEntry entry)
@@ -494,27 +509,38 @@ internal sealed class TouchButtonPipeline : ILoaderModule
         orig(self);
     }
 
-    /// <summary>触点落在我们按钮上：把对应控件标成按下，并记一次按下事件。</summary>
+    /// <summary>触点落在我们按钮上：接管这次触点、不放行原生，把对应控件标成按下，经 Press 的门控派发按下事件。</summary>
     private void TouchDown(On.GUIVirtualInputController.orig_HandleTouchCursorDown orig,
                            GUIVirtualInputController self, int slot, Vector2 cursorUIPosition, Cursor cursor)
     {
-        orig(self, slot, cursorUIPosition, cursor);
+        TouchButtonEntry? entry = null;
+        try
+        {
+            if (!_table.IsEmpty) entry = SlotAt(self, slot);
+        }
+        catch (Exception e)
+        {
+            Safe.Report("touchbutton.slot", e);
+        }
 
-        if (_table.IsEmpty) return;
-
-        var entry = SlotAt(self, slot);
-        if (entry is null) return;
+        if (entry is null)
+        {
+            orig(self, slot, cursorUIPosition, cursor);
+            return;
+        }
 
         try
         {
-            var pressed = self.Pressed;
+            EnsureController(self);
+
             var control = ControlOf(entry);
+            var wasPressed = self.WasPressed;
+            var first = wasPressed is null || control < 0 || control >= wasPressed.Length || !wasPressed[control];
+
+            var pressed = self.Pressed;
             if (pressed is not null && control >= 0 && control < pressed.Length) pressed[control] = true;
 
-            _table.Latch(entry.Index);
-
-            var player = Main.player[Main.myPlayer];
-            entry.OnPress?.Invoke(player);
+            if (first) Press(entry);
         }
         catch (Exception e)
         {

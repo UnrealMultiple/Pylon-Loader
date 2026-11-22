@@ -240,6 +240,25 @@ internal sealed class LootPipeline : ILoaderModule, ILoaderModuleRefresh
         var item = new Item();
         item.SetDefaults(type, null);
         RollItemLoot(self, item);
+        TryDevArmor(self, type);
+    }
+
+    /// <summary>
+    /// mod Boss 袋的开发者套件掷取：非「肉前袋」（ItemID.Sets.PreHardmodeLikeBossBag）才掷。
+    /// 原版袋走 orig 自带这条链，只有 mod 袋被这边接管、需要补上。
+    /// </summary>
+    private static void TryDevArmor(Player self, int type)
+    {
+        if (!ItemTml.RollsDevArmor(type)) return;
+
+        try
+        {
+            self.TryGettingDevArmor(self.GetItemSource_OpenItem(type));
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report($"[loot] 开发者套件掷取异常（type={type}）：{Safe.Describe(e)}");
+        }
     }
 
     private static void RollItemLoot(Player player, Item item)

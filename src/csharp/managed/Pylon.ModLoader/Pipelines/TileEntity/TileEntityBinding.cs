@@ -49,10 +49,7 @@ internal static class TileEntityBinding
         if (!WorldGen.InWorld(x, y)) return -1;
         if (At(x, y) is not null) return -1;
 
-        var entity = template.NewInstance();
-        entity.ID = _next++;
-        entity.Type = template.Type;
-        entity.Position = new Point16(x, y);
+        var entity = Create(template, x, y, _next++);
 
         ById[entity.ID] = entity;
         ByPosition[new Point16(x, y)] = entity;
@@ -66,16 +63,29 @@ internal static class TileEntityBinding
 
         if (At(x, y) is { } existing && existing.ID != id) Remove(existing);
 
-        var entity = template.NewInstance();
-        entity.ID = id;
-        entity.Type = template.Type;
-        entity.Position = new Point16(x, y);
+        var entity = Create(template, x, y, id);
 
         ById[id] = entity;
         ByPosition[new Point16(x, y)] = entity;
         Order.Add(entity);
 
         if (id >= _next) _next = id + 1;
+        return entity;
+    }
+
+    private static readonly Dictionary<Type, Func<ModTileEntity>> Creators = [];
+
+    private static ModTileEntity Create(ModTileEntity template, int x, int y, int id)
+    {
+        var type = template.GetType();
+        if (!Creators.TryGetValue(type, out var creator))
+            Creators[type] = creator = () => (ModTileEntity)Activator.CreateInstance(type, true)!;
+
+        var entity = creator();
+        entity.Mod = template.Mod;
+        entity.Type = template.Type;
+        entity.ID = id;
+        entity.Position = new Point16(x, y);
         return entity;
     }
 

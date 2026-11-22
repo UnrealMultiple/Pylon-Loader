@@ -28,6 +28,15 @@ internal sealed class AchievementPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static readonly HashSet<IntPtr> RefreshedMenus = [];
 
+    private const int Frame = 66;
+    private const int SheetColumns = 8;
+
+    private static IntPtr _windowTexture;
+    private static IntPtr _outerWindowTexture;
+    private static bool _remapped;
+    private static int _remappedX, _remappedY;
+    private static int _remapHookState;
+
     /// <summary>achievement 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
     internal static class Gates
     {
@@ -74,6 +83,21 @@ internal sealed class AchievementPipeline : ILoaderModule, ILoaderModuleRefresh
                 On.Terraria.UI.InGamePopups.AchievementUnlockedPopup.DrawInNotificationsArea += PopupDrawInNotificationsArea;
 
                 Log.Info("[achievement] 已挂：解锁弹窗图标");
+            }
+        }
+
+        internal struct Remap : ILazyGate
+        {
+            public static bool Wanted() => HasAchievements();
+
+            public static void Install()
+            {
+                On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_Texture2D_Vector2_Nullable_Rectangle_Color_float_Vector2_float_SpriteEffects_float += RemapDraw;
+                On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_Texture2D_Vector2_Nullable_Rectangle_Color_float_Vector2_Vector2_SpriteEffects_float += RemapDrawScaled;
+                On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_Texture2D_Vector2Ref_RectangleRef_ColorRef_float_Vector2_float_SpriteEffects += RemapDrawRef;
+                On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.Draw_Texture2D_Vector2Ref_RectangleRef_ColorRef_float_Vector2_Vector2_SpriteEffects += RemapDrawRefScaled;
+
+                Log.Info("[achievement] 已挂：图标重映射");
             }
         }
     }
@@ -284,12 +308,15 @@ internal sealed class AchievementPipeline : ILoaderModule, ILoaderModuleRefresh
 
         var icons = GUIAchievementsMenu.AchievementsIcons;
         GUIAchievementsMenu.AchievementsIcons = texture;
+        bool remap = BeginRemap(texture);
         try
         {
             orig(self, gridLayout, index, position, scale);
         }
         finally
         {
+            if (remap) EndRemap();
+
             GUIAchievementsMenu.AchievementsIcons = icons;
 
             if (hidden)
@@ -303,28 +330,163 @@ internal sealed class AchievementPipeline : ILoaderModule, ILoaderModuleRefresh
     private static void PopupDrawInGame(On.Terraria.UI.InGamePopups.AchievementUnlockedPopup.orig_DrawInGame orig,
                                         InGamePopups.AchievementUnlockedPopup self, SpriteBatch spriteBatch, Vector2 anchor)
     {
-        SwapPopupTexture(self);
-        orig(self, spriteBatch, anchor);
+        bool remap = SwapPopupTexture(self);
+        try
+        {
+            orig(self, spriteBatch, anchor);
+        }
+        finally
+        {
+            if (remap) EndRemap();
+        }
     }
 
     private static void PopupDrawInNotificationsArea(On.Terraria.UI.InGamePopups.AchievementUnlockedPopup.orig_DrawInNotificationsArea orig,
                                                      InGamePopups.AchievementUnlockedPopup self, SpriteBatch spriteBatch,
                                                      Rectangle area, ref int gamepadPointLocalIndexTouse)
     {
-        SwapPopupTexture(self);
-        orig(self, spriteBatch, area, ref gamepadPointLocalIndexTouse);
+        bool remap = SwapPopupTexture(self);
+        try
+        {
+            orig(self, spriteBatch, area, ref gamepadPointLocalIndexTouse);
+        }
+        finally
+        {
+            if (remap) EndRemap();
+        }
     }
 
-    private static void SwapPopupTexture(InGamePopups.AchievementUnlockedPopup self)
+    private static bool SwapPopupTexture(InGamePopups.AchievementUnlockedPopup self)
     {
         if (self is null)
-            return;
+            return false;
         var mod = AchievementLoader.Of(self._theAchievement);
         var texture = mod?.Texture;
         if (texture is null)
-            return;
+            return false;
         if (self._achievementTexture?.Pointer != texture.Pointer)
             self._achievementTexture = texture;
+        Texture2D? resolved;
+        try
+        {
+            resolved = texture.Value;
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report($"[achievement] {mod!.Name}.Texture 异常：{Safe.Describe(e)}");
+            return false;
+        }
+        if (resolved is null)
+            return false;
+        return BeginRemap(resolved);
+    }
+
+    private static bool BeginRemap(Texture2D texture)
+    {
+        _remapped = false;
+        if (texture.Width > Frame * 2 || !RemapHooksReady())
+            return false;
+        _outerWindowTexture = _windowTexture;
+        _windowTexture = texture.Pointer;
+        return true;
+    }
+
+    private static void EndRemap()
+    {
+        _windowTexture = _outerWindowTexture;
+    }
+
+    private static bool RemapHooksReady()
+    {
+        if (_remapHookState == 1) return true;
+        if (_remapHookState == 2) return false;
+        try
+        {
+            GateHub<AchievementPipeline>.Trigger<Gates.Remap>();
+            _remapHookState = 1;
+            return true;
+        }
+        catch (Exception e)
+        {
+            _remapHookState = 2;
+            ContentErrors.Report($"[achievement] 图标重映射钩子安装失败：{Safe.Describe(e)}");
+            return false;
+        }
+    }
+
+    private static void RemapSource(ref int sourceX, ref int sourceY)
+    {
+        if (_remapped && sourceX == _remappedX && sourceY == _remappedY)
+            return;
+        int column = sourceX / Frame, row = sourceY / Frame;
+        int icon = row * SheetColumns + column % SheetColumns;
+        sourceX = (column >= SheetColumns ? Frame : 0) + sourceX % Frame;
+        sourceY = icon * Frame + sourceY % Frame;
+        _remapped = true;
+        _remappedX = sourceX;
+        _remappedY = sourceY;
+    }
+
+    private static void RemapDraw(
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_Texture2D_Vector2_Nullable_Rectangle_Color_float_Vector2_float_SpriteEffects_float orig,
+        SpriteBatch self, Texture2D texture, Vector2 position, Il2CppSystem.Nullable<Rectangle> source, Color color,
+        float rotation, Vector2 origin, float scale, SpriteEffects effects, float depth)
+    {
+        if (_windowTexture == IntPtr.Zero || texture is null || texture.Pointer != _windowTexture || !source.HasValue)
+        {
+            orig(self, texture, position, source, color, rotation, origin, scale, effects, depth);
+            return;
+        }
+        var rect = source.Value;
+        RemapSource(ref rect.X, ref rect.Y);
+        orig(self, texture, position, new Il2CppSystem.Nullable<Rectangle>(rect), color, rotation, origin, scale, effects, depth);
+    }
+
+    private static void RemapDrawScaled(
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_Texture2D_Vector2_Nullable_Rectangle_Color_float_Vector2_Vector2_SpriteEffects_float orig,
+        SpriteBatch self, Texture2D texture, Vector2 position, Il2CppSystem.Nullable<Rectangle> source, Color color,
+        float rotation, Vector2 origin, Vector2 scale, SpriteEffects effects, float depth)
+    {
+        if (_windowTexture == IntPtr.Zero || texture is null || texture.Pointer != _windowTexture || !source.HasValue)
+        {
+            orig(self, texture, position, source, color, rotation, origin, scale, effects, depth);
+            return;
+        }
+        var rect = source.Value;
+        RemapSource(ref rect.X, ref rect.Y);
+        orig(self, texture, position, new Il2CppSystem.Nullable<Rectangle>(rect), color, rotation, origin, scale, effects, depth);
+    }
+
+    private static void RemapDrawRef(
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_Texture2D_Vector2Ref_RectangleRef_ColorRef_float_Vector2_float_SpriteEffects orig,
+        SpriteBatch self, Texture2D texture, ref Vector2 position, ref Rectangle source, ref Color color,
+        float rotation, Vector2 origin, float scale, SpriteEffects effects)
+    {
+        if (_windowTexture == IntPtr.Zero || texture is null || texture.Pointer != _windowTexture)
+        {
+            orig(self, texture, ref position, ref source, ref color, rotation, origin, scale, effects);
+            return;
+        }
+        var saved = source;
+        RemapSource(ref source.X, ref source.Y);
+        orig(self, texture, ref position, ref source, ref color, rotation, origin, scale, effects);
+        source = saved;
+    }
+
+    private static void RemapDrawRefScaled(
+        On.Il2CppMicrosoft.Xna.Framework.Graphics.SpriteBatch.orig_Draw_Texture2D_Vector2Ref_RectangleRef_ColorRef_float_Vector2_Vector2_SpriteEffects orig,
+        SpriteBatch self, Texture2D texture, ref Vector2 position, ref Rectangle source, ref Color color,
+        float rotation, Vector2 origin, Vector2 scale, SpriteEffects effects)
+    {
+        if (_windowTexture == IntPtr.Zero || texture is null || texture.Pointer != _windowTexture)
+        {
+            orig(self, texture, ref position, ref source, ref color, rotation, origin, scale, effects);
+            return;
+        }
+        var saved = source;
+        RemapSource(ref source.X, ref source.Y);
+        orig(self, texture, ref position, ref source, ref color, rotation, origin, scale, effects);
+        source = saved;
     }
 
     private static readonly LocalizedText HiddenText = Language.GetText("???");

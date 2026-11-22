@@ -750,10 +750,10 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private void ItemCheck(On.Terraria.Player.orig_ItemCheck orig, Player self)
     {
+        var run = true;
+
         if (_binding.Active(HookId.PreItemCheck))
         {
-            var run = true;
-
             foreach (var mod in _binding.Of(self))
             {
                 if (!mod.HookEnabled(HookId.PreItemCheck)) continue;
@@ -767,11 +767,9 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
                     Fail(mod, HookId.PreItemCheck, e);
                 }
             }
-
-            if (!run) return;
         }
 
-        orig(self);
+        if (run) orig(self);
 
         if (!_binding.Active(HookId.PostItemCheck)) return;
 

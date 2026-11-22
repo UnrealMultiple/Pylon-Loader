@@ -18,6 +18,12 @@ public static class PlayerDrawProbe
 {
     public static int BetweenCount, ChildAfterCount, ChildBeforeCount, HiddenCount, MultipleCount;
 
+    /// <summary>HideTarget 解除后层被画过一次的闩锁：轮询判定用，Reset 不清（RunWorld 开头清）。</summary>
+    public static bool EverHidden;
+
+    /// <summary>多槽层被画过一次的闩锁：同上，Reset 不清（RunWorld 开头清）。</summary>
+    public static bool EverMultiple;
+
     public static int CacheBefore = -1, CacheAfter = -1, TextureWidth = -1;
     public static bool AddOk;
     public static int Added;
@@ -102,7 +108,11 @@ public sealed class TestLayerHidden : PlayerDrawLayer
 {
     public override Position GetDefaultPosition() => new Between(PlayerDrawLayers.Skin, PlayerDrawLayers.Leggings);
 
-    protected override void Draw(ref PlayerDrawSet drawInfo) => PlayerDrawProbe.HiddenCount++;
+    protected override void Draw(ref PlayerDrawSet drawInfo)
+    {
+        PlayerDrawProbe.HiddenCount++;
+        PlayerDrawProbe.EverHidden = true;
+    }
 }
 
 /// <summary>多槽层：同一层按条件落在两个不同位置。</summary>
@@ -114,7 +124,11 @@ public sealed class TestLayerMultiple : PlayerDrawLayer
         { new Between(PlayerDrawLayers.BladedGlove, PlayerDrawLayers.ProjectileOverArm), i => !PlayerDrawProbe.MultipleFirst },
     };
 
-    protected override void Draw(ref PlayerDrawSet drawInfo) => PlayerDrawProbe.MultipleCount++;
+    protected override void Draw(ref PlayerDrawSet drawInfo)
+    {
+        PlayerDrawProbe.MultipleCount++;
+        PlayerDrawProbe.EverMultiple = true;
+    }
 }
 
 /// <summary>藏层 + 改排序都走 ModPlayer。</summary>

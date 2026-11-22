@@ -94,7 +94,9 @@ internal static class ProjectileTests
             c.Eq(Content.TestProjectile.OnSpawnCount - beforeSpawn, 5, "OnSpawn 次数");
         });
 
-        // W2：全局链 —— GlobalProjectile 的 OnSpawn/PreAI/AI/PostAI/绘制钩子都收到（差值断言，30 帧）
+        // W2：全局链 —— GlobalProjectile 的 OnSpawn/PreAI/AI/PostAI/绘制钩子都收到（差值断言）。
+        // 绘制断言走轮询：全量跑时渲染帧远稀于更新帧（一轮约 8 个渲染帧），+30 更新帧的窗口里
+        // 常常一个渲染帧都没有；见数就判、没见重排，弹幕悬停在屏内等渲染。
         PT.Case("PROJ-W2", c =>
         {
             Content.TestProjectileGlobal.Reset();
@@ -110,20 +112,37 @@ internal static class ProjectileTests
             var proj = Projectile.NewProjectileDirect(source,
                 player.Center + new Vector2(0f, -60f), new Vector2(0f, -4f), type, 50, 0f, player.whoAmI);
             c.True(proj is { active: true }, "NewProjectile 生成");
-            PT.Later("PROJ-W2", 30, check =>
+            if (proj is { active: true })
             {
-                PT.Info($"[probe] AnyPreDraw={Content.TestProjectileGlobal.AnyPreDrawCount - anyPreDraw0}" +
-                        $" PreDraw={Content.TestProjectileGlobal.PreDrawCount - preDraw0}" +
-                        $" PostDraw={Content.TestProjectileGlobal.PostDrawCount - postDraw0}" +
-                        $" GetAlpha={Content.TestProjectileGlobal.GetAlphaCount - alpha0}");
-                check.True(Content.TestProjectileGlobal.OnSpawnCount - spawn0 > 0, "全局 OnSpawn");
-                check.True(Content.TestProjectileGlobal.PreAiCount - preAi0 > 0, "全局 PreAI");
-                check.True(Content.TestProjectileGlobal.AiCount - ai0 > 0, "全局 AI");
-                check.True(Content.TestProjectileGlobal.PostAiCount - postAi0 > 0, "全局 PostAI");
-                check.True(Content.TestProjectileGlobal.PreDrawCount - preDraw0 > 0, "全局 PreDraw");
-                check.True(Content.TestProjectileGlobal.PostDrawCount - postDraw0 > 0, "全局 PostDraw");
-                check.True(Content.TestProjectileGlobal.GetAlphaCount - alpha0 > 0, "全局 GetAlpha");
-            });
+                proj.velocity = Vector2.Zero;
+                proj.timeLeft = 3600;
+            }
+
+            var attempts = 0;
+            void PollDraw(Check check)
+            {
+                var drawn = Content.TestProjectileGlobal.AnyPreDrawCount - anyPreDraw0;
+                if (drawn > 0 || proj is not { active: true } || ++attempts >= 20)
+                {
+                    PT.Info($"[probe] AnyPreDraw={drawn}" +
+                            $" PreDraw={Content.TestProjectileGlobal.PreDrawCount - preDraw0}" +
+                            $" PostDraw={Content.TestProjectileGlobal.PostDrawCount - postDraw0}" +
+                            $" GetAlpha={Content.TestProjectileGlobal.GetAlphaCount - alpha0}（巡检 {attempts} 轮）");
+                    check.True(Content.TestProjectileGlobal.OnSpawnCount - spawn0 > 0, "全局 OnSpawn");
+                    check.True(Content.TestProjectileGlobal.PreAiCount - preAi0 > 0, "全局 PreAI");
+                    check.True(Content.TestProjectileGlobal.AiCount - ai0 > 0, "全局 AI");
+                    check.True(Content.TestProjectileGlobal.PostAiCount - postAi0 > 0, "全局 PostAI");
+                    check.True(Content.TestProjectileGlobal.PreDrawCount - preDraw0 > 0, "全局 PreDraw");
+                    check.True(Content.TestProjectileGlobal.PostDrawCount - postDraw0 > 0, "全局 PostDraw");
+                    check.True(Content.TestProjectileGlobal.GetAlphaCount - alpha0 > 0, "全局 GetAlpha");
+                    return;
+                }
+
+                check.Pending();
+                PT.RetryLater("PROJ-W2", 30, PollDraw);
+            }
+
+            PT.RetryLater("PROJ-W2", 30, PollDraw);
         });
 
         // W3：死亡链 —— Kill() 同步触发 PreKill/OnKill（差值断言，不受后续用例 Reset 影响）

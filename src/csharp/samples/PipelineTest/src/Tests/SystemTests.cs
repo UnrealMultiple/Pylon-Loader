@@ -56,7 +56,9 @@ internal static class SystemTests
             c.Eq(Of(nameof(ModSystem.OnModLoad)), 1, "OnModLoad 装载期一次");
             c.Eq(Of(nameof(ModSystem.ResizeArrays)), 1, "ResizeArrays 装载期一次");
             c.Eq(Content.TestSystem.StaticDefaults, 1, "SetStaticDefaults 装载期一次");
-            c.Eq(Of(nameof(ModSystem.AddRecipeGroups)), 1, "AddRecipeGroups 一次");
+            // 验证脚手架适配（150e1be 对齐 TML 时序）：AddRecipeGroups（逐 mod）现排在 PostSetupContent
+            // 之后，Ready 期计数必为 0；装载收尾后的实际计数由世界期 SYS-R2-LATE 收口。
+            c.Eq(Of(nameof(ModSystem.AddRecipeGroups)), 0, "AddRecipeGroups 晚于 PostSetupContent（150e1be）");
         });
     }
 
@@ -70,6 +72,15 @@ internal static class SystemTests
         }
 
         Content.TestSystem.Recording = true;
+
+        // 验证脚手架适配（150e1be 对齐 TML 时序）：AddRecipeGroups（逐 mod）在 PostSetupContent 之后，
+        // 装载收尾时恰跑一次；进世界时收口断言。
+        PT.Case("SYS-R2-LATE", c =>
+        {
+            var calls = Content.TestSystem.Calls;
+            int Of(string hook) => calls.TryGetValue(hook, out var n) ? n : 0;
+            c.Eq(Of(nameof(ModSystem.AddRecipeGroups)), 1, "AddRecipeGroups 装载收尾后恰一次");
+        });
 
         PT.Later("SYS-W1", 30, c =>
         {

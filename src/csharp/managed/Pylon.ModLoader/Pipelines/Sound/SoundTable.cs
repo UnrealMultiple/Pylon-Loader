@@ -7,7 +7,7 @@ namespace Pylon.ModLoader.Pipelines;
 /// <summary>一个已注册音效的选项与活动流链表头。按注册下标密集存放，取用写 ref，不装箱。</summary>
 internal struct SoundEntry
 {
-    public int SoundId;
+    public int[] SoundIds;
     public float Volume;
     public float Pitch;
     public float PitchVariance;
@@ -71,25 +71,13 @@ internal sealed class SoundTable
         var index = _entryCount;
         EnsureEntries(index + 1);
 
-        var soundId = 0;
-        var file = AudioFiles.Anywhere(style.Path);
-        if (file is null)
-        {
-            Safe.Once("sound.missing:" + style.Path,
-                $"sound: 找不到 '{style.Path}'（Assets/ 下的 .ogg/.wav/.mp3）", true);
-        }
+        var ids = new List<int>();
+        if (style.Variants.IsEmpty) AddFile(ids, style.Path);
         else
-        {
-            soundId = Load(file);
-            if (soundId <= 0)
-            {
-                Safe.Once("sound.load:" + file,
-                    $"sound: SoundPool 拒绝 {file}（{style.Path}）", true);
-            }
-        }
+            foreach (var variant in style.Variants) AddFile(ids, style.Path + variant);
 
         ref var entry = ref _entries[index];
-        entry.SoundId = soundId;
+        entry.SoundIds = ids.ToArray();
         entry.Volume = style.Volume;
         entry.Pitch = style.Pitch;
         entry.PitchVariance = style.PitchVariance;
@@ -103,6 +91,26 @@ internal sealed class SoundTable
         _entryCount = index + 1;
         _byKey[key] = index;
         return index;
+    }
+
+    private void AddFile(List<int> ids, string path)
+    {
+        var file = AudioFiles.Anywhere(path);
+        if (file is null)
+        {
+            Safe.Once("sound.missing:" + path,
+                $"sound: 找不到 '{path}'（Assets/ 下的 .ogg/.wav/.mp3）", true);
+            return;
+        }
+
+        var soundId = Load(file);
+        if (soundId <= 0)
+        {
+            Safe.Once("sound.load:" + file,
+                $"sound: SoundPool 拒绝 {file}（{path}）", true);
+            return;
+        }
+        ids.Add(soundId);
     }
 
     private int Load(string file)
@@ -192,6 +200,7 @@ internal sealed class SoundTable
 
     private static string KeyOf(SoundStyle style) =>
         style.Path + "|" +
+        string.Join(",", style.Variants.ToArray()) + "|" +
         style.Volume.ToString("R", CultureInfo.InvariantCulture) + "|" +
         style.Pitch.ToString("R", CultureInfo.InvariantCulture) + "|" +
         style.PitchVariance.ToString("R", CultureInfo.InvariantCulture) + "|" +

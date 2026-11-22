@@ -47,8 +47,8 @@ public static class PlayerDrawLayers
     internal static readonly PlayerDrawLayer SkinCompositeBackArmShirt = new VanillaPlayerDrawLayer(nameof(SkinCompositeBackArmShirt), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_12_SkinComposite_BackArmShirt(i));
     public static readonly PlayerDrawLayer ArmorBackCoat = new VanillaPlayerDrawLayer(nameof(ArmorBackCoat), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_13_ArmorBackCoat(i));
     public static readonly PlayerDrawLayer Leggings = new VanillaPlayerDrawLayer(nameof(Leggings), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_13_Leggings(i), condition: i => !Robed(i));
-    public static readonly PlayerDrawLayer Robe = Leggings;
     public static readonly PlayerDrawLayer Shoes = new VanillaPlayerDrawLayer(nameof(Shoes), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_14_Shoes(i));
+    public static readonly PlayerDrawLayer Robe = new VanillaPlayerDrawLayer(nameof(Robe), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_13_Leggings(i), condition: Robed, hookOwner: Leggings);
     public static readonly PlayerDrawLayer SkinLongCoat = new VanillaPlayerDrawLayer(nameof(SkinLongCoat), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_15_SkinLongCoat(i), TorsoGroup);
     public static readonly PlayerDrawLayer ArmorLongCoat = new VanillaPlayerDrawLayer(nameof(ArmorLongCoat), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_16_ArmorLongCoat(i), TorsoGroup);
     public static readonly PlayerDrawLayer Torso = new VanillaPlayerDrawLayer(nameof(Torso), static (ref PlayerDrawSet i) => Terraria.DataStructures.PlayerDrawLayers.DrawPlayer_17_Torso(i), TorsoGroup);
@@ -107,6 +107,7 @@ public static class PlayerDrawLayers
         ArmorBackCoat,
         Leggings,
         Shoes,
+        Robe,
         SkinLongCoat,
         ArmorLongCoat,
         Torso,
@@ -185,15 +186,18 @@ internal sealed class VanillaPlayerDrawLayer : PlayerDrawLayer
     private readonly Transformation _transform;
     private readonly bool _isHeadLayer;
     private readonly Condition? _condition;
+    private readonly PlayerDrawLayer? _hookOwner;
 
     public VanillaPlayerDrawLayer(string name, DrawFunc drawFunc, Transformation? transform = null,
-                                  bool isHeadLayer = false, Condition? condition = null)
+                                  bool isHeadLayer = false, Condition? condition = null,
+                                  PlayerDrawLayer? hookOwner = null)
     {
         _name = name;
         _drawFunc = drawFunc;
         _transform = transform!;
         _isHeadLayer = isHeadLayer;
         _condition = condition;
+        _hookOwner = hookOwner;
     }
 
     public override string Name => _name;
@@ -201,6 +205,8 @@ internal sealed class VanillaPlayerDrawLayer : PlayerDrawLayer
     public override Transformation Transform => _transform;
 
     public override bool IsHeadLayer => _isHeadLayer;
+
+    internal override PlayerDrawLayer HookOwner => _hookOwner ?? this;
 
     public override bool GetDefaultVisibility(PlayerDrawSet drawInfo) => _condition?.Invoke(drawInfo) ?? true;
 

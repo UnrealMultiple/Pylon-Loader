@@ -64,7 +64,7 @@ internal static class PlayerJumpHooks
 
     internal static bool Wanted()
     {
-        if (ExtraJumpTable.HasModded) return true;
+        if (ExtraJumpTable.HasRegistered) return true;
         for (var i = 0; i < GateHooks.Length; i++)
         {
             if (Players.ModsActive(GateHooks[i])) return true;

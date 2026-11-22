@@ -73,34 +73,17 @@ internal static class LoaderRegistry
     }
 
     private static readonly bool[] _installed = new bool[Modules.Length];
-    private static bool _allInstalled;
     private static string? _lastGates;
 
     public static void InstallAll()
     {
-        if (_allInstalled)
-        {
-            RefreshAll();
-            return;
-        }
-
-        var pending = false;
         for (var i = 0; i < Modules.Length; i++)
         {
-            if (_installed[i]) continue;
-            if (Modules[i].Install())
-            {
-                _installed[i] = true;
-            }
-            else
-            {
-                pending = true;
-            }
+            if (Modules[i].Install()) _installed[i] = true;
         }
 
         LogGates();
         RefreshAll();
-        if (!pending) _allInstalled = true;
     }
 
     private static void LogGates()

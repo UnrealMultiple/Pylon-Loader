@@ -117,7 +117,7 @@ internal sealed class PlayerDrawInfoPipeline : ILoaderModule
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[playerdrawinfo] {mod.Mod?.Name}.ModifyDrawInfo 异常：{Safe.Describe(e)}");
+                ContentErrors.Callback($"[playerdrawinfo] {mod.Mod?.Name}.ModifyDrawInfo", e);
             }
         }
     }
@@ -142,7 +142,7 @@ internal sealed class PlayerDrawInfoPipeline : ILoaderModule
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[playerdrawinfo] {mod.Mod?.Name}.DrawEffects 异常：{Safe.Describe(e)}");
+                ContentErrors.Callback($"[playerdrawinfo] {mod.Mod?.Name}.DrawEffects", e);
             }
         }
 
@@ -204,7 +204,7 @@ internal sealed class PlayerDrawInfoPipeline : ILoaderModule
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report($"[playerdrawinfo] {mod.Mod?.Name}.TransformDrawData 异常：{Safe.Describe(e)}");
+                    ContentErrors.Callback($"[playerdrawinfo] {mod.Mod?.Name}.TransformDrawData", e);
                 }
             }
         }
@@ -233,7 +233,7 @@ internal sealed class PlayerDrawInfoPipeline : ILoaderModule
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[playerdrawinfo] {mod.Mod?.Name}.DrawPlayer 异常：{Safe.Describe(e)}");
+                ContentErrors.Callback($"[playerdrawinfo] {mod.Mod?.Name}.DrawPlayer", e);
             }
         }
     }
@@ -264,7 +264,7 @@ internal sealed class PlayerDrawInfoPipeline : ILoaderModule
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[playerdrawinfo] {mod.Mod?.Name}.ModifyScreenPosition 异常：{Safe.Describe(e)}");
+                ContentErrors.Callback($"[playerdrawinfo] {mod.Mod?.Name}.ModifyScreenPosition", e);
             }
         }
 
@@ -300,7 +300,7 @@ internal sealed class PlayerDrawInfoPipeline : ILoaderModule
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[playerdrawinfo] {mod.Mod?.Name}.ModifyZoom 异常：{Safe.Describe(e)}");
+                ContentErrors.Callback($"[playerdrawinfo] {mod.Mod?.Name}.ModifyZoom", e);
             }
         }
 

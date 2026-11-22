@@ -39,7 +39,7 @@
 | `IsNewBanner` / `SetNewBanner` / `ClearNewBanner` | 读写侧表 |
 | `NPCtoBanner` / `BannerToItem` / `BannerToNPC` | 读映射表 |
 
-这套拦截对**静态三张表**是可枚举验证的：`BannerSystem` 里带旗子/NPC 编号的公开入口一共 10 个（`GetKillCount`、`AddKill`、`AddNPCKillBy`、`IsNewBanner`、`SetNewBanner`、`ClearNewBanner`、`NPCtoBanner`、`BannerToItem`、`BannerToNPC`、`AddClaimableBanner`），前九个全部拦下；`AddClaimableBanner` 只能从 `AddKill` 内部到达，而 `AddKill` 对 mod 编号根本不调 `orig`，所以也到不了。网络侧 `NetBannersModule.WriteKillCountUpdate(bannerId)` 同理——它由 `AddKill` 触发，mod 编号走不到那里，不会把 mod id 发给别的端。
+这套拦截对**静态三张表**是可枚举验证的：`BannerSystem` 里带旗子/NPC 编号的公开入口一共 10 个（`GetKillCount`、`AddKill`、`AddNPCKillBy`、`IsNewBanner`、`SetNewBanner`、`ClearNewBanner`、`NPCtoBanner`、`BannerToItem`、`BannerToNPC`、`AddClaimableBanner`），前九个全部拦下；`AddClaimableBanner` 只被原版 `AddNPCKillBy` 的击杀结算分支调用（libil2cpp.so 反汇编：`AddKill` 的唯一调用方也是 `AddNPCKillBy`），而 `AddNPCKillBy` 与 `AddKill` 对 mod 编号根本不调 `orig`，所以也到不了。网络侧 `NetBannersModule.WriteKillCountUpdate(bannerId)` 同理——它由 `AddKill` 触发，mod 编号走不到那里，不会把 mod id 发给别的端。
 
 **但 `SceneMetrics.NPCBannerBuff` 是另一回事**：它是**玩家侧的实例表**，按 NPC / 旗子编号读。我们同样不扩它，改成在它的三个公开读取入口上挡：
 
@@ -59,9 +59,11 @@ Player.GetBannerBuffEffect(int bannerType, out ItemID.BannerEffect effect)
 
 击杀侧表是 `int[]`，下标 = `旗子编号 - 原版 NPC 数`；`bool[]` 存"新旗子"标记。两者按最大旗子编号定长，安装期建一次。
 
-### 2.4 建表时机
+### 2.4 建表时机与作者声明
 
 `Build` 在 `InstallPlan` 的 `Samples` 阶段、NPC 静态默认值与城镇 NPC 商店之后跑：`ModNpc.Banner` / `BannerItem` 通常写在 `SetStaticDefaults` 里，早于这个时机读只会读到 0。
+
+建表**只读映射，不写 `ItemID.Sets`**：减伤强度（`BannerStrength`）与领取节奏（`KillsToBanner`）完全由作者在 `SetStaticDefaults` 里声明。不代补默认值——想要减伤与领取节奏就必须自己声明；未声明的旗子击杀数照常累计，但没有减伤（buff 门不开）、也永不产出可领取面数。物品编号相关表（含这两张）由物品管线的扩表器统一补长，mod 物品的新槽位保持默认值。
 
 建表时**作者错误直接抛**（不降级成警告）：`BannerItem > 0` 而 `Banner <= 0`、同一个旗子号被两个 NPC 指到不同物品、同一个物品被两面旗子抢——都指名到 `Mod/类名` 与键名。
 
@@ -69,7 +71,7 @@ Player.GetBannerBuffEffect(int bannerType, out ItemID.BannerEffect effect)
 
 侧车存档 `<世界>.wld.banners.json`：`{"banners": {"Mod/类名": {"c": 击杀数, "f": 是否是新旗}}}`。只写非零项。读档时键找不到（mod 没装）就跳过；不清空已有计数，避免"读档把世界里的计数抹掉"。
 
-**为什么另开文件而不塞进游戏存档**：`BannerSystem.Save` 的长度是原版 NPC 数，塞进去要么截断、要么改长度把原版读档器撑坏；参考实现的"临时缩表再换回来"能工作，但它在 `Save` 里改的是**全局静态数组**，一旦 `orig` 抛异常，数组就留在缩表状态——这是"用一次异常换来整局游戏的计数错位"。
+**为什么另开文件而不塞进游戏存档**：原版 `BannerSystem.Save` 按数组的**当前长度**序列化（libil2cpp.so 反汇编核实：先 `Write(killCount.Length)` 再逐元素写出，`claimableBanners` 同样，`newBanner` 不入档）。塞进去要么截断 mod 计数、要么把静态表换长让存档带上 mod 长度、原版读档器对不上。运行期"把静态表临时缩回原版长度、`orig` 写完再在 `finally` 里还原"的办法异常上是安全的，但它有一个**缩表窗口**：窗口期内游戏还在跑，这期间的击杀与领取结算对着缩短后的数组写——mod 编号直接写到表外（原版对这几张表的访问不做边界检查，是静默写坏相邻内存，不是干净的越界异常），原版编号的增量落在临时数组上、还原时丢弃；而且结算分支还要写 `newBanner`，那张表没跟着缩，窗口里新旗标与计数落在两张不同长度的表上。侧车文件让三张表保持原样、零窗口。
 
 ### 2.6 状态归属
 
@@ -77,7 +79,7 @@ Player.GetBannerBuffEffect(int bannerType, out ItemID.BannerEffect effect)
 
 ## 3. 取舍理由
 
-* **为什么不扩 `BannerSystem.killCount`？** 它是静态 `int[]`，扩表要在运行期替换静态字段；而 `BannerSystem.Save` / `Load` 的长度语义由游戏自己决定，表一长，存下来的世界档就可能与原版读档器对不上。相比之下"不动游戏表"只付出一次字典查找，却把这一类风险整体消掉。
+* **为什么不扩 `BannerSystem.killCount`？** 它是静态 `int[]`，扩表要在运行期替换静态字段；而 `BannerSystem.Save` / `Load` 的长度语义由游戏自己决定——Save 按当前数组长度带长度前缀逐元素写出，表一长，存下来的世界档就可能与原版读档器对不上。相比之下"不动游戏表"只付出一次字典查找，却把这一类风险整体消掉。
 * **为什么 `NPCBannerBuff` 可以扩，`killCount` 不行？** 前者是运行时表（每次场景扫描都会重填），换成长数组只影响本帧的读取；后者进存档，长度一变成品世界的读档就可能对不上。`SceneMetrics` 每个玩家一个实例，但真正被读的只有 `Main.SceneMetrics`，我们在 `Scan` 后置里当场补长，用完即走。
 
 * **为什么击杀侧表按"旗子编号"而不是"NPC 类型"索引？** 多个 NPC 可能共用一面旗子（boss 的多个部位）；旗子才是计数单位，NPC 只是入口。
@@ -85,15 +87,15 @@ Player.GetBannerBuffEffect(int bannerType, out ItemID.BannerEffect effect)
 
 ### 3.7 从横幅 UI 领取 mod 旗子
 
-原版的领取是一条本地闭环：杀满 50 个 → `AddClaimableBanner` 记一面 → UI 的"领取"按钮读 `GetClaimableBannerCounts()` → 点了走 `RequestBannerClaim(banner, amount)` 发物品。mod 编号进不了那张静态 `ushort[]`，所以我们接两头：
+原版的领取是一条本地闭环：击杀数每次跨过 `KillsToBanner` 声明值的整数倍 → `AddNPCKillBy` 的结算分支调 `AddClaimableBanner` 记一面（libil2cpp.so 反汇编：`killCount[banner] % KillsToBanner[BannerToItem(banner)] == 0` 时进入；`KillsToBanner` 未声明即为 0，ARM64 整数除零不抛异常、余数就等于击杀数本身，分支永不成立）→ UI 的"领取"按钮读 `GetClaimableBannerCounts()` → 点了走 `RequestBannerClaim(banner, amount)` 发物品。mod 编号进不了那张静态 `ushort[]`，所以我们接两头：
 
-* **计数侧**：`BannerTable.AddKill` 里跨过 50 的整数倍（`ClaimStep`）就把侧表 `_claimable` +1，并把 `BannerSystem.AnyNewClaimableBanners` 置 true——那个静态 bool 是公开字段，直接写，不用挂 `RefreshHasBannerAvailable`。
+* **计数侧**：`BannerTable.AddKill` 里跨过作者声明的节奏值（`ItemID.Sets.KillsToBanner`；未声明为 0，永不记面）的整数倍就把侧表 `_claimable` +1，并把 `BannerSystem.AnyNewClaimableBanners` 置 true——那个静态 bool 是公开字段，直接写，不用挂 `RefreshHasBannerAvailable`。
 * **读取侧**：`GetClaimableBannerCounts` 后置——原版数组照抄进一份更长的副本（长度 = max(原版, 最大 mod 旗子号 + 1)），mod 旗子的格子填侧表里的可领数。**不换游戏的静态表**，只换这一次的返回值；UI 按数组长度扫，多出来的格自然就是 mod 旗子。
 * **结算侧**：`RequestBannerClaim` 遇 mod 编号：单机/服务器当场 `Claim(banner, amount)`（不超过现有可领数）→ `QuickSpawnItem(旗子物品 × 领到的面数)` → 清"新旗"标；**多人客户端只发请求**（`[ActionClaimRequest, banner, amount]`），由服务器扣数、`Main.player[from].QuickSpawnItem` 发物品（物品本身走原版消息同步），再推一条 `[ActionClaimable, banner, 剩余数]` 给所有人。原版编号照走 `orig`。
 
-**为什么客户端不能自己结算**：可领数在服务器手上（击杀数由服务器推），客户端本地扣数会和服务器对不上，硬发物品就是复制。请求里只有旗子号与面数，`from` 由收包方给——客户端没法替别人领。领到的面数与击杀数一样走侧车存档吗？不——可领数是击杀数的**衍生值**（击杀 ÷ 50 − 已领），重进世界按击杀数重算，不单独存。
+**为什么客户端不能自己结算**：可领数在服务器手上（击杀数由服务器推），客户端本地扣数会和服务器对不上，硬发物品就是复制。请求里只有旗子号与面数，`from` 由收包方给——客户端没法替别人领。领到的面数与击杀数一样走侧车存档吗？不——可领数是击杀数的**衍生值**（击杀 ÷ 声明的节奏值 − 已领），重进世界按击杀数重算，不单独存。
 
-**为什么放 `AddKill` 里算而不挂 `AddClaimableBanner`**：那个方法是 private，且只被原版 `AddKill` 内部调到——而我们对 mod 编号根本不调 `orig`，挂上也永远收不到。
+**为什么放 `AddKill` 里算而不挂 `AddClaimableBanner`**：那个方法是 private，反汇编里它只被原版 `AddNPCKillBy` 的击杀结算分支调到——而那个分支连同 `AddKill` 都在拦截表里，mod 编号根本不调 `orig`，挂上也永远收不到。
 
 ### 3.8 击杀数同步
 
@@ -107,15 +109,9 @@ Player.GetBannerBuffEffect(int bannerType, out ItemID.BannerEffect effect)
 
 ### 3.9 插在地上的旗子：减伤 buff
 
-原版的链路是：场景扫描时方块自己点亮 `SceneMetrics.NPCBannerBuff[banner]`，`Player.HasNPCBannerBuff` / `GetBannerBuffEffect` 读它，减伤强度从 `ItemID.Sets.BannerStrength[npcType]` 取。mod 旗子方块没有原版那套 `NearbyEffects` 分发，所以本管线补三件事：
+原版的链路是：场景扫描时方块自己点亮 `SceneMetrics.NPCBannerBuff[banner]`，`Player.HasNPCBannerBuff` / `GetBannerBuffEffect` 读它，减伤强度从 `ItemID.Sets.BannerStrength[npcType]` 取。
 
-* **补表长度**：`NPCBannerBuff`（实例字段）与 `ItemID.Sets.BannerStrength`（公开静态数组）都换成长度 ≥ 最大旗子号的数组，原有内容照抄，新格子填 `BannerEffect.Reduced`（与原版普通旗子一致）。
-* **找附近的旗子**：`Main.Update` 里每 20 帧扫一次玩家周围 40 格，按 `(方块类型, 样式)` 反查旗子号（建表时从物品的 `createTile` + `placeStyle` 记的），结果存成小数组。
-* **点亮**：`SceneMetrics.Scan` 后置把这一批旗子号写成 true——必须是后置，原版每次扫描都会先清空这张表。
-
-**两个读取入口**随后改回"直接问原版"：表已经够长，减伤数值不必我们复刻；只在表还没补上（越界）时兜底答 false。
-
-**代价**：那次扫描是 81×81 格 = 6561 次方块读取，每 20 帧一次；对比原版自己每帧的扫描窗口，这个量级可以忽略。**没做的**：把 `ModBannerTile.NearbyEffects` 接到方块管线上（那需要逐格分发，而原版根本不调 mod 方块的 `NearbyEffects`）。
+**2026-11-18 Tile 系批次改为现行形状**：`ModBannerTile.NearbyEffects` 在方块管线的 `SceneMetrics.Scan` 后置里逐格派发——按掉落物反查旗子号（`TileTable.DropOf` + `BannerTable.TryGetBannerForItem`）、过 `BannerStrength[item].Enabled` 门、对 `TileEffectsHooks.ScanningMetrics` 做 `Fit`（补表长度）后点亮 `NPCBannerBuff[banner]` 与 `hasBanner`。旧方案（`Main.Update` 每 20 帧侧扫 + Scan 后置点亮 + `HasNPCBannerBuff` 兜底）已删——逐格分发由方块管线的 `NearbyEffects` 位集门控。
 
 ## 4. 失败语义
 
@@ -125,10 +121,11 @@ Player.GetBannerBuffEffect(int bannerType, out ItemID.BannerEffect effect)
 | 两面旗子抢一个物品 | 安装期抛异常 |
 | mod NPC 的旗子号与实际类型不一致 | 允许：`NPCtoBanner` 会把它折算到声明的旗子上 |
 | 击杀 mod NPC | 侧表 +1，游戏数组不动 |
+| `BannerStrength` / `KillsToBanner` 没声明 | 击杀照常计数；无减伤（buff 门不开）、永不产出可领取面数 |
 | 读档键对应不上（mod 没了） | 跳过那一条，其余照读 |
 | 侧车存档损坏 | `TagJson` 记一次，按"没有存档"处理 |
 | `GetKillCount` 被问到一个未登记的 mod 编号 | 返回 0 |
-| 玩家在 mod 旗子附近 | 表补长后按原版点亮，减伤走 `BannerStrength`（默认 `Reduced`） |
+| 玩家在 mod 旗子附近 | 表补长后按原版点亮，减伤走 `BannerStrength`（作者未声明则门不开） |
 | 表还没补上就有人问 mod 旗子号 | 兜底答 false（不崩、不越界） |
 | `GetBannerBuffEffect` 收到 mod NPC / 旗子编号 | 表够长就交给原版；不够长返回 `None` |
 | 领取请求超过现有可领数 | 只发现有的那几面（`Claim` 封顶） |
@@ -137,7 +134,7 @@ Player.GetBannerBuffEffect(int bannerType, out ItemID.BannerEffect effect)
 | 服务器可领数为 0 时收到请求 | 不发物品、不推包（`Claim` 返回 0） |
 | 收到非 mod 旗子的同步包 | 丢弃 |
 | 服务器重发同一个计数 | 覆盖式写入，不会重复累加 |
-| 可领数与击杀数的关系 | 击杀 ÷ 50 − 已领；不单独存档，重进世界自动重算 |
+| 可领数与击杀数的关系 | 击杀 ÷ 声明的节奏值 − 已领（未声明节奏 = 永不产出）；不单独存档，重进世界按击杀数重算 |
 
 ## 5. 扩展方式
 
@@ -152,7 +149,7 @@ Player.GetBannerBuffEffect(int bannerType, out ItemID.BannerEffect effect)
 
 ### 这一版没接
 
-1. ~~**从横幅 UI 领取 mod 旗子**~~：**已接（含多人）**——单机/服务器本地结算，客户端发 `ActionClaimRequest` 由服务器扣数发物品并回推可领数（见 3.7、3.8）；`RefreshHasBannerAvailable` 没挂——`AnyNewClaimableBanners` 在跨过 50 杀时由我们直接置 true，UI 的"有可领"提示由此点亮。
+1. ~~**从横幅 UI 领取 mod 旗子**~~：**已接（含多人）**——单机/服务器本地结算，客户端发 `ActionClaimRequest` 由服务器扣数发物品并回推可领数（见 3.7、3.8）；`RefreshHasBannerAvailable` 没挂——`AnyNewClaimableBanners` 在跨过声明的节奏值时由我们直接置 true，UI 的"有可领"提示由此点亮。
 2. ~~**插在地上获得减伤 buff**~~：**已接**（见 3.9）——`SceneMetrics.NPCBannerBuff` 是实例字段、`ItemID.Sets.BannerStrength` 是公开静态数组，两者都直接换成更长的数组；附近扫描由本管线自己做。
 3. ~~**多人同步**~~：**已接**——新模块 `BannerNetPipeline`（装在 `NetPipeline` 之后，独立通道），服务器每次改动推增量 `[1, banner, kills, claimable]`，新客户端连上时搭原版「世界数据」消息 7 的车补全量 `[0, banner, kills, claimable]`；领取走 `[2, banner, amount]` → 服务器 `[3, banner, claimable]`。客户端只收不报（`SetKills` / `SetClaimable`），消息里的旗子号不是 mod 旗子就丢。详见 3.7 / 3.8。
 4. **图鉴（Bestiary）里的旗帜项**：**核对为接不上**——`refs/dump.cs` 里 11 个 Banner 相关类型没有一个进图鉴，图鉴元素只有 `NPCStatsReportInfoElement` / `ItemDropBestiaryInfoElement` 等几类，没有旗帜元素或过滤器；没有可挂的入口。
@@ -164,4 +161,5 @@ Player.GetBannerBuffEffect(int bannerType, out ItemID.BannerEffect effect)
 |---|---|
 | 不变 | `ModNpc.Banner` / `ModNpc.BannerItem` 的签名与语义（0 = 关）不变，只是注释里的"未迁移"改成"由旗帜管线读取" |
 | 新增约束 | 两个字段必须成对填写，否则安装期抛异常 |
-| 新增 | mod 旗子会出现在横幅领取界面里（每 50 杀一面），点"领取"发对应物品 |
+| 新增约束 | 想要减伤或领取节奏，作者需自行设置 `ItemID.Sets.BannerStrength` / `KillsToBanner`；加载器不代补默认值，未声明的旗子无减伤、也永不产出可领取面数 |
+| 新增 | mod 旗子会出现在横幅领取界面里（按作者声明的节奏，见上） |

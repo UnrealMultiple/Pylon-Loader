@@ -90,7 +90,7 @@ internal static class ItemTimingHooks
         SpeedMultiplier(item, player);
 
     private static void Report(string key, HookId hook, Exception e) =>
-        ContentErrors.Report($"[item] {key}.{hook} 异常：{Safe.Describe(e)}");
+        ContentErrors.Callback($"[item] {key}.{hook}", e);
 
     private static void ScaleTime(Player self, Item sItem)
     {
@@ -278,7 +278,7 @@ internal static class ItemTimingHooks
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[item] AltFunctionUse 异常：{Safe.Describe(e)}");
+            ContentErrors.Callback("[item] AltFunctionUse", e);
         }
 
         orig(self);

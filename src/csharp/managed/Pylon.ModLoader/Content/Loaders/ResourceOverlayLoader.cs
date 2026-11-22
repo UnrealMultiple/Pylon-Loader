@@ -27,7 +27,7 @@ public static class ResourceOverlayLoader
             }
             catch (Exception e)
             {
-                ContentErrors.Report("[resourceoverlay] " + overlay.Name + ".PreDrawResource：" + Safe.Describe(e));
+                ContentErrors.Callback("[resourceoverlay] " + overlay.Name + ".PreDrawResource", e);
             }
         }
         return result;
@@ -43,7 +43,7 @@ public static class ResourceOverlayLoader
             }
             catch (Exception e)
             {
-                ContentErrors.Report("[resourceoverlay] " + overlay.Name + ".PostDrawResource：" + Safe.Describe(e));
+                ContentErrors.Callback("[resourceoverlay] " + overlay.Name + ".PostDrawResource", e);
             }
         }
     }
@@ -62,7 +62,7 @@ public static class ResourceOverlayLoader
             }
             catch (Exception e)
             {
-                ContentErrors.Report("[resourceoverlay] " + overlay.Name + ".PreDrawResourceDisplay：" + Safe.Describe(e));
+                ContentErrors.Callback("[resourceoverlay] " + overlay.Name + ".PreDrawResourceDisplay", e);
             }
         }
         return result;
@@ -79,7 +79,7 @@ public static class ResourceOverlayLoader
             }
             catch (Exception e)
             {
-                ContentErrors.Report("[resourceoverlay] " + overlay.Name + ".PostDrawResourceDisplay：" + Safe.Describe(e));
+                ContentErrors.Callback("[resourceoverlay] " + overlay.Name + ".PostDrawResourceDisplay", e);
             }
         }
     }

@@ -160,7 +160,7 @@ internal sealed class ResourceOverlayPipeline : ILoaderModule, ILoaderModuleRefr
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[resourceoverlay] {overlay.Name} 异常：{Safe.Describe(e)}");
+                ContentErrors.Callback($"[resourceoverlay] {overlay.Name} {(before ? "PreDrawResourceDisplay" : "PostDrawResourceDisplay")}", e);
             }
         }
     }
@@ -310,7 +310,7 @@ internal sealed class ResourceOverlayPipeline : ILoaderModule, ILoaderModuleRefr
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[resourceoverlay] {overlay.Name} {(before ? "PreDrawResource" : "PostDrawResource")} 异常：{Safe.Describe(e)}");
+                ContentErrors.Callback($"[resourceoverlay] {overlay.Name} {(before ? "PreDrawResource" : "PostDrawResource")}", e);
             }
         }
     }

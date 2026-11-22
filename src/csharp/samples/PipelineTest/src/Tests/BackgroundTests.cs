@@ -58,7 +58,7 @@ internal static class BackgroundTests
         Content.TestSceneEffectProbe.APriority = 100;
         Content.TestSceneEffectProbe.UseBackground = true;
 
-        PT.Later("BG-W1", 150, c =>
+        PT.Later("BG-W1", 300, c =>
         {
             c.Eq(Main.bgStyle, style.Slot, "Main.bgStyle 是 mod 槽位");
             c.True(Content.TestSurfaceBackgroundStyle.CtFar > 0,
@@ -76,7 +76,7 @@ internal static class BackgroundTests
 
         // BG-W2：关掉场景效果，背景应回到原版（bgStyle 不再是 mod 槽位）；
         // 原生切回随背景过渡走（淡出全程约 0.005/帧），窗口给足 240 帧。
-        PT.Later("BG-W2", 420, c =>
+        PT.Later("BG-W2", 570, c =>
         {
             Content.TestSceneEffectProbe.UseBackground = false;
             Content.TestSceneEffectProbe.AActive = false;

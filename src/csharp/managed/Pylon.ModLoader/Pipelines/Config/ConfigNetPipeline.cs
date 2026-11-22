@@ -101,7 +101,7 @@ internal sealed class ConfigNetPipeline : ILoaderModule
         _net.SendValues(_kind, values, toClient, -1);
     }
 
-    private static void Pack(ModConfigEntry entry, List<object> values)
+    private static void Pack(ModConfigEntry entry, List<object> values, Func<ConfigOption, object?>? lookup = null)
     {
         var options = entry.Options;
         for (var index = 0; index < options.Count; index++)
@@ -109,7 +109,7 @@ internal sealed class ConfigNetPipeline : ILoaderModule
             var option = options[index];
             if (option.Kind == ConfigOptionKind.Data) continue;
 
-            var value = option.Get(entry.Instance);
+            var value = lookup != null ? lookup(option) : option.Get(entry.Instance);
             values.Add(option.Name);
             values.Add(option.Kind == ConfigOptionKind.Color && value is Il2CppMicrosoft.Xna.Framework.Graphics.Color color
                 ? ConfigOption.FormatColor(color)
@@ -248,12 +248,12 @@ internal sealed class ConfigNetPipeline : ILoaderModule
     // ===================== 客户端请求 =====================
 
     /// <summary>客户端改了一份 ServerSide 配置：把整份值当请求发出去（服务器按需接受/拒绝）。</summary>
-    internal void Request(ModConfigEntry entry, bool broadcast = true)
+    internal void Request(ModConfigEntry entry, bool broadcast = true, Func<ConfigOption, object?>? lookup = null)
     {
         if (Main.netMode != 1) return;
 
         var values = new List<object> { ActionAsk, entry.Mod.Name, entry.Name };
-        Pack(entry, values);
+        Pack(entry, values, lookup);
         _net.SendValues(_kind, values, -1, -1);
     }
 

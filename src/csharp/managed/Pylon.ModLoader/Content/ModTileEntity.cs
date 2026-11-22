@@ -60,17 +60,11 @@ public abstract class ModTileEntity : ModType
     public virtual void NetReceive(NetReader reader) { }
 
     /// <summary>
-    /// 实体建立成功后的回调（对位 TML PlacementHook）：
-    /// 管线在放置/读档建好实体后，对新建实例调用一次（服务端/单机）。
-    /// 返回 -1 = 没有别的返回值，管线忽略。
+    /// PlacementHook 的放置入口回调：作者在这里折算出物体左上角并自己调 <see cref="Place"/> 建实体。
+    /// 建实体不会派发它（回调里再调 Place 会无限递归）；当前构建还没有 PlacementHook 调用点，
+    /// 接线后由放置入口派发。返回 -1 = 没有别的返回值。
     /// </summary>
     public virtual int Hook_AfterPlacement(int i, int j, int type, int style, int direction, int alternate) => -1;
-
-    /// <summary>
-    /// 为世界里的一个新实体复制一份实例：默认浅拷贝模板。
-    /// 管线不反射造对象，所以"每个实体一份状态"靠这个方法；作者有可变引用字段（列表、缓存）时覆写它给一份干净的。
-    /// </summary>
-    protected internal virtual ModTileEntity NewInstance() => (ModTileEntity)MemberwiseClone();
 
     /// <summary>把实体放到 (i, j)（物体的左上角）；返回新实体的 ID，越界或这格已有 mod 实体时 -1。</summary>
     public int Place(int i, int j) => TileEntityPipeline.Instance.Place(this, i, j);

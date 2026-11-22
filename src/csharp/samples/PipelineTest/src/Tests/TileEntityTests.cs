@@ -9,7 +9,7 @@ using Pylon.ModLoader.SaveData;
 namespace PipelineTest.Tests;
 
 /// <summary>
-/// 方块实体管线（World）：注册面、放下即建实体、每帧回调（含前置/后置）、拆除即摘实体、手动放置/摘除 API。
+/// 方块实体管线（World）：注册面、实体建摘（作者自理，直调 PlaceTile 不派发 PlaceInWorld）、每帧回调（含前置/后置）、手动放置/摘除 API。
 /// </summary>
 internal static class TileEntityTests
 {
@@ -43,13 +43,13 @@ internal static class TileEntityTests
         {
             if (entity is null) { c.Fail("没有 TestTileEntity 实例"); return; }
 
-            // 清格后放方块：放下即建实体。
+            // 清格后放方块，实体由作者 API 建（直调 PlaceTile 不派发 PlaceInWorld，两边同款固有语义）。
             WorldGen.KillTile(x, y, false, false, false);
             var before = ModTileEntity.CountInWorld();
             WorldGen.PlaceTile(x, y, tileType, true, false, -1, 0);
 
             c.True(Main.tile[x, y].type == tileType, $"方块已放下 type={Main.tile[x, y].type}");
-            var id = entity.Find(x, y);
+            var id = entity.Place(x, y);
             c.True(id >= 0, $"实体已建 id={id}");
             c.True(ModTileEntity.CountInWorld() == before + 1, $"世界里实体数={ModTileEntity.CountInWorld()}（之前 {before}）");
             c.True(ModTileEntity.ByPosition.ContainsKey(new Point16(x, y)), "按格索引里有");
@@ -105,7 +105,7 @@ internal static class TileEntityTests
             {
                 // 手动放置 / 摘除 API（作者自己管实体时用）。
                 WorldGen.PlaceTile(x, y, tileType, true, false, -1, 0);
-                var id = entity.Find(x, y);
+                var id = entity.Place(x, y);
                 cc.True(id >= 0, $"放方块后实体 id={id}");
 
                 var kills = Content.TestTileEntity.KillCalls;
@@ -131,7 +131,7 @@ internal static class TileEntityTests
                 WorldGen.PlaceTile(x + 2, y, tileType, true, false, -1, 0);
                 cc.True(Main.tile[x + 2, y].type == tileType, "第二块方块已放下");
 
-                var id = entity.Find(x + 2, y);
+                var id = entity.Place(x + 2, y);
                 cc.True(id >= 0, $"第二块上也有实体 id={id}");
                 if (id < 0) return;
 
@@ -180,7 +180,7 @@ internal static class TileEntityTests
             PT.Later("TE-8", 85, cc =>
             {
                 WorldGen.PlaceTile(x, y, tileType, true, true, -1, 0);
-                var id = entity.Find(x, y);
+                var id = entity.Place(x, y);
                 cc.True(id >= 0, $"实体已放 id={id}");
                 if (id < 0) return;
 

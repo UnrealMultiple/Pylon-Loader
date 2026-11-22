@@ -1,6 +1,7 @@
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Content;
 using Pylon.ModLoader.Contracts;
+using Pylon.ModLoader.Globals;
 using Pylon.ModLoader.Hooks;
 using Pylon.ModLoader.Localization;
 using Pylon.ModLoader.Logging;
@@ -10,6 +11,7 @@ using Pylon.ModLoader.Tables;
 using Pylon.ModLoader.Textures;
 using ReLogic.Content;
 using Terraria;
+using Terraria.GameContent;
 using Terraria.ID;
 
 namespace Pylon.ModLoader.Install;
@@ -112,6 +114,40 @@ internal static class InstallSteps
         Log.Info($"ContentSamples 物品样例：{count}");
     }
 
+    public static void ItemStaticDefaults()
+    {
+        var count = 0;
+        foreach (var mod in LoaderHost.Current.Mods.Mods)
+        {
+            foreach (var item in ModContent.GetContent<ModItem>())
+            {
+                if (item.Mod != mod) continue;
+                try
+                {
+                    item.SetStaticDefaults();
+                    count++;
+                }
+                catch (Exception e)
+                {
+                    ContentErrors.Report($"[item] {item.FullKey}.SetStaticDefaults 异常：{Safe.Describe(e)}");
+                }
+            }
+            foreach (var global in ModContent.GetContent<GlobalItem>())
+            {
+                if (global.Mod != mod) continue;
+                try
+                {
+                    global.SetStaticDefaults();
+                }
+                catch (Exception e)
+                {
+                    ContentErrors.Report($"[globalItem] {global.FullKey}.SetStaticDefaults 异常：{Safe.Describe(e)}");
+                }
+            }
+        }
+        Log.Info($"物品静态默认值：{count}");
+    }
+
     public static void NpcStaticDefaults()
     {
         var count = 0;
@@ -174,6 +210,10 @@ internal static class InstallSteps
             {
                 var sample = new NPC();
                 sample.SetDefaults(type.Type, new NPCSpawnParams());
+                var frames = Math.Max(1, Main.npcFrameCount is { Length: > 0 } && type.Type < Main.npcFrameCount.Length ? Main.npcFrameCount[type.Type] : 1);
+                var texture = TextureAssets.Npc is { } npcAssets && type.Type < npcAssets.Length ? npcAssets[type.Type]?.Value : null;
+                if (texture is not null)
+                    sample.frame = new Il2CppMicrosoft.Xna.Framework.Rectangle(0, 0, texture.Width, Math.Max(1, texture.Height / frames));
                 npcs[type.Type] = sample;
 
                 var persistentId = (type.Mod?.Name ?? "Mod") + "/" + type.Name;

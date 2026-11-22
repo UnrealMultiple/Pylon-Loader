@@ -238,7 +238,7 @@ internal sealed class ConfigPipeline : ILoaderModule
             if (pending.Mode == ConfigScope.ServerSide && Main.netMode == 1)
             {
                 status?.Invoke("正在让服务器接受改动", new Color(255, 255, 0, 255));
-                ConfigNetPipeline.Instance.Request(entry, broadcast);
+                ConfigNetPipeline.Instance.Request(entry, broadcast, option => option.Get(pending));
                 if (pendingIsActive) Load(entry);
                 return ConfigSaveResult.RequestSentToServer;
             }
@@ -354,7 +354,8 @@ internal sealed class ConfigPipeline : ILoaderModule
             }
             else if (entry.Instance.Mode == ConfigScope.ServerSide && Main.netMode == 1)
             {
-                ConfigNetPipeline.Instance.Request(entry);
+                ConfigNetPipeline.Instance.Request(entry, lookup: option => option.Coerce(
+                    pending.TryGetValue(option.Name, out var value) ? value : option.Get(entry.Instance)));
                 Load(entry);
             }
             else if (LoadTimeNeedsReload(entry, pending))
@@ -486,7 +487,11 @@ internal sealed class ConfigPipeline : ILoaderModule
     /// <summary>屏幕关闭时的兜底：把全部配置再落一次盘（草稿已在 Apply 时落过）。</summary>
     internal void Flush()
     {
-        for (var i = 0; i < _entries.Count; i++) Save(_entries[i]);
+        for (var i = 0; i < _entries.Count; i++)
+        {
+            if (_entries[i].Instance.Mode == ConfigScope.ServerSide && Main.netMode == 1) continue;
+            Save(_entries[i]);
+        }
     }
 
     #endregion

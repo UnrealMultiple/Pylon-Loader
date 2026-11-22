@@ -51,13 +51,13 @@ internal static class ItemFrameHooks
         if (ItemPipeline.Instance.InstanceOf(item) is { } m && m.Plan.Has(HookId.UseItemFrame))
         {
             try { m.UseItemFrame(player); }
-            catch (Exception e) { Report(m.FullKey, e); }
+            catch (Exception e) { Report(m.FullKey, HookId.UseItemFrame, e); }
         }
 
         foreach (var g in GlobalItemRegistry.For(item, HookId.UseItemFrame))
         {
             try { g.UseItemFrame(item, player); }
-            catch (Exception e) { Report(g.FullKey, e); }
+            catch (Exception e) { Report(g.FullKey, HookId.UseItemFrame, e); }
         }
     }
 
@@ -66,16 +66,16 @@ internal static class ItemFrameHooks
         if (ItemPipeline.Instance.InstanceOf(item) is { } m && m.Plan.Has(HookId.HoldItemFrame))
         {
             try { m.HoldItemFrame(player); }
-            catch (Exception e) { Report(m.FullKey, e); }
+            catch (Exception e) { Report(m.FullKey, HookId.HoldItemFrame, e); }
         }
 
         foreach (var g in GlobalItemRegistry.For(item, HookId.HoldItemFrame))
         {
             try { g.HoldItemFrame(item, player); }
-            catch (Exception e) { Report(g.FullKey, e); }
+            catch (Exception e) { Report(g.FullKey, HookId.HoldItemFrame, e); }
         }
     }
 
-    private static void Report(string key, Exception e) =>
-        ContentErrors.Report($"[item] {key} 异常：{Safe.Describe(e)}");
+    private static void Report(string key, HookId hook, Exception e) =>
+        ContentErrors.Callback($"[item] {key}.{hook}", e);
 }

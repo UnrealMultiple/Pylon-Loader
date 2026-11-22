@@ -102,7 +102,13 @@ internal static class BossBarTests
                 {
                     ccc.Eq(Content.TestBossBar.PreCalls, before, "ModifyInfo false 后不再 PreDraw");
                     Content.TestBossBar.Hide = false;
-                    PT.Info("血条隐藏验证结束，已恢复显示；测试 Boss 保留在场上供肉眼确认");
+                    // 验证脚手架适配：Boss 留场会以 Boss1 曲压制 SCENE/BG/WATER 系的声明链（Winner=原版 Boss 场景）。
+                    // 肉眼确认窗口到此为止，立即清场。
+                    if (_boss >= 0 && _boss < Main.npc.Length && Main.npc[_boss] is { } npc)
+                    {
+                        npc.active = false;
+                        PT.Info("血条隐藏验证结束，测试 Boss 已清场（后续 SCENE/BG 用例不再被 Boss1 曲压制）");
+                    }
                 });
             });
         });

@@ -24,6 +24,7 @@ public sealed class PipelineTestMod : Mod
         PT.Bind(Logger);
 
         LoadGroupSwitch();
+        DrawSiteProbe.Install();
 
         AchievementsHelper.OnNPCKilled += (player, npcId) =>
         {
@@ -106,6 +107,7 @@ public sealed class PipelineTestMod : Mod
         Tests.MenuTests.Register();
         Tests.ResourceOverlayTests.Register();
         Tests.BackgroundTests.Register();
+        Tests.ItemDrawTests.Register();
         Tests.JumpTests.Register();
 
         PT.Boot();

@@ -53,7 +53,7 @@ internal static class ItemEquipHooks
             }
             catch (Exception e)
             {
-                Report(m.FullKey, e);
+                Report(m.FullKey, HookId.CanAccessoryBeEquippedWith, e);
             }
             if (!ok) return false;
         }
@@ -69,7 +69,7 @@ internal static class ItemEquipHooks
             }
             catch (Exception e)
             {
-                Report(g.FullKey, e);
+                Report(g.FullKey, HookId.CanAccessoryBeEquippedWith, e);
             }
             if (!ok) return false;
         }
@@ -89,7 +89,7 @@ internal static class ItemEquipHooks
             {
                 if (!m.CanEquipAccessory(player, slot, modded)) return false;
             }
-            catch (Exception e) { Report(m.FullKey, e); }
+            catch (Exception e) { Report(m.FullKey, HookId.CanEquipAccessory, e); }
         }
 
         foreach (var g in GlobalItemRegistry.For(item, HookId.CanEquipAccessory))
@@ -98,7 +98,7 @@ internal static class ItemEquipHooks
             {
                 if (!g.CanEquipAccessory(item, player, slot, modded)) return false;
             }
-            catch (Exception e) { Report(g.FullKey, e); }
+            catch (Exception e) { Report(g.FullKey, HookId.CanEquipAccessory, e); }
         }
 
         return true;
@@ -216,7 +216,7 @@ internal static class ItemEquipHooks
         if (texture is not null)
         {
             try { texture.DrawArmorColor(player, shadow, ref tint, ref glow, ref glowTint); }
-            catch (Exception e) { Report(texture.Name, e); }
+            catch (Exception e) { Report(texture.Name, HookId.DrawArmorColor, e); }
         }
 
         foreach (var g in GlobalItemRegistry.All)
@@ -224,7 +224,7 @@ internal static class ItemEquipHooks
             if (!g.Plan.Has(HookId.DrawArmorColor)) continue;
 
             try { g.DrawArmorColor(type, slot, player, shadow, ref tint, ref glow, ref glowTint); }
-            catch (Exception e) { Report(g.FullKey, e); }
+            catch (Exception e) { Report(g.FullKey, HookId.DrawArmorColor, e); }
         }
 
         if ((uint)(color.PackedValue >> 24) != 0) color = tint;
@@ -246,7 +246,7 @@ internal static class ItemEquipHooks
         if (texture is not null)
         {
             try { texture.ArmorArmGlowMask(player, shadow, ref glow, ref tint); }
-            catch (Exception e) { Report(texture.Name, e); }
+            catch (Exception e) { Report(texture.Name, HookId.ArmorArmGlowMask, e); }
         }
 
         foreach (var g in GlobalItemRegistry.All)
@@ -254,13 +254,13 @@ internal static class ItemEquipHooks
             if (!g.Plan.Has(HookId.ArmorArmGlowMask)) continue;
 
             try { g.ArmorArmGlowMask(slot, player, shadow, ref glow, ref tint); }
-            catch (Exception e) { Report(g.FullKey, e); }
+            catch (Exception e) { Report(g.FullKey, HookId.ArmorArmGlowMask, e); }
         }
 
         if (tint.PackedValue != before) color = player.GetImmuneAlphaPure(tint, shadow);
         glowMask = glow;
     }
 
-    private static void Report(string key, Exception e) =>
-        ContentErrors.Report($"[item] {key} 异常：{Safe.Describe(e)}");
+    private static void Report(string key, HookId hook, Exception e) =>
+        ContentErrors.Callback($"[item] {key}.{hook}", e);
 }

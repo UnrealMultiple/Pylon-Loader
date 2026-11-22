@@ -4,14 +4,16 @@
 
 | 游戏时机 | 分派的作者钩子 |
 |---|---|
-| `Recipe.FindRecipes` | 条件不满足的配方从制作菜单里滤掉（`ModRecipe.Conditions` + `GlobalRecipe.RecipeAvailable`） |
-| `GUICraftGuidePopup.FindRecipes` | 向导对话里同样滤掉被 `GlobalRecipe.RecipeAvailable` 否决的配方（条件不影响向导） |
+| 注册期（`RecipeTable.Added`） | 首条下标越过 `Recipe.maxRecipes`（3700）的配方登记时打开补扫门（第 2.7 节） |
+| `Recipe.FindRecipes` | 条件不满足的配方从制作菜单里滤掉（`ModRecipe.Conditions` + `GlobalRecipe.RecipeAvailable`）；超过上限的配方在此补进可制作表 |
+| `GUICraftGuidePopup.FindRecipes` | 向导对话里同样滤掉被 `GlobalRecipe.RecipeAvailable` 否决的配方（条件不影响向导）；超过上限的配方在此补进向导列表 |
+| `Recipe.UpdateItemVariants` | 超过上限的配方的物品变体刷新（结果物品与材料逐个 `Refresh`） |
 | `Recipe.ProcessGroupsForText` | 自定义配方组的显示名兜底（原版没答时查我们登记的显示名） |
 | `Recipe.GetIngredientCraftingDiscount` | `ModRecipe.AddConsumeIngredientCallback` + `GlobalRecipe.ConsumeItem`（改这次实际消耗几个；材料是配方组时回调拿到的是占位物品的物品号） |
 | `Main.CraftItem_GrantItem` | `ModRecipe.AddOnCraftCallback` + `GlobalRecipe.OnCraft`（做出来的物品进光标之前） |
 | 安装期收尾 | 派生表重建：必需材料索引、材料表、材料标记、可制作表、微光表、样例物品 |
 
-**不接**：`Recipe.maxRecipes` 之后的配方不做伪造（见第 4 节）、制作界面的排版、商店与微光本身的转换逻辑。
+**不接**：制作界面的排版、商店与微光本身的转换逻辑。
 
 配方的特殊之处：**它不是一个"有 id 的内容"**。游戏里一条配方就是 `Main.recipe[i]` 里的一个 `Recipe` 对象，作者 `new ModRecipe()`（内里包一个游戏 `Recipe`）链式填完，`Register` 时把它塞给 `Recipe.currentRecipe` 再调 `Recipe.AddRecipe()` 入表。所以管线要做的不是发号，而是：
 
@@ -19,7 +21,7 @@
 2. 在游戏问"哪些配方现在能做"时，把不满足条件的滤掉；
 3. 在所有配方都加完之后，把游戏那几张派生表重建一遍。
 
-每个入口都带安装门：安装期没见到配方钩子（`AddRecipes` / `AddRecipeGroups` / 对应的 Global 钩）就不挂，普通玩家路径零开销。
+每个入口都带安装门：安装期没见到配方钩子（`AddRecipes` / `AddRecipeGroups` / 对应的 Global 钩）就不挂，普通玩家路径零开销。超上限补扫是唯一的例外：配方总数会不会越过 3700 只有注册期才知道，所以它的门是惰性门，由注册路径在首条超限配方登记时触发安装。
 
 ## 2. 我们的设计
 
@@ -27,8 +29,8 @@
 
 ```
 Pipelines/Recipe/
-  RecipePipeline.cs   模块：五个游戏入口的分派
-  RecipeTable.cs      侧表（密集 struct 数组）、配方组登记、派生表重建
+  RecipePipeline.cs   模块：六个游戏入口的分派 + 超上限补扫
+  RecipeTable.cs      侧表（密集 struct 数组）、配方组登记、派生表重建、超限触发
 ```
 
 ### 2.2 侧表：密集 struct 数组 + `ref`
@@ -85,7 +87,19 @@ internal struct RecipeEntry
 
 ### 2.6 派生表重建
 
-`Finish` 在安装计划的"配方收尾"步（`PostAddRecipes` 之后、`PostSetupRecipes` 之前）按固定顺序重建六张表：必需材料索引、材料表、材料标记、可制作表、微光表、样例物品，**每张单独 try/catch**：前一张失败不应该让后一张也不建（否则制作菜单会整体空白）。
+`Finish` 在安装计划的"配方收尾"步（`PostAddRecipes` 之后、`PostSetupRecipes` 之前）按固定顺序重建六张表：必需材料索引、材料表、材料标记、可制作表、微光表、样例物品，**每张单独 try/catch**：前一张失败不应该让后一张也不建（否则制作菜单会整体空白）。总数越过 3700 时，收尾日志额外报一条，提示超出的部分由补扫接管。
+
+### 2.7 超过原版上限的补扫
+
+游戏给可制作表划了一条硬线：`Recipe.maxRecipes`（3700）。mod 配方把总数推过这条线之后，下标 3700 之后的配方还躺在 `Main.recipe` 里（微光分解、按物品查都走全表，所以它们本来就能被分解、能被查到），但可制作表与向导列表的常规扫描不会把它们收进去。补扫由四件套组成，全部纯托管：
+
+1. **触发**：`RecipeTable.Added`（每条配方注册的必经点）发现本条下标 `>= 3700` 就置标记并触发惰性门；门里先把条件过滤的两个 FindRecipes 钩补齐（已装则跳过），再挂 `Recipe.UpdateItemVariants`。未超限的 mod 不触发任何东西，原版流程零变化。
+2. **扩表**：`FindRecipes` 钩在 `!canDelayCheck` 且已超限的调用上，原版流程跑**之前**把 `Main.availableRecipe`（`int[]`）与 `Main.availableRecipeY`（`float[]`）扩到 `Recipe.numRecipes`（走仓库统一的 `ArrayGrow` 设施；两数组有一方还是 null 就不动，交给原版自建），并记下当前聚焦的配方下标。
+3. **补进可制作表**：原版流程跑完之后，扫 `[3700, min(numRecipes, Main.recipe.Length))`：扫到空结果（`createItem.type == 0`）即停；已经在表里的（`present` 集合，含原版这次刚补的）跳过；其余按**工作台 → 环境 → 材料数量**三条件判定，全部用游戏自己的判定方法（`Recipe.PlayerMeetsTileRequirements` / `PlayerMeetsEnvironmentConditions` / `CollectedEnoughItemsToCraft`），依次短路，全过就 `Recipe.AddToAvailableRecipes` 收进去。扫描前先重收一遍玩家身边的材料（`CollectItemsToCraftWithFrom`）——原版刚跑完的扫描会把"持有量"扣减过，不重收判定就不准。收尾调 `TryRefocusingRecipe` 让界面按扫描前聚焦的那条重新聚焦。
+4. **补进向导列表**：向导的 `FindRecipes` 原版流程跑完之后，同一段下标里把**用到向导物品**的配方追加进 `popup.availableGuideRecipe`（表长不够先扩到总数，`numAvailableGuideRecipes` 顺延写）。"用到"看的是 `requiredItemQuickLookup`：条目号 0 视为表尾，`Matches(type)` 命中即算——与可制作表不同，这里**不做**工作台/环境/条件判定，向导本来就只是"这东西怎么做"的查询。
+5. **物品变体**：`Recipe.UpdateItemVariants` 原版跑完后，对超限段逐条刷新：结果物品 `createItem.Refresh(true)`，`requiredItem` 逐个 `Refresh(true)`（type 0 停）。没超限直接早退。
+
+补进来的条目与其余条目走同一套条件过滤（`Disabled` / `Conditions` / `GlobalRecipe.RecipeAvailable` 照常约束它们），向导侧同样。
 
 ## 3. 取舍理由
 
@@ -96,6 +110,10 @@ internal struct RecipeEntry
 * **为什么解析占位物品号要兜异常？** 组条目指向越界的组号属于脏数据，不能把异常漏进原版的制作消耗流程；兜住后按原版折扣返回，这次制作不受影响。
 * **为什么过滤要重新聚焦？** 原位压缩会把下标整体前移；不重新聚焦，玩家会看到光标跳到另一条配方上。
 * **为什么 `Finish` 的每一步都要单独兜？** 这几张表是给 UI 读的，任何一张没建好都会让制作界面显示不全；分开兜能让"最坏情况只缺一项"。
+* **为什么补扫挂在原版流程的后面、而不是自己重扫全表？** 原版那次扫描是所有制作相关界面的数据源，自己重扫等于另立一套判定，条目顺序、聚焦行为都会和原版分叉；补扫只把原版没机会扫到的那段下标补上，判定用同一批游戏侧方法、同样的短路顺序，`present` 集合保证与原版结果重合时一个条目都不会重复加。
+* **为什么只在 `!canDelayCheck` 的调用上补扫？** 带这个标记的调用是原版说"这次不能推迟"的刷新；可以推迟的刷新走原版自己的延迟路径，跟着推迟能避免对半成品状态做判定，也让补扫的次数与原版刷新对齐。
+* **为什么扩表要在原版流程之前？** 可制作表的两根数组是原版按上限长度建的；补扫与原版扫描都可能往 3700 之后写，数组不够长就越界。向导列表同理，只是它挂在向导自己的弹出层上，在原版流程之后扩也来得及。
+* **为什么超限门是惰性门？** 安装期只能看到"哪个 mod 有 AddRecipes"，看不到"总数会不会过 3700"；把它做成计划期门要么误挂（小 mod 包也要背补扫检查）、要么漏挂。注册路径本身就是每条配方的必经点，在那里触发，超限前零开销。
 
 ## 4. 失败语义
 
@@ -109,7 +127,11 @@ internal struct RecipeEntry
 | 配方组显示名查询失败 | 交回原版流程（不替换） |
 | 按名字找组失败 | `AddRecipeGroup` 原样返回（不加材料） |
 | `Finish` 某一步失败 | 记一条，继续建后面的表 |
-| 配方数超过 `Recipe.maxRecipes`（3700） | **不做伪造**：超出的配方仍在 `Main.recipe` 里（能被分解、能被向导查到），但制作菜单看不见。启动日志里报一条总数，让作者知道越界了 |
+| 补扫的扩表 / 聚焦记录抛错 | 记一条，原版流程照常跑（这次可能缺超限条目，下次刷新再补） |
+| 补进可制作表抛错 | 记一条，已补上的条目保留，聚焦不动 |
+| 向导补扫抛错 | 记一条，已补上的条目保留 |
+| 物品变体刷新抛错 | 记一条，本轮变体刷新中止，下一轮重试 |
+| 配方总数超过 `Recipe.maxRecipes`（3700） | 不是失败：超出的部分由补扫纳入制作菜单与向导，收尾日志报一条总数 |
 
 ## 5. 扩展方式
 
@@ -117,7 +139,7 @@ internal struct RecipeEntry
 
 ## 6. 与其它管线的边界
 
-* **物品管线**：`ItemID.Sets.IsAMaterial` 的写入在 `ModRecipe.AddIngredient`、`ModRecipe.CreateRecipeGroup` 与收尾重建里；物品本身的行为归物品管线。
-* **安装管线**：配方阶段由安装计划编排（`AddRecipes` → `PostAddRecipes` → 本管线的收尾 → `PostSetupRecipes`）。
+* **物品管线**：`ItemID.Sets.IsAMaterial` 的写入在 `ModRecipe.AddIngredient`、`ModRecipe.CreateRecipeGroup` 与收尾重建里；物品本身的行为归物品管线。补扫里对结果与材料物品的 `Refresh` 只刷新变体显示，不碰物品注册。
+* **安装管线**：配方阶段由安装计划编排（`AddRecipes` → `PostAddRecipes` → 本管线的收尾 → `PostSetupRecipes`）；超限门的触发发生在 `AddRecipes` 注册期，早于收尾。
 * **网络管线**：配方同步归网络管线。
 * **Tooltip 管线**：配方界面的文字排版归 Tooltip / UI，不在这里。

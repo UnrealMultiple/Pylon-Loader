@@ -126,6 +126,7 @@ internal sealed class MountPipeline : ILoaderModule
         if (mod is not null && self._type != m)
         {
             self._mountSpecificData = null;
+            MountTml.Clear(self.Pointer);
             _setting = new MountCall { Mod = mod };
         }
 
@@ -196,6 +197,7 @@ internal sealed class MountPipeline : ILoaderModule
         _dismountSkipDust = false;
 
         self._mountSpecificData = null;
+        MountTml.Clear(self.Pointer);
     }
 
     #endregion
@@ -366,8 +368,8 @@ internal sealed class MountPipeline : ILoaderModule
         var yOffset = mount.YOffset + mount.PlayerOffset;
         var frameHeight = data.totalFrames > 0 ? data.textureHeight / data.totalFrames : data.textureHeight;
 
-        var glowColor = new Color(drawColor.R * 0.25f + 191.25f, drawColor.G * 0.25f + 191.25f,
-                                  drawColor.B * 0.25f + 191.25f, drawColor.A * 0.25f + 191.25f);
+        var glowColor = new Color((byte)(drawColor.R * 0.25f + 191.25f), (byte)(drawColor.G * 0.25f + 191.25f),
+                                  (byte)(drawColor.B * 0.25f + 191.25f), (byte)(drawColor.A * 0.25f + 191.25f));
 
         var spriteEffects = effect;
         if (mount.Cart && Math.Sign(player.velocity.X) == -player.direction)
@@ -405,7 +407,8 @@ internal sealed class MountPipeline : ILoaderModule
         {
             var alpha = color.A / 255f;
             Push(set, glow, drawPosition, frame,
-                new Color(glowDrawColor.R * alpha, glowDrawColor.G * alpha, glowDrawColor.B * alpha, glowDrawColor.A * alpha),
+                new Color((byte)(glowDrawColor.R * alpha), (byte)(glowDrawColor.G * alpha),
+                          (byte)(glowDrawColor.B * alpha), (byte)(glowDrawColor.A * alpha)),
                 rotation, drawOrigin, drawScale, spriteEffects);
         }
 
@@ -442,6 +445,7 @@ internal sealed class MountPipeline : ILoaderModule
     {
         orig();
         MountTable.Reapply();
+        MountTml.ClearAll();
     }
 
     private static Player? OwnerOf(Mount mount)

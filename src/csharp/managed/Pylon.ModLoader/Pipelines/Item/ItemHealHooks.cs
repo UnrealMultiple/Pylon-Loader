@@ -127,5 +127,5 @@ internal static class ItemHealHooks
     }
 
     private static void Fail(object author, HookId hook, Exception e) =>
-        ContentErrors.Report($"[heal] {author.GetType().Name}.{hook} 异常:{Safe.Describe(e)}");
+        ContentErrors.Callback($"[heal] {author.GetType().Name}.{hook}", e);
 }

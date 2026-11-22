@@ -1,4 +1,5 @@
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
 using Terraria;
@@ -95,6 +96,8 @@ public static class ExtraJumpTable
 
     internal static bool HasModded => ExtraJumps.Count > DefaultExtraJumpCount;
 
+    internal static bool HasRegistered => ModContent.GetContent<ExtraJump>().Count > 0;
+
     internal static int DefaultCount => DefaultExtraJumpCount;
 
     private static int Add(ExtraJump jump)
@@ -126,6 +129,7 @@ public static class ExtraJumpTable
 
         _ordered = Order();
         log.Info($"[jump] 内置 {DefaultExtraJumpCount}，mod 新增 {added}，排序表 {OrderedJumps.Count}");
+        if (HasModded) GateHub<PlayerPipeline>.Run();
     }
 
     public static ExtraJump? Get(int index) => index < 0 || index >= ExtraJumpCount ? null : ExtraJumps[index];
@@ -320,7 +324,7 @@ public static class ExtraJumpTable
     }
 
     private static void Report(ModPlayer mod, HookId hook, Exception e) =>
-        ContentErrors.Report($"[jump] {mod.GetType().Name}.{hook} 异常:{Safe.Describe(e)}");
+        ContentErrors.Callback($"[jump] {mod.GetType().Name}.{hook}", e);
 
     internal static bool CanStart(Player player, ExtraJump jump)
     {

@@ -12,6 +12,23 @@ public static class ItemTml
 {
     private static readonly Dictionary<int, int> Research = [];
 
+    private static readonly object BagGate = new();
+    private static bool[] _preHardmodeLikeBossBag = [];
+
+    extension(Terraria.ID.ItemID.Sets)
+    {
+        /// <summary>
+        /// 「肉前袋」Boss 袋集合（tML <c>ItemID.Sets.PreHardmodeLikeBossBag</c>）：这里的袋子开包时不掷开发者套件。
+        /// 首次访问按 BossBag 表长惰性扩容并预填七个原版肉前袋；mod 袋子标 true：
+        /// <c>ItemID.Sets.PreHardmodeLikeBossBag[Type] = true;</c>
+        /// 消费点：开 mod Boss 袋的开发者套件掷取（Loot 管线，原版袋走原版自己的链）。
+        /// </summary>
+        public static bool[] PreHardmodeLikeBossBag
+        {
+            get { lock (BagGate) return GrowPreHardmodeLikeBossBag(); }
+        }
+    }
+
     extension(Item item)
     {
         public ModItem? ModItem => ItemPipeline.Instance.InstanceOf(item);
@@ -113,6 +130,55 @@ public static class ItemTml
         {
             Safe.Warn("Item.ResearchUnlockCount 安装失败：" + Safe.Describe(e));
         }
+    }
+
+    /// <summary>这个袋子开包时要不要掷开发者套件（原版袋走原版自己的链；这边给 mod 袋用）。</summary>
+    internal static bool RollsDevArmor(int type)
+    {
+        var bossBag = Terraria.ID.ItemID.Sets.BossBag;
+        if (bossBag is null || (uint)type >= (uint)bossBag.Length || !bossBag[type]) return false;
+        return !IsPreHardmodeLikeBossBag(type);
+    }
+
+    private static bool IsPreHardmodeLikeBossBag(int type)
+    {
+        if (type <= 0) return false;
+        lock (BagGate)
+        {
+            var set = GrowPreHardmodeLikeBossBag();
+            return (uint)type < (uint)set.Length && set[type];
+        }
+    }
+
+    private static bool[] GrowPreHardmodeLikeBossBag()
+    {
+        var bossBag = Terraria.ID.ItemID.Sets.BossBag;
+        var count = bossBag?.Length ?? 0;
+        if (count <= 0) return _preHardmodeLikeBossBag;
+        if (_preHardmodeLikeBossBag.Length >= count) return _preHardmodeLikeBossBag;
+
+        var first = _preHardmodeLikeBossBag.Length == 0;
+        var grown = new bool[count];
+        Array.Copy(_preHardmodeLikeBossBag, grown, _preHardmodeLikeBossBag.Length);
+        if (first)
+        {
+            foreach (var type in new short[]
+                     {
+                         Terraria.ID.ItemID.KingSlimeBossBag,
+                         Terraria.ID.ItemID.EyeOfCthulhuBossBag,
+                         Terraria.ID.ItemID.EaterOfWorldsBossBag,
+                         Terraria.ID.ItemID.BrainOfCthulhuBossBag,
+                         Terraria.ID.ItemID.QueenBeeBossBag,
+                         Terraria.ID.ItemID.SkeletronBossBag,
+                         Terraria.ID.ItemID.DeerclopsBossBag,
+                     })
+            {
+                if ((uint)type < (uint)count) grown[type] = true;
+            }
+        }
+
+        _preHardmodeLikeBossBag = grown;
+        return grown;
     }
 
     private static void Initialize(On.Terraria.GameContent.Creative.CreativeItemSacrificesCatalog.orig_Initialize orig,

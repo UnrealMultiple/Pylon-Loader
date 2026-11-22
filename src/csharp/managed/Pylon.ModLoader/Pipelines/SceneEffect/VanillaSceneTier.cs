@@ -57,8 +57,8 @@ internal static class VanillaSceneTier
     {
         if (group == 7) return BossHigh;
         if (group is 17 or 9 or 10 or 6) return BossMedium;
-        if (group is 8 or 11 or 12) return Environment;
-        return group > 0 ? Event : 0;
+        if (group is 8 or 11 or 12) return Event;
+        return group > 0 ? BossLow : 0;
     }
 
     /// <summary>屏幕附近哪一组 NPC 在说话（入侵/首领按屏幕判定，和原版音乐选择的视野一致）。</summary>

@@ -534,7 +534,6 @@ public static partial class ModConfigMenu
             _pressY = null;
             _lastY = null;
             _slider = null;
-            ModConfigLoader.Flush();
             if (Math.Abs(_momentum) > 0.5f)
             {
                 _scroll += _momentum;

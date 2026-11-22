@@ -11,11 +11,17 @@ namespace Pylon.ModLoader.Hooks;
 /// <summary>
 /// Mod 的世界 / 每帧生命周期：挂在游戏钩子上，只分发给确实覆写了该方法的 Mod。
 /// 订阅表由 <see cref="HookBus"/> 在注册期建好，分派路径上没有字符串与字典。
+/// 退出 / 清空的四个时机另有第二通道：观察退出状态位（Main.Quitting）与世界生成、读档入口，
+/// 与 WorldGen 三入口的原钩并用；同一事件两路都命中时按幂等门只派一次。
 /// </summary>
 internal static class ModLifecycle
 {
     private static bool _installed;
     private static bool _unloaded;
+    private static bool _worldSession;
+    private static bool _clearWorldDone;
+    private static bool _preSaveDone;
+    private static bool _unloadDone;
 
     private static ModChannel Of(HookId hook) => LoaderHost.Current.Hooks.Channel(hook);
 
@@ -31,6 +37,8 @@ internal static class ModLifecycle
         On.Terraria.IO.WorldFile.InternalSaveWorld += SaveWorldPostfix;
         On.Terraria.WorldGen.SaveAndQuit += PreSaveAndQuitPrefix;
         On.Terraria.WorldGen.SaveAndQuitCallBack += WorldUnloadPostfix;
+        On.Terraria.WorldGen.Reset += GenerationCleared;
+        On.Terraria.Main.set_Quitting += QuittingChanged;
         On.Terraria.WorldGen.UpdateWorld += UpdateWorld;
         On.Terraria.Main.UpdateTime += UpdateTime;
         On.Terraria.Main.DoUpdateInWorld += PreEntitiesPostEverything;
@@ -88,9 +96,14 @@ internal static class ModLifecycle
     private static void ClearWorldPostfix(On.Terraria.WorldGen.orig_clearWorld orig)
     {
         orig();
-        SystemLoader.ClearWorld();
-        SystemLoader.ResetNearbyTileEffects();
-        if (Main.netMode == 1) SystemLoader.OnWorldLoad();
+        var first = !_clearWorldDone;
+        if (first)
+        {
+            _clearWorldDone = true;
+            SystemLoader.ClearWorld();
+        }
+        if (Main.netMode == 1) WorldLoaded();
+        if (first) SystemLoader.ResetNearbyTileEffects();
     }
 
     private static void LoadWorld(On.Terraria.IO.WorldFile.orig_LoadWorld orig, bool canCheckFileState)
@@ -98,16 +111,24 @@ internal static class ModLifecycle
         var player = Main.ActivePlayerFileData;
         var world = Main.ActiveWorldFileData;
         var rejection = Rejection(player, world);
+        WorldCleared();
         if (rejection is not null)
         {
+            _clearWorldDone = false;
             LoaderHost.Current.Log.Error($"[world] {rejection}");
             return;
         }
 
         orig(canCheckFileState);
 
-        SystemLoader.OnWorldLoad();
+        WorldLoaded();
         LoadWorldData();
+    }
+
+    private static void GenerationCleared(On.Terraria.WorldGen.orig_Reset orig)
+    {
+        orig();
+        WorldCleared();
     }
 
     private static void LoadWorldData()
@@ -146,8 +167,12 @@ internal static class ModLifecycle
 
     private static void PreSaveAndQuitPrefix(On.Terraria.WorldGen.orig_SaveAndQuit orig)
     {
-        SystemLoader.PreSaveAndQuit();
-        SystemLoader.ResetNearbyTileEffects();
+        if (!_preSaveDone)
+        {
+            _preSaveDone = true;
+            SystemLoader.ResetNearbyTileEffects();
+            SystemLoader.PreSaveAndQuit();
+        }
         orig();
     }
 
@@ -155,7 +180,44 @@ internal static class ModLifecycle
                                            Il2CppSystem.Object threadContext)
     {
         orig(threadContext);
+        if (_unloadDone) return;
+        _unloadDone = true;
+        _worldSession = false;
         SystemLoader.OnWorldUnload();
+    }
+
+    private static void QuittingChanged(On.Terraria.Main.orig_set_Quitting orig, bool value)
+    {
+        orig(value);
+        if (value)
+        {
+            if (!_worldSession || _preSaveDone) return;
+            _preSaveDone = true;
+            SystemLoader.ResetNearbyTileEffects();
+            SystemLoader.PreSaveAndQuit();
+            return;
+        }
+        if (!_worldSession || _unloadDone) return;
+        _unloadDone = true;
+        _worldSession = false;
+        SystemLoader.OnWorldUnload();
+    }
+
+    private static void WorldCleared()
+    {
+        if (_clearWorldDone) return;
+        _clearWorldDone = true;
+        SystemLoader.ClearWorld();
+        SystemLoader.ResetNearbyTileEffects();
+    }
+
+    private static void WorldLoaded()
+    {
+        _worldSession = true;
+        _clearWorldDone = false;
+        _preSaveDone = false;
+        _unloadDone = false;
+        SystemLoader.OnWorldLoad();
     }
 
     private static void SaveWorldHeaders(TagCompound root)

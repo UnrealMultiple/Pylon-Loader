@@ -12,11 +12,17 @@ namespace Pylon.ModLoader.Pipelines;
 /// mod 物品的实例状态跟着原版物品包走。
 /// 原版只同步"编号 / 堆叠 / 前缀"，作者在 <see cref="ModItem.NetSend"/> 里写的字段过不了网；
 /// 这里在物品包之前补一条附属包，对端在原版把物品摆好之后把它贴上去。
+/// 地上实例物品包（90）只摆编号 / 位置 / 堆叠 / 前缀，作者数据同样不在其中，
+/// mod 借这条路径生成的特殊物品照同一条附属包路径补齐，否则对端首包看到的是裸物品。
+/// 箱子槽（32）在游戏里是精简结构、装不下实例数据，附属值由 <see cref="ChestTable"/> 按
+/// (箱子, 槽位) 在本地承接，随包照发；物品从箱子进背包的那一刻起回到普通物品包路径。
 /// </summary>
 internal sealed class ItemSync
 {
-    // 原版物品包：5 = 玩家装备 / 背包槽，21 = 地上物品。箱子（32）在本构建里是精简结构，没有挂自定义数据的地方。
+    // 原版物品包：5 = 玩家装备 / 背包槽，21 = 地上物品，32 = 箱子槽（精简结构，附属数据走 ChestTable 侧表）。
     private const byte PacketInventory = 5, PacketItem = 21;
+    internal const byte PacketChest = 32;
+    private const byte PacketInstanced = 90;
 
     private const int MaxPendingPerPeer = 64;
     private const long ExpiryMs = 10_000;
@@ -24,11 +30,12 @@ internal sealed class ItemSync
     // 客户端刚进世界时原版会重发自己的背包，那时对端还没准备好；推迟到进世界 60 帧后再补一次。
     private const int JoinSettleFrames = 60;
 
-    private sealed class Envelope
+    internal sealed class Envelope
     {
         internal byte Packet;
         internal int Index;
         internal int Slot;
+        internal int Type;
         internal string Key = "";
         internal List<object>? Own;
         internal readonly List<(int Global, List<object> Values)> Globals = [];
@@ -37,6 +44,7 @@ internal sealed class ItemSync
 
     private readonly NetPipeline _net;
     private readonly byte _kind;
+    private readonly ChestTable _chest;
     private readonly Dictionary<int, List<Envelope>> _pending = [];
     private readonly List<int> _defer = [];
     private int _settle;
@@ -45,6 +53,7 @@ internal sealed class ItemSync
     {
         _net = net;
         _kind = NetPipeline.ItemKind;
+        _chest = new ChestTable();
     }
 
     /// <summary>挂接收侧的钩子；发送侧由 <see cref="NetPipeline"/> 在物品包之前调用。</summary>
@@ -53,6 +62,7 @@ internal sealed class ItemSync
         On.Terraria.MessageBuffer.ProcessData += ProcessData;
         On.Terraria.MessageBuffer.Reset += Reset;
         On.Terraria.Player.Update += Settle;
+        _chest.Install();
     }
 
     #region 发送
@@ -60,7 +70,22 @@ internal sealed class ItemSync
     /// <summary>原版物品包发出去之前：有附属数据的物品先单独补一条。</summary>
     internal void BeforeSend(int msgType, int toClient, int ignoreClient, int index, int slot)
     {
-        if (Main.netMode == 0 || (msgType != PacketInventory && msgType != PacketItem)) return;
+        if (Main.netMode == 0) return;
+
+        if (msgType == PacketChest)
+        {
+            if (_chest.TryGet(index, slot, out var stored))
+            {
+                stored.Packet = PacketChest;
+                stored.Index = index;
+                stored.Slot = slot;
+                Send(stored, toClient, ignoreClient);
+            }
+
+            return;
+        }
+
+        if (msgType != PacketInventory && msgType != PacketItem && msgType != PacketInstanced) return;
 
         var item = At(msgType, index, slot);
         if (item is null || item.stack <= 0) return;
@@ -81,6 +106,11 @@ internal sealed class ItemSync
         envelope.Index = index;
         envelope.Slot = slot;
 
+        Send(envelope, toClient, ignoreClient);
+    }
+
+    private void Send(Envelope envelope, int toClient, int ignoreClient)
+    {
         var count = envelope.Globals.Count;
         var values = new List<object>(7 + count * 2)
         {
@@ -103,7 +133,7 @@ internal sealed class ItemSync
     }
 
     /// <summary>有作者数据的物品才建包：没有 NetSend 的普通物品一个字节都不发。</summary>
-    private static Envelope? Build(Item item)
+    internal static Envelope? Build(Item item)
     {
         var mod = ModContent.Find(ContentKind.Item, item.type) as ModItem;
         Envelope? envelope = null;
@@ -223,7 +253,11 @@ internal sealed class ItemSync
         }
 
         if (envelope.Key.Length == 0) return;
-        if (envelope.Packet != PacketInventory && envelope.Packet != PacketItem) return;
+        if (envelope.Packet != PacketInventory && envelope.Packet != PacketItem && envelope.Packet != PacketChest &&
+            envelope.Packet != PacketInstanced) return;
+        if ((envelope.Packet == PacketItem || envelope.Packet == PacketInstanced) &&
+            (envelope.Index < 0 || envelope.Index > 400)) return;
+        if (envelope.Packet == PacketChest && envelope.Slot < 0) return;
 
         lock (_pending)
         {
@@ -261,9 +295,14 @@ internal sealed class ItemSync
                 index = messageData[1];
                 slot = messageData[2] | (messageData[3] << 8);
             }
-            else if (packet == PacketItem)
+            else if (packet == PacketItem || packet == PacketInstanced)
             {
                 index = messageData[1] | (messageData[2] << 8);
+            }
+            else if (packet == PacketChest && length >= 4)
+            {
+                index = messageData[1] | (messageData[2] << 8);
+                slot = messageData[3];
             }
             else
             {
@@ -273,7 +312,18 @@ internal sealed class ItemSync
 
         var envelope = packet < 0 ? null : Take(Main.netMode == 1 ? 256 : self.whoAmI, packet, index, slot);
 
+        if (envelope is not null && packet == PacketChest)
+            Safe.Run("itemsync.收包", () => _chest.Stage(index, slot, envelope));
+
         orig(self, messageData, length, out messageType);
+
+        if (packet < 0) return;
+
+        if (packet == PacketChest)
+        {
+            Safe.Run("itemsync.收包", () => _chest.Confirm(index, slot, envelope));
+            return;
+        }
 
         if (envelope is null) return;
 
@@ -310,6 +360,7 @@ internal sealed class ItemSync
                 if (candidate.Packet != packet) continue;
                 if (candidate.Index != index && !(packet == PacketItem && index == 400)) continue;
                 if (packet == PacketInventory && candidate.Slot != slot) continue;
+                if (packet == PacketChest && candidate.Slot != slot) continue;
 
                 queue.RemoveAt(i);
                 return candidate;
@@ -319,7 +370,7 @@ internal sealed class ItemSync
         }
     }
 
-    private void Apply(Item item, Envelope envelope)
+    internal static void Apply(Item item, Envelope envelope)
     {
         if (envelope.Own is not null && ModContent.Find(ContentKind.Item, item.type) is ModItem mod)
             Safe.Run(mod.FullKey + ".NetReceive", () => mod.NetReceive(new NetReader([.. envelope.Own])));
@@ -336,7 +387,7 @@ internal sealed class ItemSync
     }
 
     /// <summary>编号两边必须指向同一件 mod 物品：装载顺序不同时会错位，宁可丢掉这条也不要把数据贴错物品。</summary>
-    private static bool Matches(Item item, string key)
+    internal static bool Matches(Item item, string key)
     {
         var actual = ModContent.Find(ContentKind.Item, item.type) as ModItem;
 
@@ -351,13 +402,23 @@ internal sealed class ItemSync
 
     private static int NetOf(object value) => value is int number ? number : 0;
 
+    /// <summary>附属包的定位键 → 本端物品编号；解析不了返回 0（上层当没有这条数据）。</summary>
+    internal static int TypeOf(string key)
+    {
+        if (key.Length == 0) return 0;
+
+        if (key[0] == '#') return int.TryParse(key.AsSpan(1), out var type) ? type : 0;
+
+        return ModContent.TryFind(key, out ModItem? mod) ? mod.Type : 0;
+    }
+
     #endregion
 
     #region 槽位
 
     private static Item? At(int packet, int index, int slot)
     {
-        if (packet == PacketItem)
+        if (packet == PacketItem || packet == PacketInstanced)
         {
             var items = Main.item;
             if (index < 0 || index >= items.Length) return null;

@@ -9,7 +9,8 @@
 | 注册（内容阶段） | 发一个注册序号；序号决定它的**动作编号**与**控件编号** |
 | 布局注入（`TouchButtonLayouts.Apply`） | 把 mod 按钮插进当前虚拟控制布局，玩家可拖动/换位置 |
 | 布局回收（`TouchButtonLayouts.Capture`） | 玩家改完布局后把位置存回来 |
-| 每帧（`GUIVirtualInputController.Update`） | 读 `Pressed` 数组，算 `current/old/justPressed/justReleased` |
+| 触点按下（`HandleTouchCursorDown`） | 反查槽位归属；接管 mod 按钮的触点，按压前沿派发按下事件 |
+| 每帧（`GUIVirtualInputController.Update`） | 扩控制器数组、同步动作表、推进状态机 |
 | 绘制与提示 | 图标（编辑器槽位 + 快捷动作条）、标签、可见性、可用性（作者函数回答） |
 
 **不接**：新增控件类型（控件编号借用游戏预留的尾部空间，见 2.3）、按钮原生动画、多指快捷键冲突检测。
@@ -20,14 +21,16 @@
 
 ```
 Pipelines/TouchButton/
-  TouchButtonPipeline.cs    模块：注册发号、状态机、游戏侧接入（9 个钩子）、纹理与标签
+  TouchButtonPipeline.cs    模块：注册发号、状态机、游戏侧接入（11 个钩子）、纹理与标签
   TouchButtonTable.cs       注册表与每按钮状态（密集 struct 数组，ref 取用）
   TouchButtonLayouts.cs     布局的注入/回收/剥离
-  TouchButtonEntry.cs       公开：一条注册记录
-  TouchButtonOptions.cs     公开：注册选项
-  TouchButtonLoader.cs      公开门面：作者与屏幕用的静态入口
-  TouchButtonHooks.cs       公开门面：UI 启动流程用的 Install 入口
+  TouchButtonEntry.cs       注册记录（框架内部；管线与 ModTouchButton 共用）
+  TouchButtonLoader.cs      公开门面：RegisterButton / Buttons / Count
+  TouchButtonHooks.cs       公开门面：UI 启动流程用的安装入口
 ```
+
+作者面的选项不走独立 Options 类型：`ModTouchButton` 上的 Icon/Label/Visible/Enabled/OnPress
+直接写进这条注册记录，KeybindLoader 的重载也落到同一个 Register。
 
 ### 2.2 状态：密集 struct 数组
 
@@ -40,7 +43,7 @@ private struct ButtonState
 }
 ```
 
-`Tick` 里 `ref ButtonState state = ref _state[i]`，一次取用改完四个字段；公开的 `TouchButtonEntry` 只保留元数据（名字、函数、纹理缓存），不再逐帧被写。这样每帧的写操作集中在连续内存里，公开对象变成只读资产。
+`Tick` 里 `ref ButtonState state = ref _state[i]`，一次取用改完几个字段；公开的 `TouchButtonEntry` 只保留元数据（名字、函数、纹理缓存），不再逐帧被写。这样每帧的写操作集中在连续内存里，公开对象变成只读资产。
 
 ### 2.3 编号：三段区间
 
@@ -66,6 +69,8 @@ Latch = false; Old = current; Current = current
 2. **`latch` 只活一帧**：算完立刻清，所以"程序触发"不会变成永久按住。
 3. **`Enabled` 每帧问一次**：作者的 `Enabled` 通常是纯查表，但也不能替它缓存——它可能依赖当前装备。
 
+`held` 直接读控制器自己的 `Pressed[control]`：手指按住期间游戏把它置真、抬手清掉，我们不改它的复位时机，状态机只搭便车。
+
 ### 2.5 布局：侧车文件，不动游戏的存档格式
 
 游戏会保存"哪个槽位绑了哪个动作"，但它不认识 mod 的动作编号，直接存下去换个设备就读不懂。所以我们另存一份侧车：
@@ -79,36 +84,39 @@ Latch = false; Old = current; Current = current
 * `Apply`（游戏加载布局之后）：按槽位键找回绑定，**只在原来的值是"未绑定"时才写**——玩家自己改过的位置优先；
 * `BeginStrip` / `EndStrip`（保存与导出分享码期间）：把我们的动作临时换成"未绑定"，跑完立刻换回来。这样存进游戏存档与分享码里的都是干净数据。
 
-位置按 `mod/Name` 存，名字改了位置就丢——所以 `FullName` 的注释写死了"别改名"。
-
-### 2.6 实际挂钩（10 个）
+### 2.6 实际挂钩（11 个）
 
 | 位置 | 做什么 |
 |---|---|
-| `GUIVirtualInputController.Update` | 扩容控制器数组 + 推进状态机 |
+| `GUIVirtualInputController.Update` | 扩控制器数组 + 推进状态机 + 同步动作表 |
 | `GUIVirtualInputController.Draw` | 扩容（画之前必须保证数组够长） |
-| `HandleTouchCursorDown` | 触点落在我们槽位 → 置 `Pressed[control]`、latch、调 `OnPress` |
+| `HandleTouchCursorDown` | 触点落在我们按钮上：接管、不放行原生；置 `Pressed[control]`，**按压前沿**（`WasPressed[control]` 为假）才经 `Press` 派发 |
 | `DetermineButtonVisible` | 作者 `Visible` 说不可见就不显示 |
 | `GUIVirtualInputControllerEdit.GetControlName` | 编辑器里显示作者的标签 |
 | `...Edit.GetControlTextureFrame` | 编辑器里显示作者的图标 |
-| `...Edit.Draw` | 进编辑器前确保数组就绪 |
+| `...Edit.Draw` | 进编辑器前确保数组就绪（平时 60 帧一次） |
 | `VirtualControlsStyles_Layout.SaveConfiguration` | `Capture` + 剥离，再让游戏保存 |
-| `...LoadConfiguration` | 让游戏加载完，再 `Apply` |
+| `...LoadConfiguration` | 让游戏加载完，再扩容 + `Apply` |
 | `...GetShareCode` | 导出分享码期间剥离 |
 | `GUIQuickActionButton.GetIconFrame` | 快捷动作条上属于 mod 的号（`QuickBase + index`）换成作者图标 |
 
+**触点按下路径**：先按当前布局反查槽位（组槽取组内第一个 mod 动作）；不是我们的按钮就把触点交还原生。是我们的就接管——扩好控制器数组后置 `Pressed[control]`，再判前沿：控制器自己的 `WasPressed[control]` 在按住期间为真、抬手才清，所以只有第一次落下的触点走 `Press`，同一按住周期内后续触点（第二根手指、重复 down 事件）只置按下标记。去重的周期是"一次按压"而不是"一帧"，所以判据用游戏的 `WasPressed` 而不是我们每帧就清的 `Latch`。
+
 **快捷动作条的图标已接**：`GUIQuickActionButton.GetIconFrame` 里遇到 mod 快捷号就把作者贴图与整图矩形交出去（`On.GUIQuickActionButton.GetIconFrame` 在托管侧可挂，签名见 `interop/generated/on-signatures.txt`），**只换图标不换外框**——按钮外框与按下动画仍是游戏那一套，作者不用重画。同一族的 `Draw` / `DrawFrame` / `DrawAtPosition` 不动：图标由 `GetIconFrame` 提供后原版绘制自己会取。
 
-**`VirtualControllerInputState` 的默认/重映射动作表**：**已接（2026-11）**——interop 代理把私有静态字段暴露成公开属性，`DefaultMode` / `RemappedMode` 直写、实例的 `RemappedBindings` 是公开字段；`Tick` 时把 mod 动作段补成自己的号并调 `RefreshAlternativeModeMappings`，游戏自己的重映射路径就把 mod 按钮当一等公民。之前判「私有字段接不了」是错的——代理层能写（参考实现 `TouchButtonHooks.Statics`/`InputState` 就是这么做的）。小组（`GroupActions`）的细分按下状态仍不接，见下面 2026-11 复核。
+**`VirtualControllerInputState` 的默认/重映射动作表**：已接——interop 代理把私有静态字段暴露成公开属性，`DefaultMode` / `RemappedMode` 直写、实例的 `RemappedBindings` 是公开字段；`Tick` 时把 mod 动作段补成自己的号并调 `RefreshAlternativeModeMappings`，游戏自己的重映射路径就把 mod 按钮当一等公民（只在数量变化时写，平时每帧早退）。
 
-**2026-11 复核 `GroupActions`**：`GUIVirtualInputController` 与 `VirtualInputController_Layout` 里**没有"这一组现在按在第几格"的状态字段**，`GroupActions` 只是布局里"这一组包含哪些动作"的数组；按下与否是每帧按各动作的 `Pressed` 现算的（我们的 `PressedOf` 就是这么判的）。所以这一条不是"读不到私有状态"，是**没有状态可读**——作者要判组内哪格按着，直接读 `controller.Pressed[(int)controlType]`。
+**小组（`GroupActions`）**：组槽的触点反查取组内第一个 mod 动作，按下即按它派发；组内"按在第几格"的细分选中状态（游戏记在控制器的组状态里）暂未接入。
+
+**安装时机**：注册只入表（按 `mod/Name` 幂等，重复注册返回已有对象）；钩子安装与首次布局套用由 UI 启动流程驱动——`ModUI.EnsureInitialized` 登记安装请求，之后每帧 `TryInstallPending`，等 `GUIInstance.Active` 就绪的帧挂齐钩子并 `Apply` 保存的布局。挂钩之前到来的 `LoadConfiguration` 会跳过套用，由 `TryInstallPending` 里的 `Apply` 兜底。
 
 ## 3. 取舍理由
 
 * **为什么不新建控件类型？** 控件类型枚举由游戏与内核共同维护，加一个就要改内核；而"布局里能绑的动作"本来就是开放集合。合成动作编号是唯一不需要改内核的做法。
 * **为什么状态要搬出公开对象？** `TouchButtonEntry` 是作者能拿到的对象，把它当状态容器等于让每帧写操作散落在堆上；状态进 struct 数组后，公开对象只装"注册时定死的东西"，读写边界清楚。
 * **为什么 `Tick` 要能被属性调用？** `ModTouchButton.Current` 的语义是"读之前先刷新"；如果只靠 `Update` 钩子，作者在 `Update` 之前读会拿到上一帧的值，而这种差异极难查。
-* **为什么 `Press` 只置 latch、不直接调 `OnPress`？** 直接调会让"程序触发"跳过 `Enabled` 与 `gameMenu` 检查，和手指按的行为分叉。latch 让两条路径汇合在同一个判定里。
+* **为什么按下统一走 `Press`？** 主菜单中不派发、禁用按钮不派发——这两个门只写在 `Press` 一处，触点与程序触发走同一判定，行为不分叉：被门挡下时 latch 与 OnPress 都不发生，"禁用"在状态与回调两条路上语义一致。
+* **为什么触点派发只认按压前沿？** 一次按住期间可能落进多根手指、也可能收到重复的 down 事件；不去重的话，挂在 OnPress 上的冷却/扣资源/开关切换会被重复执行。前沿判据用控制器自己的 `WasPressed`（按住期间为真、抬手才清），不放在我们每帧就清的状态机里——去重的周期是"一次按压"，不是"一帧"。
 
 ## 4. 失败语义
 
@@ -120,15 +128,18 @@ Latch = false; Old = current; Current = current
 | 作者 `OnPress` 抛错 | 记一条，状态照常推进 |
 | 纹理路径找不到 | 退回 `icon_small`/`icon`，都没有就无图标 |
 | 布局里有未知动作编号 | 忽略这一项，不影响其它控件 |
+| 触点槽位反查抛错 | 记一条，这次触点交还原生处理 |
+| 触点按下处理抛错 | 记一条（按按钮去重），本次不派发 OnPress |
+| 控制器数组扩容失败 | 记一条（去重），下一次触点/帧再试 |
 | `Tick` 里取不到控制器 | 视为"没有按下"，但 `latch` 仍然生效 |
 
 ## 5. 扩展方式
 
-新增一个作者可用的读取项（例如 `HeldTime`）：在 `ButtonState` 里加一个字段、在 `Tick` 里推进、公开属性直接读——不需要改任何编号或布局逻辑。新增一种选项（例如"按住重复触发"）：`TouchButtonOptions` 加字段、管线里读它。
+新增一个作者可用的读取项（例如 `HeldTime`）：在 `ButtonState` 里加一个字段、在 `Tick` 里推进、公开属性直接读——不需要改任何编号或布局逻辑。新增一种按钮行为：`ModTouchButton` 加属性、写进 `TouchButtonEntry` 的对应槽、管线里读它。
 
 ## 6. 与其它管线的边界
 
-* **键位管线**：`ModKeybind` 是键盘/手柄的动作，触屏按钮是它的触屏对偶；`Label`、`IsBound` 的语义要与键位管线对齐（同一个按钮既可能被键盘绑，也可能被触屏绑）。
-* **UI 管线**：`ModUI` 里的虚拟控制皮肤会读本管线的按钮列表；皮肤不负责状态。
+* **键位管线**：`ModKeybind` 是键盘/手柄的动作，触屏按钮是它的触屏对偶；`KeybindLoader.RegisterKeybind` 也落成本管线的按钮。`Label`、`IsBound` 的语义要与键位管线对齐（同一个按钮既可能被键盘绑，也可能被触屏绑）。
+* **UI 管线**：`ModUI` 的启动流程驱动本管线的钩子安装时机（首批按钮注册且游戏 UI 就绪后才挂，见 2.6）；ModUI 里的虚拟控制皮肤会读本管线的按钮列表，皮肤不负责状态。
 * **网络管线**：按钮状态是纯本地的，从不同步。
-* **配置管线**：按钮布局由游戏自己保存，不进 mod 配置。
+* **配置管线**：按钮布局由游戏自己保存（侧车只记我们的部分，见 2.5），不进 mod 配置。

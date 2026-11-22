@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using Pylon.ModLoader;
@@ -35,9 +37,8 @@ internal static class ShopTests
         var npcType = ModContent.NPCType<Content.TestTownNpc>();
         var shop = new NpcShop(npcType, "DataTest");
         var first = new NpcShop.Entry(ModContent.ItemType<Content.TestItem>());
-        var probe = new Il2CppSystem.Nullable<int>(50);
-        PT.Info($"SHOP 探针：Nullable ctor HasValue={probe.HasValue} Value={probe.Value}");
-        first.Item.shopCustomPrice = probe;
+        // 生成器级 Nullable 修复（RawValueBox.Wrap getter）后，代理属性写读应完整一致。
+        first.Item.shopCustomPrice = new Il2CppSystem.Nullable<int>(50);
         var readBack = first.Item.shopCustomPrice;
         PT.Info($"SHOP 探针：first.shopCustomPrice 写后即读 HasValue={readBack?.HasValue.ToString() ?? "<null wrapper>"} Value={readBack?.Value.ToString() ?? "-"}");
         var gel = new NpcShop.Entry(ItemID.Gel);
@@ -131,9 +132,225 @@ internal static class ShopTests
             PT.Info($"测试商人已刷出（index={idx}）");
         });
 
+        // 验证脚手架（复现采集）：用户手动击杀测试商人触发 SIGSEGV（crash-exit.txt 09:56）。
+        // 程序化走同一原生击杀链（StrikeNPC → death → NPCLoot），排在全部延迟用例之后（帧 900+）
+        // 以免截断其它断言；崩溃现场由持续 logcat 捕获。
+        // 验证脚手架（诊断）：NPC 贴图透明——读 Npc 贴图表槽 / 头表 / profile 解析逐段打点。
+        PT.Case("SHOP-TEXPROBE", c =>
+        {
+            var type = ModContent.NPCType<Content.TestTownNpc>();
+            var mod = ModContent.GetInstance<Content.TestTownNpc>();
+            var assets = Terraria.GameContent.TextureAssets.Npc;
+            var heads = Terraria.GameContent.TextureAssets.NpcHead;
+
+            PT.Info($"TEXPROBE npcType={type} NpcAssetsLen={assets?.Length ?? -1} NpcHeadLen={heads?.Length ?? -1}");
+            PT.Info($"TEXPROBE mod.Texture={(mod?.Texture is null ? "null" : $"{mod.Texture.Name} {mod.Texture.Value?.Width}x{mod.Texture.Value?.Height}")}");
+
+            if (assets is not null && type >= 0 && type < assets.Length)
+            {
+                var tex = assets[type];
+                PT.Info($"TEXPROBE NpcAssets[{type}]={(tex is null ? "null" : $"{tex.Name} {(tex.Value is null ? "no-value" : $"{tex.Value.Width}x{tex.Value.Height}")}")}");
+            }
+            else
+            {
+                PT.Info($"TEXPROBE NpcAssets[{type}] 越界/表未扩（len={assets?.Length ?? -1}）");
+            }
+
+            if (heads is not null)
+            {
+                for (var i = 0; i < heads.Length && i < 8; i++)
+                    PT.Info($"TEXPROBE NpcHead[{i}]={(heads[i] is null ? "null" : heads[i].Name ?? "unnamed")}");
+            }
+
+            var profile = mod?.TownNPCProfile();
+            PT.Info($"TEXPROBE profile={profile?.GetType().Name ?? "null"}");
+
+            for (var i = 0; i < Main.npc.Length; i++)
+            {
+                var n = Main.npc[i];
+                if (n is { active: true } && n.type == type)
+                {
+                    var slot = Terraria.GameContent.TownNPCProfiles.GetHeadIndexSafe(n);
+                    var frame = n.frame;
+                    var frameCount = Main.npcFrameCount is null ? -1 : (type < Main.npcFrameCount.Length ? Main.npcFrameCount[type] : -2);
+                    PT.Info($"TEXPROBE npc[{i}] GetHeadIndexSafe={slot} frame=X{frame.X} Y{frame.Y} W{frame.Width} H{frame.Height} frameCount={frameCount}");
+                    break;
+                }
+            }
+
+            if (heads is not null && heads.Length > 81)
+                PT.Info($"TEXPROBE NpcHead[81]={(heads[81] is null ? "null" : heads[81].Name ?? "unnamed")}");
+            if (heads is not null && heads.Length > 82)
+                PT.Info($"TEXPROBE NpcHead[82]={(heads[82] is null ? "null" : heads[82].Name ?? "unnamed")}");
+
+            c.True(true, "TEXPROBE 打点完成");
+        });
+
+        // 验证脚手架（复现采集 v2）：真实崩溃是测试史莱姆围殴商人致死（多次击退 + 死亡瞬间尸体碰撞更新），
+        // 程序化 StrikeNPC（无击退无小怪）不复现。三只史莱姆刷在商人身上，轮询补刷直到商人被围殴致死。
+        var brawlRounds = 0;
+        void Brawl(Check c)
+        {
+            var npcType = ModContent.NPCType<Content.TestTownNpc>();
+            var slimeType = ModContent.NPCType<Content.TestNpc>();
+
+            NPC? merchant = null;
+            for (var i = 0; i < Main.npc.Length; i++)
+            {
+                var npc = Main.npc[i];
+                if (npc is { active: true } && npc.type == npcType) { merchant = npc; break; }
+            }
+
+            if (merchant is null)
+            {
+                c.True(brawlRounds > 0, $"商人已被围殴致死（{brawlRounds} 轮后尸体离场，查 tombstone）");
+                return;
+            }
+
+            if (++brawlRounds >= 25)
+            {
+                c.Fail($"围殴 25 轮商人仍未死（life={merchant.life}）");
+                return;
+            }
+
+            var slimes = 0;
+            for (var i = 0; i < Main.npc.Length; i++)
+            {
+                var npc = Main.npc[i];
+                if (npc is { active: true } && npc.type == slimeType &&
+                    System.Math.Abs(npc.Center.X - merchant.Center.X) < 200f) slimes++;
+            }
+
+            if (slimes < 3)
+            {
+                var player = Main.player[Main.myPlayer];
+                var source = player.GetProjectileSource_Misc(0);
+                for (var k = slimes; k < 3; k++)
+                {
+                    var idx = NPC.NewNPC(source, (int)merchant.Center.X + (k - 1) * 30, (int)merchant.Center.Y - 40,
+                        slimeType, 0, 0f, 0f, 0f, 0f, 0);
+                    if (idx >= 0) Main.npc[idx].timeLeft = 3600;
+                }
+            }
+
+            PT.Info($"围殴中：商人 life={merchant.life} 身边史莱姆={slimes}（第 {brawlRounds} 轮）");
+            c.Pending();
+            PT.RetryLater("SHOP-KILL-MERCHANT", 60, Brawl);
+        }
+
+        PT.RetryLater("SHOP-KILL-MERCHANT", 900, Brawl);
+
+        // 验证脚手架（证据采集）：tombstone adb 侧被 SELinux 挡住，但游戏进程自己能读
+        // 外部 files/ 里加载器收集的 tombstone——解出崩溃头与 backtrace 打进日志。
+        PT.Case("SHOP-TOMB-DUMP", c =>
+        {
+            var dir = "/storage/emulated/0/Android/data/dev.pylon.loader/files";
+            foreach (var name in new[] { "tombstone_00", "tombstone_01", "tombstone_02" })
+            {
+                var path = Path.Combine(dir, name);
+                if (!File.Exists(path)) { PT.Info($"{name}: 不存在"); continue; }
+
+                try
+                {
+                    var lines = File.ReadAllLines(path);
+                    PT.Info($"{name}: {lines.Length} 行");
+                    foreach (var line in lines)
+                    {
+                        if (line.Contains("signal") || line.Contains(">>> ") || line.Contains("pid:") ||
+                            line.Contains("backtrace:") ||
+                            line.Contains("#0") || line.Contains("#1") || line.Contains("#2") ||
+                            line.Contains("#3") || line.Contains("#4") || line.Contains("#5") ||
+                            line.Contains("libpylon") || line.Contains("PipelineTest") || line.Contains("Pylon"))
+                        {
+                            PT.Info($"{name}: {line.Trim()}");
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    PT.Info($"{name}: 读取失败 {e.GetType().Name}: {e.Message}");
+                }
+            }
+            c.True(true, "tombstone 摘要已打点");
+        });
+
         PT.Case("SHOP-W3", c =>
         {
-            PT.SkipCase("SHOP-W3", "价格断言：本构建生成代理 Nullable<int> 属性写值丢失（ctor HasValue=True/Value=50，属性写后读 Value=0，run4 探针）；基线手写代理可写读，归 interop 层，待代理修复后复测");
+            // 生成器级根治后的价格断言：显式构造写 → 代理属性读（Wrap 盒）→ 代理小写字段读 →
+            // native 字段直读，四路一致；再把读到的 Wrap 盒写回另一个物品验证 setter 落盘。
+            var probe = new Item();
+            c.NoThrow(() => probe.SetDefaults(ItemID.Gel, null), "SetDefaults(凝胶)");
+            if (probe.type <= 0)
+            {
+                PT.SkipCase("SHOP-W3", "凝胶 SetDefaults 未就绪");
+                return;
+            }
+
+            probe.shopCustomPrice = new Il2CppSystem.Nullable<int>(123);
+            var viaProxy = probe.shopCustomPrice;
+            c.True(viaProxy is { HasValue: true }, $"代理属性读回 HasValue（{viaProxy?.HasValue.ToString()}）");
+            c.Eq(viaProxy?.Value ?? -1, 123, "代理属性读回 Value（native get_Value）");
+            c.True(viaProxy is { hasValue: true }, "代理小写字段 hasValue（Wrap 盒载荷直读）");
+            c.Eq(viaProxy?.value ?? -1, 123, "代理小写字段 value（Wrap 盒载荷直读）");
+
+            var klass = Il2CppInterop.Runtime.Il2CppClassPointerStore<Item>.NativeClassPtr;
+            var field = Il2CppInterop.Runtime.IL2CPP.il2cpp_class_get_field_from_name(klass, "shopCustomPrice");
+            c.True(field != System.IntPtr.Zero, "shopCustomPrice 字段元数据可解析");
+            if (field != System.IntPtr.Zero)
+            {
+                var offset = checked((int)Il2CppInterop.Runtime.IL2CPP.il2cpp_field_get_offset(field));
+                c.True(System.Runtime.InteropServices.Marshal.ReadByte(probe.Pointer, offset) != 0, "native hasValue = true");
+                c.Eq(System.Runtime.InteropServices.Marshal.ReadInt32(probe.Pointer, offset + 4), 123, "native value = 123");
+            }
+
+            var other = new Item();
+            c.NoThrow(() => other.SetDefaults(ItemID.Torch, null), "SetDefaults(火把)");
+            if (other.type <= 0)
+            {
+                PT.SkipCase("SHOP-W3", "火把 SetDefaults 未就绪");
+                return;
+            }
+            other.shopCustomPrice = probe.shopCustomPrice; // Wrap 盒 → setter cpblk 落盘
+            var round = other.shopCustomPrice;
+            c.True(round is { HasValue: true } && round.Value == 123, "Wrap 盒写回另一物品后读回一致");
+            if (field != System.IntPtr.Zero)
+            {
+                var offset = checked((int)Il2CppInterop.Runtime.IL2CPP.il2cpp_field_get_offset(field));
+                c.Eq(System.Runtime.InteropServices.Marshal.ReadInt32(other.Pointer, offset + 4), 123, "other native value = 123");
+            }
+
+            // 清价：默认构造（object_new 全零载荷）写入 → HasValue=false
+            probe.shopCustomPrice = new Il2CppSystem.Nullable<int>();
+            var none = probe.shopCustomPrice;
+            c.True(none is null || !none.HasValue, "清价后 HasValue=false");
+        });
+
+        PT.Case("SHOP-W3-PROBE", c =>
+        {
+            // 验证脚手架（诊断）：分解 SHOP-W3 第 4 路读链路（Wrap 盒 → 小写字段直读），
+            // 把盒指针/字段偏移/载荷原始字节/四条读法逐段打点，供裁决 value 垃圾值的断链位置。
+            var probe = new Item();
+            probe.SetDefaults(ItemID.Gel, null);
+            probe.shopCustomPrice = new Il2CppSystem.Nullable<int>(123);
+            var box = probe.shopCustomPrice;
+            if (box is null)
+            {
+                c.Fail("Wrap 盒为 null");
+                return;
+            }
+
+            var klass = Il2CppInterop.Runtime.Il2CppClassPointerStore<Il2CppSystem.Nullable<int>>.NativeClassPtr;
+            var fHas = Il2CppInterop.Runtime.IL2CPP.il2cpp_class_get_field_from_name(klass, "hasValue");
+            var fVal = Il2CppInterop.Runtime.IL2CPP.il2cpp_class_get_field_from_name(klass, "value");
+            int offHas = fHas != System.IntPtr.Zero ? checked((int)Il2CppInterop.Runtime.IL2CPP.il2cpp_field_get_offset(fHas)) : -1;
+            int offVal = fVal != System.IntPtr.Zero ? checked((int)Il2CppInterop.Runtime.IL2CPP.il2cpp_field_get_offset(fVal)) : -1;
+            uint align = 0;
+            int vsize = Il2CppInterop.Runtime.IL2CPP.il2cpp_class_value_size(klass, ref align);
+            var p = box.Pointer;
+            PT.Info($"PROBE klass=0x{klass:x} box=0x{p:x} offHas={offHas} offVal={offVal} valueSize={vsize}");
+            PT.Info($"PROBE 载荷字节 hasValue[{offHas}]={System.Runtime.InteropServices.Marshal.ReadByte(p, offHas)} value[{offVal}]={System.Runtime.InteropServices.Marshal.ReadInt32(p, offVal)}");
+            PT.Info($"PROBE 读链 hasValue(字段)={box.hasValue} value(字段)={box.value} HasValue(方法)={box.HasValue} Value(方法)={box.Value}");
+            c.True(true, "诊断打点完成（证据见 PROBE 行）");
         });
 
         PT.Case("SHOP-W5", c =>

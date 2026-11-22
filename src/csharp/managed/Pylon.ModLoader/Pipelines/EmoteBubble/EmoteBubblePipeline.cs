@@ -273,7 +273,7 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report($"[emotebubble] {globals[g].Name}.GetFrameInEmoteMenu 异常：{Safe.Describe(e)}");
+                    ContentErrors.Callback($"[emotebubble] {globals[g].Name}.GetFrameInEmoteMenu", e);
                 }
             }
 
@@ -286,7 +286,7 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[emotebubble] {own.Name}.GetFrameInEmoteMenu 异常：{Safe.Describe(e)}");
+            ContentErrors.Callback($"[emotebubble] {own.Name}.GetFrameInEmoteMenu", e);
         }
 
         for (var g = 0; g < globals.Count; g++)
@@ -297,7 +297,7 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[emotebubble] {globals[g].Name}.GetFrameInEmoteMenu 异常：{Safe.Describe(e)}");
+                ContentErrors.Callback($"[emotebubble] {globals[g].Name}.GetFrameInEmoteMenu", e);
             }
         }
 
@@ -389,7 +389,7 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
                     }
                     catch (Exception e)
                     {
-                        ContentErrors.Report($"[emotebubble] {emote.Name}.OnSpawn 异常：{Safe.Describe(e)}");
+                        ContentErrors.Callback($"[emotebubble] {emote.Name}.OnSpawn", e);
                     }
                     finally
                     {
@@ -425,7 +425,7 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[emotebubble] {global.Name}.OnSpawn 异常：{Safe.Describe(e)}");
+                ContentErrors.Callback($"[emotebubble] {global.Name}.OnSpawn", e);
             }
         }
     }
@@ -499,7 +499,7 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report($"[emotebubble] {globals[g].Name}.UpdateFrame 异常：{Safe.Describe(e)}");
+                    ContentErrors.Callback($"[emotebubble] {globals[g].Name}.UpdateFrame", e);
                 }
             }
 
@@ -512,7 +512,7 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report($"[emotebubble] {emote.Name}.UpdateFrame 异常：{Safe.Describe(e)}");
+                    ContentErrors.Callback($"[emotebubble] {emote.Name}.UpdateFrame", e);
                 }
                 finally
                 {
@@ -645,7 +645,7 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[emotebubble] {own.Name}.GetFrame 异常：{Safe.Describe(e)}");
+                ContentErrors.Callback($"[emotebubble] {own.Name}.GetFrame", e);
                 return null;
             }
         }
@@ -660,7 +660,7 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[emotebubble] {globals[g].Name}.GetFrame 异常：{Safe.Describe(e)}");
+                ContentErrors.Callback($"[emotebubble] {globals[g].Name}.GetFrame", e);
             }
         }
         return result;
@@ -679,7 +679,7 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[emotebubble] {globals[g].Name}.PreDraw 异常：{Safe.Describe(e)}");
+                ContentErrors.Callback($"[emotebubble] {globals[g].Name}.PreDraw", e);
             }
         }
         if (!result || own is null) return result;
@@ -690,7 +690,7 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[emotebubble] {own.Name}.PreDraw 异常：{Safe.Describe(e)}");
+            ContentErrors.Callback($"[emotebubble] {own.Name}.PreDraw", e);
             return true;
         }
     }
@@ -707,7 +707,7 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[emotebubble] {globals[g].Name}.PostDraw 异常：{Safe.Describe(e)}");
+                ContentErrors.Callback($"[emotebubble] {globals[g].Name}.PostDraw", e);
             }
         }
 
@@ -718,7 +718,7 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[emotebubble] {own.Name}.PostDraw 异常：{Safe.Describe(e)}");
+            ContentErrors.Callback($"[emotebubble] {own.Name}.PostDraw", e);
         }
     }
 
@@ -739,7 +739,7 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[emotebubble] GetPosition 异常，改用锚点估算：{Safe.Describe(e)}");
+            ContentErrors.Callback("[emotebubble] GetPosition", e);
             position = Estimated(self);
         }
 
@@ -813,7 +813,7 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[emotebubble] {mod.Name}.PickEmote 异常：{Safe.Describe(e)}");
+                ContentErrors.Callback($"[emotebubble] {mod.Name}.PickEmote", e);
             }
         }
 
@@ -826,7 +826,7 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[emotebubble] {globals[g].Name}.PickEmote 异常：{Safe.Describe(e)}");
+                ContentErrors.Callback($"[emotebubble] {globals[g].Name}.PickEmote", e);
             }
         }
 
@@ -851,7 +851,7 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[emotebubble] {mod.Name}.EmoteBubblePosition 异常：{Safe.Describe(e)}");
+                ContentErrors.Callback($"[emotebubble] {mod.Name}.EmoteBubblePosition", e);
             }
         }
 
@@ -864,7 +864,7 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[emotebubble] {globals[g].Name}.EmoteBubblePosition 异常：{Safe.Describe(e)}");
+                ContentErrors.Callback($"[emotebubble] {globals[g].Name}.EmoteBubblePosition", e);
             }
         }
 

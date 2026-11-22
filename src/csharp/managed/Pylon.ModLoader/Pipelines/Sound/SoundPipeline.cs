@@ -134,7 +134,8 @@ internal sealed class SoundPipeline : ILoaderModule
         }
 
         ref var entry = ref _table.Entry(index);
-        if (entry.SoundId <= 0)
+        var ids = entry.SoundIds;
+        if (ids.Length == 0)
         {
             Safe.Once("sound.missing:" + _table.PathOf(index),
                 $"sound: '{_table.PathOf(index)}' 没有可播的 SoundPool 条目", true);
@@ -162,11 +163,13 @@ internal sealed class SoundPipeline : ILoaderModule
         }
 
         var volume = Math.Clamp(entry.Volume * volumeScale, 0f, 1f) * Math.Clamp(Main.soundVolume, 0f, 1f);
-        var pitch = entry.Pitch + (float)(Random.Shared.NextDouble() * 2.0 - 1.0) * entry.PitchVariance + pitchOffset;
+        var pitch = entry.Pitch + ((float)Random.Shared.NextDouble() - 0.5f) * entry.PitchVariance + pitchOffset;
         var rate = Math.Clamp((float)Math.Pow(2.0, pitch), 0.5f, 2f);
 
+        var soundId = ids.Length == 1 ? ids[0] : ids[Random.Shared.Next(ids.Length)];
+
         // SoundPool 没有"解码完成"的查询：play 返回 0 就是还没就绪（同样拒绝，返回 0）。
-        var streamId = AndroidAudio.PlaySound(entry.SoundId, volume, rate);
+        var streamId = AndroidAudio.PlaySound(soundId, volume, rate);
         if (streamId == 0)
         {
             Safe.Once("sound.notready:" + _table.PathOf(index),
@@ -175,7 +178,7 @@ internal sealed class SoundPipeline : ILoaderModule
             return 0;
         }
 
-        if (!_table.TryAlloc(index, streamId, AndroidAudio.SoundDuration(entry.SoundId), out var handle))
+        if (!_table.TryAlloc(index, streamId, AndroidAudio.SoundDuration(soundId), out var handle))
         {
             try { AndroidAudio.StopSound(streamId); }
             catch (Exception e) { Safe.Report("sound.stop", e); }

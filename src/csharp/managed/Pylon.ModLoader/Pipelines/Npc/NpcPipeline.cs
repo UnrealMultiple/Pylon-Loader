@@ -198,6 +198,13 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
             }
         }
 
+        internal struct BossLoot : IGate
+        {
+            public static bool Wanted() => NpcOrGlobal(HookId.BossLoot);
+
+            public static void Install() => On.Terraria.NPC.DoDeathEvents_DropBossPotionsAndHearts += Instance.BossLoot;
+        }
+
         internal struct Hit : IGate
         {
             public static bool Wanted() => HitWanted();
@@ -787,6 +794,60 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
                 Fail(global, HookId.OnKill, e);
             }
         }
+    }
+
+    private void BossLoot(On.Terraria.NPC.orig_DoDeathEvents_DropBossPotionsAndHearts orig, NPC self)
+    {
+        if (_binding.InstanceOf(self) is not { } mod || !mod.HookEnabled(HookId.BossLoot))
+        {
+            orig(self);
+            return;
+        }
+
+        var potionType = VanillaPotionType(self.type);
+        var potionStack = Main.rand.Next(5, 16);
+        var heartStack = Main.rand.Next(5) + 5;
+        try
+        {
+            mod.BossLoot(ref potionType, ref potionStack, ref heartStack);
+        }
+        catch (Exception e)
+        {
+            Fail(mod, HookId.BossLoot, e);
+        }
+
+        heartStack = Math.Max(0, heartStack);
+        if (potionType > 0 && potionStack > 0)
+        {
+            Item.NewItem(self.GetItemSource_Loot(), (int)self.position.X, (int)self.position.Y, self.width, self.height,
+                potionType, potionStack, false, 0, NewItemOwnership.None, null, null);
+        }
+
+        for (var heart = 0; heart < heartStack; heart++)
+        {
+            Item.NewItem(self.GetItemSource_Loot(), (int)self.position.X, (int)self.position.Y, self.width, self.height,
+                ItemID.Heart, 1, false, 0, NewItemOwnership.None, null, null);
+        }
+
+        if (self.type == NPCID.EyeofCthulhu) NPC.EoCKilledToday = true;
+        else if (self.type == NPCID.WallofFlesh) NPC.WoFKilledToday = true;
+
+        if (!NPC.EoCKilledToday || !NPC.WoFKilledToday) return;
+
+        NPC.ResetBadgerHatTime();
+        Item.NewItem(self.GetItemSource_Loot(), (int)self.position.X, (int)self.position.Y, self.width, self.height,
+            ItemID.BadgersHat, 1, false, 0, NewItemOwnership.None, null, null);
+    }
+
+    private static int VanillaPotionType(int type)
+    {
+        if (type == NPCID.SkeletronHead || type == NPCID.WallofFlesh || type == NPCID.Deerclops) return ItemID.HealingPotion;
+        if (type == NPCID.QueenBee) return ItemID.BottledHoney;
+        if (type == NPCID.MoonLordCore) return ItemID.SuperHealingPotion;
+        if (type == NPCID.Golem || type == NPCID.Plantera || type == NPCID.DukeFishron || type == NPCID.MartianSaucerCore
+            || type == NPCID.CultistBoss || type == NPCID.HallowBoss || type == NPCID.QueenSlimeBoss
+            || (type >= NPCID.WallofFleshEye && type <= NPCID.Squid)) return ItemID.GreaterHealingPotion;
+        return ItemID.LesserHealingPotion;
     }
 
     #region 事件补全（SpecialOnKill / 名称 / 平台 / 捕捉 / 派对帽）

@@ -230,6 +230,9 @@ public sealed class TestPlayer : ModPlayer
         var inv = player.inventory;
         if (inv is null || inv.Length == 0) return;
 
+        // 验证脚手架：giveaway 打点——分辨「存档已有测试物品静默领过」与「id 漂移导致的断言失配」。
+        PT.Info($"Give 扫描：TestItem id={type} inv[0].type={inv[0]?.type ?? -1} inv[0].name={inv[0]?.Name ?? "null"}");
+
         for (var i = 0; i < inv.Length; i++)
         {
             var slot = inv[i];

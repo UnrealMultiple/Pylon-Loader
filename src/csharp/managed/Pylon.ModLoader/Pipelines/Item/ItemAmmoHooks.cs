@@ -160,7 +160,7 @@ internal static class ItemAmmoHooks
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[ammo] 选择异常:" + Safe.Describe(e));
+            ContentErrors.Callback("[ammo] 选择", e);
             return orig(self, weapon, items, order, allowCycling);
         }
     }
@@ -172,7 +172,7 @@ internal static class ItemAmmoHooks
         try { return self.PickAmmo_PickAmmoItem(weapon) is not null || !NeedsAmmo(weapon, self); }
         catch (Exception e)
         {
-            ContentErrors.Report("[ammo] 可用性异常:" + Safe.Describe(e));
+            ContentErrors.Callback("[ammo] 可用性", e);
             return orig(self, weapon, canUse);
         }
     }
@@ -233,7 +233,7 @@ internal static class ItemAmmoHooks
                 if (scope.Blocked) item.consumable = false;
             }
         }
-        catch (Exception e) { ContentErrors.Report("[ammo] 消耗检查异常:" + Safe.Describe(e)); }
+        catch (Exception e) { ContentErrors.Callback("[ammo] 消耗检查", e); }
         return item!;
     }
 
@@ -352,7 +352,7 @@ internal static class ItemAmmoHooks
     }
 
     private static void Report(ModType author, HookId hook, Exception e) =>
-        ContentErrors.Report($"[ammo] {author.Name}.{hook} 异常:{Safe.Describe(e)}");
+        ContentErrors.Callback($"[ammo] {author.Name}.{hook}", e);
     private static void ReportPlayer(ModPlayer author, HookId hook, Exception e) =>
-        ContentErrors.Report($"[ammo] {author.GetType().Name}.{hook} 异常:{Safe.Describe(e)}");
+        ContentErrors.Callback($"[ammo] {author.GetType().Name}.{hook}", e);
 }

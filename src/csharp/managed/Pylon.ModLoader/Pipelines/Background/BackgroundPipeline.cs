@@ -100,6 +100,7 @@ internal sealed class BackgroundPipeline : ILoaderModule, ILoaderModuleRefresh
 
     public void Refresh()
     {
+        BackgroundTables.Grow();
         BackgroundTable.Assign();
         BackgroundTable.AssignUnderground();
     }
@@ -114,6 +115,7 @@ internal sealed class BackgroundPipeline : ILoaderModule, ILoaderModuleRefresh
             if (mods.Mods[i].BackgroundAutoloadingEnabled) BackgroundTextureLoader.AutoloadBackgrounds(mods.Mods[i]);
         }
 
+        BackgroundTables.Grow();
         BackgroundTable.Assign();
         BackgroundTable.AssignUnderground();
 

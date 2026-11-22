@@ -114,8 +114,14 @@ internal sealed class MusicPipeline : ILoaderModule
         {
             GateHub<MusicPipeline>.Trigger<Gates.Tick>();
             GateHub<MusicPipeline>.Trigger<Gates.Pause>();
+            GateHub<TilePipeline>.Trigger<TilePipeline.Gates.Click>();
+            GateHub<TilePipeline>.Trigger<TilePipeline.Gates.Wire>();
         }
     }
+
+    internal bool HasBoxes => _table.BoxCount > 0;
+
+    internal bool IsBoxTile(int tileType) => _table.HasTile(tileType);
 
     internal bool IsPlaying(int slot)
     {
@@ -269,6 +275,7 @@ internal sealed class MusicPipeline : ILoaderModule
 
         var box = ActiveBox();
         if (box > 0) return box;
+        if (Main.SceneMetrics.ActiveMusicBox >= 0) return -1;
         return best >= _table.Base ? best : -1;
     }
 

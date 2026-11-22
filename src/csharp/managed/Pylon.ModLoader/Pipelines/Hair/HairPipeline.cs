@@ -8,15 +8,31 @@ using Pylon.ModLoader.Textures;
 using Terraria;
 
 namespace Pylon.ModLoader.Pipelines;
-/// <summary>发型管线：发号 + 主贴图 + 发型菜单（创建角色 / 理发师）+ 戴帽子版贴图。</summary>
+/// <summary>
+/// 发型管线：发号 + 主贴图 + 发型菜单（创建角色 / 理发师）+ 戴帽子版贴图。
+/// 两张贴图表随号段扩容并纳入表维护：装配前经扩表步骤扩到位，游戏重建后随巡检重扩（表声明与锚点在 HairTables）。
+/// 装配逐发型隔离：SetStaticDefaults 与戴帽子版贴图写槽各自按发型兜异常并上报，坏一个只坏一个。
+/// 多人同步：原版玩家信息发完后，mod 发型号另发一条附带包；服务器以连接来源改写玩家索引后全网转发，
+/// 编号不在本端注册的包直接拒收，发号按注册序裸传、不做跨端映射。
+/// </summary>
 internal sealed class HairPipeline : ILoaderModule, ILoaderModuleRefresh
 {
     public static HairPipeline Instance { get; } = new();
 
     public string Name => "hair";
 
+    public IReadOnlyList<TableRequest> Tables =>
+        [new(HairTables.Set, () => HairTable.Total, early: true),
+         new(HairTables.Alt, () => HairTable.Total, early: true)];
+
 
     private static IModLog Log => LoaderHost.Current.Log;
+
+    private const int PlayerInfo = 4;
+    private const int MaxPlayerIndex = 254;
+
+    private NetPipeline _net = null!;
+    private byte _kind;
 
     /// <summary>hair 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
     internal static class Gates
@@ -58,6 +74,20 @@ internal sealed class HairPipeline : ILoaderModule, ILoaderModuleRefresh
                 On.Terraria.Player.LoadPlayer += LoadPlayerFile;
 
                 Log.Info("[hair] 已挂：存档按名字");
+            }
+        }
+
+        internal struct Net : IGate
+        {
+            public static bool Wanted() => HasHairs();
+
+            public static void Install()
+            {
+                Instance._net = NetPipeline.Instance;
+                Instance._kind = Instance._net.OpenChannel(Instance.Receive);
+                On.Terraria.NetMessage.SendData += Instance.SendData;
+
+                Log.Info("[hair] 已挂：多人同步");
             }
         }
     }
@@ -156,24 +186,41 @@ internal sealed class HairPipeline : ILoaderModule, ILoaderModuleRefresh
 
     internal void Build()
     {
-        var total = HairTable.Total;
-        if (total > HairTable.Base && total > 0)
-        {
-            var hair = Terraria.GameContent.TextureAssets.PlayerHair;
-            var hairAlt = Terraria.GameContent.TextureAssets.PlayerHairAlt;
-            if (ArrayGrow.Grow(ref hair, total)) Terraria.GameContent.TextureAssets.PlayerHair = hair;
-            if (ArrayGrow.Grow(ref hairAlt, total)) Terraria.GameContent.TextureAssets.PlayerHairAlt = hairAlt;
-        }
+        Grow();
 
         foreach (var hair in ModContent.GetContent<ModHair>())
         {
             if (!hair.Registered) continue;
-            hair.SetStaticDefaults();
+
+            try
+            {
+                hair.SetStaticDefaults();
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Callback($"[hair] {hair.Name}.SetStaticDefaults", e);
+            }
         }
 
         WriteAltTextures();
 
         if (HairTable.Count > 0) Log.Info($"[hair] 安装：{HairTable.Count} 个发型");
+    }
+
+    private static void Grow()
+    {
+        var total = HairTable.Total;
+        if (total <= HairTable.Base) return;
+
+        try
+        {
+            TableMaintenance.Ensure(HairTables.Set, total).GrowAll(Log.Info);
+            TableMaintenance.Ensure(HairTables.Alt, total).GrowAll(Log.Info);
+        }
+        catch (Exception e)
+        {
+            Safe.Report("hair.grow", e);
+        }
     }
 
     private static void WriteAltTextures()
@@ -204,7 +251,7 @@ internal sealed class HairPipeline : ILoaderModule, ILoaderModuleRefresh
     }
 
     private static void ContentReports(ModHair hair, Exception e) =>
-        ContentErrors.Report($"[hair] {hair.Name} 的戴帽子版贴图失败：{Safe.Describe(e)}");
+        ContentErrors.Callback($"[hair] {hair.Name} 的戴帽子版贴图", e);
 
     private const string SaveKey = "pylon:hair";
 
@@ -271,5 +318,46 @@ internal sealed class HairPipeline : ILoaderModule, ILoaderModuleRefresh
         }
 
         return data;
+    }
+
+    private void SendData(On.Terraria.NetMessage.orig_SendData orig, int msgType, int remoteClient, int ignoreClient,
+                          Terraria.Localization.NetworkText text, int number, float number2, float number3,
+                          float number4, int number5, int number6, int number7)
+    {
+        orig(msgType, remoteClient, ignoreClient, text, number, number2, number3, number4, number5, number6, number7);
+
+        if (msgType != PlayerInfo || Main.netMode == 0 || number < 0 || number > MaxPlayerIndex) return;
+
+        var player = Main.player[number];
+        var hair = player is null ? null : HairTable.Of(player.hair);
+        if (hair is null) return;
+
+        _net.SendChannel(_kind, writer =>
+        {
+            writer.Write((byte)number);
+            writer.Write(hair.Type);
+        }, remoteClient, ignoreClient);
+    }
+
+    private void Receive(Il2CppSystem.IO.BinaryReader reader, int from)
+    {
+        var index = (int)reader.ReadByte();
+        var hair = reader.ReadInt32();
+
+        if (Main.netMode == 2) index = from;
+
+        if (index < 0 || index > MaxPlayerIndex || HairTable.Of(hair) is null) return;
+
+        var player = Main.player[index];
+        if (player is null) return;
+        player.hair = hair;
+
+        if (Main.netMode != 2) return;
+
+        _net.SendChannel(_kind, writer =>
+        {
+            writer.Write((byte)index);
+            writer.Write(hair);
+        }, -1, from);
     }
 }

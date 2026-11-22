@@ -1,4 +1,5 @@
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Tables;
 using Pylon.ModLoader.Textures;
 
 namespace Pylon.ModLoader.Pipelines;
@@ -65,6 +66,33 @@ internal static class HairTable
 
             ByKey[hair.Mod.Name + "/" + hair.Name] = hair;
             ByName[hair.Name] = ByName.ContainsKey(hair.Name) ? null : hair;
+        }
+    }
+}
+
+/// <summary>
+/// 发型编号相关的原生表：TextureAssets 的两张发型贴图表（主贴图与戴帽子版）。
+/// 表长在 TextureAssets 里太普通、长度判据拦不全，两张表各自用白名单点名自己的字段；
+/// 原版表长只能运行期读，读到 0 不缓存，主表锚点即 <see cref="HairTable.Base"/>，alt 表按自己的表长另行捕获。
+/// </summary>
+internal static class HairTables
+{
+    private static readonly Type[] Types = [typeof(Terraria.GameContent.TextureAssets)];
+
+    internal static readonly TableSet Set = new("发型贴图", () => HairTable.Base, Types, include: ["PlayerHair"]);
+
+    internal static readonly TableSet Alt = new("戴帽子版贴图", () => AltVanilla, Types, include: ["PlayerHairAlt"]);
+
+    private static int _alt;
+
+    internal static int AltVanilla
+    {
+        get
+        {
+            if (_alt > 0) return _alt;
+            var length = TextureSlots.Length(TextureTable.PlayerHairAlt);
+            if (length > 0) _alt = length;
+            return _alt;
         }
     }
 }

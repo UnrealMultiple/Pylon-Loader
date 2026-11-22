@@ -95,21 +95,42 @@ internal static class MountTests
 
         PT.Case("MOUNT-W1", c =>
         {
-            // 标准做法：挂测试坐骑 buff，buff 每帧骑回本坐骑；等 150 帧后统一断言。
-            // buff 挂 300 tick（150 帧断言时还在），UpdatePlayer 每帧续到 10 保活。
+            // 标准做法：挂测试坐骑 buff，buff 每帧骑回本坐骑并续时到 300；断言走轮询——
+            // 骑乘一旦掉落立刻带现场（buff 槽/时间/Update 计数/玩家状态）收口，没掉就巡到 150 帧。
             Content.TestMount.Calls.Clear();
             Content.TestMount.Ticks = 0;
             Content.TestMount.JumpHeightSeen = -1;
             Content.TestMount.DrawSeen = false;
             player.AddBuff(buffType, 300, true);
-            PT.Later("MOUNT-W1", 150, cc =>
+
+            var mountRounds = 0;
+            var deathLogged = false;
+            void PollMount(Check cc)
             {
+                mountRounds++;
+                if (!player.mount.Active && !deathLogged)
+                {
+                    deathLogged = true;
+                    var slot = player.FindBuffIndex(buffType);
+                    PT.Info($"[probe] 掉落现场：第 {mountRounds} 轮（约第 {mountRounds * 15} 更新帧）slot={slot} " +
+                            $"buffTime={(slot >= 0 ? player.buffTime[slot] : -1)} buffUpdate={Content.TestMountBuff.UpdateCount} " +
+                            $"effects={Calls(nameof(Content.TestMount.UpdateEffects))} " +
+                            $"frame={Calls(nameof(Content.TestMount.UpdateFrame))} " +
+                            $"dead={player.dead} life={player.statLife}/{player.statLifeMax2}");
+                }
+
+                if (mountRounds < 10)
+                {
+                    cc.Pending();
+                    PT.RetryLater("MOUNT-W1", 15, PollMount);
+                    return;
+                }
+
                 cc.True(player.mount.Active && player.mount.Type == type,
-                    $"骑乘 active={player.mount.Active} type={player.mount.Type}");
+                    $"骑乘 active={player.mount.Active} type={player.mount.Type}（巡检 {mountRounds} 轮）");
                 cc.Eq(Calls(nameof(Content.TestMount.SetMount)), 1,
                     $"SetMount 次数={Calls(nameof(Content.TestMount.SetMount))}");
 
-                // 每帧：UpdateEffects 计数 = 贴身数据 Ticks。
                 var effects = Calls(nameof(Content.TestMount.UpdateEffects));
                 cc.True(effects >= 100, $"UpdateEffects 累计={effects}");
                 cc.Eq(Content.TestMount.Ticks, effects, $"贴身计数 Ticks={Content.TestMount.Ticks}");
@@ -120,10 +141,11 @@ internal static class MountTests
                     "JumpHeight 被调（骑乘跳跃计算）");
                 cc.Eq(Content.TestMount.JumpHeightSeen, 5, $"JumpHeightSeen={Content.TestMount.JumpHeightSeen}");
 
-                // 绘制：Back 层（0）与 Front 层（2）；计数键 = "Draw" + drawType。
                 cc.True(Calls("Draw0") >= 30, $"Draw Back 层={Calls("Draw0")}");
                 cc.True(Calls("Draw2") >= 30, $"Draw Front 层={Calls("Draw2")}");
-            });
+            }
+
+            PT.Later("MOUNT-W1", 15, PollMount);
         });
 
         PT.Case("MOUNT-W4", c =>

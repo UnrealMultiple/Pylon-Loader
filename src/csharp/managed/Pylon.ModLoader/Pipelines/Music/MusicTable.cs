@@ -138,6 +138,15 @@ internal sealed class MusicTable
         return 0;
     }
 
+    internal bool HasTile(int tileType)
+    {
+        for (var i = 0; i < _boxCount; i++)
+        {
+            if (_boxes[i].TileType == tileType) return true;
+        }
+        return false;
+    }
+
     internal int SlotForItem(int itemType)
     {
         if (itemType <= 0) return 0;

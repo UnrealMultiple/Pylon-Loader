@@ -36,7 +36,7 @@ internal static class PlayerApiTests
             c.True(PlayerDrawLayers.FrontAccFront is not null, "FrontAccFront 锚点");
             c.True(PlayerDrawLayers.FrontAccBack is not null, "FrontAccBack 锚点");
             c.True(PlayerDrawLayers.CaptureTheGem is not null, "CaptureTheGem 锚点");
-            c.True(ReferenceEquals(PlayerDrawLayers.Robe, PlayerDrawLayers.Leggings), "Robe 复用 Leggings 锚点");
+            c.True(!ReferenceEquals(PlayerDrawLayers.Robe, PlayerDrawLayers.Leggings), "Robe 与 Leggings 是独立锚点");
         });
     }
 

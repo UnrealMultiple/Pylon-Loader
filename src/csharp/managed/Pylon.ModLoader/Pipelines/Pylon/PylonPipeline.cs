@@ -12,6 +12,7 @@ using Terraria.Map;
 using Terraria.Net;
 using Terraria.ObjectData;
 using Terraria.UI;
+using Terraria.ID;
 
 namespace Pylon.ModLoader.Pipelines;
 /// <summary>传送晶塔管线：把 mod 晶塔塞进游戏自己的晶塔列表，让传送、附近判定、地图图标全走原版逻辑；另管放置许可、NPC 数量检查转发、地图连线与点开地图。</summary>
@@ -35,7 +36,7 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
     {
         internal struct Teleport : IGate
         {
-            public static bool Wanted() => HasPylons();
+            public static bool Wanted() => HasPylons() || TileIdTml.HasCustomPylons;
 
             public static void Install()
             {
@@ -177,19 +178,33 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
     private static bool NearAPylon(On.Terraria.GameContent.TeleportPylonsSystem.orig_IsPlayerNearAPylon orig, Player player)
     {
         if (orig(player)) return true;
-        if (PylonTable.Count == 0) return false;
+
+        var pylons = PylonTable.Count > 0;
+        if (!pylons && !TileIdTml.HasCustomPylons) return false;
 
         var reach = TileReachCheckSettings.Pylons;
         reach.GetTileRegion(player, out var lx, out var ly, out var hx, out var hy);
 
-        foreach (var entity in TileEntityBinding.All)
+        if (pylons)
         {
-            if (entity is not TEModdedPylon pylon) continue;
-            if (!TileEntityBinding.IsLive(pylon)) continue;
+            foreach (var entity in TileEntityBinding.All)
+            {
+                if (entity is not TEModdedPylon pylon) continue;
+                if (!TileEntityBinding.IsLive(pylon)) continue;
 
-            var x = pylon.Position.X;
-            var y = pylon.Position.Y;
-            if (x <= hx && x + PylonSpan > lx && y <= hy && y + PylonSpan > ly) return true;
+                var x = pylon.Position.X;
+                var y = pylon.Position.Y;
+                if (x <= hx && x + PylonSpan > lx && y <= hy && y + PylonSpan > ly) return true;
+            }
+        }
+
+        // TileID.Sets.CountsAsPylon：作者标的「算作晶塔基座」方块在交互范围内就算附近有晶塔
+        //（mod 晶塔上面已按实体位置判过；原版晶塔 orig 自己判过）。
+        foreach (var type in TileIdTml.CountsAsPylonSet)
+        {
+            if (type == TileID.TeleportationPylon) continue;
+            if (TileTable.Of(type) is ModPylon) continue;
+            if (player.IsTileTypeInInteractionRange(type, reach)) return true;
         }
 
         return false;

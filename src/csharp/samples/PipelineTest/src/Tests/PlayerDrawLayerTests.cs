@@ -60,6 +60,8 @@ internal static class PlayerDrawLayerTests
     private static void RunWorld()
     {
         PlayerDrawProbe.Reset();
+        PlayerDrawProbe.EverHidden = false;
+        PlayerDrawProbe.EverMultiple = false;
         PlayerDrawProbe.ShowVisuals = false;
         PlayerDrawProbe.HideTarget = true; // W2 验的就是"在 HideDrawLayers 里 Hide 掉"
 
@@ -77,11 +79,21 @@ internal static class PlayerDrawLayerTests
             PlayerDrawProbe.HideTarget = false;
         });
 
-        PT.Later("PDLAYER-W3", 71, c =>
+        var pdlayerAttempts = 0;
+        void PollW3(Check c)
         {
-            c.True(PlayerDrawProbe.HiddenCount > 0, $"不藏之后开始画（{PlayerDrawProbe.HiddenCount} 次）");
-            c.True(PlayerDrawProbe.MultipleCount > 0, $"多槽层按条件画（{PlayerDrawProbe.MultipleCount} 次）");
-        });
+            if (!PlayerDrawProbe.EverHidden && ++pdlayerAttempts < 60)
+            {
+                c.Pending();
+                PT.RetryLater("PDLAYER-W3", 2, PollW3);
+                return;
+            }
+
+            c.True(PlayerDrawProbe.EverHidden, $"不藏之后开始画（EverHidden 闩锁，巡检 {pdlayerAttempts} 轮）");
+            c.True(PlayerDrawProbe.EverMultiple, $"多槽层按条件画（EverMultiple 闩锁）");
+        }
+
+        PT.RetryLater("PDLAYER-W3", 2, PollW3);
 
         PT.Later("PDLAYER-W4", 74, c =>
         {

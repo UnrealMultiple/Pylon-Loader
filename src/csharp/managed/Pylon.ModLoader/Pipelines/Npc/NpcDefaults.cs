@@ -99,12 +99,11 @@ internal sealed class NpcDefaults(NpcBinding binding)
     {
         var type = mod.Type;
 
-        if (npc.width <= 0 || npc.height <= 0)
-        {
-            TextureSize(type, out var width, out var height);
-            if (npc.width <= 0 && width > 0) npc.width = width;
-            if (npc.height <= 0 && height > 0) npc.height = height;
-        }
+        TextureSize(type, out var textureWidth, out var frameHeight);
+        if (npc.width <= 0 && textureWidth > 0) npc.width = textureWidth;
+        if (npc.height <= 0 && frameHeight > 0) npc.height = frameHeight;
+        if (textureWidth > 0 && frameHeight > 0)
+            npc.frame = new Rectangle(0, 0, textureWidth, frameHeight);
 
         npc.type = type;
         npc.netID = type;

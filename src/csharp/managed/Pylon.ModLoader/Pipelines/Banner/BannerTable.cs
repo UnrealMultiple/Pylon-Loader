@@ -9,6 +9,8 @@ namespace Pylon.ModLoader.Pipelines;
 /// 旗帜侧表：三张映射 + 击杀侧表。
 /// mod 旗子的编号 = 代表 NPC 的类型号（都大于原版 NPC 数），所以游戏那三张原版长度的平行表
 /// 永远不会被 mod 编号访问到——本表替它们回答 mod 编号的查询。
+/// 减伤与领取节奏都读作者在 <c>ItemID.Sets.BannerStrength</c> / <c>KillsToBanner</c> 上声明的值，
+/// 本表不代补默认：未声明的旗子照常计数，但没有减伤、也永不产出可领取面数。
 /// </summary>
 internal static class BannerTable
 {
@@ -57,15 +59,13 @@ internal static class BannerTable
 
     internal static int Kills(int banner) => Slot(banner) is var index && index >= 0 ? _kills[index] : 0;
 
-    /// <summary>这面旗子每多少杀给一面可领取（读 <c>ItemID.Sets.KillsToBanner</c>，默认 50）。</summary>
-    private const int DefaultClaimStep = 50;
-
-    internal static int ThresholdOf(int banner)
+    /// <summary>这面旗子的领取节奏：作者声明的 <c>ItemID.Sets.KillsToBanner</c>；未声明（&lt;=0 或表未长到）返回 0，表示不产出可领取面数。</summary>
+    private static int ThresholdOf(int banner)
     {
         var item = ItemForBanner(banner);
         var table = ItemID.Sets.KillsToBanner;
         if (item > 0 && table is not null && item < table.Length && table[item] > 0) return table[item];
-        return DefaultClaimStep;
+        return 0;
     }
 
     internal static void AddKill(int banner, int amount = 1)
@@ -74,6 +74,12 @@ internal static class BannerTable
         if (index < 0) return;
 
         var step = ThresholdOf(banner);
+        if (step <= 0)
+        {
+            _kills[index] += amount;
+            return;
+        }
+
         var before = _kills[index] / step;
         _kills[index] += amount;
 
@@ -85,9 +91,6 @@ internal static class BannerTable
         _fresh[index] = true;
         BannerSystem.AnyNewClaimableBanners = true;
     }
-
-    /// <summary>兼容旧调用：默认阈值常量。</summary>
-    internal const int ClaimStep = DefaultClaimStep;
 
     /// <summary>这面 mod 旗子还能领几面。</summary>
     internal static int Claimable(int banner) => Slot(banner) is var index && index >= 0 ? _claimable[index] : 0;
@@ -162,35 +165,6 @@ internal static class BannerTable
 
             yield return (banner, _kills[index], _claimable[index]);
         }
-    }
-
-    /// <summary>
-    /// 给 mod 旗子物品补上默认值：<c>BannerStrength = Reduced</c>（Enabled）、
-    /// <c>KillsToBanner = 50</c>。作者在 SetStaticDefaults 里改过的值不覆盖。
-    /// </summary>
-    private static void EnsureItemTables(int item)
-    {
-        var strength = ItemID.Sets.BannerStrength;
-        if (strength is not null)
-        {
-            if (item >= strength.Length) strength = Grow(strength, item + 1, ItemID.BannerEffect.Reduced);
-            if (item < strength.Length && !strength[item].Enabled) strength[item] = ItemID.BannerEffect.Reduced;
-        }
-
-        var kills = ItemID.Sets.KillsToBanner;
-        if (kills is not null)
-        {
-            if (item >= kills.Length) kills = Grow(kills, item + 1, DefaultClaimStep);
-            if (item < kills.Length && kills[item] <= 0) kills[item] = DefaultClaimStep;
-        }
-    }
-
-    private static T[] Grow<T>(T[] table, int need, T fill)
-    {
-        var longer = new T[need];
-        Array.Copy(table, longer, table.Length);
-        for (var index = table.Length; index < need; index++) longer[index] = fill;
-        return longer;
     }
 
     /// <summary>存档键（Mod/类名）；未登记返回空串。</summary>
@@ -273,8 +247,6 @@ internal static class BannerTable
 
             var slot = banner - Base + 1;
             if (slot > size) size = slot;
-
-            EnsureItemTables(item);
         }
 
         // 第二遍：同族 NPC（只填 Banner）。代表必须已经登记，否则计数会落空。

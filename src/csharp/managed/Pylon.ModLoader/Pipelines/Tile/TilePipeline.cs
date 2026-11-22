@@ -89,7 +89,8 @@ internal sealed class TilePipeline : ILoaderModule
             public static bool Wanted() =>
                 WantsTile(HookId.HitWire) || GlobalTileRegistry.AnyWith(HookId.PreHitWire, HookId.HitWire) ||
                 HookGuard.Wants<ModNpc>(HookId.CanGoToStatue, HookId.OnGoToStatue) ||
-                GlobalNpcRegistry.AnyWith(HookId.CanGoToStatue, HookId.OnGoToStatue);
+                GlobalNpcRegistry.AnyWith(HookId.CanGoToStatue, HookId.OnGoToStatue) ||
+                MusicPipeline.Instance.HasBoxes;
 
             public static void Install() => On.Terraria.Wiring.HitWireSingle += Instance.Wire;
         }
@@ -112,7 +113,8 @@ internal sealed class TilePipeline : ILoaderModule
         {
             public static bool Wanted() =>
                 WantsTile(HookId.RightClick, HookId.HasSmartInteract) ||
-                GlobalTileRegistry.AnyWith(HookId.RightClick, HookId.HasSmartInteract);
+                GlobalTileRegistry.AnyWith(HookId.RightClick, HookId.HasSmartInteract) ||
+                MusicPipeline.Instance.HasBoxes;
 
             public static void Install() => On.Terraria.Player.TileInteractionsUse += Instance.Interact;
         }
@@ -165,6 +167,14 @@ internal sealed class TilePipeline : ILoaderModule
             public static void Install() => TileEffectsHooks.Install();
         }
 
+        internal struct Light : IGate
+        {
+            public static bool Wanted() =>
+                WantsTile(HookId.ModifyLight) || GlobalTileRegistry.AnyWith(HookId.ModifyLight);
+
+            public static void Install() => TileLightHooks.Install();
+        }
+
         internal struct Interact : IGate
         {
             public static bool Wanted() =>
@@ -189,6 +199,7 @@ internal sealed class TilePipeline : ILoaderModule
     {
         LimitPatch.Apply(VanillaCounts.Tile + ModContent.Count(ContentKind.Tile), Log);
         TileTable.Build(Log);
+        TileIdTml.EnsurePylonHook();
         TileMergeFix.FixToTotal();
         TileSavePipeline.Build(Log);
         TileLists.Build(Log);
@@ -843,6 +854,29 @@ internal sealed class TilePipeline : ILoaderModule
         if (NpcStatueWire.TryTrigger(i, j)) return;
 
         orig(i, j);
+
+        var tile = TileTable.Of(Main.tile[i, j].type);
+        if (tile is not null && !tile.HookEnabled(HookId.HitWire) && MusicPipeline.Instance.IsBoxTile(tile.Type))
+            ToggleMusicBox(i, j, wired: true);
+    }
+
+    private static void ToggleMusicBox(int i, int j, bool wired)
+    {
+        var origin = Main.tile[i, j];
+        var type = origin.type;
+        var left = i - origin.frameX / 18 % 2;
+        var top = j - origin.frameY / 18 % 2;
+        for (var x = left; x < left + 2; x++)
+        {
+            for (var y = top; y < top + 2; y++)
+            {
+                var cell = Main.tile[x, y];
+                if (!cell.active() || cell.type != type) continue;
+                cell.frameX = (short)(cell.frameX < 36 ? cell.frameX + 36 : cell.frameX - 36);
+                if (wired) Wiring.SkipWire(x, y);
+            }
+        }
+        if (Main.netMode != 0) NetMessage.SendTileSquare(-1, left, top, 2, 2);
     }
 
     private void Stations(On.Terraria.Player.orig_AdjTiles orig, Player self)
@@ -1034,6 +1068,11 @@ internal sealed class TilePipeline : ILoaderModule
             {
                 Fail(tile, HookId.RightClick, e);
             }
+        }
+        else if (tile is not null && MusicPipeline.Instance.IsBoxTile(type))
+        {
+            ToggleMusicBox(myX, myY, wired: false);
+            self.tileInteractionHappened = true;
         }
 
         if (!fresh) return;

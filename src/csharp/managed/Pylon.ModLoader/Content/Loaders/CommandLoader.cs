@@ -116,7 +116,7 @@ public static class CommandLoader
             else
             {
                 if (e is not UsageException)
-                    ContentErrors.Report($"[command] {mc.Name}.Action 异常：{Safe.Describe(e)}");
+                    ContentErrors.Callback($"[command] {mc.Name}.Action", e);
                 caller.Reply("用法：" + mc.Usage, ErrorColor);
             }
         }

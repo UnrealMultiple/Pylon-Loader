@@ -1,3 +1,4 @@
+using Il2CppInterop.Runtime;
 using Pylon.ModLoader.Content;
 using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
@@ -6,7 +7,11 @@ using Pylon.ModLoader.Tables;
 using Terraria;
 
 namespace Pylon.ModLoader.Pipelines;
-/// <summary>墙壁管线：挖 / 尘土 / 声音 / 掉落 / 边框。每类型数据在 WallTable（密集 struct 数组）。</summary>
+/// <summary>
+/// 墙壁管线：挖 / 尘土 / 声音 / 掉落 / 边框 / 发光。每类型数据在 WallTable（密集 struct 数组）。
+/// 发光是两阶段的：光照扫描只收集（此时引擎正在算这一帧的光，不能边扫边加），世界更新收尾再统一落光；
+/// 两阶段之间隔一次绘制，所以作者写的是上一帧格子上的光，墙被拆掉时按类型不符丢弃。
+/// </summary>
 internal sealed class WallPipeline : ILoaderModule
 {
     public static WallPipeline Instance { get; } = new();
@@ -18,6 +23,17 @@ internal sealed class WallPipeline : ILoaderModule
 
     /// <summary>这一击是不是"只出尘土、墙还在"（NumDust / KillSound 要用）。</summary>
     [ThreadStatic] private static bool _failing;
+
+    private const int TileStaticsOffset = 0xB8;
+    private const int TileWallOffset = 0xC8;
+
+    private bool[]? _lightWalls;
+
+    private int[] _lightCells = new int[12288];
+    private float[] _lightR = new float[4096];
+    private float[] _lightG = new float[4096];
+    private float[] _lightB = new float[4096];
+    private int _lightCount;
 
     public string Name => "wall";
 
@@ -56,6 +72,17 @@ internal sealed class WallPipeline : ILoaderModule
             public static bool Wanted() => HookGuard.Wants<ModWall>(HookId.AnimateWall);
 
             public static void Install() => On.Terraria.Main.DoUpdate_AnimateWalls += Instance.Animate;
+        }
+
+        internal struct Light : IGate
+        {
+            public static bool Wanted() => HookGuard.Wants<ModWall>(HookId.ModifyLight);
+
+            public static void Install()
+            {
+                On.Terraria.Lighting.LightTiles += Instance.CollectLight;
+                On.Terraria.Main.DoUpdateInWorld += Instance.ApplyLight;
+            }
         }
     }
 
@@ -280,6 +307,170 @@ internal sealed class WallPipeline : ILoaderModule
         }
 
         orig(i, j, resetFrame);
+    }
+
+    private void CollectLight(On.Terraria.Lighting.orig_LightTiles orig, int firstX, int lastX, int firstY, int lastY)
+    {
+        orig(firstX, lastX, firstY, lastY);
+
+        try
+        {
+            ScanLightCells(firstX, lastX, firstY, lastY);
+        }
+        catch (Exception e)
+        {
+            _lightCount = 0;
+            Safe.Once("wall.light.scan", "[wall] 墙发光扫描异常：" + Safe.Describe(e), true);
+            return;
+        }
+
+        for (var k = 0; k < _lightCount; k++)
+        {
+            float r = 0, g = 0, b = 0;
+            var wall = WallTable.Of(_lightCells[k * 3 + 2]);
+            if (wall is not null)
+            {
+                try
+                {
+                    wall.ModifyLight(_lightCells[k * 3], _lightCells[k * 3 + 1], ref r, ref g, ref b);
+                }
+                catch (Exception e)
+                {
+                    Fail(wall, HookId.ModifyLight, e);
+                }
+            }
+
+            _lightR[k] = r;
+            _lightG[k] = g;
+            _lightB[k] = b;
+        }
+    }
+
+    private unsafe void ScanLightCells(int firstX, int lastX, int firstY, int lastY)
+    {
+        _lightCount = 0;
+        var lightWalls = _lightWalls ??= BuildLightWalls();
+
+        var walls = WallArray(out var width, out var height);
+        if (walls is null) return;
+
+        var left = Math.Max(firstX - 28, 0);
+        var top = Math.Max(firstY - 28, 0);
+        var right = Math.Min(lastX + 29, width);
+        var bottom = Math.Min(lastY + 29, height);
+        if (left >= right || top >= bottom) return;
+
+        var cells = _lightCells;
+        var count = 0;
+        for (var j = top; j < bottom; j++)
+        {
+            var row = j * width;
+            for (var i = left; i < right; i++)
+            {
+                var type = walls[row + i];
+                if ((uint)type >= (uint)lightWalls.Length || !lightWalls[type]) continue;
+
+                if (count * 3 + 3 > cells.Length)
+                {
+                    var grown = new int[cells.Length * 2];
+                    Array.Copy(cells, grown, cells.Length);
+                    cells = grown;
+                    _lightR = new float[cells.Length / 3];
+                    _lightG = new float[cells.Length / 3];
+                    _lightB = new float[cells.Length / 3];
+                }
+
+                cells[count * 3] = i;
+                cells[count * 3 + 1] = j;
+                cells[count * 3 + 2] = type;
+                count++;
+            }
+        }
+
+        _lightCells = cells;
+        _lightCount = count;
+    }
+
+    private bool[] BuildLightWalls()
+    {
+        var all = WallTable.All;
+        var max = 0;
+        foreach (var wall in all)
+        {
+            if (wall is null || !wall.HookEnabled(HookId.ModifyLight)) continue;
+            if (wall.Type > max) max = wall.Type;
+        }
+
+        var table = new bool[max + 1];
+        foreach (var wall in all)
+        {
+            if (wall is null || !wall.HookEnabled(HookId.ModifyLight)) continue;
+            table[wall.Type] = true;
+        }
+        return table;
+    }
+
+    private void ApplyLight(On.Terraria.Main.orig_DoUpdateInWorld orig, Main self)
+    {
+        orig(self);
+
+        if (_lightCount == 0) return;
+        if (Main.gameMenu)
+        {
+            _lightCount = 0;
+            return;
+        }
+
+        try
+        {
+            ApplyLightCells();
+        }
+        catch (Exception e)
+        {
+            _lightCount = 0;
+            Safe.Once("wall.light.apply", "[wall] 墙发光落光异常：" + Safe.Describe(e), true);
+        }
+    }
+
+    private unsafe void ApplyLightCells()
+    {
+        var walls = WallArray(out var width, out var height);
+        if (walls is null) return;
+
+        var cells = _lightCells;
+        for (var k = 0; k < _lightCount; k++)
+        {
+            var r = _lightR[k];
+            var g = _lightG[k];
+            var b = _lightB[k];
+            if (r == 0 && g == 0 && b == 0) continue;
+
+            var i = cells[k * 3];
+            var j = cells[k * 3 + 1];
+            if (i < 0 || j < 0 || i >= width || j >= height || walls[j * width + i] != cells[k * 3 + 2]) continue;
+
+            Lighting.AddLight(i, j, r, g, b);
+        }
+    }
+
+    private static unsafe ushort* WallArray(out int width, out int height)
+    {
+        width = 0;
+        height = 0;
+        var tile = Main.tile;
+        if (tile is null) return null;
+
+        width = tile._width;
+        height = tile._height;
+        if (width <= 0 || height <= 0) return null;
+
+        var klass = Il2CppClassPointerStore<TileData>.NativeClassPtr;
+        if (klass == IntPtr.Zero) return null;
+        try { IL2CPP.il2cpp_runtime_class_init(klass); } catch { }
+
+        var block = *(IntPtr*)((byte*)klass + TileStaticsOffset);
+        if (block == IntPtr.Zero) return null;
+        return *(ushort**)((byte*)block + TileWallOffset);
     }
 
     private void Fail(ModWall wall, HookId hook, Exception exception)

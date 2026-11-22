@@ -64,6 +64,8 @@ internal static class RecipeTable
 
         if (index + 1 > Count) Count = index + 1;
         if (entry.Disabled || entry.Conditions is not null || entry.Consume is not null || entry.Craft is not null) HasAny = true;
+
+        if (index >= Recipe.maxRecipes) RecipePipeline.MarkBeyond();
     }
 
     internal static void SetDisabled(Recipe recipe, bool disabled)
@@ -214,7 +216,7 @@ internal static class RecipeTable
 
         if (Recipe.numRecipes > Recipe.maxRecipes)
         {
-            log.Warn($"[recipe] 配方总数 {Recipe.numRecipes} 超过游戏上限 {Recipe.maxRecipes}：超出的部分仍可分解/可被向导查到，但制作菜单里看不到");
+            log.Warn($"[recipe] 配方总数 {Recipe.numRecipes} 超过游戏上限 {Recipe.maxRecipes}：超出的部分由补扫纳入制作菜单与向导");
         }
     }
 

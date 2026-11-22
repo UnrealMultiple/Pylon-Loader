@@ -39,7 +39,7 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
                 Instance._net = NetPipeline.Instance;
                 Instance._kind = Instance._net.OpenChannel(Instance.Receive);
 
-                Log.Info("[tileentity] 已挂（每帧 / 清世界 / 读档 / 存档 / 同步 / 放置即建实体 / 拆除即摘实体）");
+                Log.Info("[tileentity] 已挂（每帧 / 清世界 / 读档 / 存档 / 同步）");
             }
         }
 
@@ -72,7 +72,7 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
 
         internal struct TilePlace : IGate
         {
-            public static bool Wanted() => HasEntities() || HasTilePlaceHooks();
+            public static bool Wanted() => HasTilePlaceHooks();
 
             public static void Install() => On.Terraria.WorldGen.PlaceTile += PlaceTile;
         }
@@ -86,13 +86,6 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
                 On.Terraria.ObjectData.TileObjectData.CallPostPlacementPlayerHook += CallPostPlacement;
                 On.Terraria.Player.PlaceThing_Tiles += Placing;
             }
-        }
-
-        internal struct Kill : IGate
-        {
-            public static bool Wanted() => HasEntities();
-
-            public static void Install() => On.Terraria.WorldGen.KillTile += KillTile;
         }
     }
 
@@ -157,52 +150,7 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
         if (_placing > 0 && (uint)Type < (uint)TileTable.Shapes.Length && TileTable.Shapes[Type] is null)
             Placed(i, j, Type);
 
-        var direction = plr >= 0 && plr < Main.player.Length && Main.player[plr] is { } player
-            ? player.direction
-            : 0;
-
-        if (TileEntityTable.Count == 0 || Main.netMode == 1) return placed;
-
-        var count = TileEntityTable.Count;
-        for (var index = 0; index < count; index++)
-        {
-            var template = TileEntityTable.Template(index);
-            if (template is null) continue;
-
-            if (TileEntityBinding.Find(template, i, j) >= 0) continue;
-
-            bool valid;
-            try
-            {
-                valid = template.IsTileValidForEntity(i, j);
-            }
-            catch (Exception e)
-            {
-                ContentErrors.Report($"[tileentity] {template.Name}.IsTileValidForEntity 异常：{Safe.Describe(e)}");
-                continue;
-            }
-
-            if (!valid) continue;
-
-            var id = TileEntityBinding.Place(template, i, j);
-            if (id >= 0) EntityPlaced(id, i, j, Type, style, direction, -1);
-        }
-
         return placed;
-    }
-
-    private static void EntityPlaced(int id, int i, int j, int type, int style, int direction, int alternate)
-    {
-        if (TileEntityBinding.ByID(id) is not { } entity || !entity.Plan.Has(HookId.AfterPlacement)) return;
-
-        try
-        {
-            _ = entity.Hook_AfterPlacement(i, j, type, style, direction, alternate);
-        }
-        catch (Exception e)
-        {
-            ContentErrors.Report($"[tileentity] {entity.FullName}.Hook_AfterPlacement 异常：{Safe.Describe(e)}");
-        }
     }
 
     private static bool CallPostPlacement(On.Terraria.ObjectData.TileObjectData.orig_CallPostPlacementPlayerHook orig,
@@ -217,16 +165,6 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static ModTile? TileTableOf(int type) =>
         ModContent.Find(ContentKind.Tile, type) as ModTile;
-
-    private static void KillTile(On.Terraria.WorldGen.orig_KillTile orig, int i, int j, bool fail, bool effectOnly, bool noItem)
-    {
-        orig(i, j, fail, effectOnly, noItem);
-
-        if (fail || effectOnly || TileEntityTable.Count == 0) return;
-        if (TileEntityBinding.At(i, j) is not { } entity) return;
-
-        Instance.KillEntity(entity);
-    }
 
     public void Refresh()
     {
@@ -537,8 +475,19 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
                 continue;
             }
 
-            var id = TileEntityBinding.Place(template, x, y);
-            var entity = id < 0 ? null : TileEntityBinding.ByID(id);
+            ModTileEntity? entity;
+            try
+            {
+                var id = TileEntityBinding.Place(template, x, y);
+                entity = id < 0 ? null : TileEntityBinding.ByID(id);
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Report($"[tileentity] {template.FullName} 建立实例失败，条目丢弃：{Safe.Describe(e)}");
+                dropped++;
+                continue;
+            }
+
             if (entity is null)
             {
                 dropped++;

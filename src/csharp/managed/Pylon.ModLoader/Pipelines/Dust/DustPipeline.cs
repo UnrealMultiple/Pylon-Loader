@@ -1,13 +1,27 @@
+using Il2CppInterop.Runtime;
+using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Il2CppMicrosoft.Xna.Framework;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Content;
 using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipeline;
+using Pylon.ModLoader.Tables;
 using Terraria;
 
 namespace Pylon.ModLoader.Pipelines;
-/// <summary>尘土管线：mod 尘土不进游戏图集，由本管线自己更新、自己画。</summary>
+/// <summary>
+/// 尘土管线：mod 尘土真进 <c>Main.dust</c> 池，类型号从原版表长（运行期锚点，见 <see cref="DustTables.Vanilla"/>）起按注册序发。
+/// 三张按类型索引的原生表（Dust.StaticAlpha/StaticAlphaValue、ChildSafety.SafeDust）随号段扩容，扩表必须先于任何 mod 号进原版：
+/// Build/Refresh 都先 Grow 再 Assign，挂钩由门在扩表到位后才放行。
+/// 原版循环负责物理与消亡：Update 派发在 <c>Dust.UpdateDust</c> 之前（返回 false 的尘土临时藏起，orig 后恢复）、
+/// MidUpdate 在其后（返回 true 抵消本帧横向刹车）；本帧新生的尘土下一帧才开始派发。
+/// 派发回调里写 <c>dust.active = false</c> 是 TML 惯用杀法，但手机版只有 <c>Dust.SetNotActive</c> 会把槽位还回 freeDust 栈，
+/// 所以三处派发（Update / MidUpdate / PreDraw）都包 kill tracking：记 freeDustCount 最低点，栈里找不到的死尘土补一次 SetNotActive。
+/// 绘制走中间态：orig 前把 mod 尘土整体藏匿（active 翻转，原版 pass 画不到），orig 后恢复并用自己的批次只画 mod 尘土。
+/// Update 抛异常按 D9 记一条并 SetNotActive 回收；NaN/Inf 数值卫生守卫位置不变（只对要跑物理的尘土检查）。
+/// 运行期指纹（锚点长度一致且大于 0、Main.dust ≥6000 槽、NewDust 九参签名存在）不符即停用池路径并报错，此时 Spawn 一律返回 null。
+/// </summary>
 internal sealed class DustPipeline : ILoaderModule, ILoaderModuleRefresh
 {
     public static DustPipeline Instance { get; } = new();
@@ -16,51 +30,117 @@ internal sealed class DustPipeline : ILoaderModule, ILoaderModuleRefresh
 
     private static IModLog Log => LoaderHost.Current.Log;
 
-    private sealed class Owned
-    {
-        public Dust Dust = null!;
-        public ModDust Mod = null!;
-    }
+    private const int PoolSlots = 6000;
 
-    private static readonly List<Owned> Live = [];
+    private const int SheetFrameHeight = 30;
+
+    public IReadOnlyList<TableRequest> Tables => [new(DustTables.Set, () => DustTable.Total, early: true)];
 
     /// <summary>dust 管线的安装门：条件与订阅同居一门，由 GateHub 自动发现与派发。</summary>
     internal static class Gates
     {
         internal struct Loop : IGate
         {
-            public static bool Wanted() => ModContent.GetContent<ModDust>().Count > 0;
+            public static bool Wanted() =>
+                ModContent.GetContent<ModDust>().Count > 0 && DustPipeline.Fingerprint(false) && DustPipeline.Grown();
 
             public static void Install()
             {
+                On.Terraria.Dust.NewDust += NewDust;
                 On.Terraria.Dust.UpdateDust += UpdateDust;
                 On.Terraria.Main.DrawDust += DrawDust;
-                Log.Info("[dust] 已挂（自己更新 / 自己画，不进游戏图集）");
+                Log.Info("[dust] 已挂（mod 尘土进 Main.dust 池：NewDust / UpdateDust / DrawDust）");
             }
         }
     }
 
     public bool Install() => GateHub<DustPipeline>.Run();
 
-    public void Refresh() => DustTable.Assign();
+    public void Refresh()
+    {
+        Grow();
+        DustTable.Assign();
+    }
 
     internal void Build()
     {
+        if (!Fingerprint(true)) return;
+
+        Grow();
         DustTable.Assign();
 
         foreach (var dust in DustTable.All) dust.SetStaticDefaults();
 
-        if (DustTable.Count > 0) Log.Info($"[dust] 安装：{DustTable.Count} 种尘土");
+        if (DustTable.Count > 0)
+            Log.Info($"[dust] 安装：{DustTable.Count} 种尘土（类型 {DustTable.Base}..{DustTable.Total - 1}）");
+
+        GateHub<DustPipeline>.Run();
+    }
+
+    private static void Grow()
+    {
+        if (DustTable.Base <= 0) return;
+
+        var target = DustTable.Base + ModContent.GetContent<ModDust>().Count;
+        if (target <= DustTable.Base) return;
+
+        try
+        {
+            TableMaintenance.Ensure(DustTables.Set, target).GrowAll(Log.Info);
+        }
+        catch (Exception e)
+        {
+            Safe.Report("dust.grow", e);
+        }
+    }
+
+    private static bool Grown()
+    {
+        if (TableMaintenance.Find(DustTables.Set) is not { } grower || grower.Vanilla <= 0) return false;
+        if (!TableMaintenance.Audit(DustTables.Set, out var total, out var grown, out var stale, out var missing)) return false;
+        return total > 0 && stale == 0 && missing == 0 && grown == total;
+    }
+
+    private static bool _reported;
+    private static bool _newDustVerified;
+
+    private static bool Fingerprint(bool report)
+    {
+        if (DustTable.Base <= 0) return Stop(report, "尘土表长锚点未捕获（SafeDust/StaticAlpha 长度为 0 或不一致）");
+
+        var dusts = Main.dust;
+        if (dusts is null || dusts.Length < PoolSlots)
+            return Stop(report, $"Main.dust 槽位不足（{(dusts is null ? "未建" : dusts.Length.ToString())}，需要 ≥{PoolSlots}）");
+
+        if (!_newDustVerified)
+        {
+            var klass = Il2CppClassPointerStore<Terraria.Dust>.NativeClassPtr;
+            if (klass == IntPtr.Zero || IL2CPP.il2cpp_class_get_method_from_name(klass, "NewDust", 9) == IntPtr.Zero)
+                return Stop(report, "Dust.NewDust 九参签名不存在");
+            _newDustVerified = true;
+        }
+
+        return true;
+    }
+
+    private static bool Stop(bool report, string reason)
+    {
+        if (report && !_reported)
+        {
+            _reported = true;
+            ContentErrors.Report("[dust] 池路径停用：" + reason);
+        }
+        return false;
     }
 
     public static Dust? Spawn(ModDust mod, Vector2 position, Vector2 velocity, int alpha = 0, Color? color = null, float scale = 1f)
     {
-        if (mod is null || !mod.Registered) return null;
+        if (mod is null || !mod.Registered || !Fingerprint(true) || !Grown()) return null;
 
-        Dust dust;
+        int index;
         try
         {
-            dust = new Dust();
+            index = Terraria.Dust.NewDust(position, 0, 0, mod.Type, velocity.X, velocity.Y, alpha, color ?? default, scale);
         }
         catch (Exception e)
         {
@@ -68,102 +148,287 @@ internal sealed class DustPipeline : ILoaderModule, ILoaderModuleRefresh
             return null;
         }
 
-        dust.position = position;
-        dust.velocity = velocity;
-        dust.alpha = alpha;
-        dust.color = color ?? Color.White;
-        dust.scale = scale;
-        dust.active = true;
+        var dusts = Main.dust;
+        if (dusts is null || (uint)index >= (uint)dusts.Length) return null;
 
-        try
+        return dusts[index];
+    }
+
+    private static bool _tracking;
+    private static int _minFree;
+    private static bool[] _marked = [];
+
+    private static readonly List<Dust> _mods = [];
+    private static readonly List<Dust> _list = [];
+    private static readonly List<Dust> _hidden = [];
+    private static readonly List<bool> _flags = [];
+
+    private static void SyncMarks(Il2CppReferenceArray<Dust> dusts)
+    {
+        if (_marked.Length == dusts.Length) return;
+        _marked = new bool[dusts.Length];
+    }
+
+    private static void ScanMarked(Il2CppReferenceArray<Dust> dusts, List<Dust> result)
+    {
+        var limit = Math.Min(_marked.Length, dusts.Length);
+        for (var i = 0; i < limit; i++)
         {
-            mod.OnSpawn(dust);
+            if (!_marked[i]) continue;
+
+            var dust = dusts[i];
+            if (dust is not null && dust.active && DustTable.Of(dust.type) is not null) result.Add(dust);
+            else _marked[i] = false;
         }
-        catch (Exception e)
+    }
+
+    private static void ResetFlags(int count, bool value)
+    {
+        _flags.Clear();
+        for (var i = 0; i < count; i++) _flags.Add(value);
+    }
+
+    private static void BeginKillTracking()
+    {
+        _minFree = Dust.freeDustCount;
+        _tracking = true;
+    }
+
+    private static void EndKillTracking(List<Dust> list)
+    {
+        _tracking = false;
+
+        var free = Dust.freeDust;
+        if (free is null) return;
+
+        var now = Dust.freeDustCount;
+        var lo = _minFree < 0 ? 0 : _minFree;
+        var hi = Math.Min(now, free.Length - 1);
+
+        for (var i = 0; i < list.Count; i++)
         {
-            ContentErrors.Report($"[dust] {mod.Name}.OnSpawn 异常：{Safe.Describe(e)}");
+            var dust = list[i];
+            if (dust is null || dust.active) continue;
+
+            var returned = false;
+            for (var k = lo + 1; k <= hi && !returned; k++)
+            {
+                var slot = free[k];
+                returned = slot is not null && slot.Pointer == dust.Pointer;
+            }
+            if (returned) continue;
+
+            dust.active = true;
+            Dust.SetNotActive(dust);
+        }
+    }
+
+    private static int NewDust(On.Terraria.Dust.orig_NewDust orig, Vector2 position, int width, int height, int type,
+        float speedX, float speedY, int alpha, Color newColor, float scale)
+    {
+        var index = orig(position, width, height, type, speedX, speedY, alpha, newColor, scale);
+
+        if (_tracking)
+        {
+            var free = Dust.freeDustCount;
+            if (free < _minFree) _minFree = free;
         }
 
-        Live.Add(new Owned { Dust = dust, Mod = mod });
-        return dust;
+        if (type < DustTable.Base) return index;
+
+        var dusts = Main.dust;
+        if (dusts is null || (uint)index >= (uint)dusts.Length) return index;
+
+        SyncMarks(dusts);
+        if (index >= _marked.Length) return index;
+
+        var dust = dusts[index];
+        var mod = dust is { active: true } ? DustTable.Of(dust.type) : null;
+        if (mod is null) return index;
+
+        _marked[index] = true;
+
+        var frame = dust.frame;
+        frame.X = 0;
+        frame.Y %= SheetFrameHeight;
+        dust.frame = frame;
+
+        if (mod.HookEnabled(HookId.OnSpawn))
+        {
+            try
+            {
+                mod.OnSpawn(dust);
+            }
+            catch (Exception e)
+            {
+                ContentErrors.Callback($"[dust] {mod.Name}.OnSpawn", e);
+            }
+        }
+
+        return index;
     }
 
     private static void UpdateDust(On.Terraria.Dust.orig_UpdateDust orig)
     {
-        orig();
-
-        if (Live.Count == 0) return;
-
-        for (var index = Live.Count - 1; index >= 0; index--)
+        var dusts = Main.dust;
+        if (dusts is null || dusts.Length < PoolSlots)
         {
-            var owned = Live[index];
-            var dust = owned.Dust;
+            orig();
+            return;
+        }
 
-            bool keep;
-            try
+        SyncMarks(dusts);
+        _mods.Clear();
+        ScanMarked(dusts, _mods);
+        if (_mods.Count == 0)
+        {
+            orig();
+            return;
+        }
+
+        _list.Clear();
+        for (var i = 0; i < _mods.Count; i++)
+        {
+            var dust = _mods[i];
+            if (DustTable.Of(dust.type) is { } mod && mod.HookEnabled(HookId.Update)) _list.Add(dust);
+        }
+
+        if (_list.Count > 0)
+        {
+            ResetFlags(_list.Count, true);
+            BeginKillTracking();
+            for (var i = 0; i < _list.Count; i++)
             {
-                keep = owned.Mod.Update(dust);
-            }
-            catch (Exception e)
-            {
-                ContentErrors.Report($"[dust] {owned.Mod.Name}.Update 异常：{Safe.Describe(e)}");
-                keep = false;
-            }
+                var dust = _list[i];
+                var mod = DustTable.Of(dust.type);
+                if (mod is null) continue;
 
-            if (!keep)
-            {
-                Live.RemoveAt(index);
-                continue;
-            }
-
-            if (!float.IsFinite(dust.position.X) || !float.IsFinite(dust.position.Y) ||
-                !float.IsFinite(dust.velocity.X) || !float.IsFinite(dust.velocity.Y) ||
-                !float.IsFinite(dust.scale))
-            {
-                Live.RemoveAt(index);
-                continue;
-            }
-
-            var velocity = dust.velocity;
-            if (!dust.noGravity) velocity.Y += 0.1f;
-            velocity *= 0.99f;
-
-            dust.position += velocity;
-            dust.velocity = velocity;
-            dust.rotation += velocity.X * 0.05f;
-            dust.scale *= 0.99f;
-
-            if (owned.Mod.HookEnabled(HookId.MidUpdate))
-            {
-                bool brake;
+                bool run;
                 try
                 {
-                    brake = owned.Mod.MidUpdate(dust);
+                    run = mod.Update(dust);
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report($"[dust] {owned.Mod.Name}.MidUpdate 异常：{Safe.Describe(e)}");
-                    brake = false;
+                    ContentErrors.Callback($"[dust] {mod.Name}.Update", e);
+                    Dust.SetNotActive(dust);
+                    continue;
                 }
-                if (brake)
+
+                if (!dust.active) continue;
+
+                if (!run)
                 {
-                    velocity = dust.velocity;
-                    velocity.X /= 0.99f;
-                    dust.velocity = velocity;
+                    _flags[i] = false;
+                    continue;
+                }
+
+                if (!IsFinite(dust)) Dust.SetNotActive(dust);
+            }
+            EndKillTracking(_list);
+        }
+
+        _hidden.Clear();
+        var next = 0;
+        for (var i = 0; i < _mods.Count; i++)
+        {
+            var dust = _mods[i];
+            var vanilla = true;
+            if (next < _list.Count && ReferenceEquals(_list[next], dust)) vanilla = _flags[next++];
+            if (!dust.active) continue;
+            if (DustTable.Of(dust.type) is null || vanilla) continue;
+            dust.active = false;
+            _hidden.Add(dust);
+        }
+
+        orig();
+
+        for (var i = 0; i < _hidden.Count; i++) _hidden[i].active = true;
+
+        _list.Clear();
+        for (var i = 0; i < _mods.Count; i++)
+        {
+            var dust = _mods[i];
+            if (dust.active && DustTable.Of(dust.type) is { } mod && mod.HookEnabled(HookId.MidUpdate)) _list.Add(dust);
+        }
+
+        if (_list.Count > 0)
+        {
+            ResetFlags(_list.Count, false);
+            BeginKillTracking();
+            for (var i = 0; i < _list.Count; i++)
+            {
+                var dust = _list[i];
+                var mod = DustTable.Of(dust.type);
+                if (mod is null) continue;
+
+                try
+                {
+                    _flags[i] = mod.MidUpdate(dust);
+                }
+                catch (Exception e)
+                {
+                    ContentErrors.Callback($"[dust] {mod.Name}.MidUpdate", e);
+                    _flags[i] = false;
                 }
             }
+            EndKillTracking(_list);
 
-            if (dust.scale <= 0.02f || dust.position.Y > Main.screenPosition.Y + Main.screenHeight + 200f)
-                Live.RemoveAt(index);
+            for (var i = 0; i < _list.Count; i++)
+            {
+                var dust = _list[i];
+                if (!_flags[i] || !dust.active || DustTable.Of(dust.type) is null) continue;
+
+                var velocity = dust.velocity;
+                velocity.X /= 0.99f;
+                dust.velocity = velocity;
+            }
         }
     }
 
+    private static bool IsFinite(Dust dust) =>
+        float.IsFinite(dust.position.X) && float.IsFinite(dust.position.Y) &&
+        float.IsFinite(dust.velocity.X) && float.IsFinite(dust.velocity.Y) &&
+        float.IsFinite(dust.scale);
+
     private static void DrawDust(On.Terraria.Main.orig_DrawDust orig, Main self)
     {
+        var dusts = Main.dust;
+        if (dusts is null || dusts.Length < PoolSlots)
+        {
+            orig(self);
+            return;
+        }
+
+        SyncMarks(dusts);
+        _mods.Clear();
+        ScanMarked(dusts, _mods);
+        if (_mods.Count == 0)
+        {
+            orig(self);
+            return;
+        }
+
+        _hidden.Clear();
+        for (var i = 0; i < _mods.Count; i++)
+        {
+            var dust = _mods[i];
+            if (!dust.active || DustTable.Of(dust.type) is null) continue;
+            dust.active = false;
+            _hidden.Add(dust);
+        }
+
         orig(self);
 
-        if (Live.Count == 0) return;
+        for (var i = 0; i < _hidden.Count; i++) _hidden[i].active = true;
 
+        DrawMods();
+    }
+
+    private static bool _drawLogged;
+
+    private static void DrawMods()
+    {
         var spriteBatch = Main.spriteBatch;
         if (spriteBatch is null) return;
 
@@ -180,96 +445,103 @@ internal sealed class DustPipeline : ILoaderModule, ILoaderModuleRefresh
 
         try
         {
-            DrawLive(spriteBatch);
+            if (!_drawLogged && _mods.Count > 0)
+            {
+                _drawLogged = true;
+                var first = _mods[0];
+                Log.Info($"[dust] 首次绘制：{_mods.Count} 颗；screen={Main.screenPosition}；屏幕={Main.screenWidth}x{Main.screenHeight}；第一颗 world={first.position} scale={first.scale} color={first.color}");
+            }
+
+            _list.Clear();
+            for (var i = 0; i < _mods.Count; i++)
+            {
+                var dust = _mods[i];
+                if (dust.active && DustTable.Of(dust.type) is { } mod && mod.HookEnabled(HookId.PreDraw)) _list.Add(dust);
+            }
+
+            if (_list.Count > 0)
+            {
+                ResetFlags(_list.Count, true);
+                BeginKillTracking();
+                for (var i = 0; i < _list.Count; i++)
+                {
+                    var dust = _list[i];
+                    var mod = DustTable.Of(dust.type);
+                    if (mod is null) continue;
+
+                    try
+                    {
+                        _flags[i] = mod.PreDraw(dust);
+                    }
+                    catch (Exception e)
+                    {
+                        ContentErrors.Callback($"[dust] {mod.Name}.PreDraw", e);
+                        _flags[i] = true;
+                    }
+                }
+                EndKillTracking(_list);
+            }
+
+            List<Dust>? skipped = null;
+            for (var i = 0; i < _list.Count; i++)
+            {
+                if (_flags[i]) continue;
+                skipped ??= [];
+                skipped.Add(_list[i]);
+            }
+
+            for (var i = 0; i < _mods.Count; i++)
+            {
+                var dust = _mods[i];
+                var mod = DustTable.Of(dust.type);
+                if (mod is null || !dust.active) continue;
+                if (skipped is not null && skipped.Contains(dust)) continue;
+
+                Texture2D? texture;
+                try
+                {
+                    texture = mod.Texture?.Value;
+                }
+                catch (Exception e)
+                {
+                    ContentErrors.Callback($"[dust] {mod.Name}.Texture", e);
+                    continue;
+                }
+
+                if (texture is null || texture.Pointer == IntPtr.Zero) continue;
+
+                var color = dust.color;
+                if (mod.HookEnabled(HookId.GetAlpha))
+                {
+                    try
+                    {
+                        if (mod.GetAlpha(dust, color) is { } mine) color = mine;
+                    }
+                    catch (Exception e)
+                    {
+                        ContentErrors.Callback($"[dust] {mod.Name}.GetAlpha", e);
+                    }
+                }
+
+                try
+                {
+                    var frame = new Il2CppSystem.Nullable<Rectangle>(new Rectangle(0, 0, texture.Width, texture.Height));
+                    var origin = new Vector2(texture.Width / 2f, texture.Height / 2f);
+
+                    spriteBatch.Draw(texture, dust.position - Main.screenPosition, frame, color, dust.rotation, origin,
+                        dust.scale, SpriteEffects.None, 0f);
+                }
+                catch (Exception e)
+                {
+                    var stack = e.StackTrace;
+                    var at = string.IsNullOrEmpty(stack) ? "" : " | " + stack.Split('\n')[0].Trim();
+                    ContentErrors.Report("[dust] 绘制异常：" + Safe.Describe(e) + at);
+                }
+            }
         }
         finally
         {
             try { spriteBatch.End(); } catch { }
-        }
-    }
-
-    private static bool _drawLogged;
-
-    private static void DrawLive(SpriteBatch spriteBatch)
-    {
-        if (!_drawLogged && Live.Count > 0)
-        {
-            _drawLogged = true;
-            var first = Live[0].Dust;
-            Log.Info($"[dust] 首次绘制：{Live.Count} 颗；screen={Main.screenPosition}；屏幕={Main.screenWidth}x{Main.screenHeight}；第一颗 world={first.position} scale={first.scale} color={first.color}");
-        }
-
-        List<Owned>? skipped = null;
-        for (var index = 0; index < Live.Count; index++)
-        {
-            var owned = Live[index];
-            if (!owned.Mod.HookEnabled(HookId.PreDraw)) continue;
-
-            bool draw;
-            try
-            {
-                draw = owned.Mod.PreDraw(owned.Dust);
-            }
-            catch (Exception e)
-            {
-                ContentErrors.Report($"[dust] {owned.Mod.Name}.PreDraw 异常：{Safe.Describe(e)}");
-                draw = true;
-            }
-            if (!draw)
-            {
-                skipped ??= [];
-                skipped.Add(owned);
-            }
-        }
-
-        for (var index = 0; index < Live.Count; index++)
-        {
-            var owned = Live[index];
-            if (skipped is not null && skipped.Contains(owned)) continue;
-
-            Texture2D? texture;
-            try
-            {
-                texture = owned.Mod.Texture?.Value;
-            }
-            catch (Exception e)
-            {
-                ContentErrors.Report($"[dust] {owned.Mod.Name}.Texture 异常：{Safe.Describe(e)}");
-                continue;
-            }
-
-            if (texture is null || texture.Pointer == IntPtr.Zero) continue;
-
-            var dust = owned.Dust;
-            var position = dust.position - Main.screenPosition;
-            var color = dust.color;
-            if (owned.Mod.HookEnabled(HookId.GetAlpha))
-            {
-                try
-                {
-                    if (owned.Mod.GetAlpha(dust, color) is { } mine) color = mine;
-                }
-                catch (Exception e)
-                {
-                    ContentErrors.Report($"[dust] {owned.Mod.Name}.GetAlpha 异常：{Safe.Describe(e)}");
-                }
-            }
-
-            try
-            {
-                var frame = new Il2CppSystem.Nullable<Rectangle>(new Rectangle(0, 0, texture.Width, texture.Height));
-                var origin = new Vector2(texture.Width / 2f, texture.Height / 2f);
-
-                spriteBatch.Draw(texture, position, frame, color, dust.rotation, origin, dust.scale, SpriteEffects.None, 0f);
-            }
-            catch (Exception e)
-            {
-                var stack = e.StackTrace;
-                var frame = string.IsNullOrEmpty(stack) ? "" : " | " + stack.Split('\n')[0].Trim();
-                ContentErrors.Report("[dust] 绘制异常：" + Safe.Describe(e) + frame);
-                Live.RemoveAt(index);
-                index--;
-            }
         }
     }
 }

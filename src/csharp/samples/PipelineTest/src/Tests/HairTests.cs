@@ -111,6 +111,8 @@ internal static class HairTests
         });
 
         // W2：走真实存盘链路 —— .plr 里存 0，名字进玩家侧车；存完内存里的值要恢复。
+        // 验证脚手架适配（4c44140 侧车二进制化）：侧车为 GZip 压缩的 TagCompound 二进制（.plr.pl），
+        // 断言改为解压后按字节流检索名字串。
         PT.Case("HAIR-W2", c =>
         {
             var file = Main.ActivePlayerFileData;
@@ -118,7 +120,7 @@ internal static class HairTests
             if (file is null) return;
 
             var path = file.Path;
-            var sidecar = path + ".pl.json";
+            var sidecar = path + ".pl";
 
             Player.SavePlayer(file, false, true);
             c.Eq(player.hair, hair.Type, "存盘后内存里的 hair 被恢复");
@@ -126,10 +128,14 @@ internal static class HairTests
             c.True(File.Exists(sidecar), $"侧车存在 {sidecar}");
             if (!File.Exists(sidecar)) return;
 
-            var json = File.ReadAllText(sidecar);
-            PT.Info($"侧车内容：{json}");
-            c.True(json.Contains("pylon:hair"), "侧车写了 pylon:hair");
-            c.True(json.Contains(hair.FullKey), $"侧车按名字存（{hair.FullKey}）");
+            using var stream = File.OpenRead(sidecar);
+            using var gzip = new System.IO.Compression.GZipStream(stream, System.IO.Compression.CompressionMode.Decompress);
+            using var output = new System.IO.MemoryStream();
+            gzip.CopyTo(output);
+            var text = System.Text.Encoding.UTF8.GetString(output.ToArray());
+            PT.Info($"侧车解压后 {output.Length} 字节");
+            c.True(text.Contains("pylon:hair"), "侧车写了 pylon:hair（解压字节检索）");
+            c.True(text.Contains(hair.FullKey), $"侧车按名字存（{hair.FullKey}）");
         });
     }
 }

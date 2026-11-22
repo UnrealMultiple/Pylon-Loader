@@ -84,6 +84,8 @@ public abstract class PlayerDrawLayer : ModType
 
     public virtual bool IsHeadLayer => false;
 
+    internal virtual PlayerDrawLayer HookOwner => this;
+
     public void Hide() => Visible = false;
 
     internal void AddChildBefore(PlayerDrawLayer child) => _childrenBefore.Add(child);

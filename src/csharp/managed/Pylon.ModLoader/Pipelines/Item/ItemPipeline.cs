@@ -182,6 +182,24 @@ internal sealed class ItemPipeline : ILoaderModule, ILoaderModuleRefresh
             public static void Install() => ItemFrameHooks.Install();
         }
 
+        internal struct DrawWorld : IGate
+        {
+            public static bool Wanted() =>
+                HookGuard.Wants<ModItem>(HookId.PreDrawInWorld, HookId.PostDrawInWorld) ||
+                GlobalItemRegistry.AnyWith(HookId.PreDrawInWorld, HookId.PostDrawInWorld);
+
+            public static void Install() => ItemDrawStageHooks.InstallWorld();
+        }
+
+        internal struct DrawInventory : IGate
+        {
+            public static bool Wanted() =>
+                HookGuard.Wants<ModItem>(HookId.PreDrawInInventory, HookId.PostDrawInInventory) ||
+                GlobalItemRegistry.AnyWith(HookId.PreDrawInInventory, HookId.PostDrawInInventory);
+
+            public static void Install() => ItemDrawStageHooks.InstallInventory();
+        }
+
         internal struct Mana : IGate
         {
             public static bool Wanted() => ManaWanted();
@@ -223,6 +241,7 @@ internal sealed class ItemPipeline : ILoaderModule, ILoaderModuleRefresh
         ItemManaHooks.RefreshGlobals();
         ItemHitboxHooks.RefreshGlobals();
         ItemFrameHooks.RefreshGlobals();
+        ItemDrawStageHooks.RefreshGlobals();
     }
 
     private static bool PlayerWants(params ReadOnlySpan<HookId> hooks)
@@ -304,7 +323,7 @@ internal sealed class ItemPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[item] {global.FullKey}.GetAlpha 异常：{Safe.Describe(e)}");
+                ContentErrors.Callback($"[item] {global.FullKey}.GetAlpha", e);
             }
         }
 
@@ -319,7 +338,7 @@ internal sealed class ItemPipeline : ILoaderModule, ILoaderModuleRefresh
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report($"[item] {mod.FullKey}.GetAlpha 异常：{Safe.Describe(e)}");
+                    ContentErrors.Callback($"[item] {mod.FullKey}.GetAlpha", e);
                 }
             }
         }
@@ -345,7 +364,7 @@ internal sealed class ItemPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            Log.Warn("[item] CanUseItem 异常：" + e.Message);
+            ContentErrors.Callback("[item] CanUseItem", e);
         }
 
         return orig(self, sItem, ignoreCursed);
@@ -379,7 +398,7 @@ internal sealed class ItemPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            Log.Warn("[item] UseItem 异常：" + e.Message);
+            ContentErrors.Callback("[item] UseItem", e);
         }
     }
 
@@ -422,7 +441,7 @@ internal sealed class ItemPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            Log.Warn("[item] UseStyle 异常：" + e.Message);
+            ContentErrors.Callback("[item] UseStyle", e);
         }
     }
 
@@ -439,13 +458,13 @@ internal sealed class ItemPipeline : ILoaderModule, ILoaderModuleRefresh
             if (mod is not null && mod.Plan.Has(HookId.HoldoutOffset))
             {
                 try { ApplyHoldout(self, mod.HoldoutOffset()); }
-                catch (Exception e) { Log.Warn("[item] HoldoutOffset 异常：" + e.Message); }
+                catch (Exception e) { ContentErrors.Callback("[item] HoldoutOffset", e); }
             }
 
             foreach (var global in GlobalItemRegistry.For(sItem, HookId.HoldoutOffset))
             {
                 try { ApplyHoldout(self, global.HoldoutOffset(sItem.type)); }
-                catch (Exception e) { Log.Warn("[item] Global HoldoutOffset 异常：" + e.Message); }
+                catch (Exception e) { ContentErrors.Callback("[item] Global HoldoutOffset", e); }
             }
 
             if (!IsModItem(sItem) && GlobalItemRegistry.For(sItem, HookId.HoldStyle).Count == 0 &&
@@ -472,7 +491,7 @@ internal sealed class ItemPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            Log.Warn("[item] HoldStyle 异常：" + e.Message);
+            ContentErrors.Callback("[item] HoldStyle", e);
         }
     }
 
@@ -521,7 +540,7 @@ internal sealed class ItemPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            Log.Warn("[item] UpdateEquip 异常：" + e.Message);
+            ContentErrors.Callback("[item] UpdateEquip", e);
         }
     }
 
@@ -543,7 +562,7 @@ internal sealed class ItemPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            Log.Warn("[item] UpdateEquip 异常：" + e.Message);
+            ContentErrors.Callback("[item] UpdateEquip", e);
         }
     }
 
@@ -569,7 +588,7 @@ internal sealed class ItemPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            Log.Warn("[item] UpdateVanity 异常：" + e.Message);
+            ContentErrors.Callback("[item] UpdateVanity", e);
         }
     }
 
@@ -600,13 +619,13 @@ internal sealed class ItemPipeline : ILoaderModule, ILoaderModuleRefresh
                     }
                     catch (Exception e)
                     {
-                        Log.Warn("[item] Global UpdateInventory 异常：" + e.Message);
+                        ContentErrors.Callback("[item] Global UpdateInventory", e);
                     }
                 }
             }
             catch (Exception e)
             {
-                Log.Warn("[item] UpdateInventory 异常：" + e.Message);
+                ContentErrors.Callback("[item] UpdateInventory", e);
             }
         }
     }
@@ -629,7 +648,7 @@ internal sealed class ItemPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            Log.Warn("[item] CanShoot 异常：" + e.Message);
+            ContentErrors.Callback("[item] CanShoot", e);
         }
 
         try
@@ -766,7 +785,7 @@ internal sealed class ItemPipeline : ILoaderModule, ILoaderModuleRefresh
     private static string PlayerKey(ModPlayer mod) => $"{mod.Mod?.Name}/{mod.GetType().Name}";
 
     private static void ReportAuthor(string key, HookId hook, Exception e) =>
-        ContentErrors.Report($"[item] {key}.{hook} 异常：{Safe.Describe(e)}");
+        ContentErrors.Callback($"[item] {key}.{hook}", e);
 }
 
 /// <summary>物品编号相关的原生表：物品、Lang、贴图、配方、前缀饰品槽……</summary>

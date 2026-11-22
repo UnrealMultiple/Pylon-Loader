@@ -128,7 +128,12 @@ public static class PlayerDrawLayerLoader
         // 4. 每个作者层落在"下一个原版层之前"的槽位；没有下一个就落在最后一个原版层之后。
         var anchors = PlayerDrawLayers.VanillaLayers;
         var anchorIndex = new Dictionary<PlayerDrawLayer, int>(anchors.Count);
-        for (var i = 0; i < anchors.Count; i++) anchorIndex[anchors[i]] = i;
+        var hookedIndex = new Dictionary<PlayerDrawLayer, int>(anchors.Count);
+        for (var i = 0; i < anchors.Count; i++)
+        {
+            anchorIndex[anchors[i]] = i;
+            if (ReferenceEquals(anchors[i].HookOwner, anchors[i])) hookedIndex[anchors[i]] = i;
+        }
 
         foreach (var layer in _order)
         {
@@ -141,7 +146,7 @@ public static class PlayerDrawLayerLoader
 
                 for (var j = i + 1; j < _order.Length; j++)
                 {
-                    if (anchorIndex.TryGetValue(_order[j], out var index))
+                    if (hookedIndex.TryGetValue(_order[j], out var index))
                     {
                         next = index;
                         break;
@@ -257,7 +262,19 @@ public static class PlayerDrawLayerLoader
     }
 
     /// <summary>这个原版层这一帧要不要跳过（作者在 HideDrawLayers 里 Hide 过）。</summary>
-    internal static bool IsHidden(int anchor) => AnchorAt(anchor) is { Visible: false };
+    internal static bool IsHidden(int anchor)
+    {
+        var owner = AnchorAt(anchor)?.HookOwner;
+        if (owner is null) return false;
+
+        var anchors = PlayerDrawLayers.VanillaLayers;
+        for (var i = 0; i < anchors.Count; i++)
+        {
+            if (ReferenceEquals(anchors[i].HookOwner, owner) && anchors[i].Visible) return false;
+        }
+
+        return true;
+    }
 
     private static void Run(PlayerDrawLayer layer, ref PlayerDrawSet drawInfo)
     {
@@ -269,7 +286,7 @@ public static class PlayerDrawLayerLoader
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[playerdrawlayer] {layer.Name}.Draw 异常：{Safe.Describe(e)}");
+            ContentErrors.Callback($"[playerdrawlayer] {layer.Name}.Draw", e);
         }
     }
 }

@@ -502,4 +502,6 @@ internal enum HookId
     AddLight,
     WaterStyle,
     EquipFrameEffects,
+
+    BossLoot,
 }

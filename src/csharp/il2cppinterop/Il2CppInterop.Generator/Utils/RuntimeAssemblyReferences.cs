@@ -75,6 +75,7 @@ public class RuntimeAssemblyReferences
     public Lazy<IMethodDefOrRef> Il2CppSystemDelegateCombine { get; private set; }
     public Lazy<IMethodDefOrRef> Il2CppSystemDelegateRemove { get; private set; }
     public Lazy<IMethodDefOrRef> Il2CppSystemRuntimeTypeHandleGetRuntimeTypeHandle { get; private set; }
+    public Lazy<IMethodDefOrRef> RawValueBox_Wrap { get; private set; }
 
     public IMethodDescriptor WriteFieldWBarrier => globalCtx.HasGcWbarrierFieldWrite
         ? IL2CPP_il2cpp_gc_wbarrier_set_field.Value
@@ -94,6 +95,7 @@ public class RuntimeAssemblyReferences
     public TypeSignature GuardedInvoke { get; private set; }
     public TypeSignature PylonCallFrame { get; private set; }
     public TypeSignature FrameMethodPlan { get; private set; }
+    public TypeSignature RawValueBox { get; private set; }
 #nullable enable
     private TypeSignature ResolveType(string typeName)
     {
@@ -149,6 +151,8 @@ public class RuntimeAssemblyReferences
         GuardedInvoke = new TypeReference(Module, assemblyRef, "Il2CppInterop.Runtime", "GuardedInvoke").ToTypeSignature();
         PylonCallFrame = new TypeReference(Module, assemblyRef, "Il2CppInterop.Runtime", "PylonCallFrame").ToTypeSignature(true);
         FrameMethodPlan = new TypeReference(Module, assemblyRef, "Il2CppInterop.Runtime", "FrameMethodPlan").ToTypeSignature();
+
+        RawValueBox = new TypeReference(Module, assemblyRef, "Il2CppInterop.Runtime", "RawValueBox").ToTypeSignature();
 
         allTypes["Il2CppInterop.Runtime.InteropTypes.Il2CppObjectBase"] = Il2CppObjectBase;
         allTypes["Il2CppInterop.Runtime.Runtime.Il2CppObjectPool"] = Il2CppObjectPool;
@@ -535,6 +539,15 @@ public class RuntimeAssemblyReferences
             var signature = MethodSignature.CreateStatic(returnTypeRef.ToTypeSignature(), 1);
             var methodReference = new MemberReference(declaringTypeRef.ToTypeDefOrRef(), "GetRuntimeTypeHandle", signature);
             return Module.DefaultImporter.ImportMethod(methodReference);
+        });
+
+        // public static T Wrap<T>(IntPtr klass, IntPtr data, int size) where T : Il2CppObjectBase
+        RawValueBox_Wrap = new Lazy<IMethodDefOrRef>(() =>
+        {
+            var gp0 = new GenericParameterSignature(GenericParameterType.Method, 0);
+            var signature = MethodSignature.CreateStatic(gp0, 1, ResolveType("System.IntPtr"), ResolveType("System.IntPtr"),
+                ResolveType("System.Int32"));
+            return new MemberReference(RawValueBox.ToTypeDefOrRef(), "Wrap", signature);
         });
     }
 }

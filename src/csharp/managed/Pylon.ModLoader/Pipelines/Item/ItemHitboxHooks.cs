@@ -40,13 +40,13 @@ internal static class ItemHitboxHooks
         if (ItemPipeline.Instance.InstanceOf(sItem) is { } m && m.Plan.Has(HookId.UseItemHitbox))
         {
             try { m.UseItemHitbox(self, ref itemRectangle, ref dontAttack); }
-            catch (Exception e) { Report(m.FullKey, e); }
+            catch (Exception e) { Report(m.FullKey, HookId.UseItemHitbox, e); }
         }
 
         foreach (var g in GlobalItemRegistry.For(sItem, HookId.UseItemHitbox))
         {
             try { g.UseItemHitbox(sItem, self, ref itemRectangle, ref dontAttack); }
-            catch (Exception e) { Report(g.FullKey, e); }
+            catch (Exception e) { Report(g.FullKey, HookId.UseItemHitbox, e); }
         }
     }
 
@@ -60,13 +60,13 @@ internal static class ItemHitboxHooks
         if (ItemPipeline.Instance.InstanceOf(sItem) is { } m && m.Plan.Has(HookId.MeleeEffects))
         {
             try { m.MeleeEffects(self, itemRectangle); }
-            catch (Exception e) { Report(m.FullKey, e); }
+            catch (Exception e) { Report(m.FullKey, HookId.MeleeEffects, e); }
         }
 
         foreach (var g in GlobalItemRegistry.For(sItem, HookId.MeleeEffects))
         {
             try { g.MeleeEffects(sItem, self, itemRectangle); }
-            catch (Exception e) { Report(g.FullKey, e); }
+            catch (Exception e) { Report(g.FullKey, HookId.MeleeEffects, e); }
         }
 
         var mods = PlayerPipeline.Instance.ModsOf(self);
@@ -76,10 +76,10 @@ internal static class ItemHitboxHooks
             if (!mod.HookEnabled(HookId.MeleeEffects)) continue;
 
             try { mod.MeleeEffects(sItem, itemRectangle); }
-            catch (Exception e) { ContentErrors.Report($"[item] {mod.Mod?.Name}/{mod.GetType().Name} 异常：{Safe.Describe(e)}"); }
+            catch (Exception e) { ContentErrors.Callback($"[item] {mod.Mod?.Name}/{mod.GetType().Name}.MeleeEffects", e); }
         }
     }
 
-    private static void Report(string key, Exception e) =>
-        ContentErrors.Report($"[item] {key} 异常：{Safe.Describe(e)}");
+    private static void Report(string key, HookId hook, Exception e) =>
+        ContentErrors.Callback($"[item] {key}.{hook}", e);
 }

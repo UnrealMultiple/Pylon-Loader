@@ -14,7 +14,7 @@ using Pylon.ModLoader.SaveData;
 
 namespace PipelineTest.Content;
 
-/// <summary>带方块实体的测试方块：放下即建实体（管线按 IsTileValidForEntity 规则建），拆掉即摘实体。</summary>
+/// <summary>带方块实体的测试方块：实体建摘由作者自理——放下时建（PlaceInWorld），真拆时摘（KillTile）。</summary>
 public sealed class TestEntityTile : ModTile
 {
     public override void SetStaticDefaults()
@@ -22,6 +22,15 @@ public sealed class TestEntityTile : ModTile
         Main.tileSolid[Type] = true;
         Main.tileBlockLight[Type] = true;
         AddMapEntry(new Color(120, 90, 160));
+    }
+
+    public override void PlaceInWorld(int i, int j, Item item) =>
+        ModContent.GetInstance<TestTileEntity>().Place(i, j);
+
+    public override void KillTile(int i, int j, ref bool fail, ref bool effectOnly, ref bool noItem)
+    {
+        if (fail || effectOnly) return;
+        ModContent.GetInstance<TestTileEntity>().Kill(i, j);
     }
 }
 

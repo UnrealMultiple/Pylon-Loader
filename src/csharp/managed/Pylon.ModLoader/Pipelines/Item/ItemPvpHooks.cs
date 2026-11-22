@@ -172,7 +172,7 @@ internal static class ItemPvpHooks
                 else if (AnyActive() && Source(reason, target, out var player, out var item))
                     Announce(Payload(player.whoAmI, target, item), remote, ignore);
             }
-            catch (Exception e) { ContentErrors.Report("[itempvp] 来源发送异常:" + Safe.Describe(e)); }
+            catch (Exception e) { ContentErrors.Callback("[itempvp] 来源发送", e); }
         }
         orig(target, reason!, damage, direction, critical, pvp, context, remote, ignore);
     }
@@ -283,5 +283,5 @@ internal static class ItemPvpHooks
     }
 
     private static void Fail(object author, HookId hook, Exception e) =>
-        ContentErrors.Report($"[itempvp] {author.GetType().Name}.{hook} 异常:{Safe.Describe(e)}");
+        ContentErrors.Callback($"[itempvp] {author.GetType().Name}.{hook}", e);
 }

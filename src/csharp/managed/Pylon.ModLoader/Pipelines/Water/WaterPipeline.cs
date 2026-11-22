@@ -1,3 +1,4 @@
+using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Il2CppMicrosoft.Xna.Framework.Graphics;
 using Pylon.ModLoader.Content;
 using Pylon.ModLoader.Core;
@@ -14,6 +15,9 @@ namespace Pylon.ModLoader.Pipelines;
 /// 水样式管线：发号 + 扩表 + 主贴图，并在场景效果选出赢家之后写 <c>Main.waterStyle</c>。
 /// 瀑布样式（发号 + 贴图 + 绘制补画）也在这里：瀑布的编号空间、贴图表与绘制入口都挂在
 /// <c>WaterfallManager</c> 一处，拆出去反而要多一份跨文件读。
+/// DrawWaters 的循环补丁放开后，原版淡入淡出与斜坡水面列表按水样式总数索引
+/// <c>Main.liquidAlpha</c>/<c>Main.activeLiquidAlpha</c>，这两张表必须跟着总数长好，
+/// 由 DrawWaters 钩在 orig 之前每帧复查，否则补丁后的循环每帧越界读写。
 /// </summary>
 internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
 {
@@ -49,6 +53,13 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
             public static bool Wanted() => HookGuard.Wants<ModSceneEffect>(HookId.WaterStyle);
 
             public static void Install() => On.Terraria.Main.CalculateWaterStyle += ChooseWaterStyle;
+        }
+
+        internal struct Draw : IGate
+        {
+            public static bool Wanted() => ModContent.GetContent<ModWaterStyle>().Count > 0;
+
+            public static void Install() => On.Terraria.Main.DrawWaters += DrawWaters;
         }
 
         internal struct RainMake : IGate
@@ -155,6 +166,39 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         {
             ContentErrors.Report("[water] 场景赢家的 WaterStyle 异常：" + Safe.Describe(e));
             return vanilla;
+        }
+    }
+
+    private static void DrawWaters(On.Terraria.Main.orig_DrawWaters orig, Main self, bool isBackground)
+    {
+        try
+        {
+            EnsureAlphaTables();
+        }
+        catch (Exception e)
+        {
+            ContentErrors.Report("[water] 液体透明度表复查失败：" + Safe.Describe(e));
+        }
+
+        orig(self, isBackground);
+    }
+
+    private static void EnsureAlphaTables()
+    {
+        var total = WaterTable.Total;
+
+        var alpha = Main.liquidAlpha;
+        if (alpha is not null && alpha.Length < total)
+        {
+            var grown = ArrayGrow.GrowZeroed(alpha.Pointer, total);
+            if (grown != IntPtr.Zero) Main.liquidAlpha = new Il2CppStructArray<float>(grown);
+        }
+
+        var active = Main.activeLiquidAlpha;
+        if (active is not null && active.Length < total)
+        {
+            var grown = ArrayGrow.GrowZeroed(active.Pointer, total);
+            if (grown != IntPtr.Zero) Main.activeLiquidAlpha = new Il2CppStructArray<int>(grown);
         }
     }
 
