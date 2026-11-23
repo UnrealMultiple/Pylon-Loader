@@ -17,7 +17,7 @@ jobs:
     name: dotnet 运行时 pin 门（nuget.org）
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: 校验运行时 pin
         run: pwsh -NoProfile -File src/csharp/tools/fetch-dotnet-runtime.ps1 -Force -RuntimeRoot "$RUNNER_TEMP/pylon-runtime"

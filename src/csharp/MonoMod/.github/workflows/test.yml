@@ -80,7 +80,7 @@ jobs:
       run: choco install procdump -y
 
     - name: Checkout
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       if: ${{ fromJSON(inputs.matrix).dotnet.needsRestore || fromJSON(inputs.matrix).dotnet.isMono }}
       with:
         lfs: true
