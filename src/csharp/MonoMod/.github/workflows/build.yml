@@ -91,7 +91,7 @@ jobs:
     #    if-no-files-found: ignore
 
     - name: Upload binlogs
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       if: ${{ always() }}
       with:
         name: binlogs-${{ runner.os }}
@@ -99,14 +99,14 @@ jobs:
         retention-days: 7
 
     - name: Archive packages
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       if: ${{ inputs.upload-packages }}
       with:
         name: packages
         path: artifacts/package/release/*.nupkg
 
     - name: Archive packages
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       if: ${{ !inputs.upload-packages }}
       with:
         name: packages ${{ runner.os }}
@@ -114,7 +114,7 @@ jobs:
         retention-days: 7
 
     - name: Upload test assets
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       if: ${{ inputs.upload-tests }}
       with:
         name: test-assets
