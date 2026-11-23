@@ -40,7 +40,7 @@ jobs:
         git config --global core.autocrlf input
 
     - name: Checkout
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       
     - name: Install .NET SDK
       uses: nike4613/install-dotnet@cc706db77ed67745a4a4cbae19b2869220e34d27

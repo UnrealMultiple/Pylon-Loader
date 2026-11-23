@@ -51,7 +51,7 @@ jobs:
       run: echo "ver=$(Get-Date -Format y.M.d).${{ github.run_number }}.${{ github.run_attempt }}-RELEASE${{ inputs.prerelease && format('-{0}', inputs.prerelease-str) || '' }}" >> $env:GITHUB_OUTPUT
 
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
       with:
         lfs: false
         submodules: false
@@ -176,7 +176,7 @@ jobs:
         private-key: ${{ secrets.APP_PRIVKEY }}
 
     - name: Checkout
-      uses: actions/checkout@v6
+      uses: actions/checkout@v7
       with:
         token: ${{ steps.app_tok.outputs.token }} # checkout using the app token so we can push directly to the repo head
         lfs: true
