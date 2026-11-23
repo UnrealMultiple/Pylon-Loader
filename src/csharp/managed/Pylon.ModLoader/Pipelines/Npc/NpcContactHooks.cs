@@ -104,5 +104,5 @@ internal static class NpcContactHooks
     }
 
     private static void Fail(ModType author, HookId hook, Exception e) =>
-        ContentErrors.Report($"[npccontact] {author.GetType().Name}.{hook} 异常:{Safe.Describe(e)}");
+        ContentErrors.Line($"[npccontact] {author.GetType().Name}.{hook} 异常:{Safe.Dump(e)}");
 }

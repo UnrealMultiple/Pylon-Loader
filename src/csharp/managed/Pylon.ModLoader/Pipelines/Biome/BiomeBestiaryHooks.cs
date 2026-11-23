@@ -57,7 +57,7 @@ internal static class BiomeBestiaryHooks
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[biome] {biome.Name} 图鉴元素建失败：{Safe.Describe(e)}");
+            ContentErrors.Line($"[biome] {biome.Name} 图鉴元素建失败：{Safe.Dump(e)}");
             return null;
         }
     }
@@ -85,7 +85,7 @@ internal static class BiomeBestiaryHooks
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[biome] {biome.Name} 图鉴过滤器注册失败：{Safe.Describe(e)}");
+                ContentErrors.Line($"[biome] {biome.Name} 图鉴过滤器注册失败：{Safe.Dump(e)}");
             }
         }
         Used.Clear();
@@ -107,7 +107,7 @@ internal static class BiomeBestiaryHooks
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[biome] {biome.Name} 图鉴美术（{path}）：{Safe.Describe(e)}");
+            ContentErrors.Line($"[biome] {biome.Name} 图鉴美术（{path}）：{Safe.Dump(e)}");
         }
         return null;
     }
@@ -159,7 +159,7 @@ internal static class BiomeBestiaryHooks
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[biome] 图鉴出生页取条目异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[biome] 图鉴出生页取条目异常：{Safe.Dump(e)}");
         }
 
         if (art?.Icon is not Texture2D icon)

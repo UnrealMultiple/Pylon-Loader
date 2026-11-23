@@ -29,7 +29,7 @@ internal static class PlayerSidecar
         }
         catch (Exception e)
         {
-            Safe.Once("playersidecar.read:" + file, $"玩家侧车读不出来，已忽略：{file}（{Safe.Describe(e)}）", true);
+            Safe.Once("playersidecar.read:" + file, $"玩家侧车读不出来，已忽略：{file}（{Safe.Dump(e)}）", true);
             return new TagCompound();
         }
     }

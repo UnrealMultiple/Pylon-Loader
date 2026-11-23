@@ -145,7 +145,7 @@ internal static class BackgroundTables
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[background] SurfaceBackgroundID.Sets 扩容异常：" + Safe.Describe(e));
+            ContentErrors.Line("[background] SurfaceBackgroundID.Sets 扩容异常：" + Safe.Dump(e));
         }
     }
 }

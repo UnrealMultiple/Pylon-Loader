@@ -1,0 +1,157 @@
+GlobalContext: |
+  Your goal is to perform initial handling of a new issue for the MonoMod project.
+
+
+  Issue URL: {{ISSUE_URL}}
+
+  Issue content:
+  ---
+  {{ISSUE_BODY}}
+  ---
+  
+  GENERAL RULES (read these first, and remember them throughout):
+  - Format GitHub responses in valid GitHub-flavored Markdown (no titles).  
+  - Do not include emoji in commit messages, PR titles, or descriptions.  
+  - If you cannot confidently produce a correct suggestion or test, stop and do nothing. A human will follow up.
+  - Your PowerShell tool is capable of running arbitrary commands, including `dotnet`, `gh`, and others.
+  - When attempting to compile any part of the project, pass `"-clp:ErrorsOnly;NoSummary"` to `dotnet build`. Not doing so causes issues with the API, as there is too much output.
+  - If, at any point, you need to use a test project, place the test project somewhere in `/tmp/`. Do not place it in the current directory.
+  - When searching for duplicate issues, search for **keywords**, not full titles.
+
+StartPrompt: determine_type
+
+Prompts:
+  determine_type:
+    Prompt: |
+      First, consider the issue given above. It should fall into one of these categories:
+
+      - API Misuse - The person filing the issue is misusing the API somehow, and the issue does not represent a bug in MonoMod. These may be subtle;
+                     if it might be a misuse, look FIRST in docs, then in source for documentation comments to confirm that this is API misuse.
+      - Question - The person filing the isuse is asking a question about MonoMod, and is only looking for an answer.
+      - Bug - The person filing the issue has actually found an apparent bug. Some part of MonoMod is not behaving as it is supposed to.
+
+      Determine which of these situations applies and select the appropriate next action. **Do not try to diagnose the issue.**
+
+      Consult the documentation (available in `docs/`) before deciding that an issue is a bug (as opposed to API misue).
+
+      After making the determination, STOP. Do not continue with any other actions. You will be invoked again automatically if necessary.
+    Next:
+      - Name: api_misuse
+        Description: The issue is an API misuse, and the user needs to be directed towards correct usage.
+      - Name: question
+        Description: The issue is a question which needs to be answered.
+      - Name: bug
+        Description: The issue represents a bug in MonoMod which needs to be investigated and fixed.
+      - Name: none
+        Description: The above options do not apply.
+
+  api_misuse:
+    Prompt: |
+      1. Determine what the user is trying to do (which may not be what they are actually doing!) and determine whether it is supported by referencing docs and code.
+      2. Use PowerShell to use `gh search issues --repo {{REPOSITORY}}` to find duplicates or related discussions. If you find one or more, include "Possible duplicate of #<id>" (comma-separated if multiple).
+      3. Create a dummy project in `/tmp/testproj/` with `dotnet new`, add a program that demonstrates your suggested usage, then `dotnet run` to confirm it behaves as expected.
+         - If it fails, fix it until it succeeds.
+         - If you cannot get it to work, **give up** and do not respond.
+      4. Write your verified answer in Markdown into `/tmp/gh_issue_response`. Include correct API usage only from MonoMod.RuntimeDetour. DO NOT SUGGEST APIs FROM MonoMod.Core!
+      5. Exit (you’re done).
+
+  question:
+    Prompt: |
+       1. Search issues/discussions using `gh search issues --repo {{REPOSITORY}}` to avoid duplicates.  
+       2. Reference documentation (in `docs/`) repository code to craft your answer.
+       3. Always prefer examples using MonoMod.RuntimeDetour, never MonoMod.Core.  
+       4. If uncertain about the answer, ping `@nike4613` somewhere in the response.  
+       5. Write your response in Markdown into `/tmp/gh_issue_response`. Pay careful attention to the usage in documentation when writing your response.
+       6. Exit (you’re done).
+
+  bug:
+    Prompt: |
+      Next, search for duplicate issues using `gh search issues --repo {{REPOSITORY}}`. Be very careful: some *distinct* issues can look very similar!
+      Always actually perform a search. Do not pretend to have made a search, or refer to results of a search which was not done.
+
+      In particular, pay attention to exception types, messages and stack traces. If those are different AT ALL, the issues are likely different.
+      If the stack traces differ in frames that contain MonoMod (or MonoMod-generated) code, they are DIFFERENT. If the stack traces differ only in
+      user or framework frames, the issues MAY be the same. In this case, look at other features of the issues to decide if they are different.
+      If you are unsure, assume that it is a new issue. If you are wrong, that is fine. A human will review layer.
+    Next:
+      - Name: dupe_issue
+        Description: Select this option if issue is a duplicate, representing a bug that has already been found. All stack traces and exception types must match exactly to pick this.
+      - Name: new_issue
+        Description: Select this option if issue is NOT a duplicate, and needs to be fixed.
+
+  dupe_issue:
+    Prompt: |
+      Write a response in Markdown directing the user to the duplicate issue(s), including short summaries of them and why they are likely to be duplicates.
+      Make sure you mention that it is only a possible duplicate, and not confirmed.
+      The response should be placed in `/tmp/gh_issue_response`, and include "#<id>" for all issues you found which are potential duplicates. You are not actually
+      marking any issues as duplicates, only suggesting that they possibly are. Do not insinuate that you are closing the issue as a duplicate, or any similar action.
+
+      Then, exit. You're done.
+
+  new_issue:
+    Prompt: |
+      You must write a unit test that reproduces the issue and will verify when it's fixed.
+
+      **Core Logic**: Your test represents the CORRECT behavior. When the bug exists, this correct behavior fails, so your test fails. When the bug is fixed, the correct behavior succeeds, so your test passes.
+
+      **COMPLETE THESE STEPS IN ORDER:**
+
+      **Step 1: Analysis**
+      Before writing code, analyze:
+      - What does the issue say is currently broken?
+      - What should the correct behavior be?
+      - How will you test for the correct behavior?
+
+      **Step 2: Write Test File**
+      Before writing any code. You MUST examine existing test files to understand the correct structure:
+      1. Use your file reading tools to examine files in `src/MonoMod.UnitTest/Github/`
+      2. Look at 2-3 existing test files to understand
+        - What base class (if any) tests inherit from
+        - What constructors are defined
+        - What using statements are needed
+        - What naming patterns are used
+      3. Only after you understand the existing pattern, proceed to writing the test
+      
+      Requirements:
+      1. Location: `src/MonoMod.UnitTest/Github/`, following existing templates.
+      2. Content: Copy/paste the issue reproduction as closely as possible
+         **CRITICAL**: The test should be as close to a copy/paste of the issue description as possible.
+         - Use the same class names, method names, and code structure from the issue
+         - If the reproduciton code uses the Harmony library, rewrite it to use RuntimeDetour. DO NOT try to find and reference Harmony for your test
+         - The test should assert that the bug does not exist, not just write to the console
+         - Otherwise, DO NOT rewrite or "improve" the user's reproduction code
+         - Make sure the wrapping test class matches the others, including any base types and constructors
+      3. Logic: Test for correct behavior, not broken behavior
+         After writing your test, verify:
+         a. Does your test reproduce the exact steps from the issue?
+         b. If you ran this test on a system WITH the bug, would it fail? Why?
+         c. If you ran this test on a system WITHOUT the bug, would it pass? Why?
+         d. Are you testing for the desired outcome, not the current broken outcome?
+
+      Common issue patterns:
+      - "X crashes" → Test calls X expecting success (no exception)
+      - "Detour fails" → Test applies detour and verifies it worked
+      - "Should throw but doesn't" → Test triggers condition expecting exception
+
+      Your test documents what SHOULD happen, making it a regression test for the fix.
+
+      **Step 3: Verify Compilation**
+      Compile with `dotnet build "-clp:ErrorsOnly;NoSummary"`. **Your task is incomplete until compilation succeeds.** A test that doesn't compile is not a valid solutionu.
+
+      **IMPORTANT**: Complete each step fully before moving to the next:
+      - First, write your test file
+      - Then, compile it and fix any errors
+      - Only after successful compilation, write the output files. DO NOT PROCEEED unless compilation succeeds.
+
+      **Step 4: Write Output Files**
+      After you have verified that the test compiles, DO NOT attempt to run the test. Instead, write out the following four files:
+      - `/tmp/commit_message`: e.g. "Add test for issue #<issue id>"
+      - `/tmp/pr_title`: a one-line PR title, no emoji, that clearly describes the scenario (e.g. “Add test for floating-point returns on Windows x86”).  
+      - `/tmp/pr_description`: concise elaboration, in natural language or code. Must include exactly `Test for #<issue id>`.  
+      - `/tmp/issue_summary`: your summary of the issue, your thought process, and the above summaries. Make sure this contains all context necessary for further work on the issue.
+
+      After writing these files, your task is complete.
+
+  none:
+    Prompt: |
+      Since you think that none of the other possibilities match, write out in text what you think the issue represents. A human will investigate.

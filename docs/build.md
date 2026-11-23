@@ -14,25 +14,29 @@
 | 设备 | Android arm64，开启 USB 调试 | 可选，只在真机验证时需要 |
 
 ```powershell
-git clone --recurse-submodules https://github.com/Controllerdestiny/Pylon-Loader.git
+git clone https://github.com/Controllerdestiny/Pylon-Loader.git
 cd Pylon-Loader
+git submodule update --init --recursive   # external/shadowhook（hook 后端，随内核直编）
 pwsh -File src/csharp/tools/pylon.ps1 check
 ```
 
 `check` 全绿就是可以开工的状态；缺什么它会给出补齐命令。
 
-## 2. 仓库里没有的三类文件
+## 2. 仓库里没有的两类文件
 
 要么体积大、要么由你的正版游戏派生，因此不进 git：
 
 | 目录 | 内容 | 怎么来 |
 |---|---|---|
 | `refs/` | 游戏的 `libil2cpp.so`、`global-metadata.dat`、`dump.cs` | 从**你自己安装的正版** APK 解出，再用 Il2CppDumper 生成 `dump.cs` |
-| `runtime/` | CoreCLR native、BCL、BepInEx 托管栈 | 上游 BepInEx-Android release APK，或本仓库 CI 的 artifact |
 | `interop/generated/` | Il2CppInterop 代理程序集与 `On.*` 钩子 | `pylon.ps1 interop -DummyDir <Il2CppDumper 的 DummyDll>` |
-| `src/app/src/main/jniLibs/arm64-v8a/libshadowhook.so` | hook 后端运行时 | `com.bytedance.android:shadowhook:1.0.10` AAR 里的 `jni/arm64-v8a/libshadowhook.so` |
 
-三者都与**游戏版本**绑定：换版本必须整组重做，混用会在运行期以引用校验失败或崩溃暴露。
+两者都与**游戏版本**绑定：换版本必须整组重做，混用会在运行期以引用校验失败或崩溃暴露。
+
+运行时（`runtime/`）同样不在仓库里，但它**不依赖任何外部发行物**：CoreCLR native + BCL
+按 pin（版本 + SHA-256）直接从 nuget.org 抓取，见 2.2。hook 后端 ShadowHook 的源码随
+子模块进仓库，由内核构建脚本静态编进 `libpylon.so`（见 2.4）——构建自闭环，除了你的游戏
+dump 之外没有第三个需要人手准备的输入。
 
 ### 2.1 refs（游戏 dump）
 
@@ -52,29 +56,24 @@ refs/dump.cs                                  # Il2CppDumper 输出
 
 ### 2.2 runtime
 
-两条路，任选其一：
-
 ```powershell
-# A. 上游 release APK（内部含 native、dotnet.zip、BepInEx.Android.zip）
-pwsh -File src/csharp/tools/pylon.ps1 runtime -Apk D:\dl\app-release-aligned.apk
+pwsh -File src/csharp/tools/pylon.ps1 runtime
 ```
 
-```text
-# B. CI artifact：手工放置
-BepInEx.Android.zip  → runtime/bepinex-android/assets/
-dotnet.zip           → runtime/bepinex-android/assets/
-native/*.so          → runtime/bepinex-android/lib/
-```
-
-最终目录形如：
+运行时就是**一个微软官方 NuGet 包**：`microsoft.netcore.app.runtime.android-arm64`。
+版本与 SHA-256 锚在 `src/csharp/tools/dotnet-runtime.env`（10.0.12），
+`fetch-dotnet-runtime.ps1` 下载 → 校验哈希 → 摊成 deploy 需要的布局：
 
 ```text
 runtime/bepinex-android/
-  lib/        libcoreclr.so、libclrjit.so、libdobby.so …
-  dotnet/     BCL 与 PAL 副本
-  bepinex/    BepInEx 托管栈
-  assets/     上游的 dotnet.zip / BepInEx.Android.zip
+  lib/        libcoreclr.so、libclrjit.so、libmscordaccore.so …（8 个部署件）
+  dotnet/     BCL + PAL 副本（PAL 必须与 BCL 同目录树，见 fetch 脚本内注释）
 ```
+
+幂等：已就绪就跳过，`-Force` 重抓。BepInEx 托管栈里唯一被 APK 装载的 6 个
+`Microsoft.Extensions.*.dll` 随仓库放在 `vendor/ms-extensions/`（出处见该目录 README），
+与运行时抓取无关。BepInEx 栈里被修补的源码树按需随仓库收编
+（`src/csharp/MonoMod`，见其 `VENDOR.md`；Pylon 运行时自身不装载 BepInEx/Harmony/MonoMod）。
 
 ### 2.3 interop/generated
 
@@ -90,21 +89,22 @@ pwsh -File src/csharp/tools/pylon.ps1 interop -DummyDir refs\DummyDll
 
 ### 2.4 shadowhook
 
-内核的 hook 出口通过 `dlopen("libshadowhook.so")` 加载后端，因此 APK 里必须有这个 .so：
+hook 后端以**公开上游子模块**随仓库提供（`external/shadowhook`，钉 v1.0.10，
+`git submodule update --init --recursive` 即就绪）。内核构建脚本
+`src/core/build.ps1` 把它的 21 个 C 源文件静态编进 `libpylon.so`：
 
-```powershell
-# 从 Maven Central 取 AAR，解出 arm64 运行时库
-curl -L -o shadowhook.aar https://repo1.maven.org/maven2/com/bytedance/android/shadowhook/1.0.10/shadowhook-1.0.10.aar
-# 解压（7z / Expand-Archive 均可），然后：
-copy <解压目录>\jni\arm64-v8a\libshadowhook.so src\app\src\main\jniLibs\arm64-v8a\
-```
+- `src/core/src/hook/HookApi.cpp` 直接 `#include <shadowhook.h>` 调函数——
+  没有 dlopen/dlsym 的运行期间接层，也没有独立的 `libshadowhook.so`；
+- shadowhook 符号全部 hidden（`-fvisibility=hidden`），内核对外只导出自己的 ABI；
+- `sh_jni.c` 不参与编译（它定义的 JNI_OnLoad 归内核），其 Java 侧入口是
+  "独立 .so + System.loadLibrary" 形态专用的。
 
-`src/app/src/main/jniLibs/` 被 `.gitignore` 排除（`*.so`），所以新 clone 需要自己放一份。
+不再需要从 Maven AAR 手动解压任何东西。
 
 ## 3. 一条命令构建
 
 ```powershell
-pwsh -File src/csharp/tools/pylon.ps1 all -BepInExApk D:\dl\app-release-aligned.apk -DummyDir refs\DummyDll
+pwsh -File src/csharp/tools/pylon.ps1 all -DummyDir refs\DummyDll
 ```
 
 依次执行 runtime → interop → build → install → run。每一步都幂等：已就绪的跳过，缺件的直接说明缺什么、要传哪个参数。
@@ -114,7 +114,7 @@ pwsh -File src/csharp/tools/pylon.ps1 all -BepInExApk D:\dl\app-release-aligned.
 | 命令 | 作用 | 主要参数 |
 |---|---|---|
 | `check` | 工具链、`refs/`、`runtime/`、派生件体检 | — |
-| `runtime` | 拆上游 APK 并摊开 `runtime/bepinex-android/` | `-Apk`、`-Sha256File`、`-Force` |
+| `runtime` | 按 pin 从 nuget.org 抓取运行时，摊开 `runtime/bepinex-android/` | `-Force` |
 | `interop` | 生成代理程序集与 `On.*` | `-DummyDir`、`-Force` |
 | `deploy` | 运行时 native → `debug/jniLibs`，BCL / 托管件 / 代理 → `debug/assets` | — |
 | `build` | 内核（有变动才编）→ deploy → APK | `-Force` |
@@ -175,9 +175,8 @@ adb logcat -s PylonLoader
 
 | workflow | artifact | 内容 | 用途 |
 |---|---|---|---|
-| `build-kernel.yml` | `libpylon` | `libpylon.so`（arm64-v8a）与导出符号清单 | 放到 `src/app/src/main/jniLibs/arm64-v8a/` |
-| `build-runtime.yml` | `BepInEx.Android` | 按钉克隆上游、打补丁后打包的 `BepInEx.Android.zip` | `runtime/bepinex-android/assets/` |
-| `build-runtime.yml` | `runtime-android` | `dotnet.zip` 与 `native/*.so` | `runtime/bepinex-android/assets/` 与 `lib/` |
+| `build-kernel.yml` | `libpylon` | `libpylon.so`（arm64-v8a，shadowhook 静态内嵌）与导出符号清单 | 放到 `src/app/src/main/jniLibs/arm64-v8a/` |
+| `build-runtime.yml` | —（无 artifact） | runtime pin 回归门：跑 `fetch-dotnet-runtime.ps1` 验证 pin | pin 漂移在这里先红 |
 
 CI 不产出游戏文件，也不会代为分发。
 
@@ -186,7 +185,7 @@ CI 不产出游戏文件，也不会代为分发。
 | 症状 | 缺什么 | 动作 |
 |---|---|---|
 | `check` 报 `refs/…` 缺失 | 游戏 dump | 见 2.1 |
-| 报 `缺少 runtime/bepinex-android/lib` | 运行时 | 见 2.2 |
+| 报 `缺少 runtime/bepinex-android/lib` | 运行时 | `pylon.ps1 runtime`（见 2.2） |
 | MSBuild 报找不到 `Il2Cppmscorlib` | 代理程序集 | 见 2.3 |
 | Gradle 报 `libpylon.so` 不存在 | 内核没编 | `pwsh -File src/core/build.ps1` |
 | 运行期 `UnsatisfiedLinkError: libc++_shared.so` | 运行时 native 未进 `jniLibs` | `pylon.ps1 deploy` |

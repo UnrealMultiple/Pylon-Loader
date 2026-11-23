@@ -71,7 +71,7 @@ internal sealed class PlayerSavePipeline : ILoaderModule
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report($"[playersave] {KeyOf(mod)}.SaveData 异常：{Safe.Describe(e)}");
+                    ContentErrors.Line($"[playersave] {KeyOf(mod)}.SaveData 异常：{Safe.Dump(e)}");
                 }
             }
 
@@ -80,7 +80,7 @@ internal sealed class PlayerSavePipeline : ILoaderModule
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[playersave] 存档失败：" + Safe.Describe(e));
+            ContentErrors.Line("[playersave] 存档失败：" + Safe.Dump(e));
         }
         finally
         {
@@ -117,13 +117,13 @@ internal sealed class PlayerSavePipeline : ILoaderModule
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report($"[playersave] {KeyOf(mod)}.LoadData 异常：{Safe.Describe(e)}");
+                    ContentErrors.Line($"[playersave] {KeyOf(mod)}.LoadData 异常：{Safe.Dump(e)}");
                 }
             }
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[playersave] 读档失败：" + Safe.Describe(e));
+            ContentErrors.Line("[playersave] 读档失败：" + Safe.Dump(e));
         }
 
         return data;
@@ -150,7 +150,7 @@ internal sealed class PlayerSavePipeline : ILoaderModule
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[playersave] {KeyOf(mod)}.{hook} 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[playersave] {KeyOf(mod)}.{hook} 异常：{Safe.Dump(e)}");
             }
         }
     }

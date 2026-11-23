@@ -74,7 +74,7 @@ internal static class DustTables
             if (safe > 0 && alpha > 0 && safe != alpha)
             {
                 _mismatched = true;
-                ContentErrors.Report($"[dust] 表长不一致：SafeDust={safe}，StaticAlpha={alpha}；尘土池路径停用");
+                ContentErrors.Line($"[dust] 表长不一致：SafeDust={safe}，StaticAlpha={alpha}；尘土池路径停用");
                 return 0;
             }
 

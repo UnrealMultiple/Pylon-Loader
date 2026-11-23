@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+
+  <PropertyGroup Condition="'$(_UsingDefaultRuntimeIdentifier)' == 'true'">
+    <!-- The above property indicates that <RuntimeIdentifier> is set to a Windows default. Clear it now so that we don't add extra garbage to our package lock. -->
+    <!-- See also:
+         - https://github.com/NuGet/Home/issues/9195#issuecomment-777153274
+         - https://github.com/dotnet/sdk/issues/26505
+         -->
+    <RuntimeIdentifier></RuntimeIdentifier>
+  </PropertyGroup>
+  
+  <Import Project="Sdk.targets" Sdk="DotNet.ReproducibleBuilds.Isolated" Version="1.2.39" />
+
+  <!-- NuGet Information -->
+  <Import Project="$(MMToolsPath)NuGet.targets" />
+
+  <!-- This contains common stuff that specific packages may wish to disable. -->  
+  <!-- Include the language-specific targets file, if it exists -->
+  <Import Project="$(MMLanguageTargets)" Condition="Exists('$(MMLanguageTargets)')" />
+
+  <Target Name="GetProperties" Outputs="@(Properties)">
+    <ItemGroup>
+      <_PropertiesToGet Remove="@(_PropertiesToGet)" />
+      <Properties Remove="@(Properties)" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <_PropertiesToGet Include="$(PropertyNames)" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Properties Include="%(_PropertiesToGet.Identity)" Value="$(%(Identity))" />
+    </ItemGroup>
+  </Target>
+  
+</Project>

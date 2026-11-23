@@ -24,7 +24,7 @@ internal static class NpcBestiaryPipeline
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[bestiary] {own.Name} 图鉴条目异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[bestiary] {own.Name} 图鉴条目异常：{Safe.Dump(e)}");
             }
         }
 
@@ -40,7 +40,7 @@ internal static class NpcBestiaryPipeline
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report($"[bestiary] 原版 NPC {type} 图鉴条目异常：{Safe.Describe(e)}");
+                    ContentErrors.Line($"[bestiary] 原版 NPC {type} 图鉴条目异常：{Safe.Dump(e)}");
                 }
             }
         }
@@ -70,7 +70,7 @@ internal static class NpcBestiaryPipeline
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[bestiary] {own.Name}.SetBestiary 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[bestiary] {own.Name}.SetBestiary 异常：{Safe.Dump(e)}");
             }
         }
 
@@ -103,7 +103,7 @@ internal static class NpcBestiaryPipeline
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[bestiary] {global.FullKey}.SetBestiary 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[bestiary] {global.FullKey}.SetBestiary 异常：{Safe.Dump(e)}");
             }
         }
     }
@@ -133,7 +133,7 @@ internal static class NpcBestiaryPipeline
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[bestiary] NPCBestiaryDrawOffset[{type}] 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[bestiary] NPCBestiaryDrawOffset[{type}] 异常：{Safe.Dump(e)}");
             return false;
         }
     }

@@ -1,0 +1,54 @@
+name: Publish Test Results
+
+on:
+  workflow_run:
+    workflows:
+    - Build and Test
+    - Make Release
+    types: [completed]
+permissions: {}
+
+jobs:
+  publish-test-results:
+    if: github.event.workflow_run.conclusion != 'skipped' && github.event.workflow_run.conclusion != 'cancelled'
+    runs-on: ubuntu-latest
+    name: Publish test results
+
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: write
+      issues: read
+      actions: read
+      statuses: read
+
+    steps:
+    - name: Download event file
+      uses: actions/download-artifact@v7
+      with:
+        run-id: ${{ github.event.workflow_run.id }}
+        github-token: ${{ github.token }}
+        name: test-event-file
+        merge-multiple: false
+
+    - name: Download test results
+      uses: actions/download-artifact@v7
+      with:
+        run-id: ${{ github.event.workflow_run.id }}
+        github-token: ${{ github.token }}
+        pattern: test-results *
+        merge-multiple: false
+        
+    - name: Publish Test Results
+      uses: nike4613/actions-test-results@v3
+      with:
+        commit: ${{ github.event.workflow_run.head_sha }}
+        event_file: event.json
+        event_name: ${{ github.event.workflow_run.event }}
+        gist_token: ${{ secrets.gist_token }}
+    
+        files: |
+          **/*.trx
+          **/*.xml
+        comment_mode: failures
+        comment_on_commit: true

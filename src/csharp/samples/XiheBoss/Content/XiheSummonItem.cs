@@ -31,7 +31,7 @@ namespace XiheBoss
             }
             catch (Exception e)
             {
-                Mod.Logger.Warn("[summon] 借用原版图标失败：" + e.Message);
+                Mod.Logger.Warn("[summon] 借用原版图标失败：" + e);
             }
         }
 

@@ -262,7 +262,7 @@ internal sealed class SoundPipeline : ILoaderModule
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[sound] 播放异常：" + Safe.Describe(e));
+            ContentErrors.Line("[sound] 播放异常：" + Safe.Dump(e));
         }
 
         // 原版契约要求交回一个实例，但 Mod 音效在 SoundPool 里没有实例；调用方本来就按可空处理。

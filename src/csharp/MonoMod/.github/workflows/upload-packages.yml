@@ -1,0 +1,88 @@
+name: Upload Packages
+
+on:
+  workflow_call:
+    inputs:
+      run-id:
+        type: string
+        default: ${{ github.run_id }}
+        description: The ID of the workflow run to upload packages from
+      nuget-url:
+        type: string
+        default: "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
+        description: URL of the nuget feed to upload to
+    secrets:
+      nuget-key:
+        
+defaults:
+  run:
+    shell: pwsh
+
+env:
+  DOTNET_TELEMETRY_OPTOUT: true
+  DOTNET_NOLOGO: true
+  NUGET_PACKAGES: ${{github.workspace}}/artifacts/pkg
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Upload
+    env:
+      VersionSuffix: ${{ !inputs.no-suffix && format('daily.{0}', inputs.version) }}
+      DoNotAddSuffix: ${{ inputs.no-suffix && '1' }}
+      ContinuousIntegrationBuild: true
+    permissions:
+      contents: read
+      packages: write
+    steps:
+    - name: Configure git
+      run: |
+        git config --global core.autocrlf input
+
+    - name: Checkout
+      uses: actions/checkout@v6
+      
+    - name: Install .NET SDK
+      uses: nike4613/install-dotnet@cc706db77ed67745a4a4cbae19b2869220e34d27
+      with:
+        global-json: global.json
+        
+    - name: Wait for packages to be available
+      if: github.run_id != inputs.run-id
+      shell: pwsh
+      env:
+        GH_TOKEN: ${{ github.token }}
+        RUN_ID: ${{ inputs.run-id }}
+      run: |
+          while ($true)
+          {
+            $conclusion = gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" `
+              "/repos/${{ github.repository }}/actions/runs/$($env:RUN_ID)" `
+              | ConvertFrom-Json `
+              | % { $_.conclusion }
+            if ($null -ne $conclusion)
+            {
+              if ($conclusion -ne "success")
+              {
+                echo "Build had conclusion '$conclusion'. Failing.";
+                exit 1;
+              }
+              else
+              {
+                echo "Build succeeded. Continuing."
+                exit 0;
+              }
+            }
+            Start-Sleep -Seconds 30;
+          }
+
+    - name: Download compiled packages
+      uses: actions/download-artifact@v7
+      with:
+        name: packages
+        path: artifacts/package/release/
+        github-token: ${{ github.token }}
+        run-id: ${{ inputs.run-id }}
+
+    - name: Push packages
+      run: dotnet nuget push -s "${{ inputs.nuget-url }}" -k ${{ secrets.nuget-key || github.token }} --skip-duplicate (Get-Item artifacts/package/release/*.nupkg)

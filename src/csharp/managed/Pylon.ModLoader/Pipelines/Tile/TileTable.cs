@@ -49,7 +49,7 @@ internal static class TileTable
             }
             catch (Exception e)
             {
-                log.Warn($"[tile] TileObjectData._data 预扩失败：{Safe.Describe(e)}");
+                log.Warn($"[tile] TileObjectData._data 预扩失败：{Safe.Dump(e)}");
             }
         }
 
@@ -67,7 +67,7 @@ internal static class TileTable
             }
             catch (Exception e)
             {
-                log.Warn($"{tile.Name} 的静态默认值失败：{Safe.Describe(e)}");
+                log.Warn($"{tile.Name} 的静态默认值失败：{Safe.Dump(e)}");
             }
 
             Ensure(type + 1);

@@ -41,7 +41,7 @@ internal static class MenuTable
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[menu] {menu.Name}.IsAvailable 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[menu] {menu.Name}.IsAvailable 异常：{Safe.Dump(e)}");
             return false;
         }
     }

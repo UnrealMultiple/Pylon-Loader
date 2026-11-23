@@ -59,7 +59,7 @@ internal static class EmoteBubbleTable
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[emotebubble] {emote.Name}.IsUnlocked 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[emotebubble] {emote.Name}.IsUnlocked 异常：{Safe.Dump(e)}");
                 continue;
             }
 
@@ -83,7 +83,7 @@ internal static class EmoteBubbleTable
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[emotebubble] {emote.Name} 登记 EmoteID.Search 失败：{Safe.Describe(e)}");
+            ContentErrors.Line($"[emotebubble] {emote.Name} 登记 EmoteID.Search 失败：{Safe.Dump(e)}");
         }
 
         EnsureLocalized();
@@ -112,7 +112,7 @@ internal static class EmoteBubbleTable
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[emotebubble] {emote.Name} 登记语言键失败：{Safe.Describe(e)}");
+                ContentErrors.Line($"[emotebubble] {emote.Name} 登记语言键失败：{Safe.Dump(e)}");
             }
         }
     }

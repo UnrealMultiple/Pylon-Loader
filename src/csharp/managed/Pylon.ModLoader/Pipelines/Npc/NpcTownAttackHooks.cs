@@ -125,7 +125,7 @@ internal static unsafe class NpcTownAttackHooks
             }
             catch (Exception e)
             {
-                Log.Warn($"[townattack] {site.Kind} 安装异常：" + Safe.Describe(e));
+                Log.Warn($"[townattack] {site.Kind} 安装异常：" + Safe.Dump(e));
             }
         }
 
@@ -326,7 +326,7 @@ internal static unsafe class NpcTownAttackHooks
         }
         catch (Exception e)
         {
-            Safe.Once("townattack.stub", "[townattack] 桥分派异常：" + Safe.Describe(e), true);
+            Safe.Once("townattack.stub", "[townattack] 桥分派异常：" + Safe.Dump(e), true);
         }
         return false;
     }
@@ -742,12 +742,12 @@ internal static unsafe class NpcTownAttackHooks
     private static void Report(ModNpc mod, HookId hook, Exception exception)
     {
         if (!_reported.Add(mod.Type + "/" + hook)) return;
-        ContentErrors.Report($"[townattack] {mod.Name}.{hook} 异常：{Safe.Describe(exception)}");
+        ContentErrors.Line($"[townattack] {mod.Name}.{hook} 异常：{Safe.Dump(exception)}");
     }
 
     private static void Report(GlobalNpc global, HookId hook, Exception exception)
     {
         if (!_reported.Add(global.Name + "/" + hook)) return;
-        ContentErrors.Report($"[townattack] {global.Name}.{hook} 异常：{Safe.Describe(exception)}");
+        ContentErrors.Line($"[townattack] {global.Name}.{hook} 异常：{Safe.Dump(exception)}");
     }
 }

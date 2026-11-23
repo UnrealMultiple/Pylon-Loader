@@ -58,7 +58,7 @@ internal sealed class PlayerDrawLayerPipeline : ILoaderModule, ILoaderModuleRefr
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[playerdrawlayer] {layer.Name}.SetStaticDefaults 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[playerdrawlayer] {layer.Name}.SetStaticDefaults 异常：{Safe.Dump(e)}");
             }
 
             PlayerDrawLayerLoader.Add(layer);

@@ -1,0 +1,178 @@
+name: Build and Test
+on:
+  push:
+    branches-ignore:
+    - 'ai/**'
+  pull_request:
+
+defaults:
+  run:
+    shell: pwsh
+
+env:
+  DOTNET_TELEMETRY_OPTOUT: true
+  DOTNET_NOLOGO: true
+  NUGET_PACKAGES: ${{github.workspace}}/artifacts/pkg
+  RestoreLockedMode: true
+  
+# If new commits are pushed, don't bother finishing the current run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+# We'll have a job for building (that runs on x64 machines only, one for each OS to make sure it actually builds)
+# Then, we'll take the result from one of those (probaly Linux) and distribute build artifacts to testers to run
+# a load of tests. This will (eventually) include ARM runners, where possible.
+jobs:
+  setup:
+    name: Setup
+    runs-on: ubuntu-latest
+    outputs:
+      should_skip: ${{ steps.skip_check.outputs.should_skip == 'true' || steps.msg_check.outputs.skip == 'true' }}
+      upload_pkgs: ${{ steps.msg_check.outputs.skip != 'true' }}
+      skipped_by: ${{ steps.skip_check.outputs.skipped_by }}
+      ver: ${{ steps.computever.outputs.ver }}
+      matrix: ${{ steps.compute-matrix.outputs.matrix }}
+    steps:
+    - name: Check if this run should skip
+      id: skip_check
+      uses: fkirc/skip-duplicate-actions@v5
+      with:
+        cancel_others: true
+        concurrent_skipping: same_content_newer
+
+    - name: Check if this run is skipped by commit message
+      id: msg_check
+      run: echo "skip=${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[skip-ci]') }}" >> $env:GITHUB_OUTPUT
+
+    - name: Upload event file
+      uses: actions/upload-artifact@v6
+      with:
+        name: test-event-file
+        path: ${{ github.event_path }}
+        retention-days: 1
+
+    - name: Compute Version
+      id: computever
+      run: echo "ver=$(Get-Date -Format y.M.d).${{ github.run_number }}.${{ github.run_attempt }}" >> $env:GITHUB_OUTPUT
+
+    - name: Checkout
+      if: steps.skip_check.outputs.should_skip != 'true'
+      uses: actions/checkout@v6
+      with:
+        lfs: false
+        submodules: false
+    
+    - name: Install .NET SDK
+      if: steps.skip_check.outputs.should_skip != 'true'
+      uses: nike4613/install-dotnet@cc706db77ed67745a4a4cbae19b2869220e34d27
+      with:
+        global-json: global.json
+        
+    # NOTE: manual package caching
+    - name: Cache restored NuGet packages
+      if: steps.skip_check.outputs.should_skip != 'true'
+      uses: actions/cache@v5
+      with:
+        path: ${{ env.NUGET_PACKAGES }}
+        key: ${{ runner.os }}-nuget-setup-v2-${{ hashFiles('build/gen-test-matrix/packages.lock.json') }}
+        restore-keys: ${{ runner.os }}-nuget-v2-${{ hashFiles('**/packages.lock.json') }}
+
+    - name: Compute test matrix
+      if: steps.skip_check.outputs.should_skip != 'true'
+      id: compute-matrix
+      run: dotnet run --project ./build/gen-test-matrix/gen-test-matrix.csproj -c Release -- "${{ github.repository_owner }}" $env:GITHUB_OUTPUT matrix
+  
+  build-testassets:
+    needs: setup
+    if: needs.setup.outputs.should_skip != 'true'
+    name: 'Build #${{ needs.setup.outputs.ver }} (Linux)'
+    uses: ./.github/workflows/build.yml
+    with:
+      os: ubuntu-latest
+      osname: Linux
+      version: daily.${{ needs.setup.outputs.ver }}
+      upload-packages: true
+      upload-tests: true
+
+  build:
+    needs: setup
+    if: needs.setup.outputs.should_skip != 'true'
+    strategy:
+      matrix:
+        include:
+        - os: windows-latest
+          name: Windows
+        - os: macos-latest
+          name: MacOS
+          
+    name: 'Build #${{ needs.setup.outputs.ver }} (${{ matrix.name }})'
+    uses: ./.github/workflows/build.yml
+    with:
+      os: ${{ matrix.os }}
+      osname: ${{ matrix.name }}
+      version: daily.${{ needs.setup.outputs.ver }}
+      upload-packages: false
+      upload-tests: false
+
+  wait-for-containers:
+    name: Wait for Docker containers
+    needs: setup
+    if: needs.setup.outputs.should_skip != 'true'
+    runs-on: ubuntu-latest
+    steps:
+    - name: Wait for container builds
+      shell: pwsh
+      env:
+        GH_TOKEN: ${{ github.token  }}
+      run: |
+        $sha = '${{ github.event.pull_request.head.sha }}';
+        if (-not $sha) { $sha = '${{ github.sha }}'; }
+        $workflow = gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" `
+                     "/repos/${{ github.repository }}/actions/runs?head_sha=$sha" `
+                     | ConvertFrom-Json `
+                     | % { $_.workflow_runs } `
+                     | Where { $_.path -eq ".github/workflows/containers.yml" }
+                     | Select -Property id
+        if ($null -eq $workflow) { echo "No containers workflow run found."; exit 0; } # containers didn't need to be built, exit normally
+        # we ARE waiting for container build, poll every 30s
+        while ($true)
+        {
+          $conclusion = gh api -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" `
+            "/repos/${{ github.repository }}/actions/runs/$($workflow.id)" `
+            | ConvertFrom-Json `
+            | % { $_.conclusion }
+          if ($null -ne $conclusion)
+          {
+            if ($conclusion -ne "success")
+            {
+              echo "Container build had conclusion '$conclusion'. Failing.";
+              exit 1;
+            }
+            else
+            {
+              echo "Container build succeeded. Continuing."
+              exit 0;
+            }
+          }
+          Start-Sleep -Seconds 30;
+        }
+
+  test:
+    needs: [setup, build-testassets, wait-for-containers]
+    if: needs.setup.outputs.should_skip != 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+    uses: ./.github/workflows/test.yml
+    name: Test ${{ matrix.title }}
+    with:
+      matrix: ${{ toJSON(matrix) }}
+      
+  upload:
+    needs: [setup, build-testassets]
+    if: ${{ needs.setup.outputs.upload_pkgs == 'true' && github.ref_name == 'reorganize' && (success() || needs.setup.result == 'success') }}
+    name: Upload Packages
+    uses: ./.github/workflows/upload-packages.yml
+    with:
+      run-id: ${{ needs.setup.outputs.should_skip == 'true' && fromJSON(needs.setup.outputs.skipped_by).id || github.run_id }}

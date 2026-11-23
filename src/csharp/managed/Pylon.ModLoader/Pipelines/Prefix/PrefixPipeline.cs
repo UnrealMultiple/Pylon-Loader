@@ -454,12 +454,12 @@ internal sealed class PrefixPipeline : ILoaderModule
     private void Fail(string name, HookId hook, Exception exception)
     {
         if (!_reported.Add(HashCode.Combine(name.GetHashCode(), hook))) return;
-        ContentErrors.Report($"[prefix] {hook} 异常：{Safe.Describe(exception)}");
+        ContentErrors.Line($"[prefix] {hook} 异常：{Safe.Dump(exception)}");
     }
 
     private void Fail(string key, Exception exception)
     {
         if (!_reported.Add(key.GetHashCode())) return;
-        ContentErrors.Report($"[prefix] {key} 异常：{Safe.Describe(exception)}");
+        ContentErrors.Line($"[prefix] {key} 异常：{Safe.Dump(exception)}");
     }
 }

@@ -149,7 +149,7 @@ internal static class EquipTable
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report($"[equip] {item.Name}.Load 异常：{Safe.Describe(e)}");
+                    ContentErrors.Line($"[equip] {item.Name}.Load 异常：{Safe.Dump(e)}");
                 }
             }
 
@@ -160,7 +160,7 @@ internal static class EquipTable
 
                 if (equip.Type < EquipType.Head || equip.Type > EquipType.Beard)
                 {
-                    ContentErrors.Report($"[equip] {item.Name}.{equip.Name} 的部位 {equip.Type} 不存在（0..14）");
+                    ContentErrors.Line($"[equip] {item.Name}.{equip.Name} 的部位 {equip.Type} 不存在（0..14）");
                     continue;
                 }
 

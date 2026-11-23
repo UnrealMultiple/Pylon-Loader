@@ -257,7 +257,7 @@ internal static class NpcHitHooks
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[npchit] 命中准备异常:" + Safe.Describe(e));
+            ContentErrors.Line("[npchit] 命中准备异常:" + Safe.Dump(e));
             return orig(npc, damage, knockback, direction, crit, false, owner);
         }
         var plan = Plan(npc, hit);
@@ -422,5 +422,5 @@ internal static class NpcHitHooks
     }
 
     private static void Fail(object author, HookId hook, Exception e) =>
-        ContentErrors.Report($"[npchit] {author.GetType().Name}.{hook} 异常:{Safe.Describe(e)}");
+        ContentErrors.Line($"[npchit] {author.GetType().Name}.{hook} 异常:{Safe.Dump(e)}");
 }

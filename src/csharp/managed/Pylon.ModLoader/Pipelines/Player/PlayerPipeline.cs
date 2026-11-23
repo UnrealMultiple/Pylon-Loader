@@ -328,7 +328,7 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[playerdrawinfo] {mod.Mod?.Name}.ModifyDrawLayerOrdering 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[playerdrawinfo] {mod.Mod?.Name}.ModifyDrawLayerOrdering 异常：{Safe.Dump(e)}");
             }
         }
     }
@@ -392,7 +392,7 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[player] ModifyMaxStats 应用异常：" + Safe.Describe(e));
+            ContentErrors.Line("[player] ModifyMaxStats 应用异常：" + Safe.Dump(e));
         }
     }
 
@@ -740,7 +740,7 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[player] 开局背包异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[player] 开局背包异常：{Safe.Dump(e)}");
         }
     }
 
@@ -857,13 +857,13 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
         if (modItem is { } m && m.Plan.Has(HookId.ModifyPotionDelay))
         {
             try { m.ModifyPotionDelay(self, ref delay); }
-            catch (Exception e) { ContentErrors.Report($"[player] {m.FullKey}.ModifyPotionDelay 异常：{Safe.Describe(e)}"); }
+            catch (Exception e) { ContentErrors.Line($"[player] {m.FullKey}.ModifyPotionDelay 异常：{Safe.Dump(e)}"); }
         }
 
         foreach (var global in GlobalItemRegistry.For(item, HookId.ModifyPotionDelay))
         {
             try { global.ModifyPotionDelay(item, self, ref delay); }
-            catch (Exception e) { ContentErrors.Report($"[player] {global.FullKey}.ModifyPotionDelay 异常：{Safe.Describe(e)}"); }
+            catch (Exception e) { ContentErrors.Line($"[player] {global.FullKey}.ModifyPotionDelay 异常：{Safe.Dump(e)}"); }
         }
 
         delay = Math.Max(0, delay);
@@ -892,7 +892,7 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[player] {owner.FullKey}.ApplyPotionDelay 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[player] {owner.FullKey}.ApplyPotionDelay 异常：{Safe.Dump(e)}");
             }
         }
 
@@ -904,7 +904,7 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[player] {global.FullKey}.ApplyPotionDelay 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[player] {global.FullKey}.ApplyPotionDelay 异常：{Safe.Dump(e)}");
             }
         }
 
@@ -1136,6 +1136,6 @@ internal sealed class PlayerPipeline : ILoaderModule, ILoaderModuleRefresh
     private void Fail(ModPlayer mod, HookId hook, Exception exception)
     {
         if (!_reported.Add(HashCode.Combine(mod.GetType().Name.GetHashCode(), hook))) return;
-        ContentErrors.Report($"[player] {mod.GetType().Name}.{hook} 异常：{Safe.Describe(exception)}");
+        ContentErrors.Line($"[player] {mod.GetType().Name}.{hook} 异常：{Safe.Dump(exception)}");
     }
 }

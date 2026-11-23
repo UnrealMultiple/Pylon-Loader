@@ -7,12 +7,17 @@ internal static class ContentErrors
 
     public static Action<string> Report { get; set; } = static _ => { };
 
-    public static void Callback(string source, Exception exception)
+    /// <summary>按首行去重后投递：同一异常每帧重抛只落一条完整堆栈。</summary>
+    public static void Line(string message)
     {
+        var key = message.IndexOf('\n') is var cut && cut >= 0 ? message[..cut] : message;
         lock (Gate)
         {
-            if (!Reported.Add(source + "|" + exception.GetType().FullName)) return;
+            if (!Reported.Add(key)) return;
         }
-        Report(source + " 异常：" + Logging.Safe.Describe(exception));
+        Report(message);
     }
+
+    public static void Callback(string source, Exception exception) =>
+        Line(source + " 异常：" + Logging.Safe.Dump(exception));
 }

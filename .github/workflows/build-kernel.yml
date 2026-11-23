@@ -1,10 +1,4 @@
-# 层：CI —— 交叉编译内核 libpylon.so
-#
-# 内核不依赖任何游戏文件（全部按名字 dlsym），所以可以在 CI 上产出。
-# src/core/build.ps1 已按宿主自动选 toolchains/llvm/prebuilt/<host>/bin（Windows / Linux / macOS），
-# 因此这份脚本在 Ubuntu runner 上直接跑。
-#
-# 拿到的 artifact 放这里：src/app/src/main/jniLibs/arm64-v8a/libpylon.so
+# 交叉编译内核 libpylon.so（shadowhook 子模块源码静态内嵌）。
 name: build-kernel
 
 on:
@@ -12,6 +6,7 @@ on:
   push:
     paths:
       - 'src/core/**'
+      - 'external/shadowhook/**'
       - '.github/workflows/build-kernel.yml'
 
 permissions:
@@ -19,10 +14,12 @@ permissions:
 
 jobs:
   libpylon:
-    name: libpylon.so (arm64-v8a)
+    name: libpylon.so (arm64-v8a, shadowhook 内嵌)
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       # ubuntu runner 自带 Android commandline-tools；NDK 版本与本地开发一致
       - name: 安装 NDK

@@ -33,7 +33,7 @@ internal static class MenuSettingsRow
         try { AddEntry(self); }
         catch (Exception e)
         {
-            ContentErrors.Report("[menu] 设置行插入失败：" + Safe.Describe(e));
+            ContentErrors.Line("[menu] 设置行插入失败：" + Safe.Dump(e));
         }
     }
 
@@ -74,7 +74,7 @@ internal static class MenuSettingsRow
             try { return Label(); }
             catch (Exception e)
             {
-                ContentErrors.Report("[menu] 设置行标题异常：" + Safe.Describe(e));
+                ContentErrors.Line("[menu] 设置行标题异常：" + Safe.Dump(e));
             }
         }
         return orig(self);
@@ -87,7 +87,7 @@ internal static class MenuSettingsRow
             try { return Caption(_entry); }
             catch (Exception e)
             {
-                ContentErrors.Report("[menu] 设置行文案异常：" + Safe.Describe(e));
+                ContentErrors.Line("[menu] 设置行文案异常：" + Safe.Dump(e));
             }
         }
         return orig(self);
@@ -100,7 +100,7 @@ internal static class MenuSettingsRow
             try { MenuPipeline.Next(); }
             catch (Exception e)
             {
-                ContentErrors.Report("[menu] 设置行切换主题异常：" + Safe.Describe(e));
+                ContentErrors.Line("[menu] 设置行切换主题异常：" + Safe.Dump(e));
             }
             return;
         }
@@ -137,7 +137,7 @@ internal static class MenuSettingsRow
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[menu] 设置行文案测宽异常：" + Safe.Describe(e));
+            ContentErrors.Line("[menu] 设置行文案测宽异常：" + Safe.Dump(e));
             return name;
         }
     }
@@ -148,7 +148,7 @@ internal static class MenuSettingsRow
         try { return menu.DisplayName; }
         catch (Exception e)
         {
-            ContentErrors.Report($"[menu] {menu.Name}.DisplayName 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[menu] {menu.Name}.DisplayName 异常：{Safe.Dump(e)}");
             return menu.Name;
         }
     }

@@ -37,7 +37,7 @@ internal static class WallTable
             }
             catch (Exception e)
             {
-                log.Warn($"{wall.Name} 的静态默认值失败：{Safe.Describe(e)}");
+                log.Warn($"{wall.Name} 的静态默认值失败：{Safe.Dump(e)}");
             }
 
             Ensure(type + 1);

@@ -68,7 +68,7 @@ public static class PlayerDrawLayerLoader
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[playerdrawlayer] {layer.Name}.GetDefaultPosition 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[playerdrawlayer] {layer.Name}.GetDefaultPosition 异常：{Safe.Dump(e)}");
                 position = null;
             }
 
@@ -81,7 +81,7 @@ public static class PlayerDrawLayerLoader
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[playerdrawlayer] ModifyDrawLayerOrdering 异常：" + Safe.Describe(e));
+            ContentErrors.Line("[playerdrawlayer] ModifyDrawLayerOrdering 异常：" + Safe.Dump(e));
         }
 
         // 2. 父子层与多槽先摊平成 Between。
@@ -214,7 +214,7 @@ public static class PlayerDrawLayerLoader
             var index = left.FindIndex(n => after[n].All(placed.Contains));
             if (index < 0)
             {
-                ContentErrors.Report("[playerdrawlayer] 层位排序成环，剩下按注册序排");
+                ContentErrors.Line("[playerdrawlayer] 层位排序成环，剩下按注册序排");
                 result.AddRange(left);
                 break;
             }

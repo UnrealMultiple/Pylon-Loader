@@ -41,7 +41,7 @@ namespace XiheBoss
             }
             catch (Exception e)
             {
-                log?.Error("[fx] XiheBigLaser.frag 加载失败，大光柱退回图元版本：" + e.Message);
+                log?.Error("[fx] XiheBigLaser.frag 加载失败，大光柱退回图元版本：" + e);
             }
         }
 

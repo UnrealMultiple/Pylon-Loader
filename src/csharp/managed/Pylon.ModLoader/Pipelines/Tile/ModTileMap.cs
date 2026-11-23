@@ -152,7 +152,7 @@ internal static unsafe class ModTileMap
         }
         catch (Exception e)
         {
-            Safe.Once("map.apply", "[map] 条目写表失败：" + Safe.Describe(e), true);
+            Safe.Once("map.apply", "[map] 条目写表失败：" + Safe.Dump(e), true);
         }
     }
 
@@ -570,7 +570,7 @@ internal static unsafe class ModTileMap
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report("[map] 侧车行恢复失败：" + Safe.Describe(e));
+                    ContentErrors.Line("[map] 侧车行恢复失败：" + Safe.Dump(e));
                 }
             }
         }
@@ -712,7 +712,7 @@ internal static unsafe class ModTileMap
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[map] 侧车写入失败：" + Safe.Describe(e));
+            ContentErrors.Line("[map] 侧车写入失败：" + Safe.Dump(e));
         }
         finally
         {

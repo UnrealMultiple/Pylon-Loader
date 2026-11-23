@@ -113,7 +113,7 @@ internal sealed class HairPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[hair] {hair.Name}.GetUnlockConditions 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[hair] {hair.Name}.GetUnlockConditions 异常：{Safe.Dump(e)}");
                 now = false;
             }
 
@@ -148,7 +148,7 @@ internal sealed class HairPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[hair] {hair.Name} 进菜单失败：{Safe.Describe(e)}");
+                ContentErrors.Line($"[hair] {hair.Name} 进菜单失败：{Safe.Dump(e)}");
             }
         }
     }
@@ -173,7 +173,7 @@ internal sealed class HairPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[hair] {hair.Name}.GetUnlockConditions 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[hair] {hair.Name}.GetUnlockConditions 异常：{Safe.Dump(e)}");
             return false;
         }
     }
@@ -287,7 +287,7 @@ internal sealed class HairPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[hair] 存档失败：" + Safe.Describe(e));
+            ContentErrors.Line("[hair] 存档失败：" + Safe.Dump(e));
         }
         finally
         {
@@ -314,7 +314,7 @@ internal sealed class HairPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[hair] 读档失败：" + Safe.Describe(e));
+            ContentErrors.Line("[hair] 读档失败：" + Safe.Dump(e));
         }
 
         return data;

@@ -1,0 +1,142 @@
+name: Issue Agent
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: 'Issue number'
+        required: true
+        type: string
+      model:
+        description: 'LLM Model to use'
+        default: 'anthropic/claude-3.5-haiku'
+        required: true
+        type: choice
+        options:
+        - 'anthropic/claude-3.5-haiku'
+        - 'anthropic/claude-sonnet-4'
+        - 'mistralai/mistral-medium-3'
+        - 'openai/o4-mini' # o4-mini actually works better than o4-mini-high
+        
+env:
+  DOTNET_TELEMETRY_OPTOUT: true
+  DOTNET_NOLOGO: true
+  NUGET_PACKAGES: ${{github.workspace}}/artifacts/pkg
+
+jobs:
+  process-issue:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      GH_REPO: ${{ github.repository }}
+      
+    permissions:
+      contents: read
+      issues: read
+      discussions: read
+
+    outputs:
+      issue_resp: ${{ steps.issue_resp.outputs.contents }}
+      commit_msg: ${{ steps.commit_msg.outputs.contents }}
+      has_pr: ${{ steps.has_pr.outputs.has_pr }}
+      pr_title: ${{ steps.pr_title.outputs.contents }}
+      pr_desc: ${{ steps.pr_desc.outputs.contents }}
+
+    steps:
+    - name: Configure git
+      run: |
+        git config --global core.autocrlf input
+
+    - name: Checkout
+      uses: actions/checkout@v6
+      with:
+        lfs: true
+        submodules: recursive
+
+    # TODO: maybe we can eventually use package locks for package caching?
+    
+    - name: Install .NET SDK
+      uses: nike4613/install-dotnet@6625f6cf2b076b088eee77a005f5f226e89aa580
+      with:
+        global-json: global.json
+        
+    # NOTE: manual package caching
+    - name: Cache restored NuGet packages
+      uses: actions/cache@v5
+      with:
+        path: ${{ env.NUGET_PACKAGES }}
+        key: ${{ runner.os }}-nuget-v2-${{ hashFiles('**/packages.lock.json') }}
+        restore-keys: ${{ runner.os }}-nuget-setup-v2-${{ hashFiles('build/gen-test-matrix/packages.lock.json') }}
+
+    - name: Restore
+      run: dotnet restore -bl:restore.binlog -noAutoRsp
+      
+    - name: Download agent executable
+      run: |
+        mkdir -p ~/llmagent
+        pushd ~/llmagent
+        wget -O agent.tar.gz https://github.com/nike4613/LlmAgent/releases/latest/download/LlmAgent-linux-x64.tar.gz
+        tar -xzf agent.tar.gz
+        popd
+        
+    - name: Invoke agent
+      shell: pwsh
+      run: |
+        $url = gh issue view ${{ inputs.issue_number }} --repo ${{ github.repository }} --json url | jq -r .url;
+        $content = gh issue view ${{ inputs.issue_number }} --repo ${{ github.repository }} | Out-String;
+
+        ~/llmagent/LlmAgent -k $env:OPENROUTER_API_KEY -m ${{ inputs.model }} --control .github/issue_agent_control.yaml -v "ISSUE_URL=$url" -v "ISSUE_BODY=$content" -v "REPOSITORY=${{ github.repository }}";
+
+    - name: Read /tmp/gh_issue_response
+      uses: guibranco/github-file-reader-action-v2@latest
+      continue-on-error: true
+      id: issue_resp
+      with:
+        path: "/tmp/gh_issue_response"
+
+    - name: Read /tmp/commit_message
+      uses: guibranco/github-file-reader-action-v2@latest
+      continue-on-error: true
+      id: commit_msg
+      with:
+        path: "/tmp/commit_message"
+
+    - name: Read /tmp/pr_title
+      uses: guibranco/github-file-reader-action-v2@latest
+      continue-on-error: true
+      id: pr_title
+      with:
+        path: "/tmp/pr_title"
+
+    - name: Read /tmp/pr_description
+      uses: guibranco/github-file-reader-action-v2@latest
+      continue-on-error: true
+      id: pr_desc
+      with:
+        path: "/tmp/pr_description"
+
+    - name: Authenticate as app
+      uses: actions/create-github-app-token@v2
+      id: app_tok
+      with:
+        app-id: ${{ vars.APP_ID }}
+        private-key: ${{ secrets.APP_PRIVKEY }}
+
+    - name: Create PR as appropriate
+      if: steps.pr_title.outcome == 'success' && steps.pr_desc.outcome == 'success'
+      uses: peter-evans/create-pull-request@v8
+      with:
+        token: ${{ steps.app_tok.outputs.token }}
+        branch: "ai/issue${{ inputs.issue_number }}"
+        commit-message: ${{ steps.commit_msg.outputs.contents }}
+        sign-commits: true
+        title: ${{ steps.pr_title.outputs.contents }}
+        body: ${{ steps.pr_desc.outputs.contents }}
+        draft: true
+
+    - name: Respond to issue
+      if: steps.issue_resp.outcome == 'success'
+      env:
+        GH_TOKEN: ${{ steps.app_tok.outputs.token }}
+      run: gh issue comment "${{ inputs.issue_number }}" --body-file /tmp/gh_issue_response

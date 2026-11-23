@@ -123,7 +123,7 @@ internal sealed class WallPipeline : ILoaderModule
         }
         catch (Exception e)
         {
-            Safe.Once("wall.animate", "[wall] 墙动画推进异常：" + Safe.Describe(e), true);
+            Safe.Once("wall.animate", "[wall] 墙动画推进异常：" + Safe.Dump(e), true);
         }
     }
 
@@ -320,7 +320,7 @@ internal sealed class WallPipeline : ILoaderModule
         catch (Exception e)
         {
             _lightCount = 0;
-            Safe.Once("wall.light.scan", "[wall] 墙发光扫描异常：" + Safe.Describe(e), true);
+            Safe.Once("wall.light.scan", "[wall] 墙发光扫描异常：" + Safe.Dump(e), true);
             return;
         }
 
@@ -428,7 +428,7 @@ internal sealed class WallPipeline : ILoaderModule
         catch (Exception e)
         {
             _lightCount = 0;
-            Safe.Once("wall.light.apply", "[wall] 墙发光落光异常：" + Safe.Describe(e), true);
+            Safe.Once("wall.light.apply", "[wall] 墙发光落光异常：" + Safe.Dump(e), true);
         }
     }
 
@@ -476,7 +476,7 @@ internal sealed class WallPipeline : ILoaderModule
     private void Fail(ModWall wall, HookId hook, Exception exception)
     {
         if (!_reported.Add(HashCode.Combine(wall.Type, hook))) return;
-        ContentErrors.Report($"[wall] {wall.GetType().Name}.{hook} 异常：{Safe.Describe(exception)}");
+        ContentErrors.Line($"[wall] {wall.GetType().Name}.{hook} 异常：{Safe.Dump(exception)}");
     }
 }
 

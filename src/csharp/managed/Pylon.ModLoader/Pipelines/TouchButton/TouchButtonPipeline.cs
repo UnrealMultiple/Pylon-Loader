@@ -415,7 +415,7 @@ internal sealed class TouchButtonPipeline : ILoaderModule
         }
         catch (Exception e)
         {
-            _log?.Error("触屏按钮挂钩失败：" + Safe.Describe(e));
+            _log?.Error("触屏按钮挂钩失败：" + Safe.Dump(e));
         }
     }
 
@@ -675,7 +675,7 @@ internal sealed class TouchButtonPipeline : ILoaderModule
         }
         catch (Exception e)
         {
-            Safe.Once("touchbutton.ensure", "触屏按钮：控制器数组扩不了 —— " + Safe.Describe(e));
+            Safe.Once("touchbutton.ensure", "触屏按钮：控制器数组扩不了 —— " + Safe.Dump(e));
         }
     }
 
@@ -738,6 +738,6 @@ internal sealed class TouchButtonPipeline : ILoaderModule
     private void Fail(TouchButtonEntry entry, HookId hook, Exception exception)
     {
         if (!_reported.Add(HashCode.Combine(entry.Index, hook))) return;
-        ContentErrors.Report($"[touchbutton] {entry.Key}.{hook} 异常：{Safe.Describe(exception)}");
+        ContentErrors.Line($"[touchbutton] {entry.Key}.{hook} 异常：{Safe.Dump(exception)}");
     }
 }

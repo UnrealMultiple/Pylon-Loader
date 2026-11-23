@@ -122,7 +122,7 @@ internal sealed class AchievementPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                Log.Warn($"[achievement] 成就存档重读失败：{Safe.Describe(e)}");
+                Log.Warn($"[achievement] 成就存档重读失败：{Safe.Dump(e)}");
             }
         }
     }
@@ -140,7 +140,7 @@ internal sealed class AchievementPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[achievement] {key} 建成就失败：{Safe.Describe(e)}");
+            ContentErrors.Line($"[achievement] {key} 建成就失败：{Safe.Dump(e)}");
             return;
         }
 
@@ -157,7 +157,7 @@ internal sealed class AchievementPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[achievement] {key} 名字/说明设置失败：{Safe.Describe(e)}");
+            ContentErrors.Line($"[achievement] {key} 名字/说明设置失败：{Safe.Dump(e)}");
         }
 
         try
@@ -166,7 +166,7 @@ internal sealed class AchievementPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[achievement] {key}.SetStaticDefaults 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[achievement] {key}.SetStaticDefaults 异常：{Safe.Dump(e)}");
         }
 
         var conditions = mod.Conditions;
@@ -188,7 +188,7 @@ internal sealed class AchievementPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[achievement] {key} 挑追踪器失败：{Safe.Describe(e)}");
+            ContentErrors.Line($"[achievement] {key} 挑追踪器失败：{Safe.Dump(e)}");
         }
 
         var manager = Main.Achievements;
@@ -205,7 +205,7 @@ internal sealed class AchievementPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[achievement] {key} 注册失败：{Safe.Describe(e)}");
+            ContentErrors.Line($"[achievement] {key} 注册失败：{Safe.Dump(e)}");
         }
     }
 
@@ -296,7 +296,7 @@ internal sealed class AchievementPipeline : ILoaderModule, ILoaderModuleRefresh
         if (!achievement.IsCompleted)
         {
             try { hidden = mod.Hidden; }
-            catch (Exception e) { ContentErrors.Report($"[achievement] {mod.Name}.Hidden 异常：{Safe.Describe(e)}"); }
+            catch (Exception e) { ContentErrors.Line($"[achievement] {mod.Name}.Hidden 异常：{Safe.Dump(e)}"); }
         }
         if (hidden)
         {
@@ -373,7 +373,7 @@ internal sealed class AchievementPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[achievement] {mod!.Name}.Texture 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[achievement] {mod!.Name}.Texture 异常：{Safe.Dump(e)}");
             return false;
         }
         if (resolved is null)
@@ -409,7 +409,7 @@ internal sealed class AchievementPipeline : ILoaderModule, ILoaderModuleRefresh
         catch (Exception e)
         {
             _remapHookState = 2;
-            ContentErrors.Report($"[achievement] 图标重映射钩子安装失败：{Safe.Describe(e)}");
+            ContentErrors.Line($"[achievement] 图标重映射钩子安装失败：{Safe.Dump(e)}");
             return false;
         }
     }
@@ -509,7 +509,7 @@ internal sealed class AchievementPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[achievement] {mod!.Name}.OnCompleted 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[achievement] {mod!.Name}.OnCompleted 异常：{Safe.Dump(e)}");
         }
     }
 }

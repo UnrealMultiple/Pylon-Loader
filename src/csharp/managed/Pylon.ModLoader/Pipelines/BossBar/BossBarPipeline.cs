@@ -124,7 +124,7 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[bossbar] {global.Name}.SetStaticDefaults 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[bossbar] {global.Name}.SetStaticDefaults 异常：{Safe.Dump(e)}");
             }
         }
 
@@ -176,7 +176,7 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[bossbar] 抓目标异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[bossbar] 抓目标异常：{Safe.Dump(e)}");
         }
     }
 
@@ -202,7 +202,7 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[bossbar] {candidate.Name}.ModifyInfo 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[bossbar] {candidate.Name}.ModifyInfo 异常：{Safe.Dump(e)}");
             valid = false;
         }
 
@@ -277,7 +277,7 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[bossbar] {bar.Name} 绘制异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[bossbar] {bar.Name} 绘制异常：{Safe.Dump(e)}");
         }
     }
 
@@ -294,7 +294,7 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[bossbar] {bar.Name}.GetIconTexture 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[bossbar] {bar.Name}.GetIconTexture 异常：{Safe.Dump(e)}");
         }
 
         var heads = TextureAssets.NpcHead;
@@ -327,7 +327,7 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[bossbar] {global.Name}.PreDraw 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[bossbar] {global.Name}.PreDraw 异常：{Safe.Dump(e)}");
             }
         }
 
@@ -339,7 +339,7 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[bossbar] {bar.Name}.PreDraw 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[bossbar] {bar.Name}.PreDraw 异常：{Safe.Dump(e)}");
             }
         }
 
@@ -366,13 +366,13 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[bossbar] {bar.Name}.PostDraw 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[bossbar] {bar.Name}.PostDraw 异常：{Safe.Dump(e)}");
         }
 
         foreach (var global in _globals)
         {
             try { global.PostDraw(spriteBatch, npc, draw); }
-            catch (Exception e) { ContentErrors.Report($"[bossbar] {global.Name}.PostDraw 异常：{Safe.Describe(e)}"); }
+            catch (Exception e) { ContentErrors.Line($"[bossbar] {global.Name}.PostDraw 异常：{Safe.Dump(e)}"); }
         }
     }
 
@@ -432,7 +432,7 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[bossbar] {global.Name}.PreDraw 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[bossbar] {global.Name}.PreDraw 异常：{Safe.Dump(e)}");
             }
         }
 
@@ -454,7 +454,7 @@ internal sealed class BossBarPipeline : ILoaderModule, ILoaderModuleRefresh
         foreach (var global in _globals)
         {
             try { global.PostDraw(Main.spriteBatch, npc, draw); }
-            catch (Exception e) { ContentErrors.Report($"[bossbar] {global.Name}.PostDraw 异常：{Safe.Describe(e)}"); }
+            catch (Exception e) { ContentErrors.Line($"[bossbar] {global.Name}.PostDraw 异常：{Safe.Dump(e)}"); }
         }
     }
 

@@ -36,11 +36,11 @@ namespace XiheBoss.Wand
             }
             catch (System.Exception e)
             {
-                Mod.Logger.Warn("[item] 借用原版图标失败：" + e.Message);
+                Mod.Logger.Warn("[item] 借用原版图标失败：" + e);
             }
 
             try { TextureAssets.Item[Type] = Mod.Assets.Request<Il2CppMicrosoft.Xna.Framework.Graphics.Texture2D>("assets/textures/Arc.png"); }
-            catch (System.Exception e) { Mod.Logger.Warn("[item] Arc 兜底图标失败：" + e.Message); }
+            catch (System.Exception e) { Mod.Logger.Warn("[item] Arc 兜底图标失败：" + e); }
         }
 
         public override void SetDefaults()

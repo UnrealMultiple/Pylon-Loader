@@ -120,49 +120,72 @@ internal object RunLogs {
     // 解析
     // ------------------------------------------------------------------
 
+    /** 一条日志：首行带 "HH:mm:ss.fff L [来源] " 前缀，异常堆栈是后续无前缀的续行。 */
+    private class Entry(val first: String) {
+        val continuation = mutableListOf<String>()
+        fun flatten(): List<String> = listOf(first) + continuation
+    }
+
+    private val entryStart = Regex("""^\d\d:\d\d:\d\d\.\d{3} [IWE] \[([^]]+)\]""")
+
+    private fun entriesOf(lines: List<String>): List<Entry> {
+        val out = ArrayList<Entry>()
+        for (line in lines) {
+            if (entryStart.matches(line) || out.isEmpty()) out.add(Entry(line))
+            else out.last().continuation.add(line)
+        }
+        return out
+    }
+
+    private fun sourceOf(entry: Entry): String? = entryStart.find(entry.first)?.groupValues?.get(1)
+
     private fun sessionProblems(context: Context): String {
         val session = newestSession(context) ?: return ""
         val lines = runCatching { session.readLines() }.getOrDefault(emptyList())
         if (lines.isEmpty()) return ""
-        val problems = problemsOf(lines)
+        val problems = entriesOf(lines).filter { entry ->
+            entry.first.length > LEVEL_COLUMN && (entry.first[LEVEL_COLUMN] == 'E' || entry.first[LEVEL_COLUMN] == 'W')
+        }
         return buildString {
             appendLine(session.name)
             if (problems.isEmpty()) appendLine("(没有错误或警告)")
-            else problems.takeLast(PROBLEM_LIMIT).forEach { appendLine(it) }
+            else problems.takeLast(PROBLEM_LIMIT).forEach { entry -> entry.flatten().forEach { appendLine(it) } }
             appendLine(">>> 日志末尾：")
             lines.takeLast(TAIL_LINES).forEach { appendLine(it) }
         }
     }
 
-    /** 某个 Mod 自己的最近日志行（会话日志里来源标签 == modId），旧的在前。没有会话/没有输出返回 null。 */
+    /** 某个 Mod 自己的最近日志（来源标签 == modId，堆栈续行跟随首行），旧的在前。没有会话/没有输出返回 null。 */
     fun modRecentLines(context: Context, modId: String, limit: Int = 20): List<String>? {
         val session = newestSession(context) ?: return null
         val lines = runCatching { session.readLines() }.getOrDefault(emptyList())
         val tag = "[$modId]"
-        val own = lines.filter { line ->
+        val own = entriesOf(lines).filter { entry ->
             // 级别列在 13，来源标签紧跟其后（"[id] "），避免误匹配到消息文本里的同名片段。
-            line.length > LEVEL_COLUMN + tag.length &&
-                line[LEVEL_COLUMN] in "IWE" &&
-                line.regionMatches(LEVEL_COLUMN + 2, tag, 0, tag.length)
+            entry.first.length > LEVEL_COLUMN + tag.length &&
+                entry.first[LEVEL_COLUMN] in "IWE" &&
+                entry.first.regionMatches(LEVEL_COLUMN + 2, tag, 0, tag.length)
         }
         if (own.isEmpty()) return null
-        return own.takeLast(limit)
+        return own.takeLast(limit).flatMap { it.flatten() }
     }
 
     private fun sessionModLines(context: Context): String {
         val session = newestSession(context) ?: return ""
         val lines = runCatching { session.readLines() }.getOrDefault(emptyList())
-        // Mod 行 = 来源不是 host/log 的（C# 侧来源是 Mod id）。
-        val modLines = lines.filter { line ->
-            val source = Regex("""^\d\d:\d\d:\d\d\.\d{3} [IWE] \[([^]]+)\]""").find(line)?.groupValues?.get(1)
+        // Mod 条目 = 来源不是 host/log 的（C# 侧来源是 Mod id）；续行（堆栈）跟着首行走。
+        val modEntries = entriesOf(lines).filter { entry ->
+            val source = sourceOf(entry)
             source != null && source != "host" && source != "log"
         }
-        if (modLines.isEmpty()) return "(无)"
-        return modLines.takeLast(MOD_LINE_LIMIT).joinToString("\n")
+        if (modEntries.isEmpty()) return "(无)"
+        return modEntries.takeLast(MOD_LINE_LIMIT).joinToString("\n") { it.flatten().joinToString("\n") }
     }
 
     private fun problemsOf(lines: List<String>): List<String> =
-        lines.filter { it.length > LEVEL_COLUMN && (it[LEVEL_COLUMN] == 'E' || it[LEVEL_COLUMN] == 'W') }
+        entriesOf(lines)
+            .filter { it.first.length > LEVEL_COLUMN && (it.first[LEVEL_COLUMN] == 'E' || it.first[LEVEL_COLUMN] == 'W') }
+            .map { it.first }
 
     private fun readTail(file: File): String {
         if (!file.isFile || file.length() == 0L) return ""

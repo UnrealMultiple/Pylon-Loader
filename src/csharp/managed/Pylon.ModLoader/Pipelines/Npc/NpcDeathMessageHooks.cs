@@ -143,12 +143,12 @@ internal static class NpcDeathMessageHooks
     private static void Report(ModNpc mod, Exception exception)
     {
         if (!_reported.Add(mod.Type + "/" + exception.GetType().Name)) return;
-        ContentErrors.Report($"[deathmsg] {mod.Name}.ModifyDeathMessage 异常：{Safe.Describe(exception)}");
+        ContentErrors.Line($"[deathmsg] {mod.Name}.ModifyDeathMessage 异常：{Safe.Dump(exception)}");
     }
 
     private static void Report(GlobalNpc global, Exception exception)
     {
         if (!_reported.Add(global.Name + "/" + exception.GetType().Name)) return;
-        ContentErrors.Report($"[deathmsg] {global.Name}.ModifyDeathMessage 异常：{Safe.Describe(exception)}");
+        ContentErrors.Line($"[deathmsg] {global.Name}.ModifyDeathMessage 异常：{Safe.Dump(exception)}");
     }
 }

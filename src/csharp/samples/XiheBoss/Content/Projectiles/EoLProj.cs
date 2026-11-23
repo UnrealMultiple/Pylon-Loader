@@ -255,7 +255,7 @@ namespace XiheBoss
             }
             catch (Exception e)
             {
-                if (!_drawLogged) { _drawLogged = true; XiheBossMod.Log?.Warn("[eolproj] PreDraw 异常：" + e.Message); }
+                if (!_drawLogged) { _drawLogged = true; XiheBossMod.Log?.Warn("[eolproj] PreDraw 异常：" + e); }
             }
         }
 

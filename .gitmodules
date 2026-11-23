@@ -1,12 +1,5 @@
-# 外部依赖（只钉提交，不含构建产物）
-#
-# 说明：Il2CppInterop 已改为仓库内源码（src/csharp/il2cppinterop，含 ARM64/Disarm 补丁）；
-# 剩下的子模块用于复现运行时（那些 so/dll 是怎么来的）。
-# 产物（libcoreclr.so、dotnet.zip、BepInEx.Android.zip、interop/generated）仍然要构建或从
-# 上游 release 取，且不进本仓库 —— 见 docs/构建-从零开始.md。
+# 唯一的子模块：内核 hook 后端 ShadowHook（公开上游，由 src/core/build.ps1 直编）。
 
-[submodule "external/BepInEx-Android"]
-	path = external/BepInEx-Android
-	url = https://github.com/Tb1281/BepInEx-Android.git
-	# 625d8b1：provenance/ 里锁定了 .NET 运行时、MonoMod、Il2CppInterop 的版本，
-	# runtime/ 里的 CoreCLR + BCL + 托管栈就是从它的构建流程产出的。
+[submodule "external/shadowhook"]
+	path = external/shadowhook
+	url = https://github.com/bytedance/android-inline-hook

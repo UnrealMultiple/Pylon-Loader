@@ -35,7 +35,7 @@ internal static class ItemEquipHooks
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[item] CanAccessoryBeEquippedWith 异常：" + Safe.Describe(e));
+            ContentErrors.Line("[item] CanAccessoryBeEquippedWith 异常：" + Safe.Dump(e));
             return true;
         }
     }
@@ -134,7 +134,7 @@ internal static class ItemEquipHooks
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[item] ArmorSwap 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[item] ArmorSwap 异常：{Safe.Dump(e)}");
             return result;
         }
     }
@@ -161,7 +161,7 @@ internal static class ItemEquipHooks
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[item] DrawArmorColor 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[item] DrawArmorColor 异常：{Safe.Dump(e)}");
         }
     }
 

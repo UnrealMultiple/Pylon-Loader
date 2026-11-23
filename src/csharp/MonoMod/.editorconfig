@@ -1,0 +1,130 @@
+root = true
+
+[*]
+end_of_line = lf
+indent_style = space
+
+[*.yml]
+indent_size = 2
+
+[*.{csproj,ilproj,props,targets}]
+indent_size = 2
+
+[*.{cs,vb}]
+indent_style = space
+indent_size = 4
+
+# Globalization rules should be "in your face" as the system culture info has actually caused problems!
+# See https://docs.microsoft.com/en-us/dotnet/fundamentals/code-analysis/quality-rules/globalization-warnings
+# Make sure to toggle this and the analyzer in MonoMod.Common.Props off as soon as MultiTargetShims is the only class that violates these rules.
+## dotnet_diagnostic.CA1303.severity = error # Fun fact: Console.WriteLine(string) acts as a localized method!
+#dotnet_diagnostic.CA1304.severity = error
+#dotnet_diagnostic.CA1305.severity = error
+#dotnet_diagnostic.CA1307.severity = error
+## dotnet_diagnostic.CA1308.severity = error # .ToLower() has got its uses.
+#dotnet_diagnostic.CA1309.severity = error
+#dotnet_diagnostic.CA1310.severity = error
+## dotnet_diagnostic.CA2101.severity = error # P/Invoke is magic.
+
+# https://kent-boogaart.com/blog/editorconfig-reference-for-c-developers
+
+csharp_indent_block_contents = true
+csharp_indent_case_contents = true
+csharp_indent_labels = no_change
+csharp_indent_switch_labels = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_else = true
+csharp_new_line_before_finally = true
+csharp_new_line_before_members_in_anonymous_types = true
+csharp_new_line_before_members_in_object_initializers = true
+csharp_new_line_before_open_brace = all
+csharp_prefer_braces = true:suggestion
+csharp_prefer_simple_default_expression = true:warning
+csharp_preserve_single_line_blocks = true
+csharp_preserve_single_line_statements = true
+csharp_space_after_cast = false
+csharp_space_after_colon_in_inheritance_clause = true
+csharp_space_after_comma = true
+csharp_space_after_dot = false
+csharp_space_after_keywords_in_control_flow_statements = true
+csharp_space_after_semicolon_in_for_statement = true
+csharp_space_around_binary_operators = before_and_after
+csharp_space_around_declaration_statements = do_not_ignore
+csharp_space_before_colon_in_inheritance_clause = true
+csharp_space_before_comma = false
+csharp_space_before_dot = false
+csharp_space_before_open_square_brackets = false
+csharp_space_before_semicolon_in_for_statement = false
+csharp_space_between_empty_square_brackets = false
+csharp_space_between_method_call_empty_parameter_list_parentheses = false
+csharp_space_between_method_call_name_and_opening_parenthesis = false
+csharp_space_between_method_call_parameter_list_parentheses = false
+csharp_space_between_method_declaration_empty_parameter_list_parentheses = false
+csharp_space_between_method_declaration_name_and_open_parenthesis = false
+csharp_space_between_method_declaration_parameter_list_parentheses = false
+csharp_space_between_parentheses = false
+csharp_space_between_square_brackets = false
+csharp_style_conditional_delegate_call = true:warning
+csharp_style_expression_bodied_accessors = when_on_single_line:suggestion
+csharp_style_expression_bodied_constructors = false:silent
+csharp_style_expression_bodied_indexers = true:suggestion
+csharp_style_expression_bodied_methods = false:silent
+csharp_style_expression_bodied_operators = true:suggestion
+csharp_style_expression_bodied_properties = true:suggestion
+csharp_style_inlined_variable_declaration = true:warning
+csharp_style_pattern_matching_over_as_with_null_check = true:warning
+csharp_style_pattern_matching_over_is_with_cast_check = true:warning
+csharp_style_throw_expression = true:warning
+csharp_style_var_elsewhere = true:warning
+csharp_style_var_for_built_in_types = true:warning
+csharp_style_var_when_type_is_apparent = true:warning
+dotnet_sort_system_directives_first = false
+dotnet_style_coalesce_expression = true:warning
+dotnet_style_collection_initializer = true:suggestion
+dotnet_style_explicit_tuple_names = true:suggestion
+dotnet_style_null_propagation = true:suggestion
+dotnet_style_object_initializer = true:silent
+dotnet_style_predefined_type_for_locals_parameters_members = true:warning
+dotnet_style_predefined_type_for_member_access = true:warning
+dotnet_style_qualification_for_event = false:warning
+dotnet_style_qualification_for_field = false:warning
+dotnet_style_qualification_for_method = false:warning
+dotnet_style_qualification_for_property = false:warning
+csharp_using_directive_placement = outside_namespace:warning
+csharp_prefer_simple_using_statement = true:suggestion
+csharp_style_namespace_declarations = block_scoped:silent
+csharp_style_prefer_method_group_conversion = true:silent
+csharp_style_prefer_top_level_statements = true:silent
+csharp_style_expression_bodied_lambdas = true:suggestion
+csharp_style_expression_bodied_local_functions = when_on_single_line:suggestion
+csharp_style_deconstructed_variable_declaration = true:suggestion
+csharp_style_unused_value_assignment_preference = discard_variable:warning
+dotnet_diagnostic.IDE0005.severity = warning
+dotnet_diagnostic.IDE0046.severity = suggestion
+dotnet_diagnostic.IDE0045.severity = suggestion
+
+# Configure null check validation functions so the compiler does not complain
+dotnet_code_quality.CA1062.null_check_validation_methods = ThrowIfNull|ThrowIfArgumentNull
+
+# CA1416: Validate platform compatibility
+# We have our own platform checks, and it's rather difficult to get the analyzer to recognize them.
+dotnet_diagnostic.CA1416.severity = none
+
+# CA1032: Implement standard exception constructors
+dotnet_diagnostic.CA1032.severity = suggestion
+
+# CA1003: Use generic event handler instances
+dotnet_diagnostic.CA1003.severity = silent
+
+# All of the throw helpers only apply to new TFMs, so there's not a good way to use them.
+# CA1513: Use ObjectDisposedException throw helper
+dotnet_diagnostic.CA1513.severity = none
+# CA1512: Use ArgumentOutOfRangeException throw helper
+dotnet_diagnostic.CA1512.severity = none
+
+# CS9191: The 'ref' modifier for an argument corresponding to 'in' parameter is equivalent to 'in'. Consider using 'in' instead.
+# Some BCL versions use 'in', some use 'ref', even for the same APIs. They're source-compatible, so we don't really care.
+dotnet_diagnostic.CS9191.severity = suggestion
+
+# RS0030: API is banned
+dotnet_diagnostic.RS0030.severity = error

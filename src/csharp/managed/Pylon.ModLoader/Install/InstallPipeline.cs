@@ -49,7 +49,7 @@ internal sealed class InstallPipeline
         }
         catch (Exception e)
         {
-            Log.Warn("安装管线武装失败：" + Safe.Describe(e));
+            Log.Warn("安装管线武装失败：" + Safe.Dump(e));
         }
     }
 
@@ -73,7 +73,7 @@ internal sealed class InstallPipeline
         }
         catch (Exception e)
         {
-            Log.Warn("安装帧异常：" + Safe.Describe(e));
+            Log.Warn("安装帧异常：" + Safe.Dump(e));
         }
     }
 
@@ -146,7 +146,7 @@ internal sealed class InstallPipeline
         }
         catch (Exception e)
         {
-            Log.Warn("本地化重写失败：" + Safe.Describe(e));
+            Log.Warn("本地化重写失败：" + Safe.Dump(e));
         }
     }
 
@@ -165,7 +165,7 @@ internal sealed class InstallPipeline
         }
         catch (Exception e)
         {
-            Log.Warn("表维护异常：" + Safe.Describe(e));
+            Log.Warn("表维护异常：" + Safe.Dump(e));
         }
     }
 }

@@ -48,21 +48,7 @@ internal static class Safe
     internal static void Report(string label, Exception? exception)
     {
         if (!Reported.Add(label)) return;
-
-        if (exception is null)
-        {
-            Sink.Warn(label);
-            return;
-        }
-
-        Sink.Warn($"{label} 出错：{Describe(exception)}");
-        if (exception.StackTrace is { } stack)
-        {
-            var firstLine = stack.AsSpan();
-            var newline = firstLine.IndexOf('\n');
-            if (newline >= 0) firstLine = firstLine[..newline];
-            Sink.Warn("  " + firstLine.Trim().ToString());
-        }
+        Sink.Warn(exception is null ? label : $"{label} 出错：{Dump(exception)}");
     }
 
     internal static void Once(string key, string text, bool error = false)
@@ -72,7 +58,7 @@ internal static class Safe
         else Sink.Info(text);
     }
 
-    /// <summary>异常链压成一行：保留"谁抛的"，不刷堆栈。</summary>
+    /// <summary>异常链压成一行：保留"谁抛的"和源码帧位置，不刷完整堆栈。</summary>
     internal static string Describe(Exception? exception)
     {
         if (exception is null) return "?";
@@ -85,6 +71,44 @@ internal static class Safe
             text.Append(current.GetType().Name).Append(": ").Append(current.Message);
             current = current.InnerException;
         }
+        if (SourceFrame(exception) is { } frame) text.Append(" @ ").Append(frame);
         return text.ToString();
+    }
+
+    /// <summary>完整异常：类型、消息链与整条堆栈，供日志直接输出。</summary>
+    internal static string Dump(Exception? exception)
+    {
+        if (exception is null) return "?";
+        return exception.ToString().Replace("\r", "").TrimEnd();
+    }
+
+    private static string? SourceFrame(Exception? exception)
+    {
+        var stack = exception?.StackTrace;
+        if (string.IsNullOrEmpty(stack)) return null;
+        string? fallback = null;
+        foreach (var raw in stack.Split('\n'))
+        {
+            var line = raw.Trim();
+            if (!line.StartsWith("at ", StringComparison.Ordinal)) continue;
+            var body = line[3..].Trim();
+            var cut = body.IndexOf(" in ", StringComparison.Ordinal);
+            if (cut < 0)
+            {
+                fallback ??= body;
+                continue;
+            }
+            var method = body[..cut].Trim();
+            var file = body[(cut + 4)..].Trim();
+            var lineNo = string.Empty;
+            var idx = file.LastIndexOf(":line ", StringComparison.Ordinal);
+            if (idx >= 0)
+            {
+                lineNo = file[(idx + 6)..].Trim();
+                file = file[..idx];
+            }
+            return $"{method}({Path.GetFileName(file)}:{lineNo})";
+        }
+        return fallback;
     }
 }

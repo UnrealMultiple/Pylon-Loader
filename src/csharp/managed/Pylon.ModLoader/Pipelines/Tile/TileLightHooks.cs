@@ -58,7 +58,7 @@ internal static class TileLightHooks
         catch (Exception e)
         {
             _lightCount = 0;
-            Safe.Once("tile.light.scan", "[tile] 方块发光扫描异常：" + Safe.Describe(e), true);
+            Safe.Once("tile.light.scan", "[tile] 方块发光扫描异常：" + Safe.Dump(e), true);
             return;
         }
 
@@ -198,7 +198,7 @@ internal static class TileLightHooks
         catch (Exception e)
         {
             _lightCount = 0;
-            Safe.Once("tile.light.apply", "[tile] 方块发光落光异常：" + Safe.Describe(e), true);
+            Safe.Once("tile.light.apply", "[tile] 方块发光落光异常：" + Safe.Dump(e), true);
         }
     }
 
@@ -279,12 +279,12 @@ internal static class TileLightHooks
     private static void Fail(ModTile tile, Exception exception)
     {
         if (!_reported.Add(HashCode.Combine(tile.Type, HookId.ModifyLight))) return;
-        ContentErrors.Report($"[tile] {tile.GetType().Name}.ModifyLight 异常：{Safe.Describe(exception)}");
+        ContentErrors.Line($"[tile] {tile.GetType().Name}.ModifyLight 异常：{Safe.Dump(exception)}");
     }
 
     private static void Fail(GlobalTile global, Exception exception)
     {
         if (!_reported.Add(HashCode.Combine(global.GetType(), HookId.ModifyLight))) return;
-        ContentErrors.Report($"[tile] {global.GetType().Name}.ModifyLight 异常：{Safe.Describe(exception)}");
+        ContentErrors.Line($"[tile] {global.GetType().Name}.ModifyLight 异常：{Safe.Dump(exception)}");
     }
 }

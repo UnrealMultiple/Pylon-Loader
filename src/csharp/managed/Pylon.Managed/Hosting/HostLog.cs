@@ -12,6 +12,18 @@ internal static class HostLog
     public static void Write(string message)
     {
         SessionLog.Write('I', "host", message);
+        Logcat(message);
+    }
+
+    /// <summary>错误级：会话文件记 E，logcat 同步一份。</summary>
+    public static void Error(string message)
+    {
+        SessionLog.Error("host", message);
+        Logcat(message);
+    }
+
+    private static void Logcat(string message)
+    {
         try
         {
             LogNative.Write(Prefix + message);
@@ -22,7 +34,7 @@ internal static class HostLog
         }
     }
 
-    /// <summary>把异常链压成一行：保留"谁抛的"，不刷堆栈。</summary>
+    /// <summary>把异常链压成一行：保留"谁抛的"和源码帧位置，不刷完整堆栈。</summary>
     public static string Describe(Exception exception)
     {
         var text = new StringBuilder(128);
@@ -33,13 +45,43 @@ internal static class HostLog
             text.Append(current.GetType().Name).Append(": ").Append(current.Message);
             current = current.InnerException;
         }
+        if (SourceFrame(exception) is { } frame) text.Append(" @ ").Append(frame);
         return text.ToString();
     }
 
-    /// <summary>记录一次失败，并把堆栈顶部一行带进日志（定位"谁空引用了"用）。</summary>
+    private static string? SourceFrame(Exception? exception)
+    {
+        var stack = exception?.StackTrace;
+        if (string.IsNullOrEmpty(stack)) return null;
+        string? fallback = null;
+        foreach (var raw in stack.Split('\n'))
+        {
+            var line = raw.Trim();
+            if (!line.StartsWith("at ", StringComparison.Ordinal)) continue;
+            var body = line[3..].Trim();
+            var cut = body.IndexOf(" in ", StringComparison.Ordinal);
+            if (cut < 0)
+            {
+                fallback ??= body;
+                continue;
+            }
+            var method = body[..cut].Trim();
+            var file = body[(cut + 4)..].Trim();
+            var lineNo = string.Empty;
+            var idx = file.LastIndexOf(":line ", StringComparison.Ordinal);
+            if (idx >= 0)
+            {
+                lineNo = file[(idx + 6)..].Trim();
+                file = file[..idx];
+            }
+            return $"{method}({Path.GetFileName(file)}:{lineNo})";
+        }
+        return fallback;
+    }
+
+    /// <summary>记录一次失败：完整异常（含堆栈）进会话文件与 logcat。</summary>
     public static void Failure(string label, Exception exception)
     {
-        Write($"{label}：{Describe(exception)}");
-        if (exception.StackTrace is { } stack) Write(stack.TrimEnd());
+        Error($"{label}：{exception.ToString().Replace("\r", "").TrimEnd()}");
     }
 }

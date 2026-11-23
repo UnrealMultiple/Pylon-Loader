@@ -59,7 +59,18 @@ internal sealed class NetPipeline : ILoaderModule
         }
     }
 
-    public bool Install() => GateHub<NetPipeline>.Run();
+    public bool Install()
+    {
+        try
+        {
+            return GateHub<NetPipeline>.Run();
+        }
+        catch (Exception e)
+        {
+            Log.Error("[net] Install 异常：" + e);
+            throw;
+        }
+    }
 
     private void InstallCore()
     {
@@ -76,6 +87,9 @@ internal sealed class NetPipeline : ILoaderModule
 
         _handshake = new NetHandshake(this);
         _handshake.Install();
+
+        NetHostMenu.Install();
+        NetJoinMenu.Install();
 
         ContentFingerprint.Refresh();
         Log.Info("[net] 已挂（消息 0x" + Id.ToString("X") + "；" + _byName.Count + " 个 mod 可寻址；物品附属数据走 " +
@@ -123,10 +137,12 @@ internal sealed class NetPipeline : ILoaderModule
     internal void SendFingerprint(int toClient)
     {
         ContentFingerprint.Refresh();
+        ContentFingerprint.RefreshTextures();
         SendChannel(MetaKind, writer =>
         {
             writer.Write(MetaFingerprint);
             writer.Write(ContentFingerprint.Value);
+            writer.Write(ContentFingerprint.TextureValue);
         }, toClient, -1);
     }
 
@@ -318,8 +334,11 @@ internal sealed class NetPipeline : ILoaderModule
             case MetaFingerprint:
                 {
                     var remote = reader.ReadUInt64();
+                    var stream = reader.BaseStream;
+                    var texture = stream.Position + 8 <= stream.Length ? reader.ReadUInt64() : 0UL;
                     ContentFingerprint.Refresh();
-                    JudgeFingerprint(remote, from);
+                    ContentFingerprint.RefreshTextures();
+                    JudgeFingerprint(remote, texture, from);
                     break;
                 }
             case NetHandshake.MetaWelcome:
@@ -330,18 +349,23 @@ internal sealed class NetPipeline : ILoaderModule
         }
     }
 
-    private void JudgeFingerprint(ulong remote, int from)
+    private void JudgeFingerprint(ulong remote, ulong texture, int from)
     {
-        if (ContentFingerprint.Value == remote)
+        var same = ContentFingerprint.Value == remote &&
+                   (texture == 0 || ContentFingerprint.TextureValue == texture);
+        if (same)
         {
             Log.Info($"[net] {ContentFingerprint.Summary()}，与对端一致");
             return;
         }
 
-        Safe.Once("net.fingerprint", "[net] " + ContentFingerprint.Describe(remote), true);
+        if (ContentFingerprint.Value != remote)
+            Safe.Once("net.fingerprint", "[net] " + ContentFingerprint.Describe(remote), true);
+        if (texture != 0 && ContentFingerprint.TextureValue != texture)
+            Safe.Once("net.texture", "[net] " + ContentFingerprint.DescribeTexture(texture), true);
 
-        if (Main.netMode == 1) _handshake.JudgeServer(remote);
-        else _handshake.JudgeClient(from, remote);
+        if (Main.netMode == 1) _handshake.JudgeServer(remote, texture);
+        else _handshake.JudgeClient(from, remote, texture);
     }
 
     private void ReceiveChannel(byte kind, Il2CppSystem.IO.BinaryReader reader, int from)

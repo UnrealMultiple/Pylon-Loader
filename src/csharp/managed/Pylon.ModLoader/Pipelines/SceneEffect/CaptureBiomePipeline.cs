@@ -40,7 +40,7 @@ internal static class CaptureBiomePipeline
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[capturebiome] 场景赢家换群系异常：" + Safe.Describe(e));
+            ContentErrors.Line("[capturebiome] 场景赢家换群系异常：" + Safe.Dump(e));
         }
 
         return vanilla;

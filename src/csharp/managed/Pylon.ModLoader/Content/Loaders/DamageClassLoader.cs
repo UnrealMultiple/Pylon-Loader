@@ -164,7 +164,7 @@ public static class DamageClassLoader
                 if (!counts)
                 {
                     try { counts = all[i].GetEffectInheritance(all[j]); }
-                    catch (Exception e) { ContentErrors.Report($"[damageclass] {all[i].Name}.GetEffectInheritance 异常：{Safe.Describe(e)}"); }
+                    catch (Exception e) { ContentErrors.Line($"[damageclass] {all[i].Name}.GetEffectInheritance 异常：{Safe.Dump(e)}"); }
                 }
                 cache[i, j] = counts;
             }
@@ -192,7 +192,7 @@ public static class DamageClassLoader
                     StatInheritanceData data = all[i].GetModifierInheritance(all[j]);
                     if (!data.IsNone) cache[i, j] = data;
                 }
-                catch (Exception e) { ContentErrors.Report($"[damageclass] {all[i].Name}.GetModifierInheritance 异常：{Safe.Describe(e)}"); }
+                catch (Exception e) { ContentErrors.Line($"[damageclass] {all[i].Name}.GetModifierInheritance 异常：{Safe.Dump(e)}"); }
             }
         Volatile.Write(ref inheritCache, cache);
         return cache;
@@ -203,7 +203,7 @@ public static class DamageClassLoader
         try { return cls.UseStandardCritCalcs; }
         catch (Exception e)
         {
-            ContentErrors.Report($"[damageclass] {cls.Name}.UseStandardCritCalcs 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[damageclass] {cls.Name}.UseStandardCritCalcs 异常：{Safe.Dump(e)}");
             return false;
         }
     }
@@ -303,7 +303,7 @@ public static class DamageClassLoader
             try { return cls.GetsPrefixesFor(b); }
             catch (Exception e)
             {
-                ContentErrors.Report($"[damageclass] {cls.Name}.GetPrefixInheritance 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[damageclass] {cls.Name}.GetPrefixInheritance 异常：{Safe.Dump(e)}");
                 return false;
             }
         }
@@ -373,7 +373,7 @@ public static class DamageClassLoader
         for (int i = VanillaClassCount; i < all.Length; i++)
         {
             try { all[i].SetDefaultStats(player); }
-            catch (Exception e) { ContentErrors.Report($"[damageclass] {all[i].Name}.SetDefaultStats 异常：{Safe.Describe(e)}"); }
+            catch (Exception e) { ContentErrors.Line($"[damageclass] {all[i].Name}.SetDefaultStats 异常：{Safe.Dump(e)}"); }
         }
     }
 

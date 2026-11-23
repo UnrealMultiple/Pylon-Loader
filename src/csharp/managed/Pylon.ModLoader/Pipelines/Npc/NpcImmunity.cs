@@ -140,7 +140,7 @@ internal static class NpcImmunity
         }
         catch (Exception e)
         {
-            Safe.Once("npc.immunity.data." + type, $"[npc] 免疫数据读取失败（type={type}）：{Safe.Describe(e)}", true);
+            Safe.Once("npc.immunity.data." + type, $"[npc] 免疫数据读取失败（type={type}）：{Safe.Dump(e)}", true);
         }
 
         try
@@ -151,7 +151,7 @@ internal static class NpcImmunity
         }
         catch (Exception e)
         {
-            Safe.Once("npc.immunity.shimmer", "[npc] ShimmerImmunity 读取失败：" + Safe.Describe(e), true);
+            Safe.Once("npc.immunity.shimmer", "[npc] ShimmerImmunity 读取失败：" + Safe.Dump(e), true);
         }
     }
 

@@ -37,7 +37,7 @@ namespace XiheBoss
             }
             catch (Exception e)
             {
-                Logger.Error("[fx] XiheBeam.frag 加载失败，激光柱将没有主体画面：" + e.Message);
+                Logger.Error("[fx] XiheBeam.frag 加载失败，激光柱将没有主体画面：" + e);
             }
 
             RegisterImGuiTab(new XiheBossImGuiTab());
@@ -60,7 +60,7 @@ namespace XiheBoss
                 Terraria.Audio.SoundEngine.PlaySound(SoundID.ForceRoar, -1, -1, 1, 1f, 0f);
                 XiheBossMod.Log.Info("[sound] 加载末试播 Roar/ForceRoar 各一声");
             }
-            catch (Exception e) { XiheBossMod.Log.Warn("[sound] 试播失败：" + e.Message); }
+            catch (Exception e) { XiheBossMod.Log.Warn("[sound] 试播失败：" + e); }
             SetupContent();
             SetupHooks();
 
@@ -115,7 +115,7 @@ namespace XiheBoss
             }
             catch (Exception e)
             {
-                XiheBossMod.Log.Warn("[recipe] 羲和魔杖配方注册失败：" + e.Message);
+                XiheBossMod.Log.Warn("[recipe] 羲和魔杖配方注册失败：" + e);
             }
         }
 
@@ -130,7 +130,7 @@ namespace XiheBoss
             catch (Exception e)
             {
                 _submitFromUpdate = true;
-                XiheBossMod.Log.Warn("[fx] Main.DoDraw 挂载失败，改为 PostUpdateEverything 提交：" + e.Message);
+                XiheBossMod.Log.Warn("[fx] Main.DoDraw 挂载失败，改为 PostUpdateEverything 提交：" + e);
             }
 
             try
@@ -139,17 +139,17 @@ namespace XiheBoss
                 _cameraHookInstalled = true;
                 XiheBossMod.Log.Info("[fx] Main.DoDraw_UpdateCameraPosition 已挂：UseScreenPosition 镜头锁生效");
             }
-            catch (Exception e) { XiheBossMod.Log.Warn("[fx] 镜头钩子失败：" + e.Message); }
+            catch (Exception e) { XiheBossMod.Log.Warn("[fx] 镜头钩子失败：" + e); }
 
             try { ScreenGraphics.Install(); }
-            catch (Exception e) { XiheBossMod.Log.Warn("[fx] 屏幕效果安装失败：" + e.Message); }
+            catch (Exception e) { XiheBossMod.Log.Warn("[fx] 屏幕效果安装失败：" + e); }
 
             try
             {
                 On.Terraria.Main.UpdateAudio_DecideOnNewMusic += AfterDecideOnNewMusic;
                 XiheBossMod.Log.Info("[music] Main.UpdateAudio_DecideOnNewMusic 已挂：Boss 存在时压制原版 Boss 曲");
             }
-            catch (Exception e) { XiheBossMod.Log.Warn("[music] DecideOnNewMusic 挂载失败：" + e.Message); }
+            catch (Exception e) { XiheBossMod.Log.Warn("[music] DecideOnNewMusic 挂载失败：" + e); }
         }
 
         private static void AfterDecideOnNewMusic(On.Terraria.Main.orig_UpdateAudio_DecideOnNewMusic orig, Main self)
@@ -169,7 +169,7 @@ namespace XiheBoss
                 if (XiheBossNpc.MusicSlot <= 0) return;
                 Main.newMusic = 0;
             }
-            catch (Exception e) { XiheBossMod.Log?.Warn("[music] 压原版曲失败：" + e.Message); }
+            catch (Exception e) { XiheBossMod.Log?.Warn("[music] 压原版曲失败：" + e); }
         }
 
         private static void BeforeDraw(On.Terraria.Main.orig_DoDraw orig, Main self, GameTime gameTime)

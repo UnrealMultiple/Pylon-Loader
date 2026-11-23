@@ -143,7 +143,7 @@ internal sealed class BackgroundPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[background] {effect.Name}.SurfaceBackgroundStyle 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[background] {effect.Name}.SurfaceBackgroundStyle 异常：{Safe.Dump(e)}");
                 return null;
             }
         }
@@ -164,7 +164,7 @@ internal sealed class BackgroundPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[background] 选表层风格异常：" + Safe.Describe(e));
+            ContentErrors.Line("[background] 选表层风格异常：" + Safe.Dump(e));
             return vanilla;
         }
 
@@ -187,7 +187,7 @@ internal sealed class BackgroundPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[background] {effect.Name}.Priority 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[background] {effect.Name}.Priority 异常：{Safe.Dump(e)}");
             return vanilla;
         }
     }
@@ -247,7 +247,7 @@ internal sealed class BackgroundPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[background] 远层可见性异常：" + Safe.Describe(e));
+            ContentErrors.Line("[background] 远层可见性异常：" + Safe.Dump(e));
             orig(self, targetBiomeOverride, transitionAmountOverride);
         }
     }
@@ -278,7 +278,7 @@ internal sealed class BackgroundPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[background] ModifyFarFades 异常：" + Safe.Describe(e));
+            ContentErrors.Line("[background] ModifyFarFades 异常：" + Safe.Dump(e));
         }
     }
 
@@ -345,7 +345,7 @@ internal sealed class BackgroundPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[background] {style.Name}.{(middle ? "ChooseMiddleTexture" : "ChooseFarTexture")} 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[background] {style.Name}.{(middle ? "ChooseMiddleTexture" : "ChooseFarTexture")} 异常：{Safe.Dump(e)}");
             }
         }
     }
@@ -391,7 +391,7 @@ internal sealed class BackgroundPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[background] {style.Name} 近层异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[background] {style.Name} 近层异常：{Safe.Dump(e)}");
             }
         }
     }
@@ -423,7 +423,7 @@ internal sealed class BackgroundPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[background] 选地下风格异常：" + Safe.Describe(e));
+            ContentErrors.Line("[background] 选地下风格异常：" + Safe.Dump(e));
             return vanilla;
         }
 
@@ -510,7 +510,7 @@ internal sealed class BackgroundPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[background] 地下 FillTextureArray 异常：" + Safe.Describe(e));
+            ContentErrors.Line("[background] 地下 FillTextureArray 异常：" + Safe.Dump(e));
         }
     }
 

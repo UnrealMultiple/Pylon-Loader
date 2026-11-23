@@ -205,7 +205,7 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[emotebubble] 菜单取表情编号异常：" + Safe.Describe(e));
+            ContentErrors.Line("[emotebubble] 菜单取表情编号异常：" + Safe.Dump(e));
         }
 
         if (own?.Texture?.Value is not { } texture)
@@ -248,7 +248,7 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
     private static void Report(string key, string what, Exception e)
     {
         if (!Reported.Add(key)) return;
-        ContentErrors.Report($"{what}：{Safe.Describe(e)}");
+        ContentErrors.Line($"{what}：{Safe.Dump(e)}");
     }
 
     private static ModEmoteBubble? _menuEmote;
@@ -546,7 +546,7 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[emotebubble] {emote?.Name ?? "GlobalEmoteBubble"} 绘制异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[emotebubble] {emote?.Name ?? "GlobalEmoteBubble"} 绘制异常：{Safe.Dump(e)}");
         }
     }
 
@@ -623,7 +623,7 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[emotebubble] 表情图集取不到：{Safe.Describe(e)}");
+            ContentErrors.Line($"[emotebubble] 表情图集取不到：{Safe.Dump(e)}");
             return null;
         }
     }
@@ -799,7 +799,7 @@ internal sealed class EmoteBubblePipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[emotebubble] 找最近玩家失败：" + Safe.Describe(e));
+            ContentErrors.Line("[emotebubble] 找最近玩家失败：" + Safe.Dump(e));
             return;
         }
 

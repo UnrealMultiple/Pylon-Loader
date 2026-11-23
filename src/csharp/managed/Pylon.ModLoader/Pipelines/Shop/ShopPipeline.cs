@@ -81,7 +81,7 @@ internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[shop] {global.Name}.SetupTravelShop 异常:{Safe.Describe(e)}");
+                ContentErrors.Line($"[shop] {global.Name}.SetupTravelShop 异常:{Safe.Dump(e)}");
             }
         }
 
@@ -105,7 +105,7 @@ internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[shop] NPC shop {shop.FullName}：{Safe.Describe(e)}");
+            ContentErrors.Line($"[shop] NPC shop {shop.FullName}：{Safe.Dump(e)}");
         }
     }
 
@@ -212,7 +212,7 @@ internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[shop] {global.Name}.ModifyShop 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[shop] {global.Name}.ModifyShop 异常：{Safe.Dump(e)}");
             }
         }
     }
@@ -231,7 +231,7 @@ internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[pylon] {pylon.Name}.GetNPCShopEntry 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[pylon] {pylon.Name}.GetNPCShopEntry 异常：{Safe.Dump(e)}");
             }
         }
     }
@@ -246,7 +246,7 @@ internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[shop] {mod.FullKey}.ModifyActiveShop 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[shop] {mod.FullKey}.ModifyActiveShop 异常：{Safe.Dump(e)}");
             }
         }
 
@@ -258,7 +258,7 @@ internal sealed class ShopPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[shop] {global.FullKey}.ModifyActiveShop 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[shop] {global.FullKey}.ModifyActiveShop 异常：{Safe.Dump(e)}");
             }
         }
     }

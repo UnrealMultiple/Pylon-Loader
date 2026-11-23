@@ -60,7 +60,7 @@ internal sealed class PlayerNetPipeline : ILoaderModule
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[playernet] {source[i].GetType().Name}.CopyClientState 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[playernet] {source[i].GetType().Name}.CopyClientState 异常：{Safe.Dump(e)}");
             }
         }
     }
@@ -114,7 +114,7 @@ internal sealed class PlayerNetPipeline : ILoaderModule
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[playernet] 客户端状态克隆异常：" + Safe.Describe(e));
+            ContentErrors.Line("[playernet] 客户端状态克隆异常：" + Safe.Dump(e));
         }
     }
 
@@ -135,7 +135,7 @@ internal sealed class PlayerNetPipeline : ILoaderModule
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[playernet] {current[i].GetType().Name}.SendClientChanges 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[playernet] {current[i].GetType().Name}.SendClientChanges 异常：{Safe.Dump(e)}");
             }
         }
     }
@@ -167,7 +167,7 @@ internal sealed class PlayerNetPipeline : ILoaderModule
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[playernet] {mods[i].GetType().Name}.SyncPlayer 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[playernet] {mods[i].GetType().Name}.SyncPlayer 异常：{Safe.Dump(e)}");
             }
         }
     }
@@ -192,7 +192,7 @@ internal sealed class PlayerNetPipeline : ILoaderModule
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[playernet] {mods[i].GetType().Name}.PlayerConnect 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[playernet] {mods[i].GetType().Name}.PlayerConnect 异常：{Safe.Dump(e)}");
             }
         }
     }
@@ -215,7 +215,7 @@ internal sealed class PlayerNetPipeline : ILoaderModule
                     }
                     catch (Exception e)
                     {
-                        ContentErrors.Report($"[playernet] {mods[i].GetType().Name}.PlayerDisconnect(Hooks) 异常：{Safe.Describe(e)}");
+                        ContentErrors.Line($"[playernet] {mods[i].GetType().Name}.PlayerDisconnect(Hooks) 异常：{Safe.Dump(e)}");
                     }
                 }
             }
@@ -248,7 +248,7 @@ internal sealed class PlayerNetPipeline : ILoaderModule
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report($"[playernet] {mods[i].GetType().Name}.SyncPlayer(EnterWorld) 异常：{Safe.Describe(e)}");
+                    ContentErrors.Line($"[playernet] {mods[i].GetType().Name}.SyncPlayer(EnterWorld) 异常：{Safe.Dump(e)}");
                 }
             }
         }
@@ -266,7 +266,7 @@ internal sealed class PlayerNetPipeline : ILoaderModule
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[playernet] {list[i].GetType().Name}.OnEnterWorld 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[playernet] {list[i].GetType().Name}.OnEnterWorld 异常：{Safe.Dump(e)}");
             }
         }
     }
@@ -289,7 +289,7 @@ internal sealed class PlayerNetPipeline : ILoaderModule
                     }
                     catch (Exception e)
                     {
-                        ContentErrors.Report($"[playernet] {mods[i].GetType().Name}.PlayerDisconnect 异常：{Safe.Describe(e)}");
+                        ContentErrors.Line($"[playernet] {mods[i].GetType().Name}.PlayerDisconnect 异常：{Safe.Dump(e)}");
                     }
                 }
             }

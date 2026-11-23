@@ -470,6 +470,6 @@ internal sealed class RecipePipeline : ILoaderModule
     private void Fail(string name, HookId hook, Exception exception)
     {
         if (!_reported.Add(HashCode.Combine(name.GetHashCode(), hook))) return;
-        ContentErrors.Report($"[recipe] {hook} 异常：{Safe.Describe(exception)}");
+        ContentErrors.Line($"[recipe] {hook} 异常：{Safe.Dump(exception)}");
     }
 }

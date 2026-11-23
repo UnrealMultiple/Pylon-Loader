@@ -147,7 +147,7 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report($"[equip] {equip.Name}.SetMatch 异常：{Safe.Describe(e)}");
+                    ContentErrors.Line($"[equip] {equip.Name}.SetMatch 异常：{Safe.Dump(e)}");
                 }
             }
 
@@ -161,7 +161,7 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report($"[equip] {global.FullKey}.SetMatch 异常：{Safe.Describe(e)}");
+                    ContentErrors.Line($"[equip] {global.FullKey}.SetMatch 异常：{Safe.Dump(e)}");
                 }
             }
 
@@ -170,7 +170,7 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[equip] SetMatch 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[equip] SetMatch 异常：{Safe.Dump(e)}");
             return result;
         }
     }
@@ -233,7 +233,7 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report($"[equip] {global.FullKey}.VerticalWingSpeeds 异常：{Safe.Describe(e)}");
+                    ContentErrors.Line($"[equip] {global.FullKey}.VerticalWingSpeeds 异常：{Safe.Dump(e)}");
                 }
             }
 
@@ -266,7 +266,7 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[equip] VerticalWingSpeeds 异常：" + Safe.Describe(e));
+            ContentErrors.Line("[equip] VerticalWingSpeeds 异常：" + Safe.Dump(e));
             orig(self);
         }
     }
@@ -380,7 +380,7 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report($"[equip] {global.FullKey}.HorizontalWingSpeeds 异常：{Safe.Describe(e)}");
+                    ContentErrors.Line($"[equip] {global.FullKey}.HorizontalWingSpeeds 异常：{Safe.Dump(e)}");
                 }
             }
 
@@ -389,7 +389,7 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[equip] HorizontalWingSpeeds 异常：" + Safe.Describe(e));
+            ContentErrors.Line("[equip] HorizontalWingSpeeds 异常：" + Safe.Dump(e));
         }
     }
 
@@ -406,7 +406,7 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[equip] {equip?.Name}.WingUpdate 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[equip] {equip?.Name}.WingUpdate 异常：{Safe.Dump(e)}");
             }
 
             foreach (var global in GlobalItemRegistry.All)
@@ -419,7 +419,7 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report($"[equip] {global.FullKey}.WingUpdate 异常：{Safe.Describe(e)}");
+                    ContentErrors.Line($"[equip] {global.FullKey}.WingUpdate 异常：{Safe.Dump(e)}");
                 }
             }
 
@@ -458,7 +458,7 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
                     }
                     catch (Exception e)
                     {
-                        ContentErrors.Report($"[equip] {mod.Name} 的套装回调异常：{Safe.Describe(e)}");
+                        ContentErrors.Line($"[equip] {mod.Name} 的套装回调异常：{Safe.Dump(e)}");
                     }
                 }
 
@@ -473,7 +473,7 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
                     }
                     catch (Exception e)
                     {
-                        ContentErrors.Report($"[equip] {global.FullKey}.IsArmorSet 异常：{Safe.Describe(e)}");
+                        ContentErrors.Line($"[equip] {global.FullKey}.IsArmorSet 异常：{Safe.Dump(e)}");
                     }
                     if (set.Length == 0) continue;
 
@@ -483,14 +483,14 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
                     }
                     catch (Exception e)
                     {
-                        ContentErrors.Report($"[equip] {global.FullKey}.UpdateArmorSet 异常：{Safe.Describe(e)}");
+                        ContentErrors.Line($"[equip] {global.FullKey}.UpdateArmorSet 异常：{Safe.Dump(e)}");
                     }
                 }
             }
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[equip] 套装回调异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[equip] 套装回调异常：{Safe.Dump(e)}");
         }
 
         PlayerPipeline.Instance.RunPostUpdateEquips(self);
@@ -513,14 +513,14 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report($"[equip] {equip.Name}.FrameEffects 异常：{Safe.Describe(e)}");
+                    ContentErrors.Line($"[equip] {equip.Name}.FrameEffects 异常：{Safe.Dump(e)}");
                 }
             }
             Vanity(self, nameof(EquipTexture.UpdateVanitySet));
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[equip] 时装套回调异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[equip] 时装套回调异常：{Safe.Dump(e)}");
         }
 
         EnsureWingStats(self);
@@ -542,7 +542,7 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[equip] 盔甲影子回调异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[equip] 盔甲影子回调异常：{Safe.Dump(e)}");
         }
     }
 
@@ -563,7 +563,7 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[equip] {equip.Name}.IsVanitySet 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[equip] {equip.Name}.IsVanitySet 异常：{Safe.Dump(e)}");
             }
             if (!set) continue;
 
@@ -584,7 +584,7 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[equip] {equip.Name}.{method} 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[equip] {equip.Name}.{method} 异常：{Safe.Dump(e)}");
             }
         }
 
@@ -599,7 +599,7 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[equip] {global.FullKey}.IsVanitySet 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[equip] {global.FullKey}.IsVanitySet 异常：{Safe.Dump(e)}");
             }
             if (set.Length == 0) continue;
 
@@ -620,7 +620,7 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[equip] {global.FullKey}.{method} 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[equip] {global.FullKey}.{method} 异常：{Safe.Dump(e)}");
             }
         }
     }
@@ -768,7 +768,7 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report($"[equip] {equip.Name} 写槽位主人失败：{Safe.Describe(e)}");
+                    ContentErrors.Line($"[equip] {equip.Name} 写槽位主人失败：{Safe.Dump(e)}");
                 }
             }
         }
@@ -855,7 +855,7 @@ internal sealed class EquipPipeline : ILoaderModule, ILoaderModuleRefresh
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report($"[equip] {equip.Name} 的贴图加载失败（{equip.Texture}）：{Safe.Describe(e)}");
+                    ContentErrors.Line($"[equip] {equip.Name} 的贴图加载失败（{equip.Texture}）：{Safe.Dump(e)}");
                     continue;
                 }
 

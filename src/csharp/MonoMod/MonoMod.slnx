@@ -1,0 +1,50 @@
+<Solution>
+  <Configurations>
+    <BuildType Name="Debug" />
+    <BuildType Name="DebugTrace" />
+    <BuildType Name="Release" />
+    <BuildType Name="ReleaseTrace" />
+  </Configurations>
+  <Folder Name="/build/">
+    <File Path="build/Directory.Build.props" />
+    <File Path="build/Directory.Build.targets" />
+    <Project Path="build/extract-corjit-vtable/extract-corjit-vtable.csproj" />
+    <Project Path="build/gen-test-matrix/gen-test-matrix.csproj" />
+    <Project Path="build/setup-mono/setup-mono.csproj" />
+  </Folder>
+  <Folder Name="/build/containers/">
+    <File Path="build/containers/linux-arm64.dockerfile" />
+    <File Path="build/containers/linux-musl-arm64.dockerfile-disabled" />
+    <File Path="build/containers/linux-musl-x64.dockerfile" />
+    <File Path="build/containers/linux-x64.dockerfile" />
+  </Folder>
+  <Folder Name="/external/">
+    <Project Path="external/iced.csproj">
+      <BuildType Solution="DebugTrace|*" Project="Debug" />
+      <BuildType Solution="ReleaseTrace|*" Project="Release" />
+    </Project>
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path=".gitignore" />
+    <File Path="Directory.Build.rsp" />
+    <File Path="global.json" />
+    <File Path="icon.png" />
+    <File Path="nuget.config" />
+    <File Path="README.md" />
+    <Project Path=".github/.github.csproj" />
+    <Project Path="docfx/docfx.csproj" />
+    <Project Path="docs/docs.csproj" />
+    <Project Path="tools/tools.csproj" />
+  </Folder>
+  <Project Path="src/Common/Common.csproj" />
+  <Project Path="src/MonoMod.Core/MonoMod.Core.csproj" />
+  <Project Path="src/MonoMod.DebugIL/MonoMod.DebugIL.csproj" />
+  <Project Path="src/MonoMod.FrameworkTests/MonoMod.FrameworkTests.csproj" />
+  <Project Path="src/MonoMod.Patcher/MonoMod.Patcher.csproj" />
+  <Project Path="src/MonoMod.RuntimeDetour.HookGen/MonoMod.RuntimeDetour.HookGen.csproj" />
+  <Project Path="src/MonoMod.RuntimeDetour/MonoMod.RuntimeDetour.csproj" />
+  <Project Path="src/MonoMod.SourceGen.Internal/MonoMod.SourceGen.Internal.csproj" />
+  <Project Path="src/MonoMod.UnitTest/MonoMod.UnitTest.csproj" />
+  <Project Path="src/MonoMod.Utils/MonoMod.Utils.csproj" />
+</Solution>

@@ -58,7 +58,7 @@ internal sealed class EmoteNetPipeline : ILoaderModule
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[emotenet] 序列化表情锚失败：" + Safe.Describe(e));
+            ContentErrors.Line("[emotenet] 序列化表情锚失败：" + Safe.Dump(e));
         }
     }
 
@@ -89,7 +89,7 @@ internal sealed class EmoteNetPipeline : ILoaderModule
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[emotenet] 重建 mod 表情失败：" + Safe.Describe(e));
+            ContentErrors.Line("[emotenet] 重建 mod 表情失败：" + Safe.Dump(e));
         }
     }
 }

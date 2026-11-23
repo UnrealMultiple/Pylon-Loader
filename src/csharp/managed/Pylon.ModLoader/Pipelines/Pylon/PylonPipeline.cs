@@ -89,7 +89,7 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[pylon] 立刻刷新晶塔列表异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[pylon] 立刻刷新晶塔列表异常：{Safe.Dump(e)}");
         }
     }
 
@@ -141,7 +141,7 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[pylon] 广播晶塔变化异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[pylon] 广播晶塔变化异常：{Safe.Dump(e)}");
         }
     }
 
@@ -171,7 +171,7 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[pylon] 刷新晶塔列表异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[pylon] 刷新晶塔列表异常：{Safe.Dump(e)}");
         }
     }
 
@@ -233,7 +233,7 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[pylon] {pylon.Name}.ValidTeleportCheck_BiomeRequirements 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[pylon] {pylon.Name}.ValidTeleportCheck_BiomeRequirements 异常：{Safe.Dump(e)}");
                 return;
             }
         }
@@ -274,7 +274,7 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[pylon] {pylon.Name}.ValidTeleportCheck_NPCCount 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[pylon] {pylon.Name}.ValidTeleportCheck_NPCCount 异常：{Safe.Dump(e)}");
                 return false;
             }
             finally
@@ -298,7 +298,7 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[pylon] {pylon.Name}.CanPlacePylon 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[pylon] {pylon.Name}.CanPlacePylon 异常：{Safe.Dump(e)}");
                 allowed = false;
             }
 
@@ -327,7 +327,7 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[pylon] 地图连线异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[pylon] 地图连线异常：{Safe.Dump(e)}");
             }
         }
 
@@ -347,7 +347,7 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report($"[pylon] 地图列表回填异常：{Safe.Describe(e)}");
+                    ContentErrors.Line($"[pylon] 地图列表回填异常：{Safe.Dump(e)}");
                 }
             }
         }
@@ -373,7 +373,7 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report($"[pylon] {pylon.Name}.DrawMapIcon 异常：{Safe.Describe(e)}");
+                    ContentErrors.Line($"[pylon] {pylon.Name}.DrawMapIcon 异常：{Safe.Dump(e)}");
                 }
             }
 
@@ -381,7 +381,7 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[pylon] 地图图标异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[pylon] 地图图标异常：{Safe.Dump(e)}");
         }
     }
 
@@ -453,7 +453,7 @@ internal sealed class PylonPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[pylon] 打开地图异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[pylon] 打开地图异常：{Safe.Dump(e)}");
             return false;
         }
     }

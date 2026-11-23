@@ -72,7 +72,7 @@ internal static class RegistrationPipeline
         }
         catch (Exception e)
         {
-            mod.Logger.Warn($"{type.FullName} 实例化失败：{Safe.Describe(e)}");
+            mod.Logger.Warn($"{type.FullName} 实例化失败：{Safe.Dump(e)}");
             return null;
         }
     }
@@ -93,7 +93,7 @@ internal static class RegistrationPipeline
                 try { ScreenEffects.Register(effect); }
                 catch (Exception e)
                 {
-                    content.Mod?.Logger.Warn($"{content.GetType().FullName} 屏幕效果注册失败：{Safe.Describe(e)}");
+                    content.Mod?.Logger.Warn($"{content.GetType().FullName} 屏幕效果注册失败：{Safe.Dump(e)}");
                 }
                 break;
         }
@@ -121,7 +121,7 @@ internal static class RegistrationPipeline
             {
                 if (type is not null) loaded.Add(type);
             }
-            Safe.Warn($"类型枚举不完整：{Safe.Describe(e)}");
+            Safe.Warn($"类型枚举不完整：{Safe.Dump(e)}");
             return [.. loaded];
         }
     }

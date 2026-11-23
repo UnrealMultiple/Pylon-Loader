@@ -83,7 +83,7 @@ internal sealed class LootPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report("[loot] mod 物品掉落失败：" + Safe.Describe(e));
+                ContentErrors.Line("[loot] mod 物品掉落失败：" + Safe.Dump(e));
             }
         }
 
@@ -138,7 +138,7 @@ internal sealed class LootPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[loot] 扣物品异常：" + Safe.Describe(e));
+            ContentErrors.Line("[loot] 扣物品异常：" + Safe.Dump(e));
         }
     }
 
@@ -152,7 +152,7 @@ internal sealed class LootPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[loot] {modItem.Name}.RightClick 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[loot] {modItem.Name}.RightClick 异常：{Safe.Dump(e)}");
             }
         }
 
@@ -164,7 +164,7 @@ internal sealed class LootPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[loot] {global.FullKey}.RightClick 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[loot] {global.FullKey}.RightClick 异常：{Safe.Dump(e)}");
             }
         }
     }
@@ -181,7 +181,7 @@ internal sealed class LootPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[loot] {modItem.Name}.ConsumeItem 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[loot] {modItem.Name}.ConsumeItem 异常：{Safe.Dump(e)}");
             }
         }
 
@@ -193,7 +193,7 @@ internal sealed class LootPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[loot] {global.FullKey}.ConsumeItem 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[loot] {global.FullKey}.ConsumeItem 异常：{Safe.Dump(e)}");
             }
         }
 
@@ -210,7 +210,7 @@ internal sealed class LootPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[loot] {modItem.Name}.CanRightClick 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[loot] {modItem.Name}.CanRightClick 异常：{Safe.Dump(e)}");
             }
         }
 
@@ -222,7 +222,7 @@ internal sealed class LootPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[loot] {global.FullKey}.CanRightClick 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[loot] {global.FullKey}.CanRightClick 异常：{Safe.Dump(e)}");
             }
         }
 
@@ -257,7 +257,7 @@ internal sealed class LootPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[loot] 开发者套件掷取异常（type={type}）：{Safe.Describe(e)}");
+            ContentErrors.Line($"[loot] 开发者套件掷取异常（type={type}）：{Safe.Dump(e)}");
         }
     }
 
@@ -294,13 +294,13 @@ internal sealed class LootPipeline : ILoaderModule, ILoaderModuleRefresh
                     }
                     catch (Exception e)
                     {
-                        ContentErrors.Report($"[loot] 物品 {item.type} 开袋链异常：{Safe.Describe(e)}");
+                        ContentErrors.Line($"[loot] 物品 {item.type} 开袋链异常：{Safe.Dump(e)}");
                     }
                 }
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[loot] 物品 {item.type} 开袋规则异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[loot] 物品 {item.type} 开袋规则异常：{Safe.Dump(e)}");
             }
         }
     }

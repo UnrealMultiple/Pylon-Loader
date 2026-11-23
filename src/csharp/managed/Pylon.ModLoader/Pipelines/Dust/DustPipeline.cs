@@ -128,7 +128,7 @@ internal sealed class DustPipeline : ILoaderModule, ILoaderModuleRefresh
         if (report && !_reported)
         {
             _reported = true;
-            ContentErrors.Report("[dust] 池路径停用：" + reason);
+            ContentErrors.Line("[dust] 池路径停用：" + reason);
         }
         return false;
     }
@@ -144,7 +144,7 @@ internal sealed class DustPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[dust] 生成 {mod.Name} 失败：{Safe.Describe(e)}");
+            ContentErrors.Line($"[dust] 生成 {mod.Name} 失败：{Safe.Dump(e)}");
             return null;
         }
 
@@ -439,7 +439,7 @@ internal sealed class DustPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[dust] 批次 Begin 异常：" + Safe.Describe(e));
+            ContentErrors.Line("[dust] 批次 Begin 异常：" + Safe.Dump(e));
             return;
         }
 
@@ -535,7 +535,7 @@ internal sealed class DustPipeline : ILoaderModule, ILoaderModuleRefresh
                 {
                     var stack = e.StackTrace;
                     var at = string.IsNullOrEmpty(stack) ? "" : " | " + stack.Split('\n')[0].Trim();
-                    ContentErrors.Report("[dust] 绘制异常：" + Safe.Describe(e) + at);
+                    ContentErrors.Line("[dust] 绘制异常：" + Safe.Dump(e) + at);
                 }
             }
         }

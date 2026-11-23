@@ -164,7 +164,7 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[water] 场景赢家的 WaterStyle 异常：" + Safe.Describe(e));
+            ContentErrors.Line("[water] 场景赢家的 WaterStyle 异常：" + Safe.Dump(e));
             return vanilla;
         }
     }
@@ -177,7 +177,7 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[water] 液体透明度表复查失败：" + Safe.Describe(e));
+            ContentErrors.Line("[water] 液体透明度表复查失败：" + Safe.Dump(e));
         }
 
         orig(self, isBackground);
@@ -238,7 +238,7 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[water] {water.Name}.GetRainVariant 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[water] {water.Name}.GetRainVariant 异常：{Safe.Dump(e)}");
             return 0;
         }
     }
@@ -257,7 +257,7 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[water] {water.Name}.GetRainTexture 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[water] {water.Name}.GetRainTexture 异常：{Safe.Dump(e)}");
             }
         }
 
@@ -293,7 +293,7 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[water] {water.Name}.LightColorMultiplier 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[water] {water.Name}.LightColorMultiplier 异常：{Safe.Dump(e)}");
             return null;
         }
         r *= LightFactor;
@@ -338,7 +338,7 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[water] {water.Name}.GetSplashDust 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[water] {water.Name}.GetSplashDust 异常：{Safe.Dump(e)}");
             return orig();
         }
     }
@@ -358,7 +358,7 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[water] {water.Name}.GetDropletGore 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[water] {water.Name}.GetDropletGore 异常：{Safe.Dump(e)}");
             return orig(position, velocity, type, scale);
         }
 
@@ -476,7 +476,7 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            Log.Warn("[water] LiquidRenderer._liquidTextures 扩容失败：" + Safe.Describe(e));
+            Log.Warn("[water] LiquidRenderer._liquidTextures 扩容失败：" + Safe.Dump(e));
         }
     }
 
@@ -510,7 +510,7 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[water] {water.Name} 的水贴图槽失败：{Safe.Describe(e)}");
+                ContentErrors.Line($"[water] {water.Name} 的水贴图槽失败：{Safe.Dump(e)}");
             }
         }
 
@@ -525,7 +525,7 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[water] {fall.Name} 的瀑布贴图失败：{Safe.Describe(e)}");
+                ContentErrors.Line($"[water] {fall.Name} 的瀑布贴图失败：{Safe.Dump(e)}");
             }
         }
 
@@ -542,7 +542,7 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            Log.Warn($"[water] {water.Name} 的附加贴图 {path} 读取失败：{Safe.Describe(e)}");
+            Log.Warn($"[water] {water.Name} 的附加贴图 {path} 读取失败：{Safe.Dump(e)}");
             return null;
         }
     }
@@ -578,7 +578,7 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report("[water] " + fall.Name + ".ColorMultiplier 异常：" + Safe.Describe(e));
+                ContentErrors.Line("[water] " + fall.Name + ".ColorMultiplier 异常：" + Safe.Dump(e));
             }
         }
 
@@ -600,7 +600,7 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[water] " + water.Name + ".BiomeHairColor 异常：" + Safe.Describe(e));
+            ContentErrors.Line("[water] " + water.Name + ".BiomeHairColor 异常：" + Safe.Dump(e));
             return color;
         }
     }
@@ -619,7 +619,7 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report("[water] " + biome.Name + ".IsBiomeActive 异常：" + Safe.Describe(e));
+                ContentErrors.Line("[water] " + biome.Name + ".IsBiomeActive 异常：" + Safe.Dump(e));
                 continue;
             }
 
@@ -646,7 +646,7 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[water] {water.Name}.ChooseWaterfallStyle 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[water] {water.Name}.ChooseWaterfallStyle 异常：{Safe.Dump(e)}");
             return;
         }
 
@@ -663,7 +663,7 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[water] 瀑布 {fall.Name} 绘制失败：{Safe.Describe(e)}");
+            ContentErrors.Line($"[water] 瀑布 {fall.Name} 绘制失败：{Safe.Dump(e)}");
         }
     }
 
@@ -685,7 +685,7 @@ internal sealed class WaterPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[water] " + fall.Name + ".AddLight 异常：" + Safe.Describe(e));
+            ContentErrors.Line("[water] " + fall.Name + ".AddLight 异常：" + Safe.Dump(e));
         }
     }
 

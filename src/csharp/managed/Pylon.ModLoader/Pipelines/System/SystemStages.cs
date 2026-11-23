@@ -107,7 +107,7 @@ internal static unsafe class SystemStages
             }
             catch (Exception e)
             {
-                log.Warn($"[system] {stage.Name} 安装失败：" + Safe.Describe(e));
+                log.Warn($"[system] {stage.Name} 安装失败：" + Safe.Dump(e));
             }
         }
 
@@ -253,7 +253,7 @@ internal static unsafe class SystemStages
         }
         catch (Exception e)
         {
-            Safe.Once("system.stub", "[system] stub 阶段分派异常：" + Safe.Describe(e), true);
+            Safe.Once("system.stub", "[system] stub 阶段分派异常：" + Safe.Dump(e), true);
         }
         return false;
     }
@@ -360,7 +360,7 @@ internal static unsafe class SystemStages
         }
         catch (Exception e)
         {
-            Safe.Once("system.dye", "[system] 染料商奖励池改写失败，保持原池：" + Safe.Describe(e), true);
+            Safe.Once("system.dye", "[system] 染料商奖励池改写失败，保持原池：" + Safe.Dump(e), true);
         }
     }
 

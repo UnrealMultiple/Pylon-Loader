@@ -65,7 +65,7 @@ internal sealed class ItemDefaults(ItemBinding binding)
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"Item.SetDefaults 自定义分支异常：{e.Message}");
+            ContentErrors.Line($"Item.SetDefaults 自定义分支异常：{e.Message}");
         }
     }
 
@@ -83,7 +83,7 @@ internal sealed class ItemDefaults(ItemBinding binding)
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"{global.GetType().Name}.SetDefaults 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"{global.GetType().Name}.SetDefaults 异常：{Safe.Dump(e)}");
             }
         }
     }

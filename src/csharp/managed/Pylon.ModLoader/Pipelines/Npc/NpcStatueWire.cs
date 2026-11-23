@@ -89,12 +89,12 @@ internal static class NpcStatueWire
     private static void Report(ModNpc mod, Exception exception)
     {
         if (!_reported.Add(mod.Type + "/" + exception.GetType().Name)) return;
-        ContentErrors.Report($"[statue] {mod.Name} 雕像钩子异常：{Safe.Describe(exception)}");
+        ContentErrors.Line($"[statue] {mod.Name} 雕像钩子异常：{Safe.Dump(exception)}");
     }
 
     private static void Report(GlobalNpc global, Exception exception)
     {
         if (!_reported.Add(global.Name + "/" + exception.GetType().Name)) return;
-        ContentErrors.Report($"[statue] {global.Name} 雕像钩子异常：{Safe.Describe(exception)}");
+        ContentErrors.Line($"[statue] {global.Name} 雕像钩子异常：{Safe.Dump(exception)}");
     }
 }

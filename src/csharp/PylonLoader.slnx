@@ -14,6 +14,12 @@
     <Project Path="il2cppinterop/Il2CppInterop.RuntimeDetour/Il2CppInterop.RuntimeDetour.csproj" />
     <Project Path="il2cppinterop/Il2CppInterop.StructGenerator/Il2CppInterop.StructGenerator.csproj" />
   </Folder>
+  <Folder Name="/MonoMod/">
+    <Project Path="MonoMod/external/iced.csproj" />
+    <Project Path="MonoMod/src/MonoMod.Core/MonoMod.Core.csproj" />
+    <Project Path="MonoMod/src/MonoMod.RuntimeDetour/MonoMod.RuntimeDetour.csproj" />
+    <Project Path="MonoMod/src/MonoMod.Utils/MonoMod.Utils.csproj" />
+  </Folder>
   <Folder Name="/samples/">
     <Project Path="samples/FrameMod/FrameMod.csproj" />
     <Project Path="samples/PipelineTest/PipelineTest.csproj" />

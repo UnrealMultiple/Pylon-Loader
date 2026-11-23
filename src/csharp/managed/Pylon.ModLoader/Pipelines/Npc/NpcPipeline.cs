@@ -1115,7 +1115,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
     }
 
     private static void FailPlayer(ModPlayer mod, HookId hook, Exception e) =>
-        ContentErrors.Report($"[npc] {mod.GetType().Name}.{hook} 异常:{Safe.Describe(e)}");
+        ContentErrors.Line($"[npc] {mod.GetType().Name}.{hook} 异常:{Safe.Dump(e)}");
 
     [ThreadStatic] private static bool _drawingHealthBars;
     private static int _healthBarCursor;
@@ -1261,7 +1261,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[npc] 悬浮交互异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[npc] 悬浮交互异常：{Safe.Dump(e)}");
         }
 
         try
@@ -2096,7 +2096,7 @@ internal sealed class NpcPipeline : ILoaderModule, ILoaderModuleRefresh
     private void FailCore(int key, HookId hook, Exception exception)
     {
         if (!_reported.Add(HashCode.Combine(key, hook))) return;
-        ContentErrors.Report($"[npc] {hook} 异常：{Safe.Describe(exception)}");
+        ContentErrors.Line($"[npc] {hook} 异常：{Safe.Dump(exception)}");
     }
 
     private struct NpcDrawFrame

@@ -59,7 +59,7 @@ Pylon 让 Mod 跑在游戏自己的进程里：启动器负责选择与校验，
 |---|---|
 | `src/boot` | 阶段状态机（`KernelLoaded` → `EngineReady` → `RefsValidated` / `Failed`）、就绪探测、引用校验与报告 |
 | `src/il2cpp` | `il2cpp_*` 符号表、域与线程票据、按名解析类/字段/方法、`runtime_invoke` 调用 |
-| `src/hook` | ShadowHook 的 hook / unhook 出口（`shadowhook_hook_func_addr` / `shadowhook_unhook`），供托管侧 detour provider 调用 |
+| `src/hook` | ShadowHook 的 hook / unhook 出口（`shadowhook_hook_func_addr` / `shadowhook_unhook`），供托管侧 detour provider 调用。ShadowHook 以子模块源码**静态编进内核**（`external/shadowhook`，直调头文件，非 dlopen） |
 | `src/dotnet` | CoreCLR 托管（`Prepare` / `RunEntry` / `CallManagedEntry`） |
 | `src/mod` | `PylonMod_*` 导出 ABI：解析、读写字段、调方法、hook |
 | `src/graphics` | GLES/EGL 入口表、GL 状态镜像、帧编排（世界层 / 屏幕层 / 覆盖层）、屏幕效果 |
@@ -105,7 +105,7 @@ Il2CppInterop 的 detour 引擎
         ▼
 Pylon.Managed 的 DetourBackend（P/Invoke）
         ▼
-内核 src/hook/HookApi.cpp → shadowhook_hook
+内核 src/hook/HookApi.cpp → shadowhook_hook（静态内嵌，直调）
 ```
 
 因此：不要引入 Harmony、MonoMod 或第二套 detour；`On.*` 由 `interop/generated` 生成，随游戏版本走。

@@ -123,7 +123,7 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[tile] {tile.Name}.PlaceInWorld 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[tile] {tile.Name}.PlaceInWorld 异常：{Safe.Dump(e)}");
             }
         }
 
@@ -135,7 +135,7 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[tile] {global.FullKey}.PlaceInWorld 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[tile] {global.FullKey}.PlaceInWorld 异常：{Safe.Dump(e)}");
             }
         }
     }
@@ -276,7 +276,7 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
     private void Report(ModTileEntity entity, string what, Exception exception)
     {
         if (!_reported.Add(((long)entity.Type << 32) | (uint)what.GetHashCode())) return;
-        ContentErrors.Report($"[tileentity] {entity.FullName}.{what} 异常：{Safe.Describe(exception)}");
+        ContentErrors.Line($"[tileentity] {entity.FullName}.{what} 异常：{Safe.Dump(exception)}");
     }
 
     private void SendEntity(int id, int toClient)
@@ -483,7 +483,7 @@ internal sealed class TileEntityPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[tileentity] {template.FullName} 建立实例失败，条目丢弃：{Safe.Describe(e)}");
+                ContentErrors.Line($"[tileentity] {template.FullName} 建立实例失败，条目丢弃：{Safe.Dump(e)}");
                 dropped++;
                 continue;
             }

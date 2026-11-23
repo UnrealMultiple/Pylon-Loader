@@ -145,7 +145,7 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[menu] {menu.Name}.MenuBackgroundStyle 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[menu] {menu.Name}.MenuBackgroundStyle 异常：{Safe.Dump(e)}");
             return -1;
         }
 
@@ -176,7 +176,7 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[menu] 主题选择落盘失败：" + Safe.Describe(e));
+            ContentErrors.Line("[menu] 主题选择落盘失败：" + Safe.Dump(e));
         }
     }
 
@@ -201,7 +201,7 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[menu] 主题选择读档失败：" + Safe.Describe(e));
+            ContentErrors.Line("[menu] 主题选择读档失败：" + Safe.Dump(e));
             return null;
         }
     }
@@ -257,7 +257,7 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[menu] {previous.Name}.OnDeselected 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[menu] {previous.Name}.OnDeselected 异常：{Safe.Dump(e)}");
             }
         }
 
@@ -272,7 +272,7 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[menu] {menu.Name}.OnSelected 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[menu] {menu.Name}.OnSelected 异常：{Safe.Dump(e)}");
         }
     }
 
@@ -297,7 +297,7 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[menu] {menu.Name}.{what} 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[menu] {menu.Name}.{what} 异常：{Safe.Dump(e)}");
             return null;
         }
     }
@@ -420,7 +420,7 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[menu] {menu.Name}.PreDrawLogo 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[menu] {menu.Name}.PreDrawLogo 异常：{Safe.Dump(e)}");
         }
 
         if (draw)
@@ -442,7 +442,7 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[menu] {menu.Name}.PostDrawLogo 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[menu] {menu.Name}.PostDrawLogo 异常：{Safe.Dump(e)}");
         }
     }
 
@@ -461,7 +461,7 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
         try { backup = SwapIn(menu); }
         catch (Exception e)
         {
-            ContentErrors.Report("[menu] 日月换入失败：" + Safe.Describe(e));
+            ContentErrors.Line("[menu] 日月换入失败：" + Safe.Dump(e));
             orig(self, sceneArea, moonColor, sunColor, tempMushroomInfluence);
             return;
         }
@@ -473,7 +473,7 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
         finally
         {
             try { SwapOut(backup); }
-            catch (Exception e) { ContentErrors.Report("[menu] 日月还原失败：" + Safe.Describe(e)); }
+            catch (Exception e) { ContentErrors.Line("[menu] 日月还原失败：" + Safe.Dump(e)); }
         }
     }
 
@@ -495,7 +495,7 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[menu] {menu.Name}.Update 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[menu] {menu.Name}.Update 异常：{Safe.Dump(e)}");
         }
     }
 
@@ -513,7 +513,7 @@ internal sealed class MenuPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[menu] {menu.Name}.Music 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[menu] {menu.Name}.Music 异常：{Safe.Dump(e)}");
             return;
         }
 

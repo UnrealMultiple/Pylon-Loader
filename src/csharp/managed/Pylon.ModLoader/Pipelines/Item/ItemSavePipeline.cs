@@ -57,7 +57,7 @@ internal sealed class ItemSavePipeline
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[item] 存档失败：" + Safe.Describe(e));
+            ContentErrors.Line("[item] 存档失败：" + Safe.Dump(e));
         }
     }
 
@@ -127,7 +127,7 @@ internal sealed class ItemSavePipeline
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[item] {mod.Name}.SaveData 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[item] {mod.Name}.SaveData 异常：{Safe.Dump(e)}");
             }
 
             if (data.Count > 0) row["d"] = data;
@@ -189,13 +189,13 @@ internal sealed class ItemSavePipeline
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report("[item] 恢复行失败：" + Safe.Describe(e));
+                    ContentErrors.Line("[item] 恢复行失败：" + Safe.Dump(e));
                 }
             }
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[item] 读档失败：" + Safe.Describe(e));
+            ContentErrors.Line("[item] 读档失败：" + Safe.Dump(e));
         }
 
         return data!;
@@ -309,7 +309,7 @@ internal sealed class ItemSavePipeline
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[item] {mod.Name}.LoadData 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[item] {mod.Name}.LoadData 异常：{Safe.Dump(e)}");
             }
         }
 

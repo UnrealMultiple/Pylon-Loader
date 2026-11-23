@@ -321,6 +321,6 @@ internal sealed class TileDrawPipeline : ILoaderModule
     private static void Report(string? key, string what, Exception e)
     {
         if (key is not null && !Reported.Add(key)) return;
-        ContentErrors.Report($"{what}：{Safe.Describe(e)}");
+        ContentErrors.Line($"{what}：{Safe.Dump(e)}");
     }
 }

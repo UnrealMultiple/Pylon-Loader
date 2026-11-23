@@ -137,13 +137,23 @@ namespace XiheBoss
             return v;
         }
 
+        private static readonly HashSet<VfxKind> _stepLogged = [];
+        private static readonly HashSet<VfxKind> _pushLogged = [];
+        private static bool _echoLogged;
+
+        private static void ReportOnce(HashSet<VfxKind> seen, VfxKind kind, string stage, Exception e)
+        {
+            if (!seen.Add(kind)) return;
+            XiheBossMod.Log?.Warn("[vfx] " + kind + " " + stage + "：" + e);
+        }
+
         internal static void Tick()
         {
             for (var i = List.Count - 1; i >= 0; i--)
             {
                 var v = List[i];
                 try { Step(v); }
-                catch (Exception e) { XiheBossMod.Log?.Warn("[vfx] " + v.Kind + " 异常：" + e.Message); }
+                catch (Exception e) { ReportOnce(_stepLogged, v.Kind, "异常", e); }
 
                 v.TimeLeft--;
                 v.Center += v.Velocity;
@@ -314,7 +324,7 @@ namespace XiheBoss
             foreach (var v in List)
             {
                 try { Push(v); }
-                catch (Exception e) { XiheBossMod.Log?.Warn("[vfx] " + v.Kind + " 绘制异常：" + e.Message); }
+                catch (Exception e) { ReportOnce(_pushLogged, v.Kind, "绘制异常", e); }
             }
         }
 
@@ -519,7 +529,10 @@ namespace XiheBoss
                     color.A = 0;
                     DrawBossEcho(sb, v.Center - screenPos, frame, color);
                 }
-                catch { }
+                catch (Exception e)
+                {
+                    if (!_echoLogged) { _echoLogged = true; XiheBossMod.Log?.Warn("[echo] 绘制异常：" + e); }
+                }
             }
         }
 

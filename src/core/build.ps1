@@ -1,21 +1,4 @@
-<#
-  层：内核层（src/core/）—— libpylon.so 的构建脚本
 
-  为什么不用 AGP 的 externalNativeBuild / 直接 cmake+ninja：
-  本机（DSH 沙箱）里 cmake 的"编译器 ABI 探测"要用**管道捕获 ninja 的输出**，而沙箱
-  禁止子进程用管道交换数据，结果是 cmake 与 ninja 双双 0% CPU 永久阻塞：
-      -- Detecting CXX compiler ABI info        ← 卡死在这里
-  AGP 的 configureCMakeDebug / buildCMakeDebug 走的是同一条路，所以也会卡住。
-  而**直接调 clang++ 编译**只需要文件重定向，实测 0.47s 就能出 .so。
-
-  所以：内核用这个脚本构建，产物放进 src/app/src/main/jniLibs/arm64-v8a/，
-  Gradle 只做打包（不设 externalNativeBuild）。换机器想用 CMake 也可以，
-  但那样就得保证 cmake 能正常跑——这里的脚本是**本机受支持的路径**。
-
-  用法：
-      pwsh -File src/core/build.ps1               # 自动找 NDK
-      pwsh -File src/core/build.ps1 -Ndk D:\SDK\ndk\27.1.12297006 -Api 28
-#>
 [CmdletBinding()]
 param(
     [string]$Ndk = $env:ANDROID_NDK_HOME,
@@ -59,6 +42,11 @@ $buildDir = Join-Path $PSScriptRoot 'build-arm64'
 if ($Rebuild -and (Test-Path $buildDir)) { Remove-Item $buildDir -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $buildDir, $OutDir | Out-Null
 
+$shSrc = (Resolve-Path (Join-Path (Join-Path $PSScriptRoot '..\..') 'external\shadowhook\shadowhook\src\main\cpp')).Path
+if (-not (Test-Path (Join-Path $shSrc 'shadowhook.c'))) {
+    throw "找不到 shadowhook 子模块源码：$shSrc（git submodule update --init --recursive）"
+}
+
 # 与旧 CMakeLists 保持一致的编译契约（改了这里就等于改了内核的对外承诺）。
 $target = "--target=aarch64-linux-android$Api"
 $common = @(
@@ -68,17 +56,15 @@ $common = @(
     '-fPIC',
     '-fvisibility=hidden',      # 只导出 JNIEXPORT 的符号，别和内嵌的 libunity 抢名字
     '-fno-omit-frame-pointer',
-    # 不带异常/RTTI：C# 异常在 IL2CPP 里是真正的 C++ 异常，由 libil2cpp 的 libgcc 展开器抛出，
-    # 而我们这侧是 NDK 的 LLVM libunwind。我们自己的帧只要带 personality，两边就会打架把进程
-    # 带崩（上游实测）。内核调托管方法一律走 il2cpp_runtime_invoke（它在自己的帧里捕获异常），
-    # 所以这里从根上不给自己留 personality。
+    
     '-fno-exceptions',
     '-fno-rtti',
     '-Wall', '-Wextra',
     "-I$(Join-Path $PSScriptRoot 'include')",
     "-I$srcRoot",
     "-I$(Join-Path $srcRoot 'imgui')",
-    "-I$(Join-Path (Join-Path $srcRoot 'imgui') 'vendor')"
+    "-I$(Join-Path (Join-Path $srcRoot 'imgui') 'vendor')",
+    "-I$(Join-Path $shSrc 'include')"
 )
 
 # 源文件：*.cpp 之外还有 *.S（il2cpp/Guard.S 的受保护调用 trampoline，走集成汇编器）。
@@ -107,21 +93,60 @@ foreach ($source in $sources) {
     Write-Host "[pylon]   ok  $relative"
 }
 
+$shBuild = Join-Path $buildDir 'shadowhook'
+New-Item -ItemType Directory -Force -Path $shBuild | Out-Null
+
+$clangC = Join-Path $toolchainBin "clang$exe"
+if (-not (Test-Path $clangC)) { throw "找不到 clang：$clangC" }
+
+$shIncludes = @(
+    $shSrc,
+    (Join-Path $shSrc 'include'),
+    (Join-Path $shSrc 'arch\arm64'),
+    (Join-Path $shSrc 'common'),
+    (Join-Path $shSrc 'third_party\xdl'),
+    (Join-Path $shSrc 'third_party\bsd'),
+    (Join-Path $shSrc 'third_party\lss')
+) | ForEach-Object { "-I$_" }
+
+$shSources = @(
+    (Get-ChildItem $shSrc -Filter '*.c' | Where-Object { $_.Name -ne 'sh_jni.c' }) +
+    (Get-ChildItem (Join-Path $shSrc 'arch\arm64') -Filter '*.c') +
+    (Get-ChildItem (Join-Path $shSrc 'common') -Filter '*.c') +
+    (Get-ChildItem (Join-Path $shSrc 'third_party') -Recurse -Filter '*.c')
+) | Sort-Object FullName
+
+Write-Host "[shadowhook] 源文件 : $($shSources.Count) 个"
+
+$shCommon = @(
+    $target,
+    '-std=c17',
+    '-Oz',
+    '-fPIC',
+    '-fvisibility=hidden',
+    '-ffunction-sections',
+    '-fdata-sections'
+) + $shIncludes
+
+$shObjects = @()
+foreach ($shFile in $shSources) {
+    $shRelative = $shFile.FullName.Substring($shSrc.Length + 1) -replace '[\\/]', '_'
+    $shObject = Join-Path $shBuild ($shRelative -replace '\.c$', '_c.o')
+    $shLog = "$shObject.log"
+    & $clangC @shCommon -c $shFile.FullName -o $shObject > $shLog 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host (Get-Content $shLog -Raw)
+        throw "编译失败：$($shFile.Name)"
+    }
+    $shObjects += $shObject
+}
+
+$linkObjects = $objects + $shObjects
+
 $outSo = Join-Path $OutDir 'libpylon.so'
 $linkLog = Join-Path $buildDir 'link.log'
-# -static-libstdc++：把 libc++ 静态链进来，不依赖游戏那份 libc++_shared.so。
-# 内核要用 std::string/vector/mutex，而游戏的 libc++ 版本由 Unity 的 NDK 决定；
-# 动态链接等于把内核的生死绑在别人的 C++ 运行时上。
-#
-# 但静态库里的符号默认是**外部可见**的：不处理的话 libpylon.so 会导出几百个 libc++ 符号，
-# 一旦被全局加载就可能去顶替游戏 libc++_shared.so 的同名符号（ABI 不一致 → 随机崩）。
-# 所以：
-#   --exclude-libs,ALL     把"来自静态库"的符号全部降为隐藏（我们自己的对象文件不受影响，
-#                          所以 PYLON_MOD_EXPORT / JNIEXPORT 照旧可见）
-#   --gc-sections + -ffunction-sections/-fdata-sections  顺手丢掉没被用到的代码
-# 覆盖层（ImGui）现在画在游戏自己的 GLES 上下文里，所以链 GLESv3 而不是 vulkan：
-# imgui_impl_opengl3 在 Android 上自动走 ES3 分支（<GLES3/gl3.h>），不需要额外的 -D。
-& $clang @common '-ffunction-sections' '-fdata-sections' '-shared' '-o' $outSo $objects `
+
+& $clang @common '-ffunction-sections' '-fdata-sections' '-shared' '-o' $outSo $linkObjects `
     '-static-libstdc++' '-llog' '-ldl' '-lGLESv3' '-landroid' `
     '-Wl,--exclude-libs,ALL' '-Wl,--gc-sections' '-Wl,-z,max-page-size=16384' > $linkLog 2>&1
 if ($LASTEXITCODE -ne 0) {
@@ -145,12 +170,7 @@ if (Test-Path $readelf) {
     if ($fxCount -lt 12) { throw "Fx ABI 导出不足（$fxCount 个），检查 PYLON_FX_EXPORT 与 -fvisibility" }
     if ($cxxCount -gt 0) { throw "仍有 $cxxCount 个 libc++ 符号被导出，检查 -Wl,--exclude-libs,ALL" }
 
-    # 未定义符号自检。Android 的 dlopen 会拒绝**强**未定义符号，而静态链接期不报错，
-    # 结果就是 APK 装得上、一启动却 "cannot locate symbol"，内核整个起不来。
-    # 已经踩过一次：桥接层导出了 imgui_demo.cpp 独有、而该文件从未编进内核的 5 个函数。
-    # 弱未定义（WEAK）绑定到 0，不属于问题，这里跳过。
-    # 由系统库在加载时满足的符号：gl*/egl* 来自 libGLESv3（覆盖层画在游戏自己的上下文里，
-    # imgui_impl_opengl3 直接调 GLES3），vk* 是上一个 Vulkan 覆盖层留下的白名单。
+   
     $systemPrefix = '^(vk|gl|egl|ANativeWindow|AAsset|__android_log)'
     $strongUndef = @(& $readelf --dyn-syms --wide $outSo |
         Select-String ' UND ' |
@@ -164,4 +184,17 @@ if (Test-Path $readelf) {
         throw "有 $($strongUndef.Count) 个强未定义符号，dlopen 会失败；多半是某个 .cpp 没编进来"
     }
     Write-Host "[pylon] 未定义符号  : 无强未定义（dlopen 安全）"
+}
+
+# shadowhook 符号必须隐藏（-fvisibility=hidden），内核只导出自己的 ABI。
+if (Test-Path $readelf) {
+    $shLeak = @(& $readelf --dyn-syms --wide $outSo |
+        Select-String 'FUNC.*DEFAULT.*[0-9]+ ' |
+        ForEach-Object { ($_.Line -split '\s+')[-1] } |
+        Where-Object { $_ -like 'shadowhook_*' })
+    if ($shLeak.Count -gt 0) {
+        $shLeak | ForEach-Object { Write-Host "          $_" }
+        throw "shadowhook 符号被内核导出（$($shLeak.Count) 个）：shadowhook 段少了 -fvisibility=hidden"
+    }
+    Write-Host "[pylon] shadowhook  : 已内嵌进内核，符号未外泄"
 }

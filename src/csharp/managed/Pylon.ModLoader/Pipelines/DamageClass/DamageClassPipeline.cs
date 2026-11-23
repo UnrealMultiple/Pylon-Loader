@@ -110,7 +110,7 @@ internal sealed class DamageClassPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[damageclass] {cls.Name} 安装异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[damageclass] {cls.Name} 安装异常：{Safe.Dump(e)}");
             }
         }
 
@@ -370,11 +370,11 @@ internal sealed class DamageClassPipeline : ILoaderModule, ILoaderModuleRefresh
     }
 
     private static void Fail(ModItem mod, HookId hook, Exception e) =>
-        ContentErrors.Report($"[damageclass] {mod.FullKey}.{hook} 异常：{Safe.Describe(e)}");
+        ContentErrors.Line($"[damageclass] {mod.FullKey}.{hook} 异常：{Safe.Dump(e)}");
 
     private static void Fail(GlobalItem global, HookId hook, Exception e) =>
-        ContentErrors.Report($"[damageclass] {global.FullKey}.{hook} 异常：{Safe.Describe(e)}");
+        ContentErrors.Line($"[damageclass] {global.FullKey}.{hook} 异常：{Safe.Dump(e)}");
 
     private static void Fail(ModPlayer mod, HookId hook, Exception e) =>
-        ContentErrors.Report($"[damageclass] {mod.Mod?.Name}/{mod.GetType().Name}.{hook} 异常：{Safe.Describe(e)}");
+        ContentErrors.Line($"[damageclass] {mod.Mod?.Name}/{mod.GetType().Name}.{hook} 异常：{Safe.Dump(e)}");
 }

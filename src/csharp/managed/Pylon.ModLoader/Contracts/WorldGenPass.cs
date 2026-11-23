@@ -57,7 +57,7 @@ public static class WorldGenPass
         }
         if (entry is null) return false;
         try { entry.Apply(progress, configuration); }
-        catch (Exception e) { ContentErrors.Report($"[worldgen] {pass.Name} 异常:{Safe.Describe(e)}"); }
+        catch (Exception e) { ContentErrors.Line($"[worldgen] {pass.Name} 异常:{Safe.Dump(e)}"); }
         finally { GC.KeepAlive(retained); }
         return true;
     }

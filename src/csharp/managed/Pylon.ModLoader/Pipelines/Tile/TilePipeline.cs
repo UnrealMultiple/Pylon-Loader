@@ -256,7 +256,7 @@ internal sealed class TilePipeline : ILoaderModule
         }
         catch (Exception e)
         {
-            Log.Warn("[tile] 维护失败：" + Safe.Describe(e));
+            Log.Warn("[tile] 维护失败：" + Safe.Dump(e));
         }
     }
 
@@ -482,7 +482,7 @@ internal sealed class TilePipeline : ILoaderModule
             catch (Exception e)
             {
                 if (_reported.Add(HashCode.Combine(global.GetType(), HookId.KillSound)))
-                    ContentErrors.Report($"[tile] {global.GetType().Name}.KillSound 异常:{Safe.Describe(e)}");
+                    ContentErrors.Line($"[tile] {global.GetType().Name}.KillSound 异常:{Safe.Dump(e)}");
             }
         }
 
@@ -790,7 +790,7 @@ internal sealed class TilePipeline : ILoaderModule
                 catch (Exception e)
                 {
                     if (_wireReported.Add(HashCode.Combine(global.GetType(), HookId.PreHitWire)))
-                        ContentErrors.Report($"[tile] {global.Name}.PreHitWire 异常：{Safe.Describe(e)}");
+                        ContentErrors.Line($"[tile] {global.Name}.PreHitWire 异常：{Safe.Dump(e)}");
                 }
             }
 
@@ -821,7 +821,7 @@ internal sealed class TilePipeline : ILoaderModule
                     catch (Exception e)
                     {
                         if (_wireReported.Add(HashCode.Combine(tile.Type, HookId.HitWire)))
-                            ContentErrors.Report($"[tile] {tile.Name}.HitWire 异常：{Safe.Describe(e)}");
+                            ContentErrors.Line($"[tile] {tile.Name}.HitWire 异常：{Safe.Dump(e)}");
                     }
                 }
                 foreach (var global in GlobalTileRegistry.For(HookId.HitWire))
@@ -833,7 +833,7 @@ internal sealed class TilePipeline : ILoaderModule
                     catch (Exception e)
                     {
                         if (_wireReported.Add(HashCode.Combine(global.GetType(), HookId.HitWire)))
-                            ContentErrors.Report($"[tile] {global.Name}.HitWire 异常：{Safe.Describe(e)}");
+                            ContentErrors.Line($"[tile] {global.Name}.HitWire 异常：{Safe.Dump(e)}");
                     }
                 }
             }
@@ -1019,7 +1019,7 @@ internal sealed class TilePipeline : ILoaderModule
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[tile] 光标判定异常：" + Safe.Describe(e));
+            ContentErrors.Line("[tile] 光标判定异常：" + Safe.Dump(e));
         }
     }
 
@@ -1128,7 +1128,7 @@ internal sealed class TilePipeline : ILoaderModule
             catch (Exception e)
             {
                 if (_reported.Add(HashCode.Combine(wall.Type, HookId.RandomUpdate, 1)))
-                    ContentErrors.Report($"[wall] {wall.GetType().Name}.RandomUpdate 异常：{Safe.Describe(e)}");
+                    ContentErrors.Line($"[wall] {wall.GetType().Name}.RandomUpdate 异常：{Safe.Dump(e)}");
             }
         }
 
@@ -1139,7 +1139,7 @@ internal sealed class TilePipeline : ILoaderModule
             catch (Exception e)
             {
                 if (_reported.Add(HashCode.Combine(globals[g].GetType(), HookId.RandomUpdate, 2)))
-                    ContentErrors.Report($"[tile] {globals[g].GetType().Name}.RandomUpdate 异常：{Safe.Describe(e)}");
+                    ContentErrors.Line($"[tile] {globals[g].GetType().Name}.RandomUpdate 异常：{Safe.Dump(e)}");
             }
         }
     }
@@ -1203,7 +1203,7 @@ internal sealed class TilePipeline : ILoaderModule
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[tile] 远距光标判定异常：" + Safe.Describe(e));
+            ContentErrors.Line("[tile] 远距光标判定异常：" + Safe.Dump(e));
         }
     }
 
@@ -1402,7 +1402,7 @@ internal sealed class TilePipeline : ILoaderModule
         if (!_reported.Add(HashCode.Combine(type, hook))) return;
 
         var who = tile is null ? "GlobalTile" : tile.GetType().Name;
-        ContentErrors.Report($"[tile] {who}.{hook} 异常：{Safe.Describe(exception)}");
+        ContentErrors.Line($"[tile] {who}.{hook} 异常：{Safe.Dump(exception)}");
     }
 }
 

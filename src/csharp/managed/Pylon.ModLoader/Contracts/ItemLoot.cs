@@ -60,7 +60,7 @@ public class ItemLoot : ILoot
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[loot] {mod.Name}.ModifyItemLoot 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[loot] {mod.Name}.ModifyItemLoot 异常：{Safe.Dump(e)}");
             }
         }
 
@@ -74,7 +74,7 @@ public class ItemLoot : ILoot
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[loot] {global.FullKey}.ModifyItemLoot 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[loot] {global.FullKey}.ModifyItemLoot 异常：{Safe.Dump(e)}");
             }
         }
     }

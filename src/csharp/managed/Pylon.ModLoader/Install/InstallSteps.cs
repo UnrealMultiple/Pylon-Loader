@@ -40,7 +40,7 @@ internal static class InstallSteps
             }
             catch (Exception e)
             {
-                host.Log.Warn($"{type.Name} 的贴图跳过（{type.TexturePath}）：{Safe.Describe(e)}");
+                host.Log.Warn($"{type.Name} 的贴图跳过（{type.TexturePath}）：{Safe.Dump(e)}");
             }
         }
 
@@ -78,7 +78,7 @@ internal static class InstallSteps
             }
             catch (Exception e)
             {
-                Log.Warn($"{type.Name} 的贴图写槽失败：{Safe.Describe(e)}");
+                Log.Warn($"{type.Name} 的贴图写槽失败：{Safe.Dump(e)}");
             }
         }
         Log.Info($"贴图：写入表槽 {written}");
@@ -105,7 +105,7 @@ internal static class InstallSteps
             }
             catch (Exception e)
             {
-                Log.Warn($"{type.Name} 的 ContentSamples 样例注册失败：{Safe.Describe(e)}");
+                Log.Warn($"{type.Name} 的 ContentSamples 样例注册失败：{Safe.Dump(e)}");
             }
         }
 
@@ -129,7 +129,7 @@ internal static class InstallSteps
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report($"[item] {item.FullKey}.SetStaticDefaults 异常：{Safe.Describe(e)}");
+                    ContentErrors.Line($"[item] {item.FullKey}.SetStaticDefaults 异常：{Safe.Dump(e)}");
                 }
             }
             foreach (var global in ModContent.GetContent<GlobalItem>())
@@ -141,7 +141,7 @@ internal static class InstallSteps
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report($"[globalItem] {global.FullKey}.SetStaticDefaults 异常：{Safe.Describe(e)}");
+                    ContentErrors.Line($"[globalItem] {global.FullKey}.SetStaticDefaults 异常：{Safe.Dump(e)}");
                 }
             }
         }
@@ -163,7 +163,7 @@ internal static class InstallSteps
             }
             catch (Exception e)
             {
-                Log.Warn($"{type.Name} 的 NPC 静态默认值失败：{Safe.Describe(e)}");
+                Log.Warn($"{type.Name} 的 NPC 静态默认值失败：{Safe.Dump(e)}");
             }
         }
         Log.Info($"NPC 静态默认值：{count}");
@@ -181,7 +181,7 @@ internal static class InstallSteps
             }
             catch (Exception e)
             {
-                Log.Warn($"{type.Name} 的 buff 静态默认值失败：{Safe.Describe(e)}");
+                Log.Warn($"{type.Name} 的 buff 静态默认值失败：{Safe.Dump(e)}");
             }
         }
         foreach (var global in GlobalBuffRegistry.All)
@@ -229,7 +229,7 @@ internal static class InstallSteps
             }
             catch (Exception e)
             {
-                Log.Warn($"{type.Name} 的 NPC 样例注册失败：{Safe.Describe(e)}");
+                Log.Warn($"{type.Name} 的 NPC 样例注册失败：{Safe.Dump(e)}");
             }
         }
     }
@@ -309,7 +309,7 @@ internal static class InstallSteps
         }
         catch (Exception e)
         {
-            Log.Warn($"{item.Name} 的火焰贴图写槽失败：{Safe.Describe(e)}");
+            Log.Warn($"{item.Name} 的火焰贴图写槽失败：{Safe.Dump(e)}");
         }
     }
 
@@ -326,7 +326,7 @@ internal static class InstallSteps
         }
         catch (Exception e)
         {
-            Log.Warn("空白火焰生成失败：" + Safe.Describe(e));
+            Log.Warn("空白火焰生成失败：" + Safe.Dump(e));
         }
 
         return _blankFlame;
@@ -379,7 +379,7 @@ internal static class InstallSteps
         }
         catch (Exception e)
         {
-            Log.Warn($"{npc.Name} 登记 NPCID.Search 失败：{Safe.Describe(e)}");
+            Log.Warn($"{npc.Name} 登记 NPCID.Search 失败：{Safe.Dump(e)}");
         }
     }
 

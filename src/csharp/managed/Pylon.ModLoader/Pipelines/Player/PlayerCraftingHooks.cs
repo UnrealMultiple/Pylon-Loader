@@ -140,10 +140,10 @@ internal static class PlayerCraftingHooks
             }
             if (item.stack >= before[i] || source.Callback is null) continue;
             try { source.Callback(item, source.Indexes[i]); }
-            catch (Exception e) { Safe.Once("craft.source", $"[craft] {source.Label}.ItemConsumedCallback 异常：{Safe.Describe(e)}", true); }
+            catch (Exception e) { Safe.Once("craft.source", $"[craft] {source.Label}.ItemConsumedCallback 异常：{Safe.Dump(e)}", true); }
         }
     }
 
     private static void Report(ModPlayer mod, Exception e) =>
-        ContentErrors.Report($"[craft] {mod.Mod?.Name}/{mod.GetType().Name}.AddMaterialsForCrafting 异常：{Safe.Describe(e)}");
+        ContentErrors.Line($"[craft] {mod.Mod?.Name}/{mod.GetType().Name}.AddMaterialsForCrafting 异常：{Safe.Dump(e)}");
 }

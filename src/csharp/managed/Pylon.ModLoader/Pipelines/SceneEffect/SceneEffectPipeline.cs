@@ -205,7 +205,7 @@ internal sealed class SceneEffectPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[sceneeffect] {effect.Name}.IsSceneEffectActive 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[sceneeffect] {effect.Name}.IsSceneEffectActive 异常：{Safe.Dump(e)}");
                 active = false;
             }
 
@@ -215,7 +215,7 @@ internal sealed class SceneEffectPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[sceneeffect] {effect.Name}.SpecialVisuals 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[sceneeffect] {effect.Name}.SpecialVisuals 异常：{Safe.Dump(e)}");
             }
 
             if (!active) continue;
@@ -227,7 +227,7 @@ internal sealed class SceneEffectPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[sceneeffect] {effect.Name}.GetWeight 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[sceneeffect] {effect.Name}.GetWeight 异常：{Safe.Dump(e)}");
                 continue;
             }
 
@@ -246,7 +246,7 @@ internal sealed class SceneEffectPipeline : ILoaderModule, ILoaderModuleRefresh
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report($"[sceneeffect] {effect.FullKey} (scene) 异常：{Safe.Describe(e)}");
+                    ContentErrors.Line($"[sceneeffect] {effect.FullKey} (scene) 异常：{Safe.Dump(e)}");
                 }
             }
         }
@@ -353,7 +353,7 @@ internal sealed class SceneEffectPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report("[sceneeffect] 原版场景档计算异常：" + Safe.Describe(e));
+                ContentErrors.Line("[sceneeffect] 原版场景档计算异常：" + Safe.Dump(e));
                 tier = VanillaSceneTier.BossHigh;
             }
 
@@ -365,7 +365,7 @@ internal sealed class SceneEffectPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[sceneeffect] 音乐决策异常：" + Safe.Describe(e));
+            ContentErrors.Line("[sceneeffect] 音乐决策异常：" + Safe.Dump(e));
         }
     }
 
@@ -392,7 +392,7 @@ internal sealed class SceneEffectPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[sceneeffect] {modNpc.Name}.Music 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[sceneeffect] {modNpc.Name}.Music 异常：{Safe.Dump(e)}");
                 continue;
             }
 
@@ -459,7 +459,7 @@ internal sealed class SceneEffectPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[sceneeffect] {effect.Name}.MapBackground 绘制异常:{Safe.Describe(e)}");
+            ContentErrors.Line($"[sceneeffect] {effect.Name}.MapBackground 绘制异常:{Safe.Dump(e)}");
             return false;
         }
     }
@@ -475,7 +475,7 @@ internal sealed class SceneEffectPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[sceneeffect] {effect.Name} 的地图背景加载失败（{path}）：{Safe.Describe(e)}");
+            ContentErrors.Line($"[sceneeffect] {effect.Name} 的地图背景加载失败（{path}）：{Safe.Dump(e)}");
         }
 
         MapTextures[path] = asset;

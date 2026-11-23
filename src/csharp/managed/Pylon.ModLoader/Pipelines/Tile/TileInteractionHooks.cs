@@ -88,7 +88,7 @@ internal static class TileInteractionHooks
     private static void Fail(ModType author, string hook, Exception e)
     {
         if (Reported.Add((author.GetType(), hook)))
-            ContentErrors.Report($"[tile] {author.GetType().Name}.{hook} 异常:{Safe.Describe(e)}");
+            ContentErrors.Line($"[tile] {author.GetType().Name}.{hook} 异常:{Safe.Dump(e)}");
     }
 
     private static bool IsLocked(On.Terraria.Chest.orig_IsLocked_int_int orig, int x, int y)

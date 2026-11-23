@@ -281,7 +281,7 @@ internal static class TileDrawHooks
                 }
                 catch (Exception e)
                 {
-                    Safe.Once("tile.spriteeffects", "[tile] GlobalTile.SetSpriteEffects 异常：" + Safe.Describe(e), true);
+                    Safe.Once("tile.spriteeffects", "[tile] GlobalTile.SetSpriteEffects 异常：" + Safe.Dump(e), true);
                 }
             }
 
@@ -305,7 +305,7 @@ internal static class TileDrawHooks
     private static void Report(ModTile tile, HookId hook, Exception e)
     {
         if (_reported.Add(HashCode.Combine(tile.Type, hook)))
-            ContentErrors.Report($"[tile] {tile.Name}.{hook} 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[tile] {tile.Name}.{hook} 异常：{Safe.Dump(e)}");
     }
 
     // ===================== 绘制缓存 =====================
@@ -482,7 +482,7 @@ internal static class TileDrawHooks
         }
         catch (Exception e)
         {
-            Safe.Once("tile.animate", "[tile] 动画推进异常：" + Safe.Describe(e), true);
+            Safe.Once("tile.animate", "[tile] 动画推进异常：" + Safe.Dump(e), true);
         }
     }
 
@@ -528,7 +528,7 @@ internal static class TileDrawHooks
             }
             catch (Exception e)
             {
-                Safe.Once("tile.animateglobal", "[tile] GlobalTile.AnimateTile 异常：" + Safe.Describe(e), true);
+                Safe.Once("tile.animateglobal", "[tile] GlobalTile.AnimateTile 异常：" + Safe.Dump(e), true);
             }
         }
     }

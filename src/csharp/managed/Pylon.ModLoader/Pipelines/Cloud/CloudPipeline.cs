@@ -102,7 +102,7 @@ internal sealed class CloudPipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            Log.Warn("[cloud] 遮罩表扩容失败（游戏侧没有 TextureMaskManager 时画云走老路径）：" + Safe.Describe(e));
+            Log.Warn("[cloud] 遮罩表扩容失败（游戏侧没有 TextureMaskManager 时画云走老路径）：" + Safe.Dump(e));
         }
     }
 

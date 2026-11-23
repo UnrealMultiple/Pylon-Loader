@@ -128,7 +128,7 @@ internal sealed class InterfaceLayerPipeline : ILoaderModule, ILoaderModuleRefre
             }
             catch (Exception e)
             {
-                ContentErrors.Report("[interfacelayer] 重建界面层失败：" + Safe.Describe(e));
+                ContentErrors.Line("[interfacelayer] 重建界面层失败：" + Safe.Dump(e));
             }
         }
 
@@ -159,7 +159,7 @@ internal sealed class InterfaceLayerPipeline : ILoaderModule, ILoaderModuleRefre
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[interfacelayer] 原版 Draw 抛异常：" + Safe.Describe(e));
+            ContentErrors.Line("[interfacelayer] 原版 Draw 抛异常：" + Safe.Dump(e));
             return true;
         }
     }

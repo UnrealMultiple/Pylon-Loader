@@ -83,7 +83,7 @@ internal static class NpcProfilePipeline
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[profile] {globals[g].Name}.ModifyTownNPCProfile 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[profile] {globals[g].Name}.ModifyTownNPCProfile 异常：{Safe.Dump(e)}");
             }
         }
         return profile;

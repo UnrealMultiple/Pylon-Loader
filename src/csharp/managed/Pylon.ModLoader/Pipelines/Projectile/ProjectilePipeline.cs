@@ -1561,7 +1561,7 @@ internal sealed class ProjectilePipeline : ILoaderModule
     private void Fail(string hook, int type, Exception exception)
     {
         if (!_reported.Add(HashCode.Combine(hook, type))) return;
-        ContentErrors.Report($"[projectile] {hook} 异常（type={type}）：{Safe.Describe(exception)}");
+        ContentErrors.Line($"[projectile] {hook} 异常（type={type}）：{Safe.Dump(exception)}");
     }
 
     private struct MoveFrame

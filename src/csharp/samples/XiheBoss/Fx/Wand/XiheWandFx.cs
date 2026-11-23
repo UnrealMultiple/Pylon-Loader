@@ -88,22 +88,22 @@ namespace XiheBoss.Wand
                 frame.Add(fx);
                 frame.Submit();
             }
-            catch (Exception e) { XiheBossMod.Log?.Warn("[fx] 着色器探针提交失败：" + e.Message); }
+            catch (Exception e) { XiheBossMod.Log?.Warn("[fx] 着色器探针提交失败：" + e); }
         }
 
         internal static void BindTextures(Mod mod)
         {
             try { _beamTex = XiheWandTextures.Load(mod, "assets/textures/tex3.png", repeat: true); }
-            catch (Exception e) { mod.Logger.Warn("[fx] tex3 绑定失败：" + e.Message); }
+            catch (Exception e) { mod.Logger.Warn("[fx] tex3 绑定失败：" + e); }
             try { _coreTex = XiheWandTextures.Load(mod, "assets/textures/tex0.png", repeat: true); }
-            catch (Exception e) { mod.Logger.Warn("[fx] tex0 绑定失败：" + e.Message); }
+            catch (Exception e) { mod.Logger.Warn("[fx] tex0 绑定失败：" + e); }
             try { _arcTex = XiheWandTextures.Load(mod, "assets/textures/Arc.png", repeat: false); }
-            catch (Exception e) { mod.Logger.Warn("[fx] Arc 绑定失败：" + e.Message); }
+            catch (Exception e) { mod.Logger.Warn("[fx] Arc 绑定失败：" + e); }
             try { _starTex = XiheWandTextures.Load(mod, "assets/textures/Extra89.png", repeat: false); }
-            catch (Exception e) { mod.Logger.Warn("[fx] Extra_89 绑定失败：" + e.Message); }
+            catch (Exception e) { mod.Logger.Warn("[fx] Extra_89 绑定失败：" + e); }
 
             try { _ringStripTex = XiheWandTextures.Load(mod, "assets/textures/MagicRing.png", repeat: true); }
-            catch (Exception e) { mod.Logger.Warn("[fx] MagicRing 绑定失败：" + e.Message); }
+            catch (Exception e) { mod.Logger.Warn("[fx] MagicRing 绑定失败：" + e); }
 
             mod.Logger.Info("[fx] MEAC 贴图：" +
                 $"tex3={(_beamTex != null ? "ok" : "失败")}、tex0={(_coreTex != null ? "ok" : "失败")}、" +
@@ -206,7 +206,7 @@ namespace XiheBoss.Wand
                 frame.Add(fx);
                 frame.Submit();
             }
-            catch (Exception e) { XiheBossMod.Log?.Warn("[fx] 预热提交失败：" + e.Message); }
+            catch (Exception e) { XiheBossMod.Log?.Warn("[fx] 预热提交失败：" + e); }
         }
 
         internal static void Update()
@@ -311,7 +311,7 @@ namespace XiheBoss.Wand
             }
             catch (Exception e)
             {
-                if (!_loggedError) { _loggedError = true; XiheBossMod.Log?.Warn("[fx] 状态更新异常：" + e.Message); }
+                if (!_loggedError) { _loggedError = true; XiheBossMod.Log?.Warn("[fx] 状态更新异常：" + e); }
             }
         }
 
@@ -512,7 +512,7 @@ namespace XiheBoss.Wand
                         if (status == ScreenGraphics.ShaderStatus.Failed)
                             XiheBossMod.Log?.Error("[fx] 着色器编译失败：" + Shader.Error);
                     }
-                    catch (Exception e) { XiheBossMod.Log?.Warn("[fx] 查询着色器状态失败：" + e.Message); }
+                    catch (Exception e) { XiheBossMod.Log?.Warn("[fx] 查询着色器状态失败：" + e); }
                 }
 
                 if (ScreenEffects.Find(EffectKey) is XiheBeamEffect { Active: true }) return;
@@ -525,7 +525,7 @@ namespace XiheBoss.Wand
             }
             catch (Exception e)
             {
-                if (!_loggedError) { _loggedError = true; XiheBossMod.Log?.Warn("[fx] 提交失败：" + e.Message); }
+                if (!_loggedError) { _loggedError = true; XiheBossMod.Log?.Warn("[fx] 提交失败：" + e); }
             }
         }
 

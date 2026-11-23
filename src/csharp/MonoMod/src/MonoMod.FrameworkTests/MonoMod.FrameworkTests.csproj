@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <TargetFrameworks>$(TargetFrameworks);netcoreapp3.1</TargetFrameworks>
+
+    <NoWarn>$(NoWarn);CA1303</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MonoMod.Core\MonoMod.Core.csproj" />
+    <ProjectReference Include="..\MonoMod.RuntimeDetour\MonoMod.RuntimeDetour.csproj" />
+    <!--<ProjectReference Include="..\MonoMod.UnitTest\MonoMod.UnitTest.csproj" Condition="'$(TargetFramework)' != 'net35' and '$(TargetFramework)' != 'net452'" />-->
+    <ProjectReference Include="$(MMExternalPath)iced.csproj" />
+  </ItemGroup>
+
+</Project>

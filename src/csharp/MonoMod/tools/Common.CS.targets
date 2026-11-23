@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+
+  <!-- C#-specific targets -->
+  <PropertyGroup>
+    <NoWarn Condition="'$(IsPackable)' == 'false'">$(NoWarn);NG0101</NoWarn>
+  </PropertyGroup>
+  
+  <!-- Roslyn references -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Net.Compilers.Toolset" Version="$(RoslynVersion)" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.CodeStyle" Version="$(RoslynVersion)">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <PropertyGroup>
+    <CoreCompileDependsOn>
+      EnsureSupportedMSBuildVersion;
+      $(CoreCompileDependsOn);
+    </CoreCompileDependsOn>
+  </PropertyGroup>
+
+  <Target Name="EnsureSupportedMSBuildVersion"
+          BeforeTargets="CoreCompile"
+          Condition="'$(MSBuildRequiredVersion)' != ''">
+    <Error ContinueOnError="false" Text="MSBuild version is too old to build this project; currently $(MSBuildVersion), needs at least $(MSBuildRequiredVersion)"
+           Condition="$([MSBuild]::VersionLessThan('$(MSBuildVersion)', '$(MSBuildRequiredVersion)'))" />
+  </Target>
+  
+  <!-- Banned API Analyzer -->
+  <ItemGroup Condition="'$(MMBannedApis)' != 'false'">
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="3.3.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
+  </ItemGroup>
+
+  <!-- Backports reference -->
+  <ItemGroup Condition="'$(MMReferenceBackports)' == 'true'">
+    <PackageReference Include="MonoMod.Backports" Version="1.1.2" /> <!-- TODO: Upgrade to 2.0.0 when ready for that break -->
+    <!-- Shared source files -->
+    <Compile Include="$(MMCommonPath)Shared\**\*.cs" Condition="'$(MMSharedSourceFiles)' == 'true'">
+      <Link>Shared/%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Compile>
+    <Compile Include="$(MMCommonPath)MethodImplOptionBackportsAlias.cs" Condition="'$(MMMethodImplAlias)' == 'true'">
+      <Link>Shared/%(Filename)%(Extension)</Link>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Source Generator reference -->
+    <!-- This should be dependent on ReferenceBackports because the source generator will assume the presence of Backports.
+         However, the SourceGen project has some normal analyzers which we want to apply to Backports and Iced as well. -->
+    <ProjectReference Include="$(MMSourcePath)MonoMod.SourceGen.Internal\MonoMod.SourceGen.Internal.csproj" Condition="'$(MMUseSourceGen)' != 'false'">
+      <Reference>false</Reference>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <OutputItemType>Analyzer</OutputItemType>
+      <Private>false</Private>
+      <PrivateAssets>all</PrivateAssets>
+      <SetTargetFramework>TargetFramework=netstandard2.0</SetTargetFramework>
+      <SkipGetTargetFrameworkProperties>true</SkipGetTargetFrameworkProperties>
+      <Pack>false</Pack>
+    </ProjectReference>
+    <CompilerVisibleProperty Include="AssemblyName" />
+    <CompilerVisibleProperty Include="Version" />
+    <CompilerVisibleProperty Include="RootNamespace" />
+  </ItemGroup>
+  
+  <!-- ILHelpers reference -->
+  <ItemGroup Condition="'$(MMReferenceILHelpers)' == 'true'">
+    <Compile Include="$(MMCommonPath)UnsafeAlias.cs" Condition="'$(MMIncludeUnsafeAlias)' == 'true'">
+      <Link>Shared/%(Filename)%(Extension)</Link>
+    </Compile>
+    <PackageReference Include="MonoMod.ILHelpers" Version="1.1.0">
+      <Aliases Condition="'$(MMIncludeUnsafeAlias)' == 'true'">ilhelpers</Aliases>
+    </PackageReference>
+  </ItemGroup>
+  
+  <!-- MonoMod.Utils reference -->
+  <ItemGroup Condition="'$(MMReferenceUtils)' == 'true'">
+    <ProjectReference Include="$(MMSourcePath)MonoMod.Utils\MonoMod.Utils.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <_TFMIdentifier>$([MSBuild]::GetTargetFrameworkIdentifier('$(TargetFramework)'))</_TFMIdentifier>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(_TFMIdentifier)' == '.NETFramework'">
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+    
+  <Choose>
+    <When Condition="'$(_TFMIdentifier)' == '.NETCoreApp'">
+      <!-- .NET Core -->
+      <PropertyGroup>
+        <DefineConstants>$(DefineConstants)</DefineConstants>
+        <DefineConstants>CECIL0_11;$(DefineConstants)</DefineConstants>
+        <CecilVersion Condition="'$(CecilVersion)' == ''">$(NewCecilVersion)</CecilVersion>
+        <NETShimVersion>4.*</NETShimVersion>
+      </PropertyGroup>
+
+      <ItemGroup>
+        <!-- For Core 2.1, we need this to make sure it doesn't include the shim assemblies in the package -->
+        <PackageReference Update="Microsoft.NETCore.App" Pack="false" />
+      </ItemGroup>
+    </When>
+    
+    <When Condition="'$(_TFMIdentifier)' == '.NETStandard'">
+      <!-- .NET Standard -->
+      <PropertyGroup>
+        <DefineConstants>NETSTANDARD;$(DefineConstants)</DefineConstants>
+        <DefineConstants>CECIL0_11;$(DefineConstants)</DefineConstants>
+        <CecilVersion Condition="'$(CecilVersion)' == ''">$(NewCecilVersion)</CecilVersion>
+        <NETShimVersion>4.*</NETShimVersion>
+      </PropertyGroup>
+      
+      <ItemGroup>
+        <PackageReference Include="System.Reflection.Emit.Lightweight" Version="4.7.0" />
+        <PackageReference Include="System.Reflection.Emit.ILGeneration" Version="4.7.0" />
+      </ItemGroup>
+    </When>
+    
+    <When Condition="'$(TargetFramework)' != 'net35'">
+      <!-- .NET Framework 4.0+ -->
+      <PropertyGroup>
+        <DefineConstants>NETFRAMEWORK4;$(DefineConstants)</DefineConstants>
+        <DefineConstants>CECIL0_11;$(DefineConstants)</DefineConstants>
+        <CecilVersion Condition="'$(CecilVersion)' == ''">$(NewCecilVersion)</CecilVersion>
+      </PropertyGroup>
+      <ItemGroup>
+        <Reference Include="System" />
+      </ItemGroup>
+    </When>
+    
+    <When Condition="'$(TargetFramework)' == 'net35'">
+      <!-- .NET Framework 3.5 -->
+      <PropertyGroup>
+        <DefineConstants>NETFRAMEWORK3;$(DefineConstants)</DefineConstants>
+        <DefineConstants>CECIL0_10;$(DefineConstants)</DefineConstants>
+        <CecilVersion Condition="'$(CecilVersion)' == ''">$(OldCecilVersion)</CecilVersion>
+      </PropertyGroup>
+      <ItemGroup>
+        <Reference Include="System" />
+      </ItemGroup>
+    </When>
+  </Choose>
+
+  <ItemGroup>
+    <PackageReference Update="Mono.Cecil" Version="$(CecilVersion)" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <CoreCompileDependsOn>$(CoreCompileDependsOn);_DisableAnalyzers</CoreCompileDependsOn>
+  </PropertyGroup>
+  
+  <Target Name="_DisableAnalyzers" DependsOnTargets="ResolveTargetingPackAssets" Inputs="@(RemoveAnalyzer)" Outputs="|%(Identity)|">
+    <PropertyGroup>
+      <_RemoveAnalyzer>%(RemoveAnalyzer.Identity)</_RemoveAnalyzer>
+    </PropertyGroup>
+    <ItemGroup>
+      <Analyzer Remove="$(_RemoveAnalyzer)"/>
+      <Analyzer Remove="@(Analyzer)" Condition="'%(Analyzer.Filename)' == '$(_RemoveAnalyzer)'"/>
+    </ItemGroup>
+  </Target>
+  
+</Project>

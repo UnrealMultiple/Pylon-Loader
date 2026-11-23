@@ -8,7 +8,7 @@ internal static class ScreenReport
 {
     public static void Report(string what, Exception e)
     {
-        try { LoaderHost.Current.Log.Error($"[fx] {what}：{Safe.Describe(e)}"); }
+        try { LoaderHost.Current.Log.Error($"[fx] {what}：{Safe.Dump(e)}"); }
         catch { }
     }
 }

@@ -82,5 +82,5 @@ internal static class PlayerSlotHooks
     }
 
     private static void Fail(ModPlayer mod, HookId hook, Exception e) =>
-        ContentErrors.Report($"[slots] {mod.GetType().Name}.{hook} 异常:{Safe.Describe(e)}");
+        ContentErrors.Line($"[slots] {mod.GetType().Name}.{hook} 异常:{Safe.Dump(e)}");
 }

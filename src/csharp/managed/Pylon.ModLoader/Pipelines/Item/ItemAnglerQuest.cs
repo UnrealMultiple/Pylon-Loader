@@ -134,5 +134,5 @@ internal static class ItemAnglerQuest
     }
 
     private static void Report(ModType author, string hook, Exception e) =>
-        ContentErrors.Report($"[angler] {author.Name}.{hook} 异常:{Safe.Describe(e)}");
+        ContentErrors.Line($"[angler] {author.Name}.{hook} 异常:{Safe.Dump(e)}");
 }

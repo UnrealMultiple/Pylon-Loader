@@ -30,7 +30,7 @@ internal static class PlayerHurtHooks
     }
 
     private static void Fail(ModPlayer mod, HookId hook, Exception e) =>
-        ContentErrors.Report($"[playerhurt] {mod.GetType().Name}.{hook} 异常:{Safe.Describe(e)}");
+        ContentErrors.Line($"[playerhurt] {mod.GetType().Name}.{hook} 异常:{Safe.Dump(e)}");
 
     private static double Hurt(On.Terraria.Player.orig_Hurt orig, Player self, PlayerDeathReason damageSource,
                                int damage, int hitDirection, bool pvp, bool quiet, bool crit,
@@ -135,7 +135,7 @@ internal static class PlayerHurtHooks
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[playerhurt] 受伤准备异常:" + Safe.Describe(e));
+            ContentErrors.Line("[playerhurt] 受伤准备异常:" + Safe.Dump(e));
             return orig(self, damageSource, damage, hitDirection, pvp, quiet, crit, cooldownCounter, dodgeable);
         }
 

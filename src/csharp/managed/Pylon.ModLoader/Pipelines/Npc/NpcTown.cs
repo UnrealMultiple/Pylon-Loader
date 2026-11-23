@@ -70,7 +70,7 @@ internal sealed class NpcTown
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"{npc.Name}.CanTownNPCSpawn 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"{npc.Name}.CanTownNPCSpawn 异常：{Safe.Dump(e)}");
             }
 
             if (!can) continue;
@@ -107,7 +107,7 @@ internal sealed class NpcTown
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"{npc.Name}.CheckConditions 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"{npc.Name}.CheckConditions 异常：{Safe.Dump(e)}");
             return orig(type);
         }
     }
@@ -127,7 +127,7 @@ internal sealed class NpcTown
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"{npc.Name}.SetNPCNameList 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"{npc.Name}.SetNPCNameList 异常：{Safe.Dump(e)}");
             }
         }
 
@@ -147,7 +147,7 @@ internal sealed class NpcTown
             foreach (var global in GlobalNpcRegistry.For(sample, HookId.ModifyNPCNameList))
             {
                 try { global.ModifyNPCNameList(sample, names); }
-                catch (Exception e) { ContentErrors.Report($"{global.Name}.ModifyNPCNameList 异常：{Safe.Describe(e)}"); }
+                catch (Exception e) { ContentErrors.Line($"{global.Name}.ModifyNPCNameList 异常：{Safe.Dump(e)}"); }
             }
         }
 
@@ -222,13 +222,13 @@ internal sealed class NpcTown
         if (mod is not null && mod.HookEnabled(HookId.RegisterChatButtons))
         {
             try { mod.RegisterChatButtons(list); }
-            catch (Exception e) { ContentErrors.Report($"{mod.Name}.RegisterChatButtons 异常：{Safe.Describe(e)}"); }
+            catch (Exception e) { ContentErrors.Line($"{mod.Name}.RegisterChatButtons 异常：{Safe.Dump(e)}"); }
         }
 
         foreach (var global in GlobalNpcRegistry.For(npc, HookId.RegisterChatButtons))
         {
             try { global.RegisterChatButtons(npc, list); }
-            catch (Exception e) { ContentErrors.Report($"{global.Name}.RegisterChatButtons 异常：{Safe.Describe(e)}"); }
+            catch (Exception e) { ContentErrors.Line($"{global.Name}.RegisterChatButtons 异常：{Safe.Dump(e)}"); }
         }
 
         _interactions[npc.type] = list;
@@ -251,7 +251,7 @@ internal sealed class NpcTown
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[npc] NPCInteraction {entry.NPCInteraction.GetType().Name} 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[npc] NPCInteraction {entry.NPCInteraction.GetType().Name} 异常：{Safe.Dump(e)}");
             }
         }
 
@@ -274,7 +274,7 @@ internal sealed class NpcTown
             {
                 if (!global.PreChatButtonClicked(npc, interaction)) allowed = false;
             }
-            catch (Exception e) { ContentErrors.Report($"{global.Name}.PreChatButtonClicked 异常：{Safe.Describe(e)}"); }
+            catch (Exception e) { ContentErrors.Line($"{global.Name}.PreChatButtonClicked 异常：{Safe.Dump(e)}"); }
         }
 
         return allowed;
@@ -286,13 +286,13 @@ internal sealed class NpcTown
         if (mod is not null && mod.HookEnabled(HookId.OnChatButtonClicked))
         {
             try { mod.OnChatButtonClicked(interaction); }
-            catch (Exception e) { ContentErrors.Report($"{mod.Name}.OnChatButtonClicked 异常：{Safe.Describe(e)}"); }
+            catch (Exception e) { ContentErrors.Line($"{mod.Name}.OnChatButtonClicked 异常：{Safe.Dump(e)}"); }
         }
 
         foreach (var global in GlobalNpcRegistry.For(npc, HookId.OnChatButtonClicked))
         {
             try { global.OnChatButtonClicked(npc, interaction); }
-            catch (Exception e) { ContentErrors.Report($"{global.Name}.OnChatButtonClicked 异常：{Safe.Describe(e)}"); }
+            catch (Exception e) { ContentErrors.Line($"{global.Name}.OnChatButtonClicked 异常：{Safe.Dump(e)}"); }
         }
     }
 
@@ -308,7 +308,7 @@ internal sealed class NpcTown
             var button = "";
             var button2 = "";
             try { mod.SetChatButtons(ref button, ref button2); }
-            catch (Exception e) { ContentErrors.Report($"{mod.Name}.SetChatButtons 异常：{Safe.Describe(e)}"); }
+            catch (Exception e) { ContentErrors.Line($"{mod.Name}.SetChatButtons 异常：{Safe.Dump(e)}"); }
             return first ? button ?? "" : button2 ?? "";
         }
 
@@ -322,7 +322,7 @@ internal sealed class NpcTown
 
             var shopName = "";
             try { mod.OnChatButtonClicked(first, ref shopName); }
-            catch (Exception e) { ContentErrors.Report($"{mod.Name}.OnChatButtonClicked 异常：{Safe.Describe(e)}"); }
+            catch (Exception e) { ContentErrors.Line($"{mod.Name}.OnChatButtonClicked 异常：{Safe.Dump(e)}"); }
 
             if (string.IsNullOrEmpty(shopName)) return;
 
@@ -361,7 +361,7 @@ internal sealed class NpcTown
         if (!PreChatButtonClicked(npc, interaction)) return true;
 
         try { interaction.Interact(); }
-        catch (Exception e) { ContentErrors.Report($"[npc] NPCInteraction {interaction.GetType().Name}.Interact 异常：{Safe.Describe(e)}"); }
+        catch (Exception e) { ContentErrors.Line($"[npc] NPCInteraction {interaction.GetType().Name}.Interact 异常：{Safe.Dump(e)}"); }
 
         OnChatButtonClicked(npc, interaction);
         return true;

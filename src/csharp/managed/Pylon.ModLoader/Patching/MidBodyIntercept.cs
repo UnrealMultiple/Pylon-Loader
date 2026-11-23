@@ -172,7 +172,7 @@ public static unsafe class MidBodyIntercept
         {
             try
             {
-                _log?.Warn("[intercept] " + Safe.Describe(exception));
+                _log?.Warn("[intercept] " + Safe.Dump(exception));
             }
             catch
             {

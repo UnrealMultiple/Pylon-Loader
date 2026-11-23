@@ -159,7 +159,7 @@ internal static class HookProfile
         }
         catch (Exception e)
         {
-            Safe.Warn("[profile] 汇总失败：" + Safe.Describe(e));
+            Safe.Warn("[profile] 汇总失败：" + Safe.Dump(e));
         }
     }
 

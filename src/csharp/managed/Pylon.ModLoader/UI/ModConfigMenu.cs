@@ -1,9 +1,9 @@
-using System.Reflection;
 using Il2CppInterop.Runtime.InteropTypes;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Il2CppMicrosoft.Xna.Framework;
 using Pylon.ModLoader.Audio;
 using Pylon.ModLoader.Content;
+using Pylon.ModLoader.Core;
 using Pylon.ModLoader.Localization;
 using Pylon.ModLoader.Logging;
 using Pylon.ModLoader.Pipelines;
@@ -469,64 +469,7 @@ public static partial class ModConfigMenu
         }
     }
 
-    private static T Clone<T>(T source) where T : Il2CppObjectBase, new()
-    {
-        try
-        {
-            var result = ((Il2CppSystem.Object)(object)source).MemberwiseClone();
-            if (result is T typed) return typed;
-            var ctor = typeof(T).GetConstructor([typeof(IntPtr)]);
-            if (ctor != null) return (T)ctor.Invoke(new object[] { ((Il2CppObjectBase)result).Pointer });
-        }
-        catch (Exception e)
-        {
-            _logger?.Error("原生 MemberwiseClone 失败（退回属性拷贝）：" + typeof(T).Name + " " + ModUI.Flatten(e));
-        }
-        return CopyFallback(source);
-    }
-
-    private static T CopyFallback<T>(T source) where T : Il2CppObjectBase, new()
-    {
-        var clone = new T();
-        var copy = typeof(T).GetMethod("Copy", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
-            null, [typeof(T)], null);
-        if (copy != null)
-        {
-            try { copy.Invoke(clone, parameters: [source]); return clone; }
-            catch (Exception e)
-            {
-                throw new InvalidOperationException($"原生 Copy 失败：{typeof(T).Name}（{e.Message}）", e);
-            }
-        }
-        CopyProperties(source, clone);
-        return clone;
-    }
-
-    private static readonly Dictionary<Type, PropertyInfo[]> CloneCache = new();
-
-    private static void CopyProperties<T>(T from, T to)
-    {
-        var type = typeof(T);
-        if (!CloneCache.TryGetValue(type, out var properties))
-        {
-            properties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
-            CloneCache[type] = properties;
-        }
-        foreach (var property in properties)
-        {
-            if (!property.CanRead || !property.CanWrite) continue;
-            if (property.GetIndexParameters().Length > 0) continue;
-            try
-            {
-                property.SetValue(to, property.GetValue(from));
-            }
-            catch (Exception e)
-            {
-                throw new InvalidOperationException(
-                    $"MemberwiseClone 等价拷贝失败：{type.Name}.{property.Name}（{e.Message}）", e);
-            }
-        }
-    }
+    private static T Clone<T>(T source) where T : Il2CppObjectBase, new() => NativeClone.Of(source);
 }
 
 

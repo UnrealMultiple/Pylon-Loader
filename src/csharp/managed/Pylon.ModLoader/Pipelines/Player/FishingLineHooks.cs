@@ -74,5 +74,5 @@ internal static class FishingLineHooks
     };
 
     private static void Fail(ModType mod, Exception e) =>
-        ContentErrors.Report($"[fishing] {mod.GetType().Name}.ModifyFishingLine 异常:{Safe.Describe(e)}");
+        ContentErrors.Line($"[fishing] {mod.GetType().Name}.ModifyFishingLine 异常:{Safe.Dump(e)}");
 }

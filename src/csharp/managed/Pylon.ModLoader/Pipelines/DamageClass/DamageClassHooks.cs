@@ -81,13 +81,13 @@ internal static class DamageClassHooks
         {
             if (DamageClassLoader.Players.TryGetValue(self.Pointer, out DamageClassLoader.PlayerStats? d)) DamageClassLoader.Reset(self, d);
         }
-        catch (Exception e) { ContentErrors.Report("[damageclass] ResetEffects 异常：" + Safe.Describe(e)); }
+        catch (Exception e) { ContentErrors.Line("[damageclass] ResetEffects 异常：" + Safe.Dump(e)); }
     }
 
     static void CapAttackSpeeds(On.Terraria.Player.orig_CapAttackSpeeds orig, Player self)
     {
         try { DamageClassLoader.Fold(self); }
-        catch (Exception e) { ContentErrors.Report("[damageclass] Fold 异常：" + Safe.Describe(e)); }
+        catch (Exception e) { ContentErrors.Line("[damageclass] Fold 异常：" + Safe.Dump(e)); }
         orig(self);
     }
 
@@ -103,7 +103,7 @@ internal static class DamageClassHooks
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[damageclass] GetWeaponDamageMultiplier 异常：" + Safe.Describe(e));
+            ContentErrors.Line("[damageclass] GetWeaponDamageMultiplier 异常：" + Safe.Dump(e));
             return orig(self, item);
         }
         StatModifier t = DamageClassLoader.Total(self, cls).Damage;
@@ -124,7 +124,7 @@ internal static class DamageClassHooks
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[damageclass] GetWeaponCrit 异常：" + Safe.Describe(e));
+            ContentErrors.Line("[damageclass] GetWeaponCrit 异常：" + Safe.Dump(e));
             return value;
         }
     }
@@ -141,7 +141,7 @@ internal static class DamageClassHooks
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[damageclass] GetWeaponKnockback 异常：" + Safe.Describe(e));
+            ContentErrors.Line("[damageclass] GetWeaponKnockback 异常：" + Safe.Dump(e));
             return vanilla;
         }
     }
@@ -161,7 +161,7 @@ internal static class DamageClassHooks
             self.itemAnimation = frames;
             self.itemAnimationMax = frames;
         }
-        catch (Exception e) { ContentErrors.Report("[damageclass] ApplyItemAnimation 异常：" + Safe.Describe(e)); }
+        catch (Exception e) { ContentErrors.Line("[damageclass] ApplyItemAnimation 异常：" + Safe.Dump(e)); }
     }
 
     static void ApplyItemTime(On.Terraria.Player.orig_ApplyItemTime_Item orig, Player self, Item item)
@@ -178,7 +178,7 @@ internal static class DamageClassHooks
             self.itemTime = frames;
             self.itemTimeMax = frames;
         }
-        catch (Exception e) { ContentErrors.Report("[damageclass] ApplyItemTime 异常：" + Safe.Describe(e)); }
+        catch (Exception e) { ContentErrors.Line("[damageclass] ApplyItemTime 异常：" + Safe.Dump(e)); }
     }
 
     static void ProcessHitAgainstNPC(On.Terraria.Player.orig_ProcessHitAgainstNPC orig, Player self, Item item,
@@ -190,7 +190,7 @@ internal static class DamageClassHooks
             DamageClass cls = DamageClassLoader.ItemClass(item);
             if (DamageClassLoader.IsHooked(cls) || HasData(self)) extra = DamageClassLoader.ExtraPen(self, cls, item.melee);
         }
-        catch (Exception e) { ContentErrors.Report("[damageclass] ProcessHitAgainstNPC 异常：" + Safe.Describe(e)); }
+        catch (Exception e) { ContentErrors.Line("[damageclass] ProcessHitAgainstNPC 异常：" + Safe.Dump(e)); }
         if (extra <= 0)
         {
             orig(self, item, itemRectangle, originalDamage, knockBack, npcIndex);
@@ -218,7 +218,7 @@ internal static class DamageClassHooks
             int extra = DamageClassLoader.ExtraPen(player, DamageClassLoader.ProjectileClass(p), p.melee);
             if (extra > 0) p.armorPenetration += extra;
         }
-        catch (Exception e) { ContentErrors.Report("[damageclass] NewProjectile 异常：" + Safe.Describe(e)); }
+        catch (Exception e) { ContentErrors.Line("[damageclass] NewProjectile 异常：" + Safe.Dump(e)); }
         return i;
     }
 
@@ -251,7 +251,7 @@ internal static class DamageClassHooks
                     crit = chance >= 0 && Random.Shared.NextSingle() * 100 < chance;
                 }
             }
-            catch (Exception e) { ContentErrors.Report("[damageclass] TryConsumingTimerCrit 异常：" + Safe.Describe(e)); }
+            catch (Exception e) { ContentErrors.Line("[damageclass] TryConsumingTimerCrit 异常：" + Safe.Dump(e)); }
         }
         orig(self, hitbox, ref crit);
     }
@@ -268,7 +268,7 @@ internal static class DamageClassHooks
             StatModifier damage = DamageClassLoader.Total(owner, DamageClassLoader.ProjectileClass(self)).Damage;
             self.damage = (int)(damage.ApplyTo(self.originalDamage) + 5e-6f);
         }
-        catch (Exception e) { ContentErrors.Report("[damageclass] Projectile.Update 异常：" + Safe.Describe(e)); }
+        catch (Exception e) { ContentErrors.Line("[damageclass] Projectile.Update 异常：" + Safe.Dump(e)); }
     }
 
     internal static void Tooltip(Item item, List<TooltipLine> lines)
@@ -283,7 +283,7 @@ internal static class DamageClassHooks
             try { return cls.ShowStatTooltipLine(me, line); }
             catch (Exception e)
             {
-                ContentErrors.Report($"[damageclass] {cls.Name}.ShowStatTooltipLine 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[damageclass] {cls.Name}.ShowStatTooltipLine 异常：{Safe.Dump(e)}");
                 return true;
             }
         }

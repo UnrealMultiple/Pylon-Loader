@@ -156,7 +156,7 @@ internal sealed class ConfigNetPipeline : ILoaderModule
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[confignet] {entry.Name}.OnChanged 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[confignet] {entry.Name}.OnChanged 异常：{Safe.Dump(e)}");
         }
     }
 
@@ -185,7 +185,7 @@ internal sealed class ConfigNetPipeline : ILoaderModule
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[confignet] {entry.Name}.AcceptClientChanges 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[confignet] {entry.Name}.AcceptClientChanges 异常：{Safe.Dump(e)}");
         }
 
         if (accepted) ApplyRequested(entry, pending, requested.Keys);
@@ -210,7 +210,7 @@ internal sealed class ConfigNetPipeline : ILoaderModule
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[confignet] {entry.Name}.OnChanged 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[confignet] {entry.Name}.OnChanged 异常：{Safe.Dump(e)}");
         }
     }
 
@@ -238,7 +238,7 @@ internal sealed class ConfigNetPipeline : ILoaderModule
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[confignet] {entry.Name}.HandleAcceptClientChangesReply 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[confignet] {entry.Name}.HandleAcceptClientChangesReply 异常：{Safe.Dump(e)}");
         }
 
         if (message.Length > 0) Main.NewText(message, 255, 240, 20);
@@ -284,7 +284,7 @@ internal sealed class ConfigNetPipeline : ILoaderModule
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[confignet] {pair.Key.Name}.OnChanged 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[confignet] {pair.Key.Name}.OnChanged 异常：{Safe.Dump(e)}");
             }
         }
 

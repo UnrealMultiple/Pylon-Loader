@@ -242,7 +242,7 @@ namespace XiheBoss
             }
             catch (Exception e)
             {
-                log?.Error("[fx] 着色器注册失败，Boss 将只有精灵画面：" + e.Message);
+                log?.Error("[fx] 着色器注册失败，Boss 将只有精灵画面：" + e);
             }
         }
 
@@ -609,7 +609,7 @@ namespace XiheBoss
             }
             catch (Exception e)
             {
-                if (!_loggedError) { _loggedError = true; XiheBossMod.Log?.Warn("[fx] Tick 异常：" + e.Message); }
+                if (!_loggedError) { _loggedError = true; XiheBossMod.Log?.Warn("[fx] Tick 异常：" + e); }
             }
         }
 
@@ -650,7 +650,7 @@ namespace XiheBoss
                         try { push(p); }
                         catch (Exception e)
                         {
-                            if (!_loggedError) { _loggedError = true; XiheBossMod.Log?.Warn("[fx] 弹幕视觉异常：" + e.Message); }
+                            if (!_loggedError) { _loggedError = true; XiheBossMod.Log?.Warn("[fx] 弹幕视觉异常：" + e); }
                         }
                     }
                     else if (p.type > Terraria.ID.ProjectileID.Count && _missingVisual.Add(p.type))
@@ -714,7 +714,7 @@ namespace XiheBoss
             }
             catch (Exception e)
             {
-                if (!_loggedError) { _loggedError = true; XiheBossMod.Log?.Warn("[fx] Submit 异常：" + e.Message); }
+                if (!_loggedError) { _loggedError = true; XiheBossMod.Log?.Warn("[fx] Submit 异常：" + e); }
             }
         }
 

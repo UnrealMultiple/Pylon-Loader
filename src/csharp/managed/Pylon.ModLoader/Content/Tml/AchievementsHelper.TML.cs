@@ -63,6 +63,6 @@ public static class AchievementsHelper
     static void Fire(string name, Action action)
     {
         try { action(); }
-        catch (Exception e) { ContentErrors.Report($"[achievement] AchievementsHelper.{name} 异常：{Safe.Describe(e)}"); }
+        catch (Exception e) { ContentErrors.Line($"[achievement] AchievementsHelper.{name} 异常：{Safe.Dump(e)}"); }
     }
 }

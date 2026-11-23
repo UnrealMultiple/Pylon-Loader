@@ -646,7 +646,7 @@ internal sealed class BuffPipeline : ILoaderModule, ILoaderModuleRefresh
     private void Fail(string name, HookId hook, Exception exception)
     {
         if (!_reported.Add(HashCode.Combine(name.GetHashCode(), hook))) return;
-        ContentErrors.Report($"[buff] {hook} 异常：{Safe.Describe(exception)}");
+        ContentErrors.Line($"[buff] {hook} 异常：{Safe.Dump(exception)}");
     }
 }
 

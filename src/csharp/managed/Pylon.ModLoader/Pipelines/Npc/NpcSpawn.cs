@@ -241,7 +241,7 @@ internal static class NpcSpawn
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[npcspawn] NPC {type}.SpawnNPC 异常:{Safe.Describe(e)}");
+            ContentErrors.Line($"[npcspawn] NPC {type}.SpawnNPC 异常:{Safe.Dump(e)}");
             return;
         }
         var npcs = Main.npc;
@@ -275,5 +275,5 @@ internal static class NpcSpawn
     }
 
     private static void Report(ModType author, string hook, Exception e) =>
-        ContentErrors.Report($"[npcspawn] {author.Name}.{hook} 异常:{Safe.Describe(e)}");
+        ContentErrors.Line($"[npcspawn] {author.Name}.{hook} 异常:{Safe.Dump(e)}");
 }

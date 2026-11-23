@@ -200,7 +200,7 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[tree] {tree.Name}.Shake 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[tree] {tree.Name}.Shake 异常：{Safe.Dump(e)}");
                 vanilla = true;
             }
 
@@ -224,7 +224,7 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[tree] 摇树失败：{Safe.Describe(e)}");
+            ContentErrors.Line($"[tree] 摇树失败：{Safe.Dump(e)}");
             return false;
         }
     }
@@ -245,7 +245,7 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[tree] {tree.Name}.DropWood 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[tree] {tree.Name}.DropWood 异常：{Safe.Dump(e)}");
         }
     }
 
@@ -264,7 +264,7 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[tree] {tree.Name}.TreeLeaf 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[tree] {tree.Name}.TreeLeaf 异常：{Safe.Dump(e)}");
         }
     }
 
@@ -297,7 +297,7 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[tree] {tree.Name} 掉落判定异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[tree] {tree.Name} 掉落判定异常：{Safe.Dump(e)}");
         }
     }
 
@@ -319,7 +319,7 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[tree] {tree.Name}.CreateDust 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[tree] {tree.Name}.CreateDust 异常：{Safe.Dump(e)}");
             }
         }
 
@@ -349,7 +349,7 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[tree] {sapling.Name}.GrowSapling 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[tree] {sapling.Name}.GrowSapling 异常：{Safe.Dump(e)}");
                 return false;
             }
         }
@@ -385,7 +385,7 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report($"[tree] {tree.Name}.SaplingGrowthType 异常：{Safe.Describe(e)}");
+                    ContentErrors.Line($"[tree] {tree.Name}.SaplingGrowthType 异常：{Safe.Dump(e)}");
                 }
             }
         }
@@ -412,7 +412,7 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[tree] GetTreeBottom 失败：{Safe.Describe(e)}");
+            ContentErrors.Line($"[tree] GetTreeBottom 失败：{Safe.Dump(e)}");
         }
 
         var styles = Main.treeStyle;
@@ -518,7 +518,7 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[tree] 换外观失败：{Safe.Describe(e)}");
+            ContentErrors.Line($"[tree] 换外观失败：{Safe.Dump(e)}");
         }
     }
 
@@ -539,7 +539,7 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[tree] {tree.Name}.SetStaticDefaults 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[tree] {tree.Name}.SetStaticDefaults 异常：{Safe.Dump(e)}");
             }
         }
 
@@ -578,7 +578,7 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
         {
             TextureSlots.TryWrite(TextureTable.TreeTop, style, top);
             if (tops.Length > 1)
-                ContentErrors.Report($"[tree] {tree.Name}.GetTopTextures 给了 {tops.Length} 张，只认第 1 张（每树 1 槽整条图）");
+                ContentErrors.Line($"[tree] {tree.Name}.GetTopTextures 给了 {tops.Length} 张，只认第 1 张（每树 1 槽整条图）");
         }
 
         var branches = ReadArray(tree, () => tree.GetBranchTextures());
@@ -586,7 +586,7 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
         {
             TextureSlots.TryWrite(TextureTable.TreeBranch, style, branch);
             if (branches.Length > 1)
-                ContentErrors.Report($"[tree] {tree.Name}.GetBranchTextures 给了 {branches.Length} 张，只认第 1 张");
+                ContentErrors.Line($"[tree] {tree.Name}.GetBranchTextures 给了 {branches.Length} 张，只认第 1 张");
         }
 
         return 1;
@@ -600,7 +600,7 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[tree] {tree.Name}.GetTexture 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[tree] {tree.Name}.GetTexture 异常：{Safe.Dump(e)}");
             return null;
         }
     }
@@ -613,7 +613,7 @@ internal sealed class TreePipeline : ILoaderModule, ILoaderModuleRefresh
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[tree] {tree.Name}.GetTopTextures/GetBranchTextures 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[tree] {tree.Name}.GetTopTextures/GetBranchTextures 异常：{Safe.Dump(e)}");
             return null;
         }
     }

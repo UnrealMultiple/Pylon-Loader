@@ -47,7 +47,7 @@ internal sealed class ProjectileDefaults(ProjectileBinding binding)
             }
             catch (Exception e)
             {
-                log.Warn($"{type.Name} 弹幕模板初始化失败：{Safe.Describe(e)}");
+                log.Warn($"{type.Name} 弹幕模板初始化失败：{Safe.Dump(e)}");
             }
         }
 
@@ -86,7 +86,7 @@ internal sealed class ProjectileDefaults(ProjectileBinding binding)
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"Projectile.SetDefaults 自定义分支异常：{e.Message}");
+            ContentErrors.Line($"Projectile.SetDefaults 自定义分支异常：{e.Message}");
         }
     }
 

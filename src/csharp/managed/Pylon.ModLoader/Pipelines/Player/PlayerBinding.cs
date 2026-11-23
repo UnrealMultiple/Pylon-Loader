@@ -76,7 +76,7 @@ internal sealed class PlayerBinding
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"{grown[i].GetType().Name}.Initialize 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"{grown[i].GetType().Name}.Initialize 异常：{Safe.Dump(e)}");
             }
         }
 

@@ -60,7 +60,7 @@ internal static class LootTable
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[loot] {item.Name}.ModifyItemLoot 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[loot] {item.Name}.ModifyItemLoot 异常：{Safe.Dump(e)}");
             }
         }
     }
@@ -93,7 +93,7 @@ internal static class LootTable
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report($"[loot] {global.Name}.ModifyNPCLoot 异常：{Safe.Describe(e)}");
+                    ContentErrors.Line($"[loot] {global.Name}.ModifyNPCLoot 异常：{Safe.Dump(e)}");
                 }
             }
 

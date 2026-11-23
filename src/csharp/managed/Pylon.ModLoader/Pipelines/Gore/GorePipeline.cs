@@ -208,7 +208,7 @@ internal sealed class GorePipeline : ILoaderModule, ILoaderModuleRefresh
     private void Report(ModGore gore, HookId hook, Exception exception)
     {
         if (!_reported.Add(((long)gore.Type << 32) | (uint)hook)) return;
-        ContentErrors.Report($"[gore] {gore.Name}.{hook} 异常：{Safe.Describe(exception)}");
+        ContentErrors.Line($"[gore] {gore.Name}.{hook} 异常：{Safe.Dump(exception)}");
     }
 }
 

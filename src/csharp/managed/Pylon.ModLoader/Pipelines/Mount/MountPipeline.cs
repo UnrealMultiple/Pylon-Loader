@@ -472,6 +472,6 @@ internal sealed class MountPipeline : ILoaderModule
     private void Fail(string name, HookId hook, Exception exception)
     {
         if (!_reported.Add(HashCode.Combine(name.GetHashCode(), hook))) return;
-        ContentErrors.Report($"[mount] {hook} 异常：{Safe.Describe(exception)}");
+        ContentErrors.Line($"[mount] {hook} 异常：{Safe.Dump(exception)}");
     }
 }

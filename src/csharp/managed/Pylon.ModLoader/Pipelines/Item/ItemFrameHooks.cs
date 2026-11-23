@@ -38,7 +38,7 @@ internal static class ItemFrameHooks
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"[item] UseItemFrame 异常：{Safe.Describe(e)}");
+            ContentErrors.Line($"[item] UseItemFrame 异常：{Safe.Dump(e)}");
             return;
         }
 

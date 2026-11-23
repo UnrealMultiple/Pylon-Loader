@@ -128,7 +128,7 @@ public static class ItemTml
         }
         catch (Exception e)
         {
-            Safe.Warn("Item.ResearchUnlockCount 安装失败：" + Safe.Describe(e));
+            Safe.Warn("Item.ResearchUnlockCount 安装失败：" + Safe.Dump(e));
         }
     }
 

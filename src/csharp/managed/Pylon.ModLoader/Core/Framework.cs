@@ -40,7 +40,7 @@ public static class Framework
         }
         catch (Exception e)
         {
-            _logger.Error("框架 UI 初始化失败：" + Safe.Describe(e));
+            _logger.Error("框架 UI 初始化失败：" + Safe.Dump(e));
         }
     }
 }

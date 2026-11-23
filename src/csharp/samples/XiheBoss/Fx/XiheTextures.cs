@@ -159,7 +159,7 @@ namespace XiheBoss
                 }
                 catch (Exception e)
                 {
-                    log?.Warn($"[tex] {file} 读取失败：{e.Message}");
+                    log?.Warn($"[tex] {file} 读取失败：{e}");
                 }
             }
 
@@ -235,20 +235,20 @@ namespace XiheBoss
             Heights = heights;
 
             try { Noise = Load(mod, "assets/textures/Perlin.png", repeat: true); }
-            catch (Exception e) { log?.Warn("[tex] Perlin 读取失败：" + e.Message); }
+            catch (Exception e) { log?.Warn("[tex] Perlin 读取失败：" + e); }
             try { WavePerlin1200 = PylonTexture.LoadTexture(mod, "assets/textures/WavePerlin1200.png"); }
-            catch (Exception e) { log?.Warn("[tex] WavePerlin1200 读取失败：" + e.Message); }
+            catch (Exception e) { log?.Warn("[tex] WavePerlin1200 读取失败：" + e); }
 
             try { BigOuter = Load(mod, "assets/textures/tex3.png", repeat: true); }
-            catch (Exception e) { log?.Warn("[tex] 大光柱 tex3 读取失败：" + e.Message); }
+            catch (Exception e) { log?.Warn("[tex] 大光柱 tex3 读取失败：" + e); }
             try { BigCore = Load(mod, "assets/textures/tex0.png", repeat: true); }
-            catch (Exception e) { log?.Warn("[tex] 大光柱 tex0 读取失败：" + e.Message); }
+            catch (Exception e) { log?.Warn("[tex] 大光柱 tex0 读取失败：" + e); }
             try { BigArc = Load(mod, "assets/textures/Arc.png", repeat: false); }
-            catch (Exception e) { log?.Warn("[tex] 大光柱 Arc 读取失败：" + e.Message); }
+            catch (Exception e) { log?.Warn("[tex] 大光柱 Arc 读取失败：" + e); }
             try { BigStar = Load(mod, "assets/textures/Extra89.png", repeat: false); }
-            catch (Exception e) { log?.Warn("[tex] 大光柱 Star 读取失败：" + e.Message); }
+            catch (Exception e) { log?.Warn("[tex] 大光柱 Star 读取失败：" + e); }
             try { BigRing = Load(mod, "assets/textures/MagicRing.png", repeat: true); }
-            catch (Exception e) { log?.Warn("[tex] 大光柱 MagicRing 读取失败：" + e.Message); }
+            catch (Exception e) { log?.Warn("[tex] 大光柱 MagicRing 读取失败：" + e); }
 
             log?.Info($"[tex] 图集 {atlasW}x{atlasH}（{CountLoaded(images)} 张）、Noise={(Noise != null ? "ok" : "无")}、BigLaser={(BigOuter != null && BigCore != null && BigRing != null ? "ok" : "无")}");
         }

@@ -1,0 +1,25 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <AssemblyName>MonoMod.RuntimeDetour</AssemblyName>
+    <PackageId>MonoMod.RuntimeDetour</PackageId>
+    <Description>Flexible and easily extensible runtime detouring library. Wrap, replace and manipulate (Mono.Cecil) methods at runtime.</Description>
+    <PackageTags>RuntimeDetour;detour;detours;$(PackageTags)</PackageTags>
+
+    <RootNamespace>MonoMod.RuntimeDetour</RootNamespace>
+
+    <NoWarn>$([System.String]::Copy('$(NoWarn)').Replace(';CS1591', '')</NoWarn>
+
+    <MMIncludeTFMChecks>true</MMIncludeTFMChecks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Mono.Cecil" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MonoMod.Core\MonoMod.Core.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -35,7 +35,7 @@ internal static class WorldSidecar
         }
         catch (Exception e)
         {
-            Safe.Once("sidecar.read:" + file, $"世界侧车读不出来，已忽略：{file}（{Safe.Describe(e)}）", true);
+            Safe.Once("sidecar.read:" + file, $"世界侧车读不出来，已忽略：{file}（{Safe.Dump(e)}）", true);
             return new TagCompound();
         }
     }

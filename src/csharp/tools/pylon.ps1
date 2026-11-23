@@ -7,13 +7,11 @@
     pwsh -File src/csharp/tools/pylon.ps1 build
     pwsh -File src/csharp/tools/pylon.ps1 run   -Apk -WaitFor 'Mod 加载完成'
     pwsh -File src/csharp/tools/pylon.ps1 push  -Samples FrameMod
-    pwsh -File src/csharp/tools/pylon.ps1 all   -BepInExApk <apk> -DummyDir <dir>
+    pwsh -File src/csharp/tools/pylon.ps1 all   -DummyDir <dir>
 #>
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)][string]$Command = 'help',
-    [string]$BepInExApk,
-    [string]$Sha256File,
     [string]$DummyDir,
     [switch]$Force,
     [switch]$Apk,
@@ -147,8 +145,42 @@ function Command-PushSamples {
 function Command-Install {
     if (-not (Test-Path $apkPath)) { Die "APK 不存在：$apkPath（先跑 build）" }
     Step "安装 $(Split-Path $apkPath -Leaf) 到 $Serial"
-    Invoke-Adb install -r -d $apkPath | Select-Object -Last 1
-    if ($LASTEXITCODE -ne 0) { Die '安装失败（设备未连接 / 签名冲突）' }
+    Invoke-Adb shell "mkdir -p /data/local/tmp/pylon-apk" | Out-Null
+    Invoke-Adb shell "rm -f /data/local/tmp/pylon-apk/part_* /data/local/tmp/pylon-apk/app-debug.apk" | Out-Null
+
+    $partDir = Join-Path $env:TEMP 'pylon-apk-parts'
+    Remove-Item $partDir -Recurse -Force -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force -Path $partDir | Out-Null
+    $localMd5 = (Get-FileHash $apkPath -Algorithm MD5).Hash.ToLower()
+    $chunk = New-Object byte[] (96MB)
+    $index = 0
+    $stream = [IO.File]::OpenRead($apkPath)
+    try {
+        while (($read = $stream.Read($chunk, 0, $chunk.Length)) -gt 0) {
+            $part = Join-Path $partDir ('part_{0:d2}' -f $index)
+            $out = [IO.File]::Create($part)
+            $out.Write($chunk, 0, $read)
+            $out.Dispose()
+            $index++
+        }
+    } finally { $stream.Dispose() }
+
+    foreach ($part in Get-ChildItem $partDir -Filter 'part_*' | Sort-Object Name) {
+        Say ("push {0}（{1:N0} MB）" -f $part.Name, ($part.Length / 1MB))
+        Invoke-Adb push $part.FullName /data/local/tmp/pylon-apk/ | Out-Null
+        if ($LASTEXITCODE -ne 0) { Die "分推失败：$($part.Name)" }
+    }
+
+    Invoke-Adb shell "cd /data/local/tmp/pylon-apk && cat part_* > app-debug.apk && md5sum app-debug.apk" | ForEach-Object { Say $_ }
+    $remoteMd5 = (Invoke-Adb shell "md5sum /data/local/tmp/pylon-apk/app-debug.apk") -replace '\s.*$', ''
+    if ($remoteMd5 -ne $localMd5) { Die "合并后 md5 不一致：$remoteMd5 ≠ $localMd5" }
+    Say 'md5 一致'
+
+    $install = Invoke-Adb shell "pm install -r -d /data/local/tmp/pylon-apk/app-debug.apk"
+    Say ($install -join ' ')
+    if (($install -join ' ') -notmatch 'Success') { Die 'pm install 失败' }
+    Invoke-Adb shell "rm -rf /data/local/tmp/pylon-apk" | Out-Null
+    Remove-Item $partDir -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 function Start-Game { Invoke-Adb shell am start -n "$pkg/.MainActivity" -a "$pkg.action.IMPORT" --ez launch true --ez coreclr true | Out-Null }
@@ -216,21 +248,22 @@ function Command-Check {
     Item 'adb' ([bool]$adb) '装 platform-tools 或设 PYLON_ADB'
 
     Step '源码依赖'
-    Item 'external/BepInEx-Android（子模块）' (Test-Path 'external\BepInEx-Android\.git') 'git submodule update --init --recursive'
+    Item 'external/shadowhook（子模块）' (Test-Path 'external\shadowhook\shadowhook\src\main\cpp\shadowhook.c') 'git submodule update --init --recursive'
     Item 'src/csharp/il2cppinterop（随仓库提供）' (Test-Path 'src\csharp\il2cppinterop\Il2CppInterop.CLI\Il2CppInterop.CLI.csproj') ''
+    Item 'vendor/ms-extensions（随仓库提供）' (Test-Path 'vendor\ms-extensions\Microsoft.Extensions.DependencyInjection.dll') ''
 
     Step '游戏 dump（refs/，自己的正版 APK）'
     Item 'refs/lib/arm64-v8a/libil2cpp.so' (Test-Path 'refs\lib\arm64-v8a\libil2cpp.so') 'adb shell pm path $pkg + unzip'
     Item 'refs/assets/bin/Data/Managed/Metadata/global-metadata.dat' (Test-Path 'refs\assets\bin\Data\Managed\Metadata\global-metadata.dat') '同上，须与 libil2cpp.so 同一次构建'
     Item 'refs/dump.cs' (Test-Path 'refs\dump.cs') 'Il2CppDumper 生成'
 
-    Step '运行时（runtime/）'
-    Item "$runtimeRoot/lib" (Test-Path "$runtimeRoot\lib") 'pylon.ps1 runtime -Apk <BepInEx-Android APK>'
-    Item "$runtimeRoot/dotnet + bepinex" ((Test-Path "$runtimeRoot\dotnet") -and (Test-Path "$runtimeRoot\bepinex")) '同上'
+    Step '运行时（runtime/，按 pin 从 nuget.org 抓取）'
+    Item "$runtimeRoot/lib" (Test-Path "$runtimeRoot\lib") 'pylon.ps1 runtime'
+    Item "$runtimeRoot/dotnet" (Test-Path "$runtimeRoot\dotnet") '同上'
 
     Step '派生件（脚本生成，不进 git）'
     Item "$interopGen/Assembly-CSharp.dll" (Test-Path "$interopGen\Assembly-CSharp.dll") 'pylon.ps1 interop -DummyDir <DummyDll>'
-    Item "$jniMain/libpylon.so（内核）" (Test-Path "$jniMain\libpylon.so") 'pylon.ps1 build'
+    Item "$jniMain/libpylon.so（内核，shadowhook 静态内嵌）" (Test-Path "$jniMain\libpylon.so") 'pylon.ps1 build'
     Item "$jniDebug/libcoreclr.so" (Test-Path "$jniDebug\libcoreclr.so") 'pylon.ps1 build'
     Item "$assetManaged/Pylon.Managed.dll" (Test-Path "$assetManaged\Pylon.Managed.dll") 'pylon.ps1 build'
 
@@ -240,43 +273,11 @@ function Command-Check {
 }
 
 function Command-Runtime {
-    if (-not $BepInExApk) { Die '需要 -Apk <BepInEx-Android 的 release APK>' }
-    Need $BepInExApk '检查路径'
-    Add-Type -AssemblyName System.IO.Compression.FileSystem
-
-    if ($Sha256File -and (Test-Path $Sha256File)) {
-        $expected = ((Get-Content $Sha256File -Raw).Trim() -split '\s+')[0].ToLower()
-        $actual = (Get-FileHash $BepInExApk -Algorithm SHA256).Hash.ToLower()
-        if ($expected -ne $actual) { Die "sha256 不符：期望 $expected，实际 $actual" }
-    }
-
-    Step "拆包 $(Split-Path $BepInExApk -Leaf)"
-    $libOut = Join-Path $root "$runtimeRoot\lib"
-    $assetOut = Join-Path $root "$runtimeRoot\assets"
-    New-Item -ItemType Directory -Force -Path $libOut, $assetOut | Out-Null
-    $zip = [System.IO.Compression.ZipFile]::OpenRead($BepInExApk)
-    try {
-        foreach ($entry in $zip.Entries | Where-Object { $_.FullName -like 'lib/arm64-v8a/*.so' }) {
-            $name = [System.IO.Path]::GetFileName($entry.FullName)
-            if ($name -in @('libdobby.so', 'libpine.so', 'libfusion.so')) { continue }
-            [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, (Join-Path $libOut $name), $true)
-        }
-        foreach ($entry in $zip.Entries | Where-Object { $_.FullName -like 'assets/*.zip' }) {
-            [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, (Join-Path $assetOut ([System.IO.Path]::GetFileName($entry.FullName))), $true)
-        }
-    } finally { $zip.Dispose() }
-    Say ("native {0} 个，assets 压缩包 {1} 个" -f (Get-ChildItem $libOut -Filter *.so).Count, (Get-ChildItem $assetOut -Filter *.zip).Count)
-
-    Step '摊开 dotnet.zip / BepInEx.Android.zip'
-    foreach ($pair in @(@('dotnet.zip', 'dotnet'), @('BepInEx.Android.zip', 'bepinex'))) {
-        $src = Join-Path $assetOut $pair[0]
-        $dst = Join-Path $root "$runtimeRoot\$($pair[1])"
-        Need $src '先确认上一步解出了这两个 zip'
-        Remove-Item $dst -Recurse -Force -ErrorAction SilentlyContinue
-        New-Item -ItemType Directory -Force -Path $dst | Out-Null
-        [System.IO.Compression.ZipFile]::ExtractToDirectory($src, $dst)
-        Say ("{0} -> {1}（{2} 个文件）" -f $pair[0], $pair[1], (Get-ChildItem $dst -Recurse -File).Count)
-    }
+    Step '抓取 .NET 运行时（native + BCL）'
+    $fetchArgs = @()
+    if ($Force) { $fetchArgs += '-Force' }
+    & pwsh -NoProfile -File (Join-Path $PSScriptRoot 'fetch-dotnet-runtime.ps1') @fetchArgs
+    if ($LASTEXITCODE -ne 0) { Die 'fetch-dotnet-runtime.ps1 失败' }
 }
 
 function Command-Interop {
@@ -312,8 +313,8 @@ function Command-Interop {
 }
 
 function Command-Deploy {
-    Need "$runtimeRoot\lib" 'pylon.ps1 runtime -Apk <APK>'
-    Need "$runtimeRoot\dotnet" 'pylon.ps1 runtime -Apk <APK>'
+    Need "$runtimeRoot\lib" 'pylon.ps1 runtime（按 pin 抓取运行时）'
+    Need "$runtimeRoot\dotnet" 'pylon.ps1 runtime（按 pin 抓取运行时）'
 
     Step '运行时 native → debug jniLibs'
     $libs = @('libcoreclr.so', 'libclrjit.so', 'libmscordaccore.so', 'libmscordbi.so',
@@ -343,10 +344,13 @@ function Command-Deploy {
     foreach ($name in @('Pylon.Managed', 'Pylon.Mod.Abstractions', 'Pylon.ModLoader', 'Pylon.NaviteAPI')) {
         $dll = "src\csharp\managed\$name\bin\$Configuration\net10.0\$name.dll"
         if (Test-Path $dll) { Copy-Item $dll $assetManaged -Force } else { Warn "缺 $name.dll" }
+        $pdb = [IO.Path]::ChangeExtension($dll, '.pdb')
+        if (Test-Path $pdb) { Copy-Item $pdb $assetManaged -Force }
     }
     $asmArm64 = "src\csharp\managed\Pylon.ModLoader\bin\$Configuration\net10.0\AsmArm64.dll"
     if (Test-Path $asmArm64) { Copy-Item $asmArm64 $assetManaged -Force } else { Warn '缺 AsmArm64.dll' }
-    Say ("{0} 个 dll" -f (Get-ChildItem $assetManaged -Filter *.dll).Count)
+    Say ("{0} 个 dll / {1} 个 pdb" -f (Get-ChildItem $assetManaged -Filter *.dll).Count,
+         (Get-ChildItem $assetManaged -Filter *.pdb).Count)
 
     Step '代理程序集 → debug assets/pylon-interop'
     Remove-Item $assetInterop -Recurse -Force -ErrorAction SilentlyContinue
@@ -358,7 +362,8 @@ function Command-Deploy {
         $dll = Get-ChildItem (Join-Path $root "src\csharp\il2cppinterop\bin\$name") -Recurse -Filter "$name.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
         if ($dll) { Copy-Item $dll.FullName (Join-Path $assetInterop "$name.dll") -Force } else { Warn "缺自编 $name.dll" }
     }
-    foreach ($dep in Get-ChildItem (Join-Path $root "$runtimeRoot\bepinex") -Recurse -Filter 'Microsoft.Extensions.*.dll' -ErrorAction SilentlyContinue) {
+    # Microsoft.Extensions.*：BepInEx 栈里唯一进 APK 的部分，随仓库提供。
+    foreach ($dep in Get-ChildItem (Join-Path $root 'vendor\ms-extensions') -Filter 'Microsoft.Extensions.*.dll' -ErrorAction SilentlyContinue) {
         Copy-Item $dep.FullName $assetInterop -Force
     }
     foreach ($stale in @('0Harmony.dll', 'Il2CppInterop.HarmonySupport.dll', 'MonoMod.Core.dll', 'MonoMod.Utils.dll',
@@ -374,14 +379,15 @@ function Command-Deploy {
 }
 
 function Command-Build {
-    Step '内核 libpylon.so'
+    Step '内核 libpylon.so（shadowhook 静态内嵌）'
     $so = "$jniMain\libpylon.so"
-    $newest = Get-ChildItem 'src\core\src', 'src\core\include' -Recurse -File |
+    # 新鲜度看内核与 shadowhook 源码（两者编进同一个 .so）。
+    $newest = Get-ChildItem 'src\core\src', 'src\core\include', 'external\shadowhook\shadowhook\src\main\cpp' -Recurse -File -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime -Descending | Select-Object -First 1
     if ((Test-Path $so) -and -not $Force -and (-not $newest -or $newest.LastWriteTime -le (Get-Item $so).LastWriteTime)) {
         Say '比源码新，跳过'
     } else {
-        & pwsh -NoProfile -File 'src\core\build.ps1' | Select-Object -Last 4
+        & pwsh -NoProfile -File 'src\core\build.ps1' | Select-Object -Last 6
         if ($LASTEXITCODE -ne 0 -or -not (Test-Path $so)) { Die 'src/core/build.ps1 失败' }
     }
 
@@ -396,12 +402,12 @@ function Command-Build {
 }
 
 function Command-All {
-    Step '子模块'
-    if (-not (Test-Path 'external\BepInEx-Android\.git')) {
+    Step '子模块（shadowhook）'
+    if (-not (Test-Path 'external\shadowhook\shadowhook\src\main\cpp\shadowhook.c')) {
         & git submodule update --init --recursive 2>&1 | Select-Object -Last 2
-        if (-not (Test-Path 'external\BepInEx-Android\.git')) { Die '子模块仍缺失' }
+        if (-not (Test-Path 'external\shadowhook\shadowhook\src\main\cpp\shadowhook.c')) { Die '子模块仍缺失' }
     }
-    if (-not (Test-Path "$runtimeRoot\dotnet") -or $Force) { Command-Runtime }
+    if (-not (Test-Path "$runtimeRoot\dotnet") -or -not (Test-Path "$runtimeRoot\lib") -or $Force) { Command-Runtime }
     if ($DummyDir) { Command-Interop }
     Command-Build
     Command-Install

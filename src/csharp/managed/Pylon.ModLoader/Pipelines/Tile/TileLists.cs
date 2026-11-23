@@ -46,7 +46,7 @@ internal static class TileLists
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[tile] TileLists 换入安装失败（mod 方块键仍会越界）：" + Safe.Describe(e));
+            ContentErrors.Line("[tile] TileLists 换入安装失败（mod 方块键仍会越界）：" + Safe.Dump(e));
         }
     }
 
@@ -69,7 +69,7 @@ internal static class TileLists
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[tile] TileLists 换表失败：" + Safe.Describe(e));
+            ContentErrors.Line("[tile] TileLists 换表失败：" + Safe.Dump(e));
         }
     }
 

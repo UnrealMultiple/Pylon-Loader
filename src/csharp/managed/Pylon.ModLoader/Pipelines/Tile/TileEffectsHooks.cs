@@ -82,7 +82,7 @@ internal static class TileEffectsHooks
                     }
                     catch (Exception e)
                     {
-                        ContentErrors.Report($"[tile] {mod!.Name}.NearbyEffects 异常：{Safe.Describe(e)}");
+                        ContentErrors.Line($"[tile] {mod!.Name}.NearbyEffects 异常：{Safe.Dump(e)}");
                     }
                 }
 
@@ -95,7 +95,7 @@ internal static class TileEffectsHooks
                     }
                     catch (Exception e)
                     {
-                        ContentErrors.Report($"[tile] {global.FullKey}.NearbyEffects 异常：{Safe.Describe(e)}");
+                        ContentErrors.Line($"[tile] {global.FullKey}.NearbyEffects 异常：{Safe.Dump(e)}");
                     }
                 }
             }

@@ -32,15 +32,16 @@ Mod 是普通的 .NET 10 C# 类库，运行时被加载进游戏进程：内容 
 前置：Windows + PowerShell 7、.NET SDK 10、JDK 17、Android SDK 与 NDK，以及一台 arm64 设备（可选）。
 
 ```powershell
-git clone --recurse-submodules https://github.com/Controllerdestiny/Pylon-Loader.git
+git clone https://github.com/Controllerdestiny/Pylon-Loader.git
 cd Pylon-Loader
+git submodule update --init --recursive   # external/shadowhook（hook 后端，随内核直编）
 pwsh -File src/csharp/tools/pylon.ps1 check
 ```
 
-`check` 会列出缺什么、该怎么补。补齐三类不进仓库的文件（游戏 dump、运行时、代理程序集）后：
+`check` 会列出缺什么、该怎么补。补齐两类不进仓库的文件（游戏 dump、代理程序集；运行时按 pin 自动从 nuget.org 抓）后：
 
 ```powershell
-pwsh -File src/csharp/tools/pylon.ps1 all -BepInExApk D:\dl\app-release-aligned.apk -DummyDir refs\DummyDll
+pwsh -File src/csharp/tools/pylon.ps1 all -DummyDir refs\DummyDll
 ```
 
 日常改动的两条捷径：

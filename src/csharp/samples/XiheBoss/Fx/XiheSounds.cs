@@ -27,7 +27,7 @@ namespace XiheBoss
             }
             catch (Exception e)
             {
-                log?.Warn("[sound] Laser.wav 登记失败：" + e.Message);
+                log?.Warn("[sound] Laser.wav 登记失败：" + e);
             }
         }
 

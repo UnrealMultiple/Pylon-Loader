@@ -28,7 +28,7 @@ internal sealed class NpcDefaults(NpcBinding binding)
         foreach (var global in GlobalNpcRegistry.For(self, HookId.SetDefaultsFromNetId))
         {
             try { global.SetDefaultsFromNetId(self); }
-            catch (Exception e) { ContentErrors.Report($"{global.Name}.SetDefaultsFromNetId 异常：{Safe.Describe(e)}"); }
+            catch (Exception e) { ContentErrors.Line($"{global.Name}.SetDefaultsFromNetId 异常：{Safe.Dump(e)}"); }
         }
     }
 
@@ -59,7 +59,7 @@ internal sealed class NpcDefaults(NpcBinding binding)
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"NPC.SetDefaults 自定义分支异常：{e.Message}");
+            ContentErrors.Line($"NPC.SetDefaults 自定义分支异常：{e.Message}");
         }
     }
 
@@ -121,7 +121,7 @@ internal sealed class NpcDefaults(NpcBinding binding)
         }
         catch (Exception e)
         {
-            ContentErrors.Report($"{mod.Name} 的 ScaleStats 跳过：{e.Message}");
+            ContentErrors.Line($"{mod.Name} 的 ScaleStats 跳过：{e.Message}");
         }
     }
 
@@ -139,7 +139,7 @@ internal sealed class NpcDefaults(NpcBinding binding)
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"{global.GetType().Name}.SetDefaults 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"{global.GetType().Name}.SetDefaults 异常：{Safe.Dump(e)}");
             }
         }
     }

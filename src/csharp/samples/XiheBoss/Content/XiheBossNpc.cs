@@ -168,7 +168,7 @@ namespace XiheBoss
             }
             catch (Exception e)
             {
-                XiheBossMod.Log?.Warn($"[boss] 贴图 {label} 加载失败（{path}）：{e.Message}");
+                XiheBossMod.Log?.Warn($"[boss] 贴图 {label} 加载失败（{path}）：{e}");
             }
             return null;
         }
@@ -1979,7 +1979,7 @@ namespace XiheBoss
             }
             catch (Exception e)
             {
-                if (!_drawLogged) { _drawLogged = true; XiheBossMod.Log?.Warn("[boss] 绘制异常：" + e.Message); }
+                if (!_drawLogged) { _drawLogged = true; XiheBossMod.Log?.Warn("[boss] 绘制异常：" + e); }
             }
             return false;
         }

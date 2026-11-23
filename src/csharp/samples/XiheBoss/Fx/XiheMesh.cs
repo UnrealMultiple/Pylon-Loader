@@ -94,7 +94,7 @@ namespace XiheBoss
             }
             catch (Exception e)
             {
-                log?.Error("[mesh] 几何着色器注册失败，退回旧的全屏图元通道：" + e.Message);
+                log?.Error("[mesh] 几何着色器注册失败，退回旧的全屏图元通道：" + e);
             }
             try
             {
@@ -103,7 +103,7 @@ namespace XiheBoss
             }
             catch (Exception e)
             {
-                log?.Error("[mesh] Bloom 着色器注册失败，本帧没有泛光：" + e.Message);
+                log?.Error("[mesh] Bloom 着色器注册失败，本帧没有泛光：" + e);
             }
         }
 

@@ -79,11 +79,18 @@ internal static class HookGuard
         return false;
     }
 
-    internal static bool Overrides(Type type, Type baseType, string method) =>
-        type.GetMethod(
-            method,
-            BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.FlattenHierarchy
-        )?.DeclaringType != baseType;
+    internal static bool Overrides(Type type, Type baseType, string method)
+    {
+        var flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.FlattenHierarchy;
+        try
+        {
+            return type.GetMethod(method, flags)?.DeclaringType != baseType;
+        }
+        catch (AmbiguousMatchException)
+        {
+            return type.GetMethods(flags).Any(m => m.Name == method && m.DeclaringType != baseType);
+        }
+    }
 }
 
 /// <summary>管线的门枢纽：反射发现嵌套门并装箱，每轮重评条件、装新门；非惰性门全部就绪才返回 true，未就绪保持 pending 等下轮重评。</summary>

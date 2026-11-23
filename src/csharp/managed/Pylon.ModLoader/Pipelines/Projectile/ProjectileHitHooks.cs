@@ -261,5 +261,5 @@ internal static class ProjectileHitHooks
     }
 
     private static void Fail(object author, HookId hook, Exception e) =>
-        ContentErrors.Report($"[projectilehit] {author.GetType().Name}.{hook} 异常:{Safe.Describe(e)}");
+        ContentErrors.Line($"[projectilehit] {author.GetType().Name}.{hook} 异常:{Safe.Dump(e)}");
 }

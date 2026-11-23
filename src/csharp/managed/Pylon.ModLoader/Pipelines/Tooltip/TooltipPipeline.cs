@@ -162,7 +162,7 @@ internal sealed class TooltipPipeline : ILoaderModule
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[tooltip] 取行失败：" + Safe.Describe(e));
+            ContentErrors.Line("[tooltip] 取行失败：" + Safe.Dump(e));
         }
     }
 
@@ -240,7 +240,7 @@ internal sealed class TooltipPipeline : ILoaderModule
         if (DamageLines)
         {
             try { DamageClassHooks.Tooltip(item, lines); }
-            catch (Exception e) { ContentErrors.Report("[tooltip] DamageClass 行重排异常：" + Safe.Describe(e)); }
+            catch (Exception e) { ContentErrors.Line("[tooltip] DamageClass 行重排异常：" + Safe.Dump(e)); }
         }
         AddSetBonus(item, lines);
 
@@ -266,7 +266,7 @@ internal sealed class TooltipPipeline : ILoaderModule
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[tooltip] " + prefix.Name + ".GetTooltipLines：" + Safe.Describe(e));
+            ContentErrors.Line("[tooltip] " + prefix.Name + ".GetTooltipLines：" + Safe.Dump(e));
             return;
         }
 
@@ -320,7 +320,7 @@ internal sealed class TooltipPipeline : ILoaderModule
             }
             catch (Exception e)
             {
-                ContentErrors.Report("[tooltip] " + modItem.Name + ".ModifyTooltips：" + Safe.Describe(e));
+                ContentErrors.Line("[tooltip] " + modItem.Name + ".ModifyTooltips：" + Safe.Dump(e));
             }
         }
 
@@ -335,7 +335,7 @@ internal sealed class TooltipPipeline : ILoaderModule
             }
             catch (Exception e)
             {
-                ContentErrors.Report("[tooltip] " + global.Name + ".ModifyTooltips：" + Safe.Describe(e));
+                ContentErrors.Line("[tooltip] " + global.Name + ".ModifyTooltips：" + Safe.Dump(e));
             }
         }
     }
@@ -385,7 +385,7 @@ internal sealed class TooltipPipeline : ILoaderModule
 
         if (written < writable)
         {
-            ContentErrors.Report($"[tooltip] {writable - written} 行放不下（上限 {capacity}），已截断");
+            ContentErrors.Line($"[tooltip] {writable - written} 行放不下（上限 {capacity}），已截断");
         }
 
         numLines = written;
@@ -439,7 +439,7 @@ internal sealed class TooltipPipeline : ILoaderModule
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[tooltip] 绘制期前置失败：" + Safe.Describe(e));
+            ContentErrors.Line("[tooltip] 绘制期前置失败：" + Safe.Dump(e));
             state = null;
         }
 
@@ -451,7 +451,7 @@ internal sealed class TooltipPipeline : ILoaderModule
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[tooltip] RarityColor：" + Safe.Describe(e));
+            ContentErrors.Line("[tooltip] RarityColor：" + Safe.Dump(e));
         }
 
         if (state is not null) EnsureStringHooks();
@@ -488,7 +488,7 @@ internal sealed class TooltipPipeline : ILoaderModule
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[tooltip] PostDrawTooltip：" + Safe.Describe(e));
+            ContentErrors.Line("[tooltip] PostDrawTooltip：" + Safe.Dump(e));
         }
     }
 
@@ -520,7 +520,7 @@ internal sealed class TooltipPipeline : ILoaderModule
             }
             catch (Exception e)
             {
-                ContentErrors.Report("[tooltip] PreDrawTooltipLine：" + Safe.Describe(e));
+                ContentErrors.Line("[tooltip] PreDrawTooltipLine：" + Safe.Dump(e));
             }
         }
         else if (_recolorText is not null && text is not null && text == _recolorText && ++_recolorCount % PassesPerLine == 0)
@@ -545,7 +545,7 @@ internal sealed class TooltipPipeline : ILoaderModule
             }
             catch (Exception e)
             {
-                ContentErrors.Report("[tooltip] tooltip color tags：" + Safe.Describe(e));
+                ContentErrors.Line("[tooltip] tooltip color tags：" + Safe.Dump(e));
             }
         }
 
@@ -753,7 +753,7 @@ internal sealed class TooltipPipeline : ILoaderModule
             }
             catch (Exception e)
             {
-                ContentErrors.Report("[tooltip] " + modItem.Name + ".PreDrawTooltip：" + Safe.Describe(e));
+                ContentErrors.Line("[tooltip] " + modItem.Name + ".PreDrawTooltip：" + Safe.Dump(e));
             }
         }
 
@@ -766,7 +766,7 @@ internal sealed class TooltipPipeline : ILoaderModule
             }
             catch (Exception e)
             {
-                ContentErrors.Report("[tooltip] PreDrawTooltip 出错：" + Safe.Describe(e));
+                ContentErrors.Line("[tooltip] PreDrawTooltip 出错：" + Safe.Dump(e));
             }
         }
 
@@ -783,7 +783,7 @@ internal sealed class TooltipPipeline : ILoaderModule
             }
             catch (Exception e)
             {
-                ContentErrors.Report("[tooltip] " + modItem.Name + ".PostDrawTooltip：" + Safe.Describe(e));
+                ContentErrors.Line("[tooltip] " + modItem.Name + ".PostDrawTooltip：" + Safe.Dump(e));
             }
         }
 
@@ -796,7 +796,7 @@ internal sealed class TooltipPipeline : ILoaderModule
             }
             catch (Exception e)
             {
-                ContentErrors.Report("[tooltip] PostDrawTooltip 出错：" + Safe.Describe(e));
+                ContentErrors.Line("[tooltip] PostDrawTooltip 出错：" + Safe.Dump(e));
             }
         }
     }
@@ -812,7 +812,7 @@ internal sealed class TooltipPipeline : ILoaderModule
             }
             catch (Exception e)
             {
-                ContentErrors.Report("[tooltip] " + modItem.Name + ".PreDrawTooltipLine：" + Safe.Describe(e));
+                ContentErrors.Line("[tooltip] " + modItem.Name + ".PreDrawTooltipLine：" + Safe.Dump(e));
             }
         }
 
@@ -825,7 +825,7 @@ internal sealed class TooltipPipeline : ILoaderModule
             }
             catch (Exception e)
             {
-                ContentErrors.Report("[tooltip] PreDrawTooltipLine 出错：" + Safe.Describe(e));
+                ContentErrors.Line("[tooltip] PreDrawTooltipLine 出错：" + Safe.Dump(e));
             }
         }
 
@@ -842,7 +842,7 @@ internal sealed class TooltipPipeline : ILoaderModule
             }
             catch (Exception e)
             {
-                ContentErrors.Report("[tooltip] " + modItem.Name + ".PostDrawTooltipLine：" + Safe.Describe(e));
+                ContentErrors.Line("[tooltip] " + modItem.Name + ".PostDrawTooltipLine：" + Safe.Dump(e));
             }
         }
 
@@ -855,7 +855,7 @@ internal sealed class TooltipPipeline : ILoaderModule
             }
             catch (Exception e)
             {
-                ContentErrors.Report("[tooltip] Global PostDrawTooltipLine 出错：" + Safe.Describe(e));
+                ContentErrors.Line("[tooltip] Global PostDrawTooltipLine 出错：" + Safe.Dump(e));
             }
         }
     }

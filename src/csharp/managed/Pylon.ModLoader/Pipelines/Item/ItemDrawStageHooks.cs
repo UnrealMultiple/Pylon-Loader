@@ -198,7 +198,7 @@ internal static unsafe class ItemDrawStageHooks
         }
         catch (Exception e)
         {
-            Safe.Once("itemdraw.coef", "[itemdraw] rotation 系数解析异常：" + Safe.Describe(e), true);
+            Safe.Once("itemdraw.coef", "[itemdraw] rotation 系数解析异常：" + Safe.Dump(e), true);
         }
     }
 
@@ -253,7 +253,7 @@ internal static unsafe class ItemDrawStageHooks
         }
         catch (Exception e)
         {
-            Safe.Once("itemdraw.world.pre", "[itemdraw] 世界绘制 pre 分派异常：" + Safe.Describe(e), true);
+            Safe.Once("itemdraw.world.pre", "[itemdraw] 世界绘制 pre 分派异常：" + Safe.Dump(e), true);
             scope = null;
             skip = false;
         }
@@ -286,7 +286,7 @@ internal static unsafe class ItemDrawStageHooks
         }
         catch (Exception e)
         {
-            Safe.Once("itemdraw.world.wanted", "[itemdraw] 世界绘制 wanted 判定异常：" + Safe.Describe(e), true);
+            Safe.Once("itemdraw.world.wanted", "[itemdraw] 世界绘制 wanted 判定异常：" + Safe.Dump(e), true);
             return false;
         }
         return item is not null && item.type > 0 &&
@@ -346,7 +346,7 @@ internal static unsafe class ItemDrawStageHooks
         }
         catch (Exception e)
         {
-            Safe.Once("itemdraw.world.stub", "[itemdraw] 世界绘制中体桥分派异常：" + Safe.Describe(e), true);
+            Safe.Once("itemdraw.world.stub", "[itemdraw] 世界绘制中体桥分派异常：" + Safe.Dump(e), true);
         }
         return false;
     }
@@ -410,7 +410,7 @@ internal static unsafe class ItemDrawStageHooks
         }
         catch (Exception e)
         {
-            Safe.Once("itemdraw.world.post", "[itemdraw] 世界绘制 post 分派异常：" + Safe.Describe(e), true);
+            Safe.Once("itemdraw.world.post", "[itemdraw] 世界绘制 post 分派异常：" + Safe.Dump(e), true);
         }
     }
 
@@ -453,7 +453,7 @@ internal static unsafe class ItemDrawStageHooks
         }
         catch (Exception e)
         {
-            Safe.Once("itemdraw.world.getbasics", "[itemdraw] 动画推进补偿调用异常：" + Safe.Describe(e), true);
+            Safe.Once("itemdraw.world.getbasics", "[itemdraw] 动画推进补偿调用异常：" + Safe.Dump(e), true);
         }
     }
 
@@ -483,7 +483,7 @@ internal static unsafe class ItemDrawStageHooks
         }
         catch (Exception e)
         {
-            Safe.Once("itemdraw.inventory", "[itemdraw] 库存绘制 pre 分派异常：" + Safe.Describe(e), true);
+            Safe.Once("itemdraw.inventory", "[itemdraw] 库存绘制 pre 分派异常：" + Safe.Dump(e), true);
             args = null;
             skip = false;
         }
@@ -524,7 +524,7 @@ internal static unsafe class ItemDrawStageHooks
         }
         catch (Exception e)
         {
-            Safe.Once("itemdraw.inventory.args", "[itemdraw] 库存绘制参数重算异常：" + Safe.Describe(e), true);
+            Safe.Once("itemdraw.inventory.args", "[itemdraw] 库存绘制参数重算异常：" + Safe.Dump(e), true);
             return false;
         }
     }
@@ -584,7 +584,7 @@ internal static unsafe class ItemDrawStageHooks
         }
         catch (Exception e)
         {
-            Safe.Once("itemdraw.inventory.post", "[itemdraw] 库存绘制 post 分派异常：" + Safe.Describe(e), true);
+            Safe.Once("itemdraw.inventory.post", "[itemdraw] 库存绘制 post 分派异常：" + Safe.Dump(e), true);
         }
     }
 
@@ -625,6 +625,6 @@ internal static unsafe class ItemDrawStageHooks
     private static void Report(string key, HookId hook, Exception exception)
     {
         if (!_reported.Add(key + "/" + hook)) return;
-        ContentErrors.Report($"[item] {key}.{hook} 异常：{Safe.Describe(exception)}");
+        ContentErrors.Line($"[item] {key}.{hook} 异常：{Safe.Dump(exception)}");
     }
 }

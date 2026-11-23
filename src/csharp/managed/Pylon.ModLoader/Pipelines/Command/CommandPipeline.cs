@@ -60,7 +60,7 @@ internal sealed class CommandPipeline : ILoaderModule, ILoaderModuleRefresh
             }
             catch (Exception e)
             {
-                ContentErrors.Report($"[command] {command.Name}.SetStaticDefaults 异常：{Safe.Describe(e)}");
+                ContentErrors.Line($"[command] {command.Name}.SetStaticDefaults 异常：{Safe.Dump(e)}");
             }
             count++;
         }

@@ -152,7 +152,7 @@ internal static class ModWorldGenHooks
                     if (state.Enabled) state.Pass.Enable(); else state.Pass.Disable();
                     tasks.Add(state.Pass);
                 }
-                ContentErrors.Report($"[worldgen] {system.FullKey}.{(hardmode ? nameof(ModSystem.ModifyHardmodeTasks) : nameof(ModSystem.ModifyWorldGenTasks))} 异常:{Safe.Describe(e)}");
+                ContentErrors.Line($"[worldgen] {system.FullKey}.{(hardmode ? nameof(ModSystem.ModifyHardmodeTasks) : nameof(ModSystem.ModifyWorldGenTasks))} 异常:{Safe.Dump(e)}");
             }
         }
     }
@@ -183,7 +183,7 @@ internal static class ModWorldGenHooks
         if (WorldGenPass.TryApply(self, progress, configuration)) return;
         if (self._method is null)
         {
-            ContentErrors.Report($"[worldgen] {self.Name} 的托管回调已释放,请同时保存 WorldGenPass.Create 返回的步骤对象");
+            ContentErrors.Line($"[worldgen] {self.Name} 的托管回调已释放,请同时保存 WorldGenPass.Create 返回的步骤对象");
             return;
         }
         orig(self, progress, configuration);

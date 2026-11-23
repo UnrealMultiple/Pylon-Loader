@@ -87,7 +87,7 @@ internal sealed class MusicPipeline : ILoaderModule
         }
         catch (Exception e)
         {
-            Log.Warn("[music] 读不到 MusicID.Count：" + Safe.Describe(e));
+            Log.Warn("[music] 读不到 MusicID.Count：" + Safe.Dump(e));
         }
     }
 

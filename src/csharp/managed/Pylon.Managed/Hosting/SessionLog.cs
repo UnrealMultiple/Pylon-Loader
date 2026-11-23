@@ -58,7 +58,7 @@ internal static class SessionLog
 
     public static void Error(string source, string message) => Write('E', source, message);
 
-    /// <summary>按 "HH:mm:ss.fff L [来源] 消息" 追加一行（多行消息压成一行）。L ∈ I/W/E。</summary>
+    /// <summary>按 "HH:mm:ss.fff L [来源] 消息" 起一条；多行消息（堆栈）原样写入后续行。L ∈ I/W/E。</summary>
     public static void Write(char level, string source, string message)
     {
         if (_sessionFile is null || _sizeExceeded) return;
@@ -72,8 +72,7 @@ internal static class SessionLog
                     AppendLine('W', "log", "会话日志超过 4MB，本会话不再写入文件（logcat 仍在继续）");
                     return;
                 }
-                var oneLine = (message ?? "").Replace("\r", "").Replace("\n", " ⏎ ");
-                AppendLine(level, source, oneLine);
+                AppendLine(level, source, (message ?? "").Replace("\r", ""));
             }
         }
         catch (Exception)

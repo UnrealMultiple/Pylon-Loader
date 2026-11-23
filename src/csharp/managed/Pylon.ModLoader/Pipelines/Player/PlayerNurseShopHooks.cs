@@ -204,7 +204,7 @@ internal static class PlayerNurseShopHooks
         }
         catch (Exception e)
         {
-            Safe.Once("nurseshop.sellinv", "[nurseshop] 读当前商店库存失败：" + Safe.Describe(e), true);
+            Safe.Once("nurseshop.sellinv", "[nurseshop] 读当前商店库存失败：" + Safe.Dump(e), true);
         }
 
         if (PlayerPipeline.Instance.ModsActive(HookId.CanSellItem))
@@ -271,6 +271,6 @@ internal static class PlayerNurseShopHooks
     {
         var key = mod.Mod?.Name + "/" + mod.GetType().Name + "/" + hook;
         if (!_reported.Add(key)) return;
-        ContentErrors.Report($"[nurseshop] {mod.Mod?.Name}/{mod.GetType().Name}.{hook} 异常：{Safe.Describe(exception)}");
+        ContentErrors.Line($"[nurseshop] {mod.Mod?.Name}/{mod.GetType().Name}.{hook} 异常：{Safe.Dump(exception)}");
     }
 }

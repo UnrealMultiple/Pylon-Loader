@@ -155,7 +155,7 @@ internal static class TileSavePipeline
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[tile] 存档守卫安装失败（mod 方块照旧按号进 .wld）：" + Safe.Describe(e));
+            ContentErrors.Line("[tile] 存档守卫安装失败（mod 方块照旧按号进 .wld）：" + Safe.Dump(e));
         }
     }
 
@@ -555,7 +555,7 @@ internal static class TileSavePipeline
                 }
                 catch (Exception e)
                 {
-                    ContentErrors.Report("[tile] 侧车行恢复失败：" + Safe.Describe(e));
+                    ContentErrors.Line("[tile] 侧车行恢复失败：" + Safe.Dump(e));
                     kept.Add(row);
                 }
             }
@@ -567,7 +567,7 @@ internal static class TileSavePipeline
         }
         catch (Exception e)
         {
-            ContentErrors.Report("[tile] 侧车恢复失败：" + Safe.Describe(e));
+            ContentErrors.Line("[tile] 侧车恢复失败：" + Safe.Dump(e));
         }
     }
 
@@ -641,7 +641,7 @@ internal static class TileSavePipeline
             }
             catch (Exception e)
             {
-                ContentErrors.Report("[tile] 墙侧车行恢复失败：" + Safe.Describe(e));
+                ContentErrors.Line("[tile] 墙侧车行恢复失败：" + Safe.Dump(e));
                 kept.Add(row);
             }
         }
