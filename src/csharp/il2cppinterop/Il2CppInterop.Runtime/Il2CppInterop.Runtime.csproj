@@ -33,7 +33,7 @@
 
   <ItemGroup>
     <PackageReference Include="TerraFX.Interop.Windows" Version="10.0.22621.2" />
-    <PackageReference Include="PolySharp" Version="1.14.1">
+    <PackageReference Include="PolySharp" Version="1.17.1">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>

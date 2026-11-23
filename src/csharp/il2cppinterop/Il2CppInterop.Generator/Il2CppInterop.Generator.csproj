@@ -18,7 +18,7 @@
     <PackageReference Include="MonoMod.Backports" Version="1.1.2">
       <Aliases>MonoModBackports</Aliases><!-- Transitive dependency from AsmResolver. Extern alias prevents it from affecting us. -->
     </PackageReference>
-    <PackageReference Include="PolySharp" Version="1.14.1">
+    <PackageReference Include="PolySharp" Version="1.17.1">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
