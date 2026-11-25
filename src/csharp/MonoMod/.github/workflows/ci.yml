@@ -46,7 +46,7 @@ jobs:
       run: echo "skip=${{ github.event_name == 'push' && contains(github.event.head_commit.message, '[skip-ci]') }}" >> $env:GITHUB_OUTPUT
 
     - name: Upload event file
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       with:
         name: test-event-file
         path: ${{ github.event_path }}

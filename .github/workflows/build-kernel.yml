@@ -36,7 +36,7 @@ jobs:
           READELF="$ANDROID_HOME/ndk/27.1.12297006/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf"
           "$READELF" --dyn-syms --wide src/app/src/main/jniLibs/arm64-v8a/libpylon.so | head -40
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: libpylon
           path: src/app/src/main/jniLibs/arm64-v8a/libpylon.so
