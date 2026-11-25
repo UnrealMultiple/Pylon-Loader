@@ -10,8 +10,6 @@ public sealed class TestBonusCharm : ModItem
 {
     public override void SetDefaults()
     {
-        Item.width = 24;
-        Item.height = 28;
         Item.accessory = true;
     }
 

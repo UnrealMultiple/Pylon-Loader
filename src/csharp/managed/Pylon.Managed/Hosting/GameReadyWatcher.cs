@@ -13,7 +13,7 @@ namespace Pylon.Managed.Hosting;
 /// </summary>
 internal static class GameReadyWatcher
 {
-    /// <summary>物品类型表建好后应有的长度（Terraria 1.4.5.8.6 原版数量）。</summary>
+    /// <summary>物品类型表建好后应有的长度（Terraria 1.4.6 原版数量）。</summary>
     private const int VanillaItemCount = 6196;
 
     /// <summary>兜底：探测一直不成立时的最长等待帧数（约 2 秒）。</summary>

@@ -42,28 +42,28 @@ internal static unsafe class SystemStages
 
     private static readonly Stage[] Stages =
     [
-        new(typeof(Main), "PlayersBegin", "DoUpdateInWorld", 0, 0x1b8,
-            [0xf0011c1d, 0xb0011c9a, 0xb0011c79, 0x90011b3c], [HookId.PreUpdatePlayers]),
-        new(typeof(Main), "PlayersEnd", "DoUpdateInWorld", 0, 0x57c,
-            [0xd0011b88, 0xf9451908, 0x2a1f03f5, 0xf9400108], [HookId.PostUpdatePlayers]),
-        new(typeof(Main), "NPCsBegin", "DoUpdateInWorld", 0, 0x884,
-            [0xaa1f03e0, 0x3900811f, 0x94063b79, 0xaa1f03e0], [HookId.PreUpdateNPCs]),
-        new(typeof(Main), "NPCsEnd", "DoUpdateInWorld", 0, 0xf40,
-            [0xb0011b88, 0xf9451908, 0x120002c9, 0x90011c75], [HookId.PostUpdateNPCs, HookId.PreUpdateGores]),
-        new(typeof(Main), "GoresEnd", "DoUpdateInWorld", 0, 0x114c,
-            [0x2a1f03f5, 0xf94003a0, 0xb940e008, 0x35000068], [HookId.PostUpdateGores]),
-        new(typeof(Main), "ItemsBegin", "DoUpdateInWorld", 0, 0x1740,
-            [0xb00119f7, 0xf0011a18, 0xb0011af9, 0xb0011cfc], [HookId.PostUpdateProjectiles, HookId.PreUpdateItems]),
-        new(typeof(Main), "ItemsEnd", "DoUpdateInWorld", 0, 0x1a14,
-            [0xd0011b08, 0xf9447d08, 0xb0011b97, 0xf0011c16], [HookId.PostUpdateItems]),
+        new(typeof(Main), "PlayersBegin", "DoUpdateInWorld", 0, 0x228,
+            [0xB9004FFF, 0xF0011FD5, 0xF94012B5, 0x2A1F03E1], [HookId.PreUpdatePlayers]),
+        new(typeof(Main), "PlayersEnd", "DoUpdateInWorld", 0, 0x584,
+            [0xD0011E68, 0xF9476508, 0x2A1F03F5, 0xF9400108], [HookId.PostUpdatePlayers]),
+        new(typeof(Main), "NPCsBegin", "DoUpdateInWorld", 0, 0x890,
+            [0x3900811F, 0x94063A44, 0xAA1F03E0, 0x94063A69], [HookId.PreUpdateNPCs]),
+        new(typeof(Main), "NPCsEnd", "DoUpdateInWorld", 0, 0xf60,
+            [0xF0011F39, 0x9100A3F6, 0xF9405D08, 0xF9407EB5], [HookId.PostUpdateNPCs, HookId.PreUpdateGores]),
+        new(typeof(Main), "GoresEnd", "DoUpdateInWorld", 0, 0x11e0,
+            [0xF9400108, 0xF9405D08, 0x3900251F, 0x940005CF], [HookId.PostUpdateGores]),
+        new(typeof(Main), "ItemsBegin", "DoUpdateInWorld", 0, 0x1760,
+            [0xAA1F03E0, 0x97F7A392, 0xF9400360, 0xB940E008], [HookId.PostUpdateProjectiles, HookId.PreUpdateItems]),
+        new(typeof(Main), "ItemsEnd", "DoUpdateInWorld", 0, 0x1780,
+            [0xF9400260, 0xB940E008, 0x35000068, 0x97DAB703], [HookId.PostUpdateItems]),
         new(typeof(Main), "Transform", "DoDraw", 1, 0x2468,
-            [0x97fc20b1, 0x37000220, 0xf9400360, 0xb940e008], [HookId.ModifyTransformMatrix]),
+            [0x97FC2693, 0x37000220, 0xF9400360, 0xB940E008], [HookId.ModifyTransformMatrix]),
         new(typeof(Main), "ClockAdvance", "UpdateTime", 0, 0xb8c,
-            [0x1e602960, 0xfd024500, 0x97efb520, 0xf94002e0], [HookId.ModifyTimeRate]),
+            [0x1E602960, 0xFD024500, 0x97EF4D71, 0xF94002E0], [HookId.ModifyTimeRate]),
         new(typeof(Player), "DyeReward", "GetDyeTraderReward", 1, 0xef0,
-            [0xb9401aa1, 0x9000fe16, 0xd000fd78, 0xf947d2d6], [], HookId.GetDyeTraderReward),
-        new(typeof(Player), "NaturalRegen", "UpdateLifeRegen", 0, 0x828,
-            [0xbd481e60, 0xd000b709, 0xf9400300, 0xd000b70a], [], HookId.NaturalLifeRegen),
+            [0xB9401AA1, 0xF00100D6, 0xB0010058, 0xF9476ED6], [], HookId.GetDyeTraderReward),
+        new(typeof(Player), "NaturalRegen", "UpdateLifeRegen", 0, 0x82c,
+            [0x9000B949, 0xF9400300, 0x9000B94A, 0xBD4EC922], [], HookId.NaturalLifeRegen),
     ];
 
     private static double _clockRate = 1, _tileRemainder, _eventRemainder;
@@ -240,11 +240,11 @@ internal static unsafe class SystemStages
                     Dispatch(stage, (IntPtr)(void*)&dye);
                     break;
                 case NaturalRegen:
-                    var regen = BitConverter.UInt32BitsToSingle((uint)InterceptFrame.GetVectorUInt64(frame, 9, 0));
+                    var regen = BitConverter.UInt32BitsToSingle((uint)InterceptFrame.GetVectorUInt64(frame, 0, 0));
                     var regenBefore = regen;
                     DispatchNaturalRegen((IntPtr)unchecked((long)InterceptFrame.GetGpr(frame, 19)), ref regen);
                     if (regen != regenBefore && float.IsFinite(regen))
-                        *(float*)((byte*)frame + InterceptFrame.VectorOffset + 9 * 16) = regen;
+                        *(float*)((byte*)frame + InterceptFrame.VectorOffset) = regen;
                     break;
                 default:
                     Dispatch(stage, IntPtr.Zero);

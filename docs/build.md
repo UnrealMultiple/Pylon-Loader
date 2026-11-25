@@ -48,6 +48,7 @@ adb shell pm path com.and.games505.Terraria    # 拿到 base.apk 路径
 
 ```text
 refs/lib/arm64-v8a/libil2cpp.so
+refs/lib/arm64-v8a/libGNS_Wrapper.so          # 1.4.6 新增的联网后端（P/Invoke 目标）
 refs/assets/bin/Data/Managed/Metadata/global-metadata.dat
 refs/dump.cs                                  # Il2CppDumper 输出
 ```
@@ -189,7 +190,7 @@ CI 不产出游戏文件，也不会代为分发。
 | MSBuild 报找不到 `Il2Cppmscorlib` | 代理程序集 | 见 2.3 |
 | Gradle 报 `libpylon.so` 不存在 | 内核没编 | `pwsh -File src/core/build.ps1` |
 | 运行期 `UnsatisfiedLinkError: libc++_shared.so` | 运行时 native 未进 `jniLibs` | `pylon.ps1 deploy` |
-| 导入报"安装包不在 1.4.5 线" | 游戏版本不符 | 见 [运行时导入](runtime-import.md) |
+| 导入报"安装包不在 1.4.6 线" | 游戏版本不符 | 见 [运行时导入](runtime-import.md) |
 | 导入报 PairIP 拒绝 | Google Play 版构建 | 换无校验构建（亚马逊版 / 整合版） |
 
 运行期问题见 [排障](troubleshooting.md)。

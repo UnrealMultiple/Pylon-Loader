@@ -11,7 +11,7 @@ object RuntimeLayout {
     const val GAME_PACKAGE: String = "com.and.games505.Terraria"
 
     /** 内置运行时的游戏版本线（信息展示用）。 */
-    const val GAME_VERSION_LINE: String = "1.4.5"
+    const val GAME_VERSION_LINE: String = "1.4.6"
 
     /** 只保留 arm64-v8a。 */
     const val ABI: String = "arm64-v8a"
@@ -27,10 +27,14 @@ object RuntimeLayout {
 
     /** 内置游戏 .so 的加载顺序：libmain 的 JNI_OnLoad 要先于 Unity/il2cpp 进场。 */
     val NATIVE_LIB_LOAD_ORDER: List<String> = listOf(
+        "libc++_shared.so",
         "libmain.so",
         "libunity.so",
+        "libGNS_Wrapper.so",
         "libil2cpp.so",
     )
+
+    val OPTIONAL_NATIVE_LIBS: Set<String> = setOf("libc++_shared.so", "libGNS_Wrapper.so")
 
     /** 宿主自己写的崩溃日志（Java 未捕获异常、启动失败）。 */
     const val CRASH_LOG_NAME: String = "crash-last.txt"

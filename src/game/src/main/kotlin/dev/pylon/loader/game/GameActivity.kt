@@ -94,7 +94,7 @@ class GameActivity : Activity() {
     }
 
     /**
-     * 运行时装载放工作线程（dex 注入 + 四次 dlopen，含 57MB 的 libil2cpp.so）；
+     * 运行时装载放工作线程（dex 注入 + 五次 dlopen，含 57MB 的 libil2cpp.so）；
      * 主线程做会卡住首帧与输入派发（ANR 按主线程判定）。完成后回主线程创建 UnityPlayer。
      */
     private fun loadRuntimeThenStartUnity() {

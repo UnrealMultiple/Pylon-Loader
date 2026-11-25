@@ -14,19 +14,25 @@ internal static class UiScroll
     {
         public float Pos;
         public float Vel;
-        public float LastDelta;
         public float LastY;
         public float PressedX;
         public float PressedY;
         public bool Pressed;
         public bool Dragging;
         public bool Raw;
+        public readonly float[] SampleY = new float[SampleSlots];
+        public readonly float[] SampleT = new float[SampleSlots];
+        public int SampleHead;
+        public int SampleLen;
     }
 
     private const float DragThreshold = 8f;
-    private const float FlingFriction = 4.5f;
-    private const float FlingMaxSpeed = 3600f;
-    private const float FlingStop = 20f;
+    private const float FlingFriction = 3.8f;
+    private const float FlingMaxSpeed = 6000f;
+    private const float FlingStop = 12f;
+    private const int SampleSlots = 8;
+    private const float SampleWindow = 0.1f;
+    private const float SampleMinSpan = 0.02f;
 
     private static readonly Dictionary<uint, State> States = [];
     private static State? _activeState;
@@ -101,19 +107,21 @@ internal static class UiScroll
 
         if (st.Dragging)
         {
-            var released = !ImGui.IsMouseDown(ImGuiMouseButton.Left);
-            if (released)
+            var now = (float)ImGui.GetTime();
+            if (!ImGui.IsMouseDown(ImGuiMouseButton.Left))
             {
                 st.Dragging = false;
-                st.Vel = Math.Clamp(st.Vel, -FlingMaxSpeed, FlingMaxSpeed);
+                PushSample(st, now, mouse.Y);
+                st.Vel = Math.Clamp(EstimateVelocity(st, now), -FlingMaxSpeed, FlingMaxSpeed);
+                st.Pos = Math.Clamp(st.Pos + st.Vel * dt, 0f, max);
                 return;
             }
             var dy = mouse.Y - st.LastY;
-            st.LastDelta = dy;
             st.LastY = mouse.Y;
             st.Pos = Math.Clamp(st.Pos - dy, 0f, max);
+            PushSample(st, now, mouse.Y);
             var v = -dy / dt;
-            st.Vel = MathF.Abs(dy) < 0.01f ? st.Vel * 0.6f : st.Vel + (v - st.Vel) * 0.45f;
+            st.Vel += (v - st.Vel) * (1f - MathF.Exp(-dt / 0.05f));
             return;
         }
 
@@ -127,6 +135,8 @@ internal static class UiScroll
                 st.PressedY = mouse.Y;
                 st.LastY = mouse.Y;
                 st.Vel = 0f;
+                st.SampleHead = 0;
+                st.SampleLen = 0;
             }
             else if (MathF.Abs(mouse.X - st.PressedX) + MathF.Abs(mouse.Y - st.PressedY) > TerrariaTheme.Px(DragThreshold))
             {
@@ -138,6 +148,30 @@ internal static class UiScroll
         }
 
         st.Pressed = false;
+    }
+
+    private static void PushSample(State st, float t, float y)
+    {
+        st.SampleY[st.SampleHead] = y;
+        st.SampleT[st.SampleHead] = t;
+        st.SampleHead = (st.SampleHead + 1) % SampleSlots;
+        if (st.SampleLen < SampleSlots) st.SampleLen++;
+    }
+
+    private static float EstimateVelocity(State st, float now)
+    {
+        var newest = (st.SampleHead + SampleSlots - 1) % SampleSlots;
+        var oldest = -1;
+        for (var j = 1; j < st.SampleLen; j++)
+        {
+            var idx = (st.SampleHead + 2 * SampleSlots - 1 - j) % SampleSlots;
+            if (now - st.SampleT[idx] > SampleWindow) break;
+            oldest = idx;
+        }
+        if (oldest < 0) return st.Vel;
+        var span = now - st.SampleT[oldest];
+        if (span < SampleMinSpan) return st.Vel;
+        return -(st.SampleY[newest] - st.SampleY[oldest]) / span;
     }
 
     internal static void End()

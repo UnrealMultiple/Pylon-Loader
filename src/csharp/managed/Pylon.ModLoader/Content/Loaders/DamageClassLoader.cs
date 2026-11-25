@@ -229,8 +229,8 @@ public static class DamageClassLoader
         if (Defaulting == item.Pointer)
         {
             lock (Gate) itemTypes = Store(itemTypes, type, cls);
-            var noSpeed = ItemID.Sets.NoMeleeSpeedBonus;
-            if ((flags & GameFlags.NoSpeed) != 0 && (uint)type < (uint)noSpeed.Length) noSpeed[type] = true;
+            var noSpeed = ItemID.Sets.BonusMeleeSpeedMultiplier;
+            if ((flags & GameFlags.NoSpeed) != 0 && (uint)type < (uint)noSpeed.Length) noSpeed[type] = 0f;
             var whip = ItemID.Sets.SummonerWeaponThatScalesWithAttackSpeed;
             if ((flags & GameFlags.Whip) != 0 && (uint)type < (uint)whip.Length) whip[type] = true;
         }
@@ -318,7 +318,7 @@ public static class DamageClassLoader
     static DamageClass ItemFromFlags(Item item)
     {
         int type = item.type;
-        if (item.melee) return Flag(ItemID.Sets.NoMeleeSpeedBonus, type) ? DamageClass.MeleeNoSpeed : DamageClass.Melee;
+        if (item.melee) return NoMeleeSpeed(type) ? DamageClass.MeleeNoSpeed : DamageClass.Melee;
         if (item.ranged) return DamageClass.Ranged;
         if (item.magic) return DamageClass.Magic;
         if (item.summon) return Flag(ItemID.Sets.SummonerWeaponThatScalesWithAttackSpeed, type) ? DamageClass.SummonMeleeSpeed : DamageClass.Summon;
@@ -337,6 +337,12 @@ public static class DamageClassLoader
     }
 
     static bool Flag(Il2CppStructArray<bool> set, int type) => (uint)type < (uint)set.Length && set[type];
+
+    static bool NoMeleeSpeed(int type)
+    {
+        var set = ItemID.Sets.BonusMeleeSpeedMultiplier;
+        return (uint)type < (uint)set.Length && set[type] <= 0f;
+    }
 
     internal static PlayerStats Data(Player player)
     {

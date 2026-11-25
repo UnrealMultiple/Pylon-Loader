@@ -74,8 +74,6 @@ namespace RegressionTest.Content
 
         public override void SetDefaults()
         {
-            Item.width = 20;
-            Item.height = 34;
             Item.maxStack = 99;
             Item.DefaultToPlaceableTile(ModContent.TileType<DoorClosedTile>());
         }

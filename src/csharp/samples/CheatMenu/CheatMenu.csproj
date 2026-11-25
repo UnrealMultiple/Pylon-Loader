@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    CheatMenu 示例：把 Terraria-Imgui 的作弊菜单按「一个 Mod + 内部模块化」迁移到 Pylon。
+
+    P0 竖切只验证五条链路：
+      1. 字段读写 + Player.Hurt/KillMe hook（上帝模式）
+      2. 物品搜索 + Item.NewItem（物品生成，文字版）
+      3. 界面层常驻绘制（ESP，菜单关闭也显示）
+      4. ModSystem tick（时间锁定）
+      5. 收发包 hook（抓包计数）
+
+    PylonModProject=true 让仓库根 Directory.Build.targets 注入游戏代理程序集；
+    游戏代理只供编译，运行期由宿主提供。
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>CheatMenu</AssemblyName>
+    <RootNamespace>CheatMenu</RootNamespace>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <NoWarn>CS0436</NoWarn>
+    <PylonModProject>true</PylonModProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\managed\Pylon.ModLoader\Pylon.ModLoader.csproj" />
+  </ItemGroup>
+</Project>

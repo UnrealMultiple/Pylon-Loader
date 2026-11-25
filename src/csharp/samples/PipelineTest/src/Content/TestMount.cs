@@ -161,8 +161,6 @@ public sealed class TestMountItem : ModItem
 
     public override void SetDefaults()
     {
-        Item.width = 20;
-        Item.height = 30;
         Item.useTime = 20;
         Item.useAnimation = 20;
         Item.useStyle = (byte)Terraria.ID.ItemUseStyleID.Swing;

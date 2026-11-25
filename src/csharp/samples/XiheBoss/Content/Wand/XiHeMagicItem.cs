@@ -46,8 +46,6 @@ namespace XiheBoss.Wand
         public override void SetDefaults()
         {
             var item = Item;
-            item.width = 30;
-            item.height = 30;
 
             item.holdStyle = (byte)ItemHoldStyleID.HoldLamp;
             item.useStyle = (byte)ItemUseStyleID.RaiseLamp;

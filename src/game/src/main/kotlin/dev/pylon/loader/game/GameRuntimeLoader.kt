@@ -48,7 +48,12 @@ internal class GameRuntimeLoader(private val context: Context) {
         Log.stage("host", "内置原生库目录=${nativeDir.absolutePath}")
         RuntimeLayout.NATIVE_LIB_LOAD_ORDER.forEachIndexed { index, libName ->
             val file = File(nativeDir, libName)
+            val optional = libName in RuntimeLayout.OPTIONAL_NATIVE_LIBS
             if (!file.isFile) {
+                if (optional) {
+                    Log.w("本构建的 APK 内没有 $libName：单机照常，联机后端不可用")
+                    return@forEachIndexed
+                }
                 return fail("本构建的 APK 内没有 $libName（构建未内置完整运行时，检查 refs/lib/arm64-v8a）")
             }
             try {
@@ -58,6 +63,14 @@ internal class GameRuntimeLoader(private val context: Context) {
                     "已加载 $libName（第 ${index + 1} 个，${file.length() / 1024} KB）",
                 )
             } catch (t: Throwable) {
+                if (optional) {
+                    Log.w(
+                        "加载 $libName 失败（联机后端不可用，游戏照常启动）：" +
+                            "${t.javaClass.simpleName}: ${t.message}",
+                        t,
+                    )
+                    return@forEachIndexed
+                }
                 return fail(
                     "加载 $libName 失败（第 ${index + 1} 个，共 ${RuntimeLayout.NATIVE_LIB_LOAD_ORDER.size} 个）：" +
                         "${t.javaClass.simpleName}: ${t.message}",

@@ -11,8 +11,6 @@ public sealed class TestZBannerItem : ModItem
 
     public override void SetDefaults()
     {
-        Item.width = 12;
-        Item.height = 30;
         Item.maxStack = 999;
         Item.value = 100;
         Item.DefaultToPlaceableTile(ModContent.TileType<TestZBannerTile>(), 0);

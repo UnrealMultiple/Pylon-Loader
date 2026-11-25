@@ -6,7 +6,7 @@
 
 | 维度 | 现状 |
 |---|---|
-| 游戏 | `com.and.games505.Terraria` 的 `1.4.5` 系列（开发基线 `1.4.5.8.6`，Unity 2021.3.56f2） |
+| 游戏 | `com.and.games505.Terraria` 的 `1.4.6` 系列（开发基线 `1.4.6`，Unity 2021.3.56f2） |
 | ABI | `arm64-v8a` |
 | 设备 | Android 8+，实测 Android 17（小米 2509FPN0BC） |
 | 权限 | 不需要 root；不修改游戏 APK；不重签 |

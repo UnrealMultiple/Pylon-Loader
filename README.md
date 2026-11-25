@@ -113,7 +113,7 @@ docs/        文档
 ## 边界
 
 - **不提供游戏文件**：仓库、Release 与 CI artifact 都不含游戏二进制或由其派生的代理程序集。
-- **必须使用自己的正版**：导入与生成以设备上已安装的 `1.4.5` 系列为准。
+- **必须使用自己的正版**：导入与生成以设备上已安装的 `1.4.6` 系列为准。
 - **不支持 PairIP 构建**：`libunity.so` 依赖 `libpairipcore.so` 的 Google Play 版会在导入阶段被拒绝，请用无校验构建。
 - **不绕过任何校验**，也不分发被解密的资源。
 - **不复制上游代码**：[Bunny Loader](https://github.com/JonataOliveiraa/Bunny-Loader) 采用 PolyForm Noncommercial，与本项目不兼容，只借鉴技术路线与实测结论。

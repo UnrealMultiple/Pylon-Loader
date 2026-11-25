@@ -5,7 +5,7 @@ using Terraria.GameContent;
 namespace Pylon.ModLoader.Patching;
 /// <summary>
 /// 游戏把 <c>type &gt; 753</c> / <c>type &gt;= 754</c> 编进了 ARM64 指令里，反射与 hook 都改不到这些常量，
-/// 只能让内核改写立即数。名单按 1.4.5.8.6 的扫描结果核对过。
+/// 只能让内核改写立即数。名单按 1.4.6 的扫描结果核对过。
 /// </summary>
 internal static class LimitPatch
 {

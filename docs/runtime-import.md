@@ -17,7 +17,7 @@
 ```text
 /data/user/0/dev.pylon.loader/files/
   runtime/
-    lib/                        libc++_shared.so、libmain.so、libunity.so、libil2cpp.so
+    lib/                        libc++_shared.so、libmain.so、libunity.so、libGNS_Wrapper.so、libil2cpp.so
     Data/                       游戏 assets/bin/Data（约 170 MB）
     import-manifest.properties  清单：来源包 / 版本 / ABI + 每个文件的大小与 sha256
     .deployed                   宿主解包版本与指纹标记
@@ -44,8 +44,8 @@
 ## 4. 导入与校验流程
 
 1. 读取已安装游戏的 `PackageInfo`（包名、`versionName`、`sourceDir`）。
-2. 版本门禁：`versionName` 前三段必须是 `1.4.5`。小版本放开，游戏打补丁不用改代码。
-3. 打开 APK：解出 `lib/arm64-v8a` 下的四个库与 `assets/bin/Data`。
+2. 版本门禁：`versionName` 前三段必须是 `1.4.6`。小版本放开，游戏打补丁不用改代码。
+3. 打开 APK：解出 `lib/arm64-v8a` 下的五个库（含 1.4.6 新增的 `libGNS_Wrapper.so`）与 `assets/bin/Data`。
 4. **PairIP 门禁**：解析解出的 `libunity.so` 的 `DT_NEEDED`，依赖 `libpairipcore.so` 即中止（见第 5 节）。
 5. 边写边算 sha256（单遍），进度按已写字节回调。
 6. 写清单，落 `.deployed` 标记。
@@ -77,9 +77,9 @@ libunity.so 的 DT_NEEDED（无校验构建）
 
 | 情况 | 结果 |
 |---|---|
-| `1.4.5.x`（含开发基线 `1.4.5.8.6`） | 支持 |
-| `1.4.5.8.6` 的 Play 版（PairIP） | 拒绝，见第 5 节 |
-| `1.4.6.x` / 中文版 `1.4.56002` | 拒绝（不在 `1.4.5` 线） |
+| `1.4.6.x`（含开发基线 `1.4.6`） | 支持 |
+| Play 版（PairIP） | 拒绝，见第 5 节 |
+| `1.4.5.x` / 中文版 `1.4.56002` | 拒绝（不在 `1.4.6` 线） |
 
 导入结果与版本强绑定：`libil2cpp.so`、`global-metadata.dat` 与代理程序集必须来自同一版本，换版本请整组重做（见 [构建](build.md) 第 2 节）。
 

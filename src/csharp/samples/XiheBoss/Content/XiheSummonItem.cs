@@ -38,8 +38,6 @@ namespace XiheBoss
         public override void SetDefaults()
         {
             var item = Item;
-            item.width = 10;
-            item.height = 10;
             item.scale = 1f;
             item.useTime = 30;
             item.useAnimation = 30;

@@ -8,8 +8,8 @@ using Terraria.GameContent.UI;
 namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// mod 表情的多人同步：原版表情包只带原版编号，对端看不懂；这里带上"表情号 + 锚的序列化 + 时长"，
-/// 收到的人用同一个锚重建泡泡。锚的序列化用游戏自己的 <c>EmoteBubble.SerializeNetAnchor</c> /
-/// <c>DeserializeNetAnchor</c>——玩家/NPC/方块/坐标四种锚它都处理了，我们不复制一遍。
+/// 收到的人用同一个锚重建泡泡。1.4.6 删掉了游戏自带的锚序列化辅助，这里用固定载荷自己编解码：
+/// 玩家/NPC 只带 whoAmI（同一局里双方编号一致），方块/坐标带位置与尺寸，无锚带一个空标记。
 /// 走向：客户端发给服务器，服务器转发给其他人并自己建泡。
 /// </summary>
 internal sealed class EmoteNetPipeline : ILoaderModule
@@ -51,10 +51,8 @@ internal sealed class EmoteNetPipeline : ILoaderModule
 
         try
         {
-            var pair = EmoteBubble.SerializeNetAnchor(anchor);
-            if (pair is null) return;
-
-            Send(emoticon, pair.Item1, pair.Item2, time, Main.netMode == 1 ? 255 : -1, -1);
+            var values = EncodeAnchor(emoticon, anchor, time);
+            Send(values, Main.netMode == 1 ? 255 : -1, -1);
         }
         catch (Exception e)
         {
@@ -62,27 +60,103 @@ internal sealed class EmoteNetPipeline : ILoaderModule
         }
     }
 
-    private void Send(int emoticon, int type, int meta, int time, int toClient, int ignoreClient) =>
-        _net.SendValues(_kind, [emoticon, type, meta, time], toClient, ignoreClient);
+    internal static int[] EncodeAnchor(int emoticon, WorldUIAnchor anchor, int time)
+    {
+        var values = new int[8];
+        values[0] = emoticon;
+        values[1] = time;
+        if (anchor is null)
+        {
+            values[2] = 4;
+            return values;
+        }
+        if (anchor.entity is { } entity)
+        {
+            var player = entity.TryCast<Player>();
+            if (player is not null)
+            {
+                values[2] = 0;
+                values[3] = player.whoAmI;
+                return values;
+            }
+            var npc = entity.TryCast<NPC>();
+            if (npc is not null)
+            {
+                values[2] = 1;
+                values[3] = npc.whoAmI;
+                return values;
+            }
+        }
+        values[3] = (int)anchor.pos.X;
+        values[4] = (int)anchor.pos.Y;
+        switch (anchor.type)
+        {
+            case WorldUIAnchor.AnchorType.Tile:
+                values[2] = 2;
+                values[5] = (int)anchor.size.X;
+                values[6] = (int)anchor.size.Y;
+                break;
+            case WorldUIAnchor.AnchorType.None:
+                values[2] = 4;
+                break;
+            default:
+                values[2] = 3;
+                break;
+        }
+        return values;
+    }
+
+    internal static WorldUIAnchor? DecodeAnchor(int[] values)
+    {
+        var kind = values[2];
+        var a = values[3];
+        var b = values[4];
+        switch (kind)
+        {
+            case 0:
+                var players = Main.player;
+                if (players is null || (uint)a >= (uint)players.Length) return null;
+                return new WorldUIAnchor(players[a]);
+            case 1:
+                var npcs = Main.npc;
+                if (npcs is null || (uint)a >= (uint)npcs.Length) return null;
+                return new WorldUIAnchor(npcs[a]);
+            case 2:
+                return new WorldUIAnchor(a, b, values[5], values[6]);
+            case 3:
+                return new WorldUIAnchor(new Il2CppMicrosoft.Xna.Framework.Vector2(a, b));
+            case 4:
+                return new WorldUIAnchor();
+            default:
+                return null;
+        }
+    }
+
+    private void Send(int[] values, int toClient, int ignoreClient)
+    {
+        var list = new List<object>(values.Length);
+        foreach (var value in values) list.Add(value);
+        _net.SendValues(_kind, list, toClient, ignoreClient);
+    }
 
     private void Receive(Il2CppSystem.IO.BinaryReader reader, int from)
     {
-        var values = NetCodec.ReadValues(reader);
-        if (values.Length < 4) return;
+        var raw = NetCodec.ReadValues(reader);
+        if (raw.Length < 7) return;
 
-        var emoticon = Convert.ToInt32(values[0]);
-        var type = Convert.ToInt32(values[1]);
-        var meta = Convert.ToInt32(values[2]);
-        var time = Convert.ToInt32(values[3]);
+        var values = new int[8];
+        for (var i = 0; i < raw.Length && i < values.Length; i++) values[i] = Convert.ToInt32(raw[i]);
+
+        var emoticon = values[0];
+        var time = values[1];
 
         if (emoticon < EmoteBubbleTable.Base) return;
 
         try
         {
-            // 服务器收到客户端发的那一份，要转给除发送者以外的所有人，然后自己也建一个。
-            if (Main.netMode == 2) Send(emoticon, type, meta, time, -1, from);
+            if (Main.netMode == 2) Send(values, -1, from);
 
-            var anchor = EmoteBubble.DeserializeNetAnchor(type, meta);
+            var anchor = DecodeAnchor(values);
             if (anchor is null) return;
 
             EmoteBubblePipeline.ApplyRemote(emoticon, anchor, time);

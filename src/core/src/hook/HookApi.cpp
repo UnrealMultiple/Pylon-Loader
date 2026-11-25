@@ -5,7 +5,6 @@
 #include "pylon/mod/ModApi.h"
 
 namespace {
-。
 bool EnsureHook() {
     static std::once_flag once;
     static bool ok = false;

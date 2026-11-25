@@ -23,6 +23,8 @@
 | 玩家侧车存档 | `SaveData`、`LoadData`（`<player>.plr.pl`，行内嵌 TagCompound） |
 | 网络同步 | 物品实例表同步、PvP 伤害包的来源通道 |
 
+**1.4.6 的 Item 尺寸**：`width` / `height` 字段已从 `Item` 挪到 `WorldItem`（继承 `Entity`），`Item` 不再是 `Entity` 子类，作者在 `SetDefaults` 里不能再设这两项；地上物品的碰撞盒由游戏在 `WorldItem` 构造时统一置 16×16（与物品类型无关），绘制尺寸仍由贴图与 `scale` 决定。
+
 `Item.TML.cs` 提供 TML 风格的作者 API（`item.ModItem`、`EntityGlobals`、`GetGlobalItem`、`CloneDefaults`、`DefaultToPlaceableWall`、`ResearchUnlockCount`、`Item.Create` 等）。
 
 **不接**：
@@ -77,10 +79,10 @@ Pipelines/Item/
 
 ### 2.5 绘制四钩子
 
-绘制参数（旋转、缩放、光照色、着色）是原版绘制方法体中段的寄存器/栈现场，纯托管层在入口拿不到完整值，所以世界侧的接法是"入口 On 包装 + 一个中体桥"：
+绘制参数（旋转、缩放、光照色、着色）是原版绘制方法体中段的寄存器/栈现场，纯托管层在入口拿不到完整值，所以世界侧的接法是"入口 On 包装 + 两个中体桥"：
 
-* **世界侧**（`Main.DrawItem`）：On 钩先复刻游戏自身的三道 early-out（未激活 / `IsAir` / 实例保留给别人），然后用公开方法重算四个参数——`light = Lighting.GetColor(Center → tile)`、`alpha = GetAlpha(light)` 加 shimmer 修正再过 `ItemSlot.GetItemLight`、`scale` 取同一次 `GetItemLight` 的 out、`rotation = velocity.X × 系数`（shimmered/onConveyor 时为 0）——派发 `PreDrawInWorld`。返回 false 就不调 orig（先补调一次 `DrawItem_GetBasics`，保住它内含的动画推进副作用），随后照常派发 `PostDrawInWorld`；否则调 orig、orig 返回后派发 Post。
-* **ref 写回**：作者对 `ref rotation` / `ref scale` 的修改只有在方法体中段才影响原版绘制，所以装一个 `Main.DrawItem` 入口 +0x418 的中体桥（指纹校验 + `MidBodyIntercept`），桥只把**作者改过的值**写回寄存器现场（rotation→v11、scale→栈上槽，其余一概不动），值都过 IsFinite 校验。旋转系数优先在运行时从解析出的方法体指令流里解码装载对（ADRP 目标页 + LDR 偏移）得到数据地址后读取——不硬编码绝对地址；解码不符时在桥首次命中处用游戏现场的 v11/velocity.X 自校验补值，仍取不到则初值退化为 0——作者的写入依然生效，Warn 可见。
+* **世界侧**（`Main.DrawItems`）：1.4.6 把单件物品的绘制内联进了 `DrawItems` 的循环，`Main.DrawItem` 已不存在。On 钩包住 `DrawItems`，循环入口（`get_active` 调用之后）装一个中体桥：判 active / `IsAir` / 实例保留给别人 / 是否 mod 物品（另按屏幕矩形做可见性过滤，离屏物品不分派），然后用公开方法重算四个参数——`light = Lighting.GetColor(Center → tile)`、`alpha = GetAlpha(light)` 加 shimmer 修正再过 `ItemSlot.GetItemLight`、`scale` 取同一次 `GetItemLight` 的 out、`rotation = velocity.X × 系数`（shimmered/onConveyor 时为 0）——派发 `PreDrawInWorld`。返回 false 就把 `get_active` 的结果改成 0 让循环跳过绘制（先补调一次 `DrawItem_GetBasics`，保住它内含的动画推进副作用），随后照常派发 `PostDrawInWorld`；否则让循环继续，Post 在该物品绘制完（下一件物品进场或本帧 `DrawItems` 返回）时派发。
+* **ref 写回**：作者对 `ref rotation` / `ref scale` 的修改只有在方法体中段才影响原版绘制，所以在 `GetItemLight` 之后装第二个中体桥（指纹校验 + `MidBodyIntercept`），桥只把**作者改过的值**写回寄存器现场（rotation→v15、scale→栈上槽 `sp+0x35c`，其余一概不动），值都过 IsFinite 校验。旋转系数优先在运行时从解析出的方法体指令流里解码装载对（ADRP 目标页 + LDR 偏移）得到数据地址后读取——不硬编码绝对地址；解码不符时在桥首次命中处用游戏现场的 v15/velocity.X 自校验补值，仍取不到则初值退化为 0——作者的写入依然生效，Warn 可见。
 * **库存侧**（`ItemSlot.DrawItemIcon`）：参数全在入口签名里，On 钩用 `DrawItem_GetColorAndScale` 重算帧/光照/最终缩放，`origin = 帧尺寸一半`、`drawColor = GetAlpha(light)`、`itemColor = GetColor(环境色)`；Pre 返回 false 时不调 orig 并返回 finalScale（与原版返回值语义一致），Post 照常派发。
 * **门控与降级**：两个 IGate（`DrawWorld` / `DrawInventory`）按"是否有人覆写"整门安装，四个钩子都没人覆写时零补丁零订阅。世界门装时才尝试中体桥；指纹不符 → Warn 一条 → 世界四钩整组不接（可见降级，游戏照常绘制），库存侧没有指纹依赖、不受影响。所有补丁点都相对运行时解析出的方法入口表达（入口经 il2cpp 元数据解析，偏移以 entry 为基准，站点 16 字节指纹做"偏移仍指向预期指令"的验证），偏移与指纹字集中在 `ItemDrawStageHooks` 顶部一处，换游戏构建时只重验那里。
 * **已知差距**（入口重算相对"参数取自中段现场"的固有差，全部有界）：
@@ -107,7 +109,7 @@ Pipelines/Item/
 
 * **为什么聚合到一个管线类？** 一条"用物品"的调用链（`CanUseItem → UseItem → UseStyle → Shoot`）在游戏里本来就是连续的；按关注点拆开后，排查"为什么我的物品不发射"要在四个文件之间跳。聚合到一个类、类内按链分段，读一处就能看完整条链。代价是单文件更长——用分区注释和小类控制。
 * **为什么门控按"是否有人覆写"整门装？** 每帧路径要能承受"上千实体 × 每个钩子"的调用量。没人覆写的钩子连 `On_*` 订阅都不装，覆写了的链路里每次分派只是一次位运算加虚调用。
-* **为什么世界侧是"On 包装 + 中体桥"，而不是把 pre/post 都做成中段钩？** pre 的 ref 修改需要写进方法体中段的寄存器现场，这是中体桥唯一不可替代的职责；skip、post 派发与参数供给用 On 包装已语义等价。全中段方案要多维护三个站点指纹还要扩桩原语，收益只是参数逐位保真——按"指纹维护面最小、不碰最敏感的桩原语"取舍，只留 1 个站点（含 1 条随链接布局变的 ADRP 字）。
+* **为什么世界侧是"On 包装 + 中体桥"，而不是把 pre/post 都做成中段钩？** pre 的 ref 修改需要写进方法体中段的寄存器现场，这是中体桥不可替代的职责；skip 需要在循环里改 `get_active` 的结果、post 需要物品指针，都就近在循环体中拿。全中段方案要多维护更多站点指纹还要扩桩原语，收益只是参数逐位保真——按"指纹维护面最小、不碰最敏感的桩原语"取舍，只留 2 个站点（含 1 条随链接布局变的 ADRP 字）。
 * **为什么 ref 写回只写作者改过的值？** 入口重算的初值是对游戏现场值的等价重算而非同一份数据；把没改过的值原样写回，一旦重算与现场有偏差反而会污染绘制。只写"改过的"，没改的保持游戏自己的值——作者可见行为不变。
 * **为什么指纹不符时世界四钩整组不接？** "skip 生效但 ref 无效"的半工作状态对作者更难排查：他用 ref 改缩放没反应，却看不出问题在哪。整组不接 + Warn 一条，降级可见、可定位，游戏不炸。
 * **为什么 `SetStaticDefaults` 放在"物品样例"之前？** 原版 `SetDefaults` 与样例注册都会读静态表（弹药识别、物品集合判定）；作者在 `SetStaticDefaults` 里写的表必须在任何实例化之前就位，也必须在配方、掉落、排序这些消费方之前。它跟 NPC 的"静态默认值在样例之前"是同一条规则。

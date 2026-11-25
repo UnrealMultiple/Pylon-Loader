@@ -21,8 +21,6 @@ namespace RegressionTest.Content
 
         public override void SetDefaults()
         {
-            Item.width = 20;
-            Item.height = 20;
             Item.maxStack = 1;
             Item.rare = 2;
             Item.value = 5000;
@@ -32,8 +30,8 @@ namespace RegressionTest.Content
         {
             var stamp = ++StampCounter;
             tag.Set("stamp", stamp);
-            tag.Set("note", "D" + Item.stack + "x" + Item.width);
-            RegressionTestMod.Log?.Info($"[rt] DataItem.SaveData stamp={stamp} note=D{Item.stack}x{Item.width} prefix={Item.prefix}");
+            tag.Set("note", "D" + Item.stack + "x" + Item.type);
+            RegressionTestMod.Log?.Info($"[rt] DataItem.SaveData stamp={stamp} note=D{Item.stack}x{Item.type} prefix={Item.prefix}");
         }
 
         public override void LoadData(TagCompound tag)
@@ -51,8 +49,6 @@ namespace RegressionTest.Content
 
         public override void SetDefaults()
         {
-            Item.width = 20;
-            Item.height = 20;
             Item.maxStack = 1;
             Item.melee = true;
             Item.damage = 5;
@@ -72,8 +68,6 @@ namespace RegressionTest.Content
 
         public override void SetDefaults()
         {
-            Item.width = 20;
-            Item.height = 20;
             Item.maxStack = 1;
             Item.melee = true;
             Item.damage = 5;

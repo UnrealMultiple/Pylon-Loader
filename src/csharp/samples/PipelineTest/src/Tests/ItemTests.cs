@@ -41,7 +41,7 @@ internal static class ItemTests
         {
             var item = new Item();
             item.SetDefaults(type, null);
-            c.True(item.width == 20 && item.height == 20, $"size={item.width}x{item.height}（期望 20x20）");
+            c.Eq(item.maxStack, 9999, "maxStack");
             c.Eq(item.damage, 15, "damage");
             c.Eq(item.useTime, 20, "useTime");
         });

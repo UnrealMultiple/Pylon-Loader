@@ -48,7 +48,7 @@ foreach (var target in Targets.All)
 }
 var output = new
 {
-    schema = 1, profile = "terraria-1.4.5.8.6-arm64-v8a", complete = failures.Count == 0,
+    schema = 1, profile = "terraria-1.4.6-arm64-v8a", complete = failures.Count == 0,
     provenance = new { source = "refs/README.md:3 explicit local development baseline", elf = "refs/lib/arm64-v8a/libil2cpp.so",
         elfSha256 = Convert.ToHexString(SHA256.HashData(elf.Bytes)).ToLowerInvariant(), buildId = elf.BuildId,
         scriptSha256 = Hash(scriptPath), dumpSha256 = Hash(dumpPath), boundary = "ELF .eh_frame_hdr indexed FDE, verified exact method start",

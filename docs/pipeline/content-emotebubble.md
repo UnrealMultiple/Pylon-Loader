@@ -63,7 +63,7 @@
 
 原版的表情包只带原版编号，mod 编号到了对端就是"不认识的表情"。本管线新建 `EmoteNetPipeline`（装在 `NetPipeline` 之后，独立通道）：
 
-* **发**：mod 表情建泡后把 `[表情号, 锚类型, 锚编号, 时长]` 发出去。锚用游戏自带的 `EmoteBubble.SerializeNetAnchor` / `DeserializeNetAnchor`——玩家/NPC/方块/坐标四种锚它都处理了。
+* **发**：mod 表情建泡后把 `[表情号, 时长, 锚类型, 主值, 次值, 宽, 高, 保留]` 发出去。1.4.6 删掉了游戏自带的锚序列化辅助，锚由框架自己编解码：玩家/NPC 只带 whoAmI（同一局里双方编号一致），方块/坐标带位置与尺寸。
 * **走向**：客户端 `toClient = 255`（服务器）；服务器收到后先转发给除发送者外的所有人（`ignoreClient = from`），再自己建一个泡（服务器也要看得见，逻辑与客户端一致）。
 * **收**：`ApplyRemote` 置一个 `OnReceive` 标记再调 `EmoteBubble.NewBubble`，建泡路径看到标记就不再转发，避免回声。
 * **只认 mod 号**：`emoticon < EmoteBubbleTable.Base` 的包直接丢——原版表情由原版自己的网络路径负责，我们不要重复建。
@@ -134,7 +134,7 @@ public override int NPCReaction => EmoteID.Heart;
 |---|---|
 | 语义变更 | `ModEmoteBubble.EmoteBubble` 现在真的指向游戏对象（之前恒为 null）；只在钩子方法里有效 |
 | 本版生效 | 菜单分类（`AddToCategory` / `IsUnlocked`）与菜单帧（`GetFrameInEmoteMenu`）都接通；泡泡自带白壳与淡入淡出 |
-| 生效 | 多人同步（`EmoteNetPipeline`，锚走游戏 `SerializeNetAnchor`/`DeserializeNetAnchor`） |
+| 生效 | 多人同步（`EmoteNetPipeline`，锚由框架编解码） |
 | 生效 | 悬停预览（`GUIEmotesWindow.EmoteOver` → `Main.hoverItemName = ModEmoteBubble.DisplayName`） |
 | 生效 | NPC 反应（`NPCReaction`：最近的城镇 NPC 用指定原版表情回应） |
 | 生效 | `GlobalEmoteBubble`：`OnSpawn` / `UpdateFrame` / `GetFrame` / `PreDraw` / `PostDraw` / `GetFrameInEmoteMenu`（`PreDraw`/`PostDraw` 只对 mod 表情；`UpdateFrameInEmoteMenu` 未接） |

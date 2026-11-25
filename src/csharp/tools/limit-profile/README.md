@@ -8,7 +8,7 @@ dotnet run --project src/csharp/tools/limit-profile -- C:/path/to/Pylon-Loader <
 dotnet run --project src/csharp/tools/limit-profile -- --verify-profile <output.json>
 ```
 
-The generator reads only the explicitly supported local reference in `refs/README.md` (development baseline 1.4.5.8.6), `refs/script.json`, and `refs/dump.cs`. It does not inspect a process, another checkout, or Bunny-Loader. Profile provenance pins the reference ELF SHA256 and GNU BuildID, plus both metadata hashes. The generated profile comes from that reference, not from live actual instructions. No binaries are copied.
+The generator reads only the explicitly supported local reference in `refs/README.md` (development baseline 1.4.6), `refs/script.json`, and `refs/dump.cs`. It does not inspect a process, another checkout, or Bunny-Loader. Profile provenance pins the reference ELF SHA256 and GNU BuildID, plus both metadata hashes. The generated profile comes from that reference, not from live actual instructions. No binaries are copied.
 
 The ELF reader requires ELF64 little endian AArch64, `.eh_frame_hdr` encodings `1b/03/3b`, a version-1 `zR` or `zPLR` CIE ending in `R=1b`, and an exact method RVA match in both metadata and an indexed FDE. Unsupported layouts fail instead of estimating a method length. Each emitted site contains a complete 16 byte expected fingerprint starting at CMP. `expectedMethod` contains the complete FDE bytes required by strict native v2. Hex strings preserve little endian byte order.
 

@@ -81,7 +81,6 @@ public sealed class TestFishingPole : ModItem
 
     public override void SetDefaults()
     {
-        Item.width = Item.height = 20;
         Item.maxStack = 1;
         Item.fishingPole = 20;
         Item.shoot = ModContent.ProjectileType<TestFishingBobber>();

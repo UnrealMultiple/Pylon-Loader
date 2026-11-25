@@ -23,8 +23,6 @@ public sealed class TestHelmet : ModItem
 
     public override void SetDefaults()
     {
-        Item.width = 18;
-        Item.height = 18;
         Item.defense = 5;
     }
 
@@ -49,8 +47,6 @@ public sealed class TestBreastplate : ModItem
 
     public override void SetDefaults()
     {
-        Item.width = 18;
-        Item.height = 18;
         Item.defense = 6;
     }
 
@@ -68,8 +64,6 @@ public sealed class TestLeggings : ModItem
 
     public override void SetDefaults()
     {
-        Item.width = 18;
-        Item.height = 18;
         Item.defense = 5;
     }
 }
@@ -83,8 +77,6 @@ public sealed class TestWings : ModItem
 
     public override void SetDefaults()
     {
-        Item.width = 22;
-        Item.height = 20;
         Item.accessory = true;
     }
 
@@ -117,8 +109,6 @@ public sealed class TestShield : ModItem
 
     public override void SetDefaults()
     {
-        Item.width = 24;
-        Item.height = 28;
         Item.accessory = true;
         Item.defense = 2;
     }
@@ -135,8 +125,6 @@ public sealed class TestCharm : ModItem
 {
     public override void SetDefaults()
     {
-        Item.width = 20;
-        Item.height = 20;
         Item.accessory = true;
     }
 

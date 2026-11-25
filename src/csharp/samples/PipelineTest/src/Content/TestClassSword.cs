@@ -11,8 +11,6 @@ public sealed class TestClassSword : ModItem
     public override void SetDefaults()
     {
         Item.DamageType = ModContent.GetInstance<TestDamageClass>();
-        Item.width = 40;
-        Item.height = 40;
         Item.useStyle = (byte)ItemUseStyleID.Swing;
         Item.useTime = 30;
         Item.useAnimation = 30;

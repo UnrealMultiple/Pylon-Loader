@@ -1,10 +1,11 @@
 # 示例
 
-三个可直接跑的 Mod，从最小壳到完整内容：
+四个可直接跑的 Mod，从最小壳到完整内容：
 
 | 示例 | 展示什么 | 规模 |
 |---|---|---|
 | [FrameMod](FrameMod) | 最小可运行 Mod：注册一个 ImGui 页，画一张游戏贴图并接一个输入框 | 单文件级 |
+| [CheatMenu](CheatMenu) | 作弊菜单迁移骨架：特性注册表、统一 tick、界面层常驻 ESP、配置与抓包计数 | 中等 |
 | [XiheMagic](XiheMagic) | 完整物品链路：自定义弹幕、引导控制、着色器激光柱、BGM 与音效 | 中等 |
 | [XiheBoss](XiheBoss) | 完整 Boss：NPC + 多种弹幕 + 硬件几何批 + 屏幕后处理 + 音乐切换 | 大 |
 
@@ -22,5 +23,6 @@ pwsh -File src/csharp/tools/pylon.ps1 run                           # 启动并�
 ## 阅读顺序
 
 1. `FrameMod`：看一个 Mod 最少需要什么（`Mod` 基类 + 一个 `IModImGuiTab`）。
-2. `XiheMagic`：看内容注册、弹幕 AI、着色器资源与配置的组织方式。
-3. `XiheBoss`：看多文件模型（`Content/` + `Fx/` + `assets/`）与屏幕后处理。
+2. `CheatMenu`：看「一个 Mod + 内部模块化」怎么组织多组功能，以及为什么常驻视觉效果走界面层而不是 ImGui Tab。
+3. `XiheMagic`：看内容注册、弹幕 AI、着色器资源与配置的组织方式。
+4. `XiheBoss`：看多文件模型（`Content/` + `Fx/` + `assets/`）与屏幕后处理。

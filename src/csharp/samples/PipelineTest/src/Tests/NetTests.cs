@@ -66,23 +66,19 @@ internal static class NetTests
             c.True(threw, "单机 Send 抛 InvalidOperationException");
         });
 
-        // N-R3：表情锚序列化往返（EmoteNet 同步载荷里那对函数）：玩家锚 → 序列化 → 反序列化。
+        // N-R3：表情锚构造（1.4.6 删了 EmoteBubble 的锚序列化辅助，mod 同步走框架的载荷）。
         PT.Case("NET-R3", c =>
         {
             var player = Main.player[Main.myPlayer];
             if (player is null)
             {
-                c.True(true, "主菜单无玩家，跳过锚往返");
+                c.True(true, "主菜单无玩家，跳过锚构造");
                 return;
             }
 
             var anchor = new WorldUIAnchor(player);
-            var pair = EmoteBubble.SerializeNetAnchor(anchor);
-            c.NotNull(pair, "玩家锚序列化有值");
-            if (pair is not { } p) return;
-
-            var rebuilt = EmoteBubble.DeserializeNetAnchor(p.Item1, p.Item2);
-            c.NotNull(rebuilt, "反序列化回锚");
+            c.True(anchor.type == WorldUIAnchor.AnchorType.Entity, $"锚类型 {anchor.type}（期望 Entity）");
+            c.True(anchor.entity is not null && anchor.entity.Pointer == player.Pointer, "锚指回玩家实体");
         });
 
         // N-R4：Mod 包入口面（HandlePacket(BinaryReader, int) / GetPacket）。

@@ -6,7 +6,7 @@
 val refsDir = rootProject.layout.projectDirectory.dir("refs")
 val refsDataDir = refsDir.dir("assets/bin/Data")
 val refsLibDir = refsDir.dir("lib/arm64-v8a")
-val requiredLibs = listOf("libmain.so", "libunity.so", "libil2cpp.so")
+val requiredLibs = listOf("libc++_shared.so", "libmain.so", "libunity.so", "libGNS_Wrapper.so", "libil2cpp.so")
 val stagedAssetsDir = layout.buildDirectory.dir("pylon-staged/assets").get().asFile
 val stagedJniLibsDir = layout.buildDirectory.dir("pylon-staged/jniLibs").get().asFile
 

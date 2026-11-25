@@ -48,8 +48,6 @@ internal static class UnloadedItems
             item.ResetStats(type);
             item.type = type;
             item.maxStack = 9999;
-            if (item.width <= 0) item.width = 16;
-            if (item.height <= 0) item.height = 16;
         }
         catch (Exception e)
         {

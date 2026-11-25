@@ -88,7 +88,8 @@ public static unsafe class ModernUI
     private static readonly Dictionary<uint, (Vector2 Min, Vector2 Max)> FrozenTracks = [];
     private static readonly Dictionary<uint, float> ToggleAnims = [];
     private static readonly Dictionary<char, string> GlyphCache = [];
-    private static readonly string[] NumIds = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"];
+    // NumIds 已移除：原先 PushID(NumIds[i]) 在选项超过 10 个时越界（ComboPopup 17 项直接崩），
+    // 统一改用 ImGui.PushID(int) 重载。
 
     public static void BeginPage()
     {
@@ -411,7 +412,7 @@ public static unsafe class ModernUI
             for (var i = 0; i < options.Length; i++)
             {
                 ImGui.SetCursorScreenPos(new Vector2(x, start.Y + padIn));
-                ImGui.PushID(NumIds[i]);
+                ImGui.PushID(i.ToString());
                 var selected = i == current;
                 var clicked = ImGui.InvisibleButton("##seg", new Vector2(widths[i], itemH),
                     ImGuiButtonFlags.EnableNav);
@@ -495,7 +496,7 @@ public static unsafe class ModernUI
         var changed = false;
         for (var i = 0; i < items.Length; i++)
         {
-            ImGui.PushID(NumIds[i]);
+            ImGui.PushID(i.ToString());
             var rowH = TerrariaTheme.Px(13f + 13f);
             var clicked = ImGui.InvisibleButton("##item", new Vector2(width - TerrariaTheme.Px(10f), rowH));
             DrawComboItem(ImGui.GetWindowDrawList(), ImGui.GetItemRectMin(), ImGui.GetItemRectMax(),
@@ -710,7 +711,7 @@ public static unsafe class ModernUI
     {
         var palette = UiTheme.Palettes[index];
         var size = new Vector2(_gridCardW, TerrariaTheme.Px(ThemeCardH));
-        ImGui.PushID(NumIds[index]);
+        ImGui.PushID(index.ToString());
         try
         {
             var clicked = ImGui.InvisibleButton("##tcard", size, ImGuiButtonFlags.EnableNav);
@@ -828,15 +829,21 @@ public static unsafe class ModernUI
         _statusShownAt = Motion.Time;
     }
 
+    /// <summary>
+    /// 占位高度与有无状态无关：状态文本进程内只增不清，空时若不占位，首次 ShowStatus 才凭空多出一行，
+    /// 会把下方内容整体顶下去一截（点物品行「获取」后卡片跳一下），而且只发生在第一次。
+    /// </summary>
     public static void StatusRow()
     {
+        var avail = MathF.Max(CardAvailX, 1f);
+        var start = ImGui.GetCursorScreenPos();
+        // 行高只取决于字号（内核逐行累加字号），空串量出的高度与有字时一致。
+        var textSize = Measure(_statusText ?? string.Empty, TerrariaTheme.Px(12.5f));
+        var height = textSize.Y + TerrariaTheme.Px(18f);
+        ImGui.Dummy(new Vector2(avail, height + TerrariaTheme.Px(12f)));
         if (string.IsNullOrEmpty(_statusText)) return;
         var dl = ImGui.GetWindowDrawList();
         var pop = Motion.Enabled ? Motion.OutBack(Motion.Progress(_statusShownAt, Motion.StatusPopSeconds), 1.4f) : 1f;
-        var avail = MathF.Max(CardAvailX, 1f);
-        var start = ImGui.GetCursorScreenPos();
-        var textSize = Measure(_statusText, TerrariaTheme.Px(12.5f));
-        var height = textSize.Y + TerrariaTheme.Px(18f);
         var scale = 0.96f + 0.04f * pop;
         var w = avail * scale;
         var min = start + new Vector2((avail - w) * 0.5f, (1f - pop) * TerrariaTheme.Px(4f));
@@ -849,7 +856,6 @@ public static unsafe class ModernUI
         dl.AddCircleFilled(dot, TerrariaTheme.Px(6f), TerrariaTheme.U32(UiTheme.Alpha(good, 0.25f * pop)));
         DrawText(dl, new Vector2(min.X + TerrariaTheme.Px(29f), min.Y + ((max.Y - min.Y) - textSize.Y) * 0.5f),
             TerrariaTheme.Px(12.5f), UiTheme.Alpha(good, pop), _statusText);
-        ImGui.Dummy(new Vector2(avail, height + TerrariaTheme.Px(12f)));
     }
 
     /// <summary>Toast：顶部居中胶囊提示，1.8s 自动消退。</summary>

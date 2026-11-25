@@ -17,8 +17,6 @@ namespace RegressionTest.Content
 
         public override void SetDefaults()
         {
-            Item.width = 20;
-            Item.height = 20;
             Item.summon = true;
             Item.damage = 10;
             Item.mana = 10;
@@ -44,7 +42,7 @@ namespace RegressionTest.Content
             Projectile.aiStyle = -1;
             Projectile.friendly = true;
             Projectile.minion = true;
-            Projectile.minionSlots = 0.5f;
+            Projectile.minionSlots = 1;
             Projectile.penetrate = -1;
             Projectile.timeLeft = 18000;
             Projectile.tileCollide = false;

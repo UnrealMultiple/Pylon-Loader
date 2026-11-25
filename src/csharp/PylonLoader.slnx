@@ -21,6 +21,7 @@
     <Project Path="MonoMod/src/MonoMod.Utils/MonoMod.Utils.csproj" />
   </Folder>
   <Folder Name="/samples/">
+    <Project Path="samples/CheatMenu/CheatMenu.csproj" />
     <Project Path="samples/FrameMod/FrameMod.csproj" />
     <Project Path="samples/PipelineTest/PipelineTest.csproj" />
     <Project Path="samples/XiheBoss/XiheBoss.csproj" />

@@ -17,30 +17,37 @@ using Terraria.UI;
 namespace Pylon.ModLoader.Pipelines;
 /// <summary>
 /// 物品绘制四钩子（PreDrawInWorld/PostDrawInWorld/PreDrawInInventory/PostDrawInInventory）。
-/// 所有补丁点都相对运行时解析出的方法入口表达：Main.DrawItem 入口经 il2cpp 元数据解析
-/// （klass + 方法名/参数个数 → 方法指针），站点偏移与系数装载对偏移都以 entry 为基准；
-/// 站点装前做 16 字节指纹比对（偏移仍指向预期指令的验证），系数装载对在运行时从方法体
-/// 指令流里解码（ADRP 目标页 + LDR 偏移算出数据地址），解码不符就放弃静态读。
-/// 世界侧用 On 包装 Main.DrawItem：入口先复刻游戏自身的三道 early-out，再重算绘制参数
-/// （light=光照色；alpha=GetAlpha 加 shimmer 修正后过 GetItemLight；scale=同一次 GetItemLight 的 out；
-/// rotation=velocity.X×系数，shimmered/onConveyor 时为 0），Pre 返回 false 时不调 orig——先补调一次
-/// DrawItem_GetBasics 保住其内的动画推进，随后派发 Post；Post 在 orig 返回后派发。ref rotation/scale
-/// 只在方法体中段才有效，因此装一个 DrawItem 入口+0x418 的中体桥，只把作者改过的值写回寄存器现场
-/// （rotation→v11、scale→栈上槽）；站点校验不过时世界侧整组不接并 Warn，游戏照常绘制。系数优先按
-/// 上述指令流解码读，读不到时在桥首次命中处用游戏的 v11/velocity.X 自校验补值，仍取不到则
-/// rotation 初值退化为 0（作者的写入依然生效）。
+/// 所有补丁点都相对运行时解析出的方法入口表达：1.4.6 的 Main.DrawItem 已内联进
+/// Main.DrawItems 的循环，入口经 il2cpp 元数据解析（klass + 方法名/参数个数 → 方法指针），
+/// 站点偏移与系数装载对偏移都以 entry 为基准；站点装前做 16 字节指纹比对（偏移仍指向预期
+/// 指令的验证），系数装载对在运行时从方法体指令流里解码（ADRP 目标页 + LDR 偏移算出数据地址），
+/// 解码不符就放弃静态读。
+/// 世界侧用 On 包装 Main.DrawItems：单物品循环里装两个中体桥——循环入口（get_active 之后）
+/// 判 active/IsAir/是否 mod 物品并复刻绘制参数（light=光照色；alpha=GetAlpha 加 shimmer 修正后过
+/// GetItemLight；scale=同一次 GetItemLight 的 out；rotation=velocity.X×系数，shimmered 时为 0），
+/// Pre 返回 false 时把 get_active 结果改成 0 让循环跳过绘制，补调一次 DrawItem_GetBasics 保住其中
+/// 的动画推进并立即派发 Post；参数回写桥在 GetItemLight 之后，只把作者改过的值写回寄存器现场
+/// （rotation→v15、scale→栈上槽）。Post 在该物品绘制完（下一件物品进场或本帧 DrawItems 返回）时派发。
+/// 站点校验不过时世界侧整组不接并 Warn，游戏照常绘制。系数优先按上述指令流解码读，读不到时在
+/// 桥首次命中处用游戏的 v15/velocity.X 自校验补值，仍取不到则 rotation 初值退化为 0（作者的写入
+/// 依然生效）。
 /// 库存侧用 On 包装 ItemSlot.DrawItemIcon：帧/光照/最终缩放经 DrawItem_GetColorAndScale 重算，
 /// origin=帧尺寸一半，drawColor=GetAlpha(light)、itemColor=GetColor(环境色)；Pre 返回 false 时不调
 /// orig 并返回 finalScale，Post 照常派发。四个钩子都没有人覆写时，两个门都不装——零补丁零订阅。
 /// </summary>
 internal static unsafe class ItemDrawStageHooks
 {
-    private const int WorldSiteOffset = 0x418;
-    private const int RotationVectorIndex = 11;
-    private const int ScaleStackOffset = 0x24c;
-    private const int RotationCoefficientAdrpOffset = 0x270;
-    private const int RotationCoefficientLdrOffset = 0x278;
-    private static readonly uint[] WorldSiteWords = [0x79c14108, 0x90011939, 0xaa1f03e0, 0xb9001be8];
+    private const int WorldGateOffset = 0x260;
+    private const int WorldWritebackOffset = 0x5b8;
+    private const int WorldGpr = 23;
+    private const int WorldIndexGpr = 21;
+    private const int RotationVectorIndex = 15;
+    private const int ScaleStackOffset = 0x35c;
+    private const int RotationCoefficientAdrpOffset = 0x1f4;
+    private const int RotationCoefficientLdrOffset = 0x1f8;
+    private const float CullMargin = 128f;
+    private static readonly uint[] WorldGateWords = [0x36010F20, 0xAA1703E0, 0xAA1F03E1, 0x942409CE];
+    private static readonly uint[] WorldWritebackWords = [0x4EAF1DEC, 0xB900E3E8, 0xB940C7E8, 0x360011C8];
 
     private static bool _worldPre;
     private static bool _worldPost;
@@ -70,12 +77,13 @@ internal static unsafe class ItemDrawStageHooks
         RefreshGlobals();
         _worldPre = HookGuard.Wants<ModItem>(HookId.PreDrawInWorld) || _globalWorldPre;
         _worldPost = HookGuard.Wants<ModItem>(HookId.PostDrawInWorld) || _globalWorldPost;
-        if (_worldPre && !TryInstallWorldSite())
+        if (!_worldPre && !_worldPost) return;
+        if (_worldPre && !TryInstallWorldSites())
         {
             Log.Warn("[itemdraw] 世界绘制站点未接上（原因见上一条），PreDrawInWorld/PostDrawInWorld 不接——ref 修改与跳过不可用，游戏绘制不受影响；游戏构建更新后需重验站点指纹与装载对");
             return;
         }
-        On.Terraria.Main.DrawItem += DrawItem;
+        On.Terraria.Main.DrawItems += DrawItems;
         Log.Info($"[itemdraw] 世界绘制钩已挂（pre={_worldPre} post={_worldPost} ref写回={_refsLive}）");
     }
 
@@ -89,30 +97,40 @@ internal static unsafe class ItemDrawStageHooks
         Log.Info($"[itemdraw] 库存绘制钩已挂（pre={_inventoryPre} post={_inventoryPost}）");
     }
 
-    private static bool TryInstallWorldSite()
+    private static bool TryInstallWorldSites()
     {
         var klass = MethodCode.KlassOf(typeof(Main));
-        if (!MethodCode.TryResolve(klass, "DrawItem", 2, out var body, out _))
+        if (!MethodCode.TryResolve(klass, "DrawItems", 0, out var body, out _))
         {
-            Log.Warn("[itemdraw] Main.DrawItem 方法体没解析到，世界绘制钩不接");
+            Log.Warn("[itemdraw] Main.DrawItems 方法体没解析到，世界绘制钩不接");
             return false;
         }
-        var siteAddress = unchecked((ulong)body.ToInt64() + WorldSiteOffset);
+        if (!TryInstallWorldSite(body, WorldGateOffset, WorldGateWords, "WorldGate", InterceptWorldGate))
+            return false;
+        _refsLive = TryInstallWorldSite(body, WorldWritebackOffset, WorldWritebackWords,
+            "WorldWriteback", InterceptWorldWriteback);
+        ResolveRotationCoefficient(body);
+        return true;
+    }
+
+    private static bool TryInstallWorldSite(IntPtr body, int offset, uint[] words, string id, InterceptHandler handler)
+    {
+        var siteAddress = unchecked((ulong)body.ToInt64() + (ulong)offset);
         if (!CodeImage.TryQuery(siteAddress, out var image, out var status) ||
             image.ImageBase == 0 || string.IsNullOrEmpty(image.BuildId))
         {
-            Log.Warn($"[itemdraw] 世界绘制站点镜像身份不可用（{status}）");
+            Log.Warn($"[itemdraw] 世界绘制站点 {id} 镜像身份不可用（{status}）");
             return false;
         }
         var fingerprint = new byte[16];
-        for (var i = 0; i < WorldSiteWords.Length; i++)
-            BinaryPrimitives.WriteUInt32LittleEndian(fingerprint.AsSpan(i * 4, 4), WorldSiteWords[i]);
+        for (var i = 0; i < words.Length; i++)
+            BinaryPrimitives.WriteUInt32LittleEndian(fingerprint.AsSpan(i * 4, 4), words[i]);
         var live = new byte[16];
         fixed (byte* destination = live)
         {
             if (Arm64Native.TryReadMemory(siteAddress, destination, 16, out _) != 0)
             {
-                Log.Warn("[itemdraw] 世界绘制站点现场 16 字节读不到");
+                Log.Warn($"[itemdraw] 世界绘制站点 {id} 现场 16 字节读不到");
                 return false;
             }
         }
@@ -120,31 +138,29 @@ internal static unsafe class ItemDrawStageHooks
         {
             if (live[i] != fingerprint[i])
             {
-                Log.Warn($"[itemdraw] 世界绘制站点指纹不符 at 0x{siteAddress + (uint)i:x}");
+                Log.Warn($"[itemdraw] 世界绘制站点 {id} 指纹不符 at 0x{siteAddress + (uint)i:x}");
                 return false;
             }
         }
         var profile = new CodeSiteProfile(
             image.BuildId,
-            "itemdraw-world-pre",
+            "itemdraw-world-" + id,
             siteAddress,
             (uint)(siteAddress - image.ImageBase),
             0,
             16,
             "ItemDrawStageHooks",
-            "WorldPre",
-            Array.AsReadOnly(WorldSiteWords),
+            id,
+            Array.AsReadOnly(words),
             Array.AsReadOnly(fingerprint));
-        if (!MidBodyIntercept.TryInstall(profile, image.BuildId, InterceptWorld, true,
+        if (!MidBodyIntercept.TryInstall(profile, image.BuildId, handler, true,
                 out var interception, out var diagnostics, Log))
         {
-            Log.Warn("[itemdraw] 世界绘制中体桥被拒：" + string.Join("; ", diagnostics));
+            Log.Warn($"[itemdraw] 世界绘制站点 {id} 中体桥被拒：" + string.Join("; ", diagnostics));
             return false;
         }
         _imageBase = image.ImageBase;
-        _refsLive = true;
-        ResolveRotationCoefficient(body);
-        Log.Info($"[itemdraw] 世界绘制中体桥 site=0x{siteAddress:x} strategy={interception!.RelocationStrategy}");
+        Log.Info($"[itemdraw] 世界绘制中体桥 {id} site=0x{siteAddress:x} strategy={interception!.RelocationStrategy}");
         return true;
     }
 
@@ -228,51 +244,87 @@ internal static unsafe class ItemDrawStageHooks
     }
 
     [ThreadStatic] private static WorldScope? _scopeStorage;
-    [ThreadStatic] private static WorldScope? _scope;
+    [ThreadStatic] private static WorldScope? _pendingScope;
+    [ThreadStatic] private static Main? _drawMain;
+    [ThreadStatic] private static int _drawDepth;
+    [ThreadStatic] private static float _screenLeft, _screenTop, _screenRight, _screenBottom;
 
-    private static void DrawItem(On.Terraria.Main.orig_DrawItem orig, Main self, WorldItem world, int whoami)
+    private static void DrawItems(On.Terraria.Main.orig_DrawItems orig, Main self)
     {
-        var outer = _scope;
-        WorldScope? scope = null;
-        var skip = false;
+        var outerMain = _drawMain;
+        _drawMain = self;
+        _drawDepth++;
         try
         {
-            if (world is not null && WorldWanted(world, out var item))
+            CacheScreenBounds(self);
+            if (_worldPre)
             {
-                _scopeStorage ??= new WorldScope();
-                scope = _scopeStorage;
-                scope.World = world;
-                scope.Item = item;
-                scope.WhoAmI = whoami;
-                scope.RotationDirty = false;
-                scope.ScaleDirty = false;
+                orig(self);
+            }
+            else
+            {
+                var scopes = CollectPostScopes();
+                orig(self);
+                foreach (var scope in scopes) DispatchPostDrawInWorld(scope);
+            }
+        }
+        finally
+        {
+            FlushPendingWorld();
+            _drawDepth--;
+            _drawMain = outerMain;
+        }
+    }
+
+    private static void CacheScreenBounds(Main self)
+    {
+        _ = self;
+        var pos = Main.screenPosition;
+        _screenLeft = pos.X - CullMargin;
+        _screenTop = pos.Y - CullMargin;
+        _screenRight = pos.X + Main.screenWidth + CullMargin;
+        _screenBottom = pos.Y + Main.screenHeight + CullMargin;
+    }
+
+    private static bool OnScreen(WorldItem world)
+    {
+        var pos = world.position;
+        var right = pos.X + world.width;
+        var bottom = pos.Y + world.height;
+        return right >= _screenLeft && pos.X <= _screenRight &&
+               bottom >= _screenTop && pos.Y <= _screenBottom;
+    }
+
+    private static List<WorldScope> CollectPostScopes()
+    {
+        var scopes = new List<WorldScope>();
+        try
+        {
+            var items = Main.item;
+            if (items is null) return scopes;
+            for (var i = 0; i < items.Length; i++)
+            {
+                var world = items[i];
+                if (world is null || !WorldWanted(world, out var item)) continue;
+                if (!OnScreen(world)) continue;
+                var scope = new WorldScope { World = world, Item = item, WhoAmI = i };
                 RecomputeWorldArgs(scope);
-                _scope = scope;
-                skip = !DispatchPreDrawInWorld(scope);
+                scopes.Add(scope);
             }
         }
         catch (Exception e)
         {
-            Safe.Once("itemdraw.world.pre", "[itemdraw] 世界绘制 pre 分派异常：" + Safe.Dump(e), true);
-            scope = null;
-            skip = false;
+            Safe.Once("itemdraw.world.post", "[itemdraw] 世界绘制 post 收集异常：" + Safe.Dump(e), true);
         }
+        return scopes;
+    }
 
-        try
-        {
-            if (skip)
-            {
-                RunGetBasics(self, world, whoami);
-                if (scope is not null) DispatchPostDrawInWorld(scope);
-                return;
-            }
-            orig(self, world, whoami);
-            if (scope is not null) DispatchPostDrawInWorld(scope);
-        }
-        finally
-        {
-            _scope = outer;
-        }
+    private static void FlushPendingWorld()
+    {
+        var scope = _pendingScope;
+        if (scope is null) return;
+        _pendingScope = null;
+        DispatchPostDrawInWorld(scope);
     }
 
     private static bool WorldWanted(WorldItem world, out Item item)
@@ -280,17 +332,19 @@ internal static unsafe class ItemDrawStageHooks
         item = null!;
         try
         {
+            var inner = world.inner;
+            if (inner is null || inner.type <= 0) return false;
+            if (!_globalWorldPre && !_globalWorldPost && !ModContent.IsCustom(ContentKind.Item, inner.type)) return false;
             if (!world.active || world.IsAir) return false;
             if (world.instanced && world.playerIndexTheItemIsReservedFor != Main.myPlayer) return false;
-            item = world.inner;
+            item = inner;
         }
         catch (Exception e)
         {
             Safe.Once("itemdraw.world.wanted", "[itemdraw] 世界绘制 wanted 判定异常：" + Safe.Dump(e), true);
             return false;
         }
-        return item is not null && item.type > 0 &&
-            (_globalWorldPre || _globalWorldPost || ModContent.IsCustom(ContentKind.Item, item.type));
+        return true;
     }
 
     private static void RecomputeWorldArgs(WorldScope scope)
@@ -329,14 +383,50 @@ internal static unsafe class ItemDrawStageHooks
 
     private static float RotationCoefficient() => _rotationCoef ?? 0f;
 
-    private static bool InterceptWorld(IntPtr frame)
+    private static bool InterceptWorldGate(IntPtr frame)
     {
         try
         {
-            var scope = _scope;
-            if (scope is null || (IntPtr)InterceptFrame.GetGpr(frame, 19) != scope.World.Pointer) return false;
+            if (_drawDepth == 0) return false;
+            FlushPendingWorld();
+            if (InterceptFrame.GetGpr(frame, 0) == 0) return false;
+            var worldPointer = (IntPtr)unchecked((long)InterceptFrame.GetGpr(frame, WorldGpr));
+            if (worldPointer == IntPtr.Zero) return false;
+            var world = new WorldItem(worldPointer);
+            if (!WorldWanted(world, out var item)) return false;
+            if (!OnScreen(world)) return false;
+            _scopeStorage ??= new WorldScope();
+            var scope = _scopeStorage;
+            scope.World = world;
+            scope.Item = item;
+            scope.WhoAmI = unchecked((int)InterceptFrame.GetGpr(frame, WorldIndexGpr));
+            RecomputeWorldArgs(scope);
             if (Interlocked.Exchange(ref _siteFirstHit, 1) == 0)
                 Log.Info("[itemdraw] 世界绘制中体桥首次命中");
+            if (!DispatchPreDrawInWorld(scope))
+            {
+                RunGetBasics(_drawMain, world, scope.WhoAmI);
+                InterceptFrame.SetGpr(frame, 0, 0);
+                DispatchPostDrawInWorld(scope);
+                return false;
+            }
+            InterceptFrame.SetGpr(frame, 0, 1);
+            _pendingScope = scope;
+        }
+        catch (Exception e)
+        {
+            Safe.Once("itemdraw.world.stub", "[itemdraw] 世界绘制中体桥分派异常：" + Safe.Dump(e), true);
+        }
+        return false;
+    }
+
+    private static bool InterceptWorldWriteback(IntPtr frame)
+    {
+        try
+        {
+            var scope = _pendingScope;
+            if (scope is null) return false;
+            if ((IntPtr)unchecked((long)InterceptFrame.GetGpr(frame, WorldGpr)) != scope.World.Pointer) return false;
             SelfCheckRotation(scope, frame);
             if (scope.RotationDirty && float.IsFinite(scope.Rotation))
                 InterceptFrame.SetVectorUInt64(frame, RotationVectorIndex, 0,
@@ -444,11 +534,11 @@ internal static unsafe class ItemDrawStageHooks
         }
     }
 
-    private static void RunGetBasics(Main self, WorldItem? world, int whoami)
+    private static void RunGetBasics(Main? self, WorldItem? world, int whoami)
     {
         try
         {
-            if (world is null) return;
+            if (self is null || world is null) return;
             self.DrawItem_GetBasics(world.inner, whoami, out _, out _, out _);
         }
         catch (Exception e)

@@ -34,8 +34,6 @@ public sealed class TestRarityItem : ModItem
 
     public override void SetDefaults()
     {
-        Item.width = 20;
-        Item.height = 20;
         Item.maxStack = 1;
         Item.rare = ModContent.RarityType<TestRarity>();
         Item.value = 5000;
