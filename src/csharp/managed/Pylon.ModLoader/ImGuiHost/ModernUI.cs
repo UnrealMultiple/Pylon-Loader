@@ -1430,7 +1430,9 @@ public static unsafe class ModernUI
     internal static void GradientRoundedCorners(ImDrawListPtr dl, Vector2 min, Vector2 max,
         Vector4 c0, Vector4 c1, float radius, float angleDeg, ImDrawFlags corners)
     {
-        if (MathF.Max(c0.W, c1.W) <= 0f) return;
+        if (!Finite(min) || !Finite(max)) return;
+        var fill = TerrariaTheme.U32(c0);
+        if ((fill & 0xFF000000u) == 0u) return;
         var points = RoundedRectPath(min, max, radius, corners, corners == ImDrawFlags.RoundCornersAll ? 8 : 4);
         var rad = angleDeg * (MathF.PI / 180f);
         var dir = new Vector2(MathF.Sin(rad), -MathF.Cos(rad));
@@ -1440,11 +1442,13 @@ public static unsafe class ModernUI
         var span = MathF.Max(MathF.Abs(p1 - p0), 0.001f);
         var first = dl.VtxBuffer.Size;
         fixed (Vector2* p = points)
-            dl.AddConvexPolyFilled(p, points.Length, TerrariaTheme.U32(c0));
+            dl.AddConvexPolyFilled(p, points.Length, fill);
+        var stride = FillVertexStride(dl, first, points.Length);
+        if (stride == 0) return;
         for (var k = 0; k < points.Length; k++)
         {
             var t = Math.Clamp((Vector2.Dot(points[k], dir) - lo) / span, 0f, 1f);
-            WriteFillVertex(dl, first, k, TerrariaTheme.U32(new Vector4(
+            WriteFillVertex(dl, first, stride, k, TerrariaTheme.U32(new Vector4(
                 c0.X + (c1.X - c0.X) * t,
                 c0.Y + (c1.Y - c0.Y) * t,
                 c0.Z + (c1.Z - c0.Z) * t,
@@ -1452,9 +1456,22 @@ public static unsafe class ModernUI
         }
     }
 
-    internal static int FillVertex(ImDrawListPtr dl, int first, int k) =>
-        (dl.Flags & ImDrawListFlags.AntiAliasedFill) != 0 ? first + (k << 1) : first + k;
+    internal static bool Finite(Vector2 v) => float.IsFinite(v.X) && float.IsFinite(v.Y);
 
-    internal static void WriteFillVertex(ImDrawListPtr dl, int first, int k, uint col) =>
-        ((ImDrawVert*)dl.NativePtr->VtxBuffer.Data)[FillVertex(dl, first, k)].col = col;
+    internal static int FillVertexStride(ImDrawListPtr dl, int first, int count)
+    {
+        var added = dl.VtxBuffer.Size - first;
+        if (first < 0 || count <= 0 || added < count || added % count != 0) return 0;
+        return added / count;
+    }
+
+    internal static void WriteFillVertex(ImDrawListPtr dl, int first, int stride, int k, uint col)
+    {
+        if (stride <= 0 || k < 0 || first < 0) return;
+        var index = first + stride * k;
+        if (index >= dl.VtxBuffer.Size) return;
+        var data = dl.NativePtr->VtxBuffer.Data;
+        if (data == null) return;
+        ((ImDrawVert*)data)[index].col = col;
+    }
 }

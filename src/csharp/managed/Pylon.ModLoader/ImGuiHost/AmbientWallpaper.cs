@@ -95,9 +95,10 @@ public static unsafe class AmbientWallpaper
         fixed (Vector2* p = points)
             dl.AddConvexPolyFilled(p, Ring + 1,
                 ImGui.ColorConvertFloat4ToU32(new Vector4(color.X, color.Y, color.Z, alpha)));
+        var stride = ModernUI.FillVertexStride(dl, first, Ring + 1);
         var outer = ImGui.ColorConvertFloat4ToU32(new Vector4(color.X, color.Y, color.Z, 0f));
         for (var i = 0; i < Ring; i++)
-            ModernUI.WriteFillVertex(dl, first, 1 + i, outer);
+            ModernUI.WriteFillVertex(dl, first, stride, 1 + i, outer);
     }
 
     private static readonly Vector2[] GlyphFrostA = [new(12f, 2f), new(12f, 20f)];

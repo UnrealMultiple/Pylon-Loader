@@ -265,8 +265,9 @@ public static unsafe class WallpaperParticles
         var first = dl.VtxBuffer.Size;
         fixed (Vector2* p = points)
             dl.AddConvexPolyFilled(p, Ring + 1, ImGui.ColorConvertFloat4ToU32(new Vector4(r, g, b, Math.Clamp(alpha, 0f, 1f))));
+        var stride = ModernUI.FillVertexStride(dl, first, Ring + 1);
         var outer = ImGui.ColorConvertFloat4ToU32(new Vector4(r, g, b, 0f));
         for (var i = 0; i < Ring; i++)
-            ModernUI.WriteFillVertex(dl, first, 1 + i, outer);
+            ModernUI.WriteFillVertex(dl, first, stride, 1 + i, outer);
     }
 }
