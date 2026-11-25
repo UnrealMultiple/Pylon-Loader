@@ -24,13 +24,13 @@ src/core/build-arm64/
 # Il2CppInterop 生成的代理程序集：派生自游戏类型，不进 git（生成命令见 docs/构建-从零开始.md 第 4 节）
 interop/generated/
 
-# 生成的 On.* 源码（tools/hookgen → src/csharp/managed/Pylon.Hooks/Generated；换游戏版本会重新生成）
+# 生成的 On.* 源码（il2cppinterop hookgen → src/csharp/managed/Pylon.Hooks/Generated；换游戏版本会重新生成）
 src/csharp/managed/Pylon.Hooks/Generated/
 
 # 从 BepInEx-Android 发行 APK 里拆出来的运行时（CoreCLR/BCL/框架），派生自上游，不进 git
 runtime/
 
-# 由 tools/deploy-runtime.ps1 / Gradle 生成的 debug 运行时件（派生自游戏/上游，不进 git）
+# 由 src/csharp/tools/pylon.ps1 deploy / Gradle 生成的 debug 运行时件（派生自游戏/上游，不进 git）
 src/app/src/debug/assets/pylon-dotnet/
 src/app/src/debug/assets/pylon-interop/
 src/app/src/debug/assets/pylon-managed/

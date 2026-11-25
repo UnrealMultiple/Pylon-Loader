@@ -28,7 +28,7 @@ Pylon.ModLoader/
   Patch/  Textures/  Tooltips/  Effects/  UI/  ImGui/
 Pylon.NaviteAPI/          内核导出面的唯一绑定（全工程只有这里写 P/Invoke）
   ImGui/                  namespace Pylon.NaviteAPI.ImGui：ig* / PylonImgui_*
-    Generated/            机器生成（tools/imgui-gen），不手改
+    Generated/            机器生成（imgui 绑定生成器，已随清理移除），不手改
   Effects/                namespace Pylon.NaviteAPI.Effects：PylonFx_*
   Host/                   namespace Pylon.NaviteAPI.Host：PylonMod_*（日志 / hook / 线程 / 指令改写）
 ```
