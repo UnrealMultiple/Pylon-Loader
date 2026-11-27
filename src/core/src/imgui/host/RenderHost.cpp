@@ -39,4 +39,9 @@ void PylonImgui_Reset()
     pylon::imgui::Session::Reset();
 }
 
+uint64_t PylonImgui_DrawnFrames()
+{
+    return pylon::imgui::Present::DrawnFrames();
+}
+
 }  // extern "C"

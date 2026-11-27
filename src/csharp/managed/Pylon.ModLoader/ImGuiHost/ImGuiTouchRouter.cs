@@ -14,7 +14,28 @@ internal static class ImGuiTouchRouter
 
     private static bool _installed;
 
-    internal static void BeginFrame() => Rects.Clear();
+    private static readonly Dictionary<int, bool> Captured = new();
+
+    internal static void BeginFrame()
+    {
+        // Snapshot ownership at DOWN, before rebuilding rectangles. Keep terminal fingers
+        // until the next frame so game hooks observe the same owner for UP/CANCEL.
+        var alive = new HashSet<int>();
+        try
+        {
+            for (var i = 0; i < Input.touchCount; i++)
+            {
+                var touch = Input.GetTouch(i);
+                alive.Add(touch.fingerId);
+                if (touch.phase != TouchPhase.Began || Captured.ContainsKey(touch.fingerId)) continue;
+                var pos = ImGuiInput.Map(touch.position);
+                Captured[touch.fingerId] = UiScroll.Registry.HasPopup || HitWindowAt(pos.X, pos.Y);
+            }
+            foreach (var id in Captured.Keys.Where(id => !alive.Contains(id)).ToArray()) Captured.Remove(id);
+        }
+        catch (Exception) { }
+        Rects.Clear();
+    }
 
     internal static void AddWindowRect(float x, float y, float w, float h,
                                        float kx, float ky, float scrH)
@@ -58,9 +79,15 @@ internal static class ImGuiTouchRouter
 
     private static bool TouchHitsWindow(CursorManager self, int touchIndex)
     {
-        Vector2 pos;
-        try { pos = self.GetTouchPosition(touchIndex); }
+        try
+        {
+            var touch = Input.GetTouch(touchIndex);
+            if (Captured.TryGetValue(touch.fingerId, out var captured)) return captured;
+            var pos = ImGuiInput.Map(touch.position);
+            var owner = UiScroll.Registry.HasPopup || HitWindowAt(pos.X, pos.Y);
+            if (touch.phase == TouchPhase.Began) Captured[touch.fingerId] = owner;
+            return owner;
+        }
         catch (Exception) { return false; }
-        return HitWindowAt(pos.x / Kx, (ScrH - pos.y) / Ky);
     }
 }

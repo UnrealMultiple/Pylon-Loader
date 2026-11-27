@@ -130,8 +130,13 @@ public sealed class ConfigOption
             Min = range != null ? Math.Round(Convert.ToDouble(range.Min, CultureInfo.InvariantCulture), 6) : 0;
             Max = range != null ? Math.Round(Convert.ToDouble(range.Max, CultureInfo.InvariantCulture), 6) : Integer ? 100 : 1;
             Step = increment != null ? Math.Round(Convert.ToDouble(increment.Increment, CultureInfo.InvariantCulture), 6) : Integer ? 1 : 0.01;
-            if (Type == typeof(byte) && range == null)
-                Max = 255;
+            // 无 [Range] 时不能一律当成 0..100 的滑条：uint/ulong 是「按位打包」的常见类型
+            // （0xAARRGGBB 颜色、位掩码），钳到 100 会把 alpha 直接抹成 0——颜色整片透明。
+            // 这类字段没有合理的滑条区间，按原值（Data）处理，序列化照旧是 JSON 数字。
+            if (range == null && (Type == typeof(uint) || Type == typeof(ulong)))
+                return ConfigOptionKind.Data;
+            if (range == null && Type == typeof(byte))
+                Max = byte.MaxValue;
             if (!(Max > Min) || !(Step > 0))
                 return ConfigOptionKind.Data;
             return ConfigOptionKind.Range;

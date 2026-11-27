@@ -16,6 +16,10 @@ public:
     /// 渲染线程。调用方保证这批 GL 调用不进游戏的状态镜像（Pipe 用 OwnDraw 包住）。
     static void AtSwap(int width, int height);
 
+    /// 任意线程：累计已真正上屏的帧数。纹理上传确认用它做栅栏：
+    /// 只有渲染线程确实消费过含像素的快照后，托管侧才敢把 ImTextureStatus 置 OK。
+    static uint64_t DrawnFrames();
+
     /// 任意线程：后端已在渲染线程建好，且见过表面尺寸。
     static bool Ready();
     static void Size(int32_t* width, int32_t* height);

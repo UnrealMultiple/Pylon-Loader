@@ -40,6 +40,7 @@ internal static class ImGuiOverlay
         Opening,
     }
 
+    private static long _frameStamp;
     private static bool _started;
     private static string? _lastPendingReason;
     private static bool _menuOpen = true;
@@ -125,12 +126,13 @@ internal static class ImGuiOverlay
         _ballPlaced = false;
         _ballDragMoved = false;
         _navScroll = 0f;
-        _navScrollVel = 0f;
-        _navPressed = false;
-        _navDragging = false;
-        _navRevealTab = -1;
+
+
+
         UiTheme.ExtraFade = 1f;
+        UiScroll.Reset();
         ModernUI.ResetTransient();
+        ModOverlay.Reset();
         ReportedFrameErrors.Clear();
         BrokenTabs.Clear();
         try { ImGuiContext.Destroy(); }
@@ -155,16 +157,28 @@ internal static class ImGuiOverlay
             var io = ImGui.GetIO();
             var (pw, ph) = ImGuiNativeApi.DisplaySize;
             io.DisplaySize = new Vector2(pw, ph);
-            io.DeltaTime = 1f / 60f;
+            var stamp = System.Diagnostics.Stopwatch.GetTimestamp();
+            io.DeltaTime = _frameStamp == 0 ? 1f / 60f :
+                Math.Clamp((float)((stamp - _frameStamp) / (double)System.Diagnostics.Stopwatch.Frequency), .001f, .1f);
+            _frameStamp = stamp;
             ImGuiContext.ApplyScale(UiSettings.Scale);
+            // Submit platform input before NewFrame: ImGui consumes its input
+            // queue during NewFrame. Feeding it afterwards made IsMouseDown/
+            // IsWindowHovered one frame behind the raw touch gesture used by
+            // UiScroll, which caused missed releases and scroll ownership races.
+            ImGuiTouchRouter.BeginFrame();
+            ImGuiInput.Feed();
+            UiScroll.BeginFrame();
             ImGui.NewFrame();
+            TouchGestures.AfterNewFrame();
             _frameOpen = true;
             ImGuiContext.EnsureFontSizes();
             Motion.Tick(io.DeltaTime);
             UiTheme.Tick();
-            ImGuiTouchRouter.BeginFrame();
-            ImGuiInput.Feed();
             Draw();
+            ModOverlay.DrawAll();
+            UiScroll.EndFrame();
+            TouchGestures.EndFrame();
             ImGui.Render();
             _frameOpen = false;
             ImGuiNativeApi.EndFrame();
@@ -215,28 +229,40 @@ internal static class ImGuiOverlay
         ModUI.Logger?.Warn($"ImGui 帧异常：{e.GetType().Name}: {e.Message} @ {where}");
     }
 
-    private static readonly Dictionary<int, int> TexFrames = [];
+    // 每个纹理在首次出现“待上传”时记下当时已上屏帧数；只有渲染线程又画完至少一帧
+    // （该帧的快照必然带着这份像素）才回 OK。用更新次数计数是不安全的：更新频率与
+    // swap 频率并不相等，提前回 OK 会让部分字形永远没有像素。
+    private static readonly Dictionary<int, ulong> TexPendingSince = [];
 
     private static void SettleTextures()
     {
         try
         {
             var textures = ImGui.GetPlatformIO().Textures;
-            if (TexFrames.Count > 16)
-            {
-                var seen = new HashSet<int>();
-                for (var i = 0; i < textures.Size; i++) seen.Add(textures[i].UniqueID);
-                foreach (var key in TexFrames.Keys.Where(k => !seen.Contains(k)).ToList())
-                    TexFrames.Remove(key);
-            }
+            var drawn = ImGuiNativeApi.DrawnFrames();
+            var live = new HashSet<int>();
             for (var i = 0; i < textures.Size; i++)
             {
                 var tex = textures[i];
-                TexFrames.TryGetValue(tex.UniqueID, out var n);
-                TexFrames[tex.UniqueID] = n + 1;
-                if (n + 1 >= 3 && tex.Status is ImTextureStatus.WantCreate or ImTextureStatus.WantUpdates)
+                live.Add(tex.UniqueID);
+                if (tex.Status is not (ImTextureStatus.WantCreate or ImTextureStatus.WantUpdates))
+                {
+                    TexPendingSince.Remove(tex.UniqueID);
+                    continue;
+                }
+                if (!TexPendingSince.TryGetValue(tex.UniqueID, out var baseline))
+                {
+                    TexPendingSince[tex.UniqueID] = drawn;
+                    continue;
+                }
+                if (drawn > baseline)
+                {
                     tex.Status = ImTextureStatus.OK;
+                    TexPendingSince.Remove(tex.UniqueID);
+                }
             }
+            foreach (var key in TexPendingSince.Keys.Where(k => !live.Contains(k)).ToList())
+                TexPendingSince.Remove(key);
         }
         catch (Exception)
         {
@@ -454,6 +480,7 @@ internal static class ImGuiOverlay
             !InRect(mouse, foldMin, foldMax) && !InRect(mouse, closeMin, closeMax))
         {
             _windowPressPending = true;
+            if (useRaw) TouchGestures.CaptureControl(ImGui.GetID("##windowdrag"));
             _windowPressPos = mouse;
         }
 
@@ -525,8 +552,12 @@ internal static class ImGuiOverlay
         var itemCount = tabs.Count + 2;
         var footY = navMax.Y - TerrariaTheme.Px(14f) - TerrariaTheme.Px(11f);
         var areaBottom = footY - TerrariaTheme.Px(20f);
-        var overflow = MathF.Max(0f, itemCount * itemHeight - (areaBottom - itemsTop));
-        TickNavScroll(navMin, navMax, itemsTop, areaBottom, overflow);
+        ImGui.SetCursorScreenPos(new Vector2(navMin.X, itemsTop));
+        UiScroll.Begin("##navigation", new Vector2(navMax.X - navMin.X, MathF.Max(1f, areaBottom - itemsTop)),
+            Vector2.Zero, priority: UiScroll.NavigationPriority);
+        try
+        {
+        _navScroll = ImGui.GetScrollY();
 
         ImGui.PushClipRect(new Vector2(navMin.X, itemsTop), new Vector2(navMax.X, areaBottom), true);
 
@@ -549,13 +580,6 @@ internal static class ImGuiOverlay
             ModernUI.Icon.Terminal, _activeTab == tabs.Count + 1, tabs.Count + 1);
         if (_activeTab == tabs.Count + 1) { selectedTop = logTop; }
 
-        if (_activeTab != _navRevealTab)
-        {
-            var reveal = Math.Clamp(selectedTop - _navScroll, 0f, MathF.Max(areaBottom - itemsTop - itemHeight, 0f));
-            _navScroll = Math.Clamp(selectedTop - reveal, 0f, overflow);
-            _navRevealTab = _activeTab;
-        }
-
         var selectedHeight = itemHeight;
         if (_markerHeight < 0f)
         {
@@ -575,6 +599,10 @@ internal static class ImGuiOverlay
             TerrariaTheme.U32(UiTheme.Glow), TerrariaTheme.Px(2f));
 
         ImGui.PopClipRect();
+        ImGui.SetCursorPosY(itemCount * itemHeight);
+        ImGui.Dummy(Vector2.Zero);
+        }
+        finally { UiScroll.End(); }
 
         dl.AddLine(new Vector2(navMin.X, footY - TerrariaTheme.Px(14f)),
             new Vector2(navMax.X, footY - TerrariaTheme.Px(14f)),
@@ -586,79 +614,6 @@ internal static class ImGuiOverlay
     }
 
     private static float _navScroll;
-    private static float _navScrollVel;
-    private static float _navLastY;
-    private static float _navPressedY;
-    private static bool _navPressed;
-    private static bool _navDragging;
-    private static bool _navRaw;
-    private static bool _navPrevDown;
-    private static int _navRevealTab = -1;
-
-    private static void TickNavScroll(Vector2 navMin, Vector2 navMax, float itemsTop, float areaBottom, float overflow)
-    {
-        var dt = MathF.Max(ImGui.GetIO().DeltaTime, 0.001f);
-        if (_navRaw && !ImGuiInput.HasPointer)
-        {
-            _navDragging = false;
-            _navPressed = false;
-            _navRaw = false;
-            ImGuiInput.PinNavScroll = false;
-        }
-        var raw = _navRaw || ImGuiInput.HasPointer;
-        var mouse = raw ? ImGuiInput.PointerPos : ImGui.GetMousePos();
-        var down = raw ? ImGuiInput.PointerDown : ImGui.IsMouseDown(ImGuiMouseButton.Left);
-        var inside = mouse.X >= navMin.X && mouse.X <= navMax.X && mouse.Y >= itemsTop && mouse.Y <= areaBottom;
-        ImGuiInput.PinNavScroll = _navDragging;
-
-        if (_navDragging)
-        {
-            if (!down)
-            {
-                _navDragging = false;
-            }
-            else
-            {
-                var dy = mouse.Y - _navLastY;
-                _navLastY = mouse.Y;
-                _navScroll = Math.Clamp(_navScroll - dy, 0f, overflow);
-                _navScrollVel = Math.Clamp(-dy / dt, -2000f, 2000f);
-                return;
-            }
-        }
-
-        if (overflow > 0f && down && inside && !_navPressed &&
-            (raw ? ImGuiInput.PointerBegan : !_navPrevDown))
-        {
-            _navPressed = true;
-            _navRaw = raw;
-            _navPressedY = mouse.Y;
-            _navLastY = mouse.Y;
-            _navScrollVel = 0f;
-            return;
-        }
-        _navPrevDown = down;
-        if (_navPressed && down)
-        {
-            if (MathF.Abs(mouse.Y - _navPressedY) > TerrariaTheme.Px(8f))
-            {
-                _navDragging = true;
-                _navLastY = mouse.Y;
-            }
-            return;
-        }
-        _navPressed = false;
-
-        if (!_navDragging && MathF.Abs(_navScrollVel) > 20f)
-        {
-            _navScroll = Math.Clamp(_navScroll + _navScrollVel * dt, 0f, overflow);
-            _navScrollVel *= MathF.Exp(-4.5f * dt);
-        }
-        else
-        {
-            _navScrollVel = 0f;
-        }
-    }
 
     private static void DrawNavItem(float left, float top, float width, float height,
         string cn, string caps, ModernUI.Icon icon, bool selected, int tabIndex)
@@ -778,6 +733,7 @@ internal static class ImGuiOverlay
     private static void ActivateTab(int tab)
     {
         if (_activeTab == tab) return;
+        TouchGestures.StopInertia();
         _activeTab = tab;
         _pageShownAt = Motion.Time;
         ModernUI.PageStart = Motion.Time;

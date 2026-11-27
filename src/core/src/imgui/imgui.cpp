@@ -10026,6 +10026,35 @@ static void ImGui::UpdateMouseInputs()
     }
 }
 
+// Touch ownership is external to ImGuiContext: do not change the generated managed ABI.
+static ImGuiContext* PylonTouchContext = NULL;
+static ImGuiID PylonTouchOwner = 0;
+
+extern "C" __attribute__((visibility("default"))) void PylonImgui_SetTouchScrollOwner(unsigned int id)
+{
+    if (!GImGui) return;
+    if (PylonTouchContext != GImGui || PylonTouchOwner != id)
+    {
+        GImGui->WheelingWindow = NULL;
+        GImGui->WheelingWindowReleaseTimer = 0.0f;
+        GImGui->WheelingWindowWheelRemainder = ImVec2(0, 0);
+    }
+    PylonTouchContext = GImGui;
+    PylonTouchOwner = id;
+}
+
+extern "C" __attribute__((visibility("default"))) unsigned int PylonImgui_CurrentWindowId()
+{
+    return GImGui && GImGui->CurrentWindow ? GImGui->CurrentWindow->ID : 0;
+}
+
+extern "C" __attribute__((visibility("default"))) void PylonImgui_CancelTouchClick()
+{
+    if (!GImGui) return;
+    ImGui::ClearActiveID();
+    GImGui->MovingWindow = NULL;
+}
+
 static void LockWheelingWindow(ImGuiWindow* window, float wheel_amount)
 {
     ImGuiContext& g = *GImGui;
@@ -10087,6 +10116,19 @@ static ImGuiWindow* FindBestWheelingWindow(const ImVec2& wheel)
 // Called by NewFrame()
 void ImGui::UpdateMouseWheel()
 {
+    // A touch sequence has one immutable surface, even across window boundaries.
+    // Still use the native wheel step/targets below; physical mouse remains untouched.
+    ImGuiContext& touch_g = *GImGui;
+    const bool touch_owned = PylonTouchContext == GImGui && PylonTouchOwner != 0 && touch_g.IO.MouseSource == ImGuiMouseSource_TouchScreen;
+    if (touch_owned)
+    {
+        ImGuiWindow* owner = FindWindowByID(PylonTouchOwner);
+        if (!owner || !owner->WasActive || owner->Hidden)
+            return; // Never bubble a disappeared popup's wheel into the page.
+        touch_g.WheelingWindow = owner;
+        touch_g.WheelingWindowRefMousePos = touch_g.IO.MousePos;
+        touch_g.WheelingWindowReleaseTimer = 1.0f + touch_g.IO.DeltaTime;
+    }
     // Reset the locked window if we move the mouse or after the timer elapses.
     // FIXME: Ideally we could refactor to have one timer for "changing window w/ same axis" and a shorter timer for "changing window or axis w/ other axis" (#3795)
     ImGuiContext& g = *GImGui;
@@ -10166,7 +10208,10 @@ void ImGui::UpdateMouseWheel()
             {
                 LockWheelingWindow(window, wheel.y);
                 float max_step = window->InnerRect.GetHeight() * 0.67f;
-                float scroll_step = ImTrunc(ImMin(5 * window->FontRefSize, max_step));
+                // Touch sends a pixel count. Using the mouse's "5 lines per notch" step here
+                // would make the content move slower than the finger, which reads as lag and
+                // frame drops. 1 wheel unit == 1 pixel keeps the surface glued to the finger.
+                float scroll_step = touch_owned ? 1.0f : ImTrunc(ImMin(5 * window->FontRefSize, max_step));
                 SetScrollY(window, window->Scroll.y - wheel.y * scroll_step);
                 g.WheelingWindowScrolledFrame = g.FrameCount;
             }
@@ -10227,6 +10272,9 @@ void ImGui::UpdateInputEvents(bool trickle_fast_inputs)
     // FIXME: InputText() could parse event trail?
     // FIXME: Could specialize chars<>keys trickling rules for control keys (those not typically associated to characters)
     const bool trickle_interleaved_nonchar_keys_and_text = (trickle_fast_inputs && g.WantTextInputNextFrame == 1);
+    // Owned touch scrolling emits position + pixel wheel together every frame.
+    // Splitting that pair across frames grows the queue throughout a drag.
+    const bool pylon_touch_scroll = PylonTouchContext == GImGui && PylonTouchOwner != 0;
 
     bool mouse_moved = false, mouse_wheeled = false, key_changed = false, key_changed_nonchar = false, text_inputted = false;
     int  mouse_button_changed = 0x00;
@@ -10255,7 +10303,7 @@ void ImGui::UpdateInputEvents(bool trickle_fast_inputs)
             IM_ASSERT(button >= 0 && button < ImGuiMouseButton_COUNT);
             if (trickle_fast_inputs && ((mouse_button_changed & (1 << button)) || mouse_wheeled))
                 break;
-            if (trickle_fast_inputs && e->MouseButton.MouseSource == ImGuiMouseSource_TouchScreen && mouse_moved) // #2702: TouchScreen have no initial hover.
+            if (trickle_fast_inputs && e->MouseButton.MouseSource == ImGuiMouseSource_TouchScreen && mouse_moved && !pylon_touch_scroll) // Preserve initial hover for taps, not canceled scroll gestures.
                 break;
             io.MouseDown[button] = e->MouseButton.Down;
             io.MouseSource = e->MouseButton.MouseSource;
@@ -10264,7 +10312,8 @@ void ImGui::UpdateInputEvents(bool trickle_fast_inputs)
         else if (e->Type == ImGuiInputEventType_MouseWheel)
         {
             // Trickling Rule: Stop processing queued events if we got multiple action on the event
-            if (trickle_fast_inputs && (mouse_moved || mouse_button_changed != 0))
+            const bool owned_touch_wheel = pylon_touch_scroll && e->MouseWheel.MouseSource == ImGuiMouseSource_TouchScreen;
+            if (trickle_fast_inputs && (mouse_moved || mouse_button_changed != 0) && !owned_touch_wheel)
                 break;
             io.MouseWheelH += e->MouseWheel.WheelX;
             io.MouseWheel += e->MouseWheel.WheelY;

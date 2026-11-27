@@ -15,7 +15,7 @@ namespace pylon::graphics {
     X(Enable) X(Disable) X(ColorMask) X(Viewport) X(Scissor)                   \
     X(UseProgram) X(ActiveTexture) X(BindTexture) X(BindSampler)               \
     X(BindBuffer) X(BindVertexArray) X(BindFramebuffer)                        \
-    X(GenTextures) X(TexImage2D) X(TexParameteri) X(DeleteTextures)            \
+    X(GenTextures) X(TexImage2D) X(TexSubImage2D) X(TexParameteri) X(DeleteTextures) \
     X(GenSamplers) X(SamplerParameteri) X(DeleteSamplers) X(PixelStorei)       \
     X(GenFramebuffers) X(DeleteFramebuffers)                                   \
     X(FramebufferTexture2D) X(CheckFramebufferStatus) X(BlitFramebuffer)       \

@@ -23,11 +23,36 @@ std::shared_ptr<const Snapshot> Snapshot::Capture(const ImDrawData& draw) {
             snap.height = tex->Height;
             snap.bytesPerPixel = tex->BytesPerPixel;
             snap.status = tex->Status;
-            if ((tex->Status == ImTextureStatus_WantCreate || tex->Status == ImTextureStatus_WantUpdates) &&
-                tex->Pixels != nullptr && tex->Width > 0 && tex->Height > 0) {
-                const size_t bytes = static_cast<size_t>(tex->Width) * static_cast<size_t>(tex->Height) *
-                                     static_cast<size_t>(tex->BytesPerPixel);
-                snap.pixels.assign(tex->Pixels, tex->Pixels + bytes);
+            const bool wantCreate = tex->Status == ImTextureStatus_WantCreate;
+            const bool wantUpdates = tex->Status == ImTextureStatus_WantUpdates;
+            if ((wantCreate || wantUpdates) && tex->Pixels != nullptr && tex->Width > 0 && tex->Height > 0) {
+                const int bpp = tex->BytesPerPixel > 0 ? tex->BytesPerPixel : 4;
+                snap.bytesPerPixel = bpp;
+                if (wantCreate) {
+                    const size_t bytes = static_cast<size_t>(tex->Width) * static_cast<size_t>(tex->Height) *
+                                         static_cast<size_t>(bpp);
+                    snap.full = true;
+                    snap.regionWidth = tex->Width;
+                    snap.regionHeight = tex->Height;
+                    snap.pixels.assign(tex->Pixels, tex->Pixels + bytes);
+                } else {
+                    // Bounding box of all queued rects. Copy only that sub-image.
+                    const ImTextureRect& r = tex->UpdateRect;
+                    if (r.w > 0 && r.h > 0 && r.x + r.w <= tex->Width && r.y + r.h <= tex->Height) {
+                        const size_t rowBytes = static_cast<size_t>(r.w) * static_cast<size_t>(bpp);
+                        const size_t srcStride = static_cast<size_t>(tex->Width) * static_cast<size_t>(bpp);
+                        const unsigned char* src = tex->Pixels + static_cast<size_t>(r.y) * srcStride +
+                                                   static_cast<size_t>(r.x) * static_cast<size_t>(bpp);
+                        snap.x = r.x;
+                        snap.y = r.y;
+                        snap.regionWidth = r.w;
+                        snap.regionHeight = r.h;
+                        snap.pixels.resize(rowBytes * static_cast<size_t>(r.h));
+                        for (int row = 0; row < r.h; ++row)
+                            std::memcpy(snap.pixels.data() + rowBytes * static_cast<size_t>(row),
+                                        src + srcStride * static_cast<size_t>(row), rowBytes);
+                    }
+                }
             }
             snapshot->textures_.push_back(std::move(snap));
         }

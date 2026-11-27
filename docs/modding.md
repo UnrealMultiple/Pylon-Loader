@@ -126,6 +126,32 @@ RegisterImGuiTab(new MyTab());                        // 或者实现 IModImGuiT
 - ImGui 页出现在 `Pylon Mod` 窗口的 Tab 里，画在游戏自己的 GLES 上下文，不需要悬浮窗权限。
 - 屏幕效果见 `Pylon.ModLoader.Effects`：`ScreenShader` / `ScreenEffect` / `ScreenGraphics`，可选世界层或屏幕层。
 
+### 常驻绘制（ESP、HUD、世界预览）
+
+`IModImGuiTab` 只在该页被打开时绘制。要在**每帧**、与菜单开合无关地画东西
+（碰撞箱、血条、笔刷预览），注册到 `ModOverlay`：
+
+```csharp
+using Pylon.ModLoader.ImGuiHost;
+
+ModOverlay.Register("MyMod/esp", list =>
+{
+    if (Terraria.Main.gameMenu) return;
+    var p = XNAUnityRunner.AdjustWorldForRealScreen(worldPos);   // 物理像素
+    list.AddRect(new Vector2(p.X, p.Y), new Vector2(p.X + w, p.Y + h), 0xFF00FF00u, 0f, 0, 1.5f);
+});
+
+ModOverlay.Unregister("MyMod/esp");   // 卸载时务必调用
+```
+
+- `background: true`（默认）等价 ImGui 的 `GetBackgroundDrawList()`，画在 ImGui 窗口之后、游戏画面之上；
+  `false` 用前景列表，盖在所有窗口之上。
+- 绘制列表的坐标系是**物理像素**，与 ImGui 覆盖层的 `DisplaySize` 一致，所以游戏侧
+  `XNAUnityRunner.AdjustWorldForRealScreen`（世界 → 屏幕）的结果可以直接用。
+  **不要**把它的返回值交给 `SpriteBatch`：那里的单位是逻辑像素，会错位。
+- 回调在游戏线程、ImGui 帧内执行；只画，不要自己 `Begin` / `End` 窗口。
+- 回调异常由框架吞掉并一次性记日志后停用该回调，不会打断 ImGui 帧。
+
 ## 7. 配置
 
 `ModConfig` 由框架统一读写：字段即配置项，界面在游戏的设置菜单里，存档在 Mod 数据目录。配置变更不会自动重载内容，需要时自己订阅变更。

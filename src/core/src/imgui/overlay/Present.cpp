@@ -50,6 +50,7 @@ std::atomic<bool> g_tornDown{false};
 Stats g_stats;
 int64_t g_swaps = 0;
 bool g_firstFrame = false;
+std::atomic<uint64_t> g_drawnFrames{0};
 
 /// 纹理镜像：渲染线程自己的 GL 名字，按 (ImTextureData*, UniqueID) 键控。
 /// 只在渲染线程（AtSwap → Draw）访问，不需要锁；活对象的读写全部发生在游戏线程捕获时，
@@ -58,6 +59,7 @@ struct MirrorTex {
     ImTextureData* pointer;
     unsigned int uniqueId;
     GLuint name;
+    bool allocated = false;   // 是否已用 TexImage2D 建过完整存储（之后才能 TexSubImage2D）
 };
 
 std::vector<MirrorTex> g_mirrors;
@@ -86,18 +88,31 @@ void SyncMirrors(const Snapshot& snapshot) {
         if (m == nullptr) {
             GLuint name = 0;
             g.GenTextures(1, &name);
-            g_mirrors.push_back(MirrorTex{snap.pointer, snap.uniqueId, name});
+            g_mirrors.push_back(MirrorTex{snap.pointer, snap.uniqueId, name, false});
             m = &g_mirrors.back();
         }
         if (!snap.pixels.empty()) {
-            graphics::ScopedState saved;
-            g.BindTexture(GL_TEXTURE_2D, m->name);
-            g.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-            g.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-            g.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-            g.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-            g.TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, snap.width, snap.height, 0, GL_RGBA, GL_UNSIGNED_BYTE,
-                         snap.pixels.data());
+            // Invariant: the first successfully drawn snapshot for a texture is always a
+            // full WantCreate image, because Status only advances to OK after a real draw.
+            // Guard anyway so a malformed partial can never cause an out-of-bounds GL read.
+            const bool mayWrite = snap.full || m->allocated;
+            if (mayWrite) {
+                graphics::ScopedState saved;
+                g.BindTexture(GL_TEXTURE_2D, m->name);
+                g.PixelStorei(GL_UNPACK_ALIGNMENT, 1);
+                if (!snap.full) {
+                    g.TexSubImage2D(GL_TEXTURE_2D, 0, snap.x, snap.y, snap.regionWidth, snap.regionHeight,
+                                    GL_RGBA, GL_UNSIGNED_BYTE, snap.pixels.data());
+                } else {
+                    g.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                    g.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                    g.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+                    g.TexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+                    g.TexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, snap.width, snap.height, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                                 snap.pixels.data());
+                    m->allocated = true;
+                }
+            }
         }
     }
     for (int i = static_cast<int>(g_mirrors.size()) - 1; i >= 0; --i) {
@@ -242,8 +257,13 @@ void Present::AtSwap(int width, int height) {
                  width, height);
         }
         Draw(*frame);
+        g_drawnFrames.fetch_add(1, std::memory_order_release);
     }
     Report();
+}
+
+uint64_t Present::DrawnFrames() {
+    return g_drawnFrames.load(std::memory_order_acquire);
 }
 
 bool Present::Ready() {

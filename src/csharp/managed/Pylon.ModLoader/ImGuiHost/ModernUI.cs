@@ -288,7 +288,9 @@ public static unsafe class ModernUI
             var centerY = (hitMin.Y + hitMax.Y) * 0.5f;
             var trackMin = new Vector2(hitMin.X, centerY - trackHalf);
             var trackMax = new Vector2(hitMax.X, centerY + trackHalf);
-            if (ImGui.IsItemActive() && ImGui.IsMouseDown(ImGuiMouseButton.Left))
+            TouchGestures.RegisterSlider();
+            if (ImGui.IsItemActive() && ImGui.IsMouseDown(ImGuiMouseButton.Left) &&
+                TouchGestures.SliderMayChange(itemId))
             {
                 var ratio = Math.Clamp((ImGui.GetMousePos().X - hitMin.X) /
                                        MathF.Max(hitMax.X - hitMin.X, 1f), 0f, 1f);
@@ -300,9 +302,6 @@ public static unsafe class ModernUI
                     BlinkTimes[ImGui.GetID(id)] = Motion.Time;
                 }
             }
-            var io = ImGui.GetIO();
-            UiScroll.KeepDragLock(ImGui.IsItemActive() &&
-                                  MathF.Abs(io.MouseDelta.X) > MathF.Abs(io.MouseDelta.Y));
             DrawSliderTrack(ImGui.GetWindowDrawList(), trackMin, trackMax,
                 Math.Clamp((value - min) / (max - min), 0f, 1f),
                 ImGui.IsItemHovered() || ImGui.IsItemActive());
@@ -452,66 +451,86 @@ public static unsafe class ModernUI
     /// <summary>行内下拉框控件。</summary>
     public static bool ComboField(string id, string[] items, ref int current)
     {
-        var text = items[current];
-        var avail = MathF.Max(CardAvailX, 1f);
+        if (items == null || items.Length == 0) return false;
+        current = Math.Clamp(current, 0, items.Length - 1);
         var width = TerrariaTheme.Px(190f);
-        for (var i = 0; i < items.Length; i++)
-            width = MathF.Max(width, Measure(items[i], TerrariaTheme.Px(13f)).X + TerrariaTheme.Px(46f));
-        width = MathF.Min(width, avail);
-        var height = TerrariaTheme.Px(14f + 16f);
+        foreach (var item in items)
+            width = MathF.Max(width, Measure(item, TerrariaTheme.Px(14f)).X + TerrariaTheme.Px(46f));
+        width = MathF.Min(width, MathF.Max(CardAvailX, 1f));
         ImGui.PushID(id);
         try
         {
-            ImGui.InvisibleButton("##combo", new Vector2(width, height), ImGuiButtonFlags.EnableNav);
-            if (ImGui.IsItemClicked()) ImGui.OpenPopup("##pop");
-            var io = ImGui.GetIO();
-            UiScroll.KeepDragLock(ImGui.IsItemActive() &&
-                                  MathF.Abs(io.MouseDelta.X) > MathF.Abs(io.MouseDelta.Y));
-            DrawComboHeader(ImGui.GetWindowDrawList(), ImGui.GetItemRectMin(), ImGui.GetItemRectMax(),
-                text, ImGui.IsPopupOpen("##pop"), ImGui.IsItemHovered());
-            var changed = false;
-            TerrariaTheme.PushVec2(ImGuiStyleVar.WindowPadding, new Vector2(TerrariaTheme.Px(5f)));
+            // InvisibleButton's normal activation is click-release, not IsItemClicked's DOWN.
+            var clicked = ImGui.InvisibleButton("##combo", new Vector2(width, TerrariaTheme.Px(30f)), ImGuiButtonFlags.EnableNav);
+            if (clicked && !TouchGestures.SuppressClick) ImGui.OpenPopup("##pop");
+            var min = ImGui.GetItemRectMin();
+            var max = ImGui.GetItemRectMax();
+            DrawComboHeader(ImGui.GetWindowDrawList(), min, max, items[current],
+                ImGui.IsPopupOpen("##pop"), ImGui.IsItemHovered());
+
+            var viewport = ImGui.GetMainViewport();
+            var margin = TerrariaTheme.Px(8f);
+            var workMin = viewport.WorkPos + new Vector2(margin);
+            var workMax = viewport.WorkPos + viewport.WorkSize - new Vector2(margin);
+            var pad = TerrariaTheme.Px(5f);
+            // Row height follows the size we actually draw with, not GetFontSize():
+            // with dynamic fonts the window font size and TerrariaTheme.Px diverge,
+            // which previously produced sparsely spaced, "broken looking" rows.
+            var textHeight = Measure("国Ag", TerrariaTheme.Px(14f)).Y;
+            var rowHeight = MathF.Max(TerrariaTheme.Px(26f), textHeight + TerrariaTheme.Px(12f));
+            var contentHeight = items.Length * rowHeight + pad * 2f;
+            var below = MathF.Max(0f, workMax.Y - max.Y);
+            var above = MathF.Max(0f, min.Y - workMin.Y);
+            var down = below >= MathF.Min(contentHeight, TerrariaTheme.Px(160f)) || below >= above;
+            var popupHeight = MathF.Max(1f, MathF.Min(contentHeight, down ? below : above));
+            var popupWidth = MathF.Max(1f, MathF.Min(width, workMax.X - workMin.X));
+            var x = Math.Clamp(min.X, workMin.X, MathF.Max(workMin.X, workMax.X - popupWidth));
+            var y = Math.Clamp(down ? max.Y : min.Y - popupHeight, workMin.Y, MathF.Max(workMin.Y, workMax.Y - popupHeight));
+            ImGui.SetNextWindowPos(new Vector2(x, y), ImGuiCond.Always);
+            ImGui.SetNextWindowSize(new Vector2(popupWidth, popupHeight), ImGuiCond.Always);
+            TerrariaTheme.PushVec2(ImGuiStyleVar.WindowPadding, new Vector2(pad));
+            TerrariaTheme.PushVec2(ImGuiStyleVar.ItemSpacing, Vector2.Zero);
             try
             {
-                if (ImGui.BeginPopup("##pop", ImGuiWindowFlags.NoSavedSettings))
+                if (!ImGui.BeginPopup("##pop", ImGuiWindowFlags.NoSavedSettings)) return false;
+                try
                 {
-                    changed = ComboPopup(items, ref current, width);
-                    ImGui.EndPopup();
+                    UiScroll.BeginSurface();
+                    try { return ComboPopup(items, ref current, rowHeight); }
+                    finally { UiScroll.EndSurface(); }
                 }
+                finally { ImGui.EndPopup(); }
             }
-            finally
-            {
-                ImGui.PopStyleVar(2);
-            }
-            return changed;
+            finally { ImGui.PopStyleVar(4); }
         }
-        finally
-        {
-            ImGui.PopID();
-        }
+        finally { ImGui.PopID(); }
     }
 
-    private static bool ComboPopup(string[] items, ref int current, float width)
+    private static bool ComboPopup(string[] items, ref int current, float rowHeight)
     {
         var changed = false;
         for (var i = 0; i < items.Length; i++)
         {
             ImGui.PushID(i.ToString());
-            var rowH = TerrariaTheme.Px(13f + 13f);
-            var clicked = ImGui.InvisibleButton("##item", new Vector2(width - TerrariaTheme.Px(10f), rowH));
-            DrawComboItem(ImGui.GetWindowDrawList(), ImGui.GetItemRectMin(), ImGui.GetItemRectMax(),
-                items[i], i == current, ImGui.IsItemHovered());
-            if (clicked)
+            try
             {
-                current = i;
-                changed = true;
-                ImGui.CloseCurrentPopup();
+                // Native Selectable supplies keyboard/nav/active semantics; draw text at a fixed, once-scaled size.
+                var clicked = ImGui.Selectable("##item", i == current, ImGuiSelectableFlags.DontClosePopups,
+                    new Vector2(0f, rowHeight));
+                DrawComboItem(ImGui.GetWindowDrawList(), ImGui.GetItemRectMin(), ImGui.GetItemRectMax(),
+                    items[i], i == current, ImGui.IsItemHovered());
+                if (clicked && !TouchGestures.SuppressClick)
+                {
+                    current = i;
+                    changed = true;
+                    TouchGestures.StopInertia();
+                    ImGui.CloseCurrentPopup();
+                }
             }
-            ImGui.PopID();
+            finally { ImGui.PopID(); }
         }
         return changed;
     }
-
     /// <summary>文本输入框：外观自绘，编辑交给系统软键盘。</summary>
     public static bool TextInput(string label, ref string value)
     {
