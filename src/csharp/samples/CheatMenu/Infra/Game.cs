@@ -56,4 +56,22 @@ internal static class Game
         var index = TileIndex(x, y);
         return index < 0 ? -1 : Terraria.TileData.GetType(index);
     }
+
+    /// <summary>与 TileData::halfBrick 同义：SHeader 第 10 位。</summary>
+    public static bool TileHalfBrick(int x, int y)
+    {
+        var index = TileIndex(x, y);
+        if (index < 0) return false;
+        var header = Terraria.TileData.GetSHeader(index);
+        return ((header >> 10) & 1) != 0;
+    }
+
+    /// <summary>与 TileData::slope 同义：SHeader 第 12~14 位（0-7）。</summary>
+    public static int TileSlope(int x, int y)
+    {
+        var index = TileIndex(x, y);
+        if (index < 0) return 0;
+        var header = Terraria.TileData.GetSHeader(index);
+        return (int)((header >> 12) & 0x7);
+    }
 }

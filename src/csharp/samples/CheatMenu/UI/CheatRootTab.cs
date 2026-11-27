@@ -63,7 +63,10 @@ public sealed class CheatRootTab : IModImGuiTab
 
         var categoryIndex = _categoryIndex;
         if (ModernUI.Seg("##cheatcategory", ref categoryIndex, _categoryLabels))
+        {
+            ModScrollArea.StopInertia();
             _categoryIndex = categoryIndex;
+        }
         _categoryIndex = Math.Clamp(_categoryIndex, 0, _categories.Count - 1);
 
         var category = _categories[_categoryIndex];
@@ -75,7 +78,10 @@ public sealed class CheatRootTab : IModImGuiTab
         {
             var subIndex = _subIndex[(int)category];
             if (ModernUI.Seg("##cheatsub", ref subIndex, _subLabels))
+            {
+                ModScrollArea.StopInertia();
                 _subIndex[(int)category] = subIndex;
+            }
             _subIndex[(int)category] = Math.Clamp(_subIndex[(int)category], 0, _subLabels.Length - 1);
             subPage = _subLabels[_subIndex[(int)category]];
         }

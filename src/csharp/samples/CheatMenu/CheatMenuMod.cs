@@ -21,4 +21,9 @@ public sealed class CheatMenuMod : Mod
         RegisterImGuiTab(new UI.CheatRootTab());
         Logger.Info("[cheat] CheatMenu 已加载：菜单里的「作弊菜单」页");
     }
+
+    public override void Unload()
+    {
+        Infra.IconStore.OnModUnload();
+    }
 }
