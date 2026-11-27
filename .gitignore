@@ -80,3 +80,12 @@ obj/
 
 # 原神角色壁纸素材：只允许本地预览（版权），不进仓库、不进发行物
 design/assets/
+
+# CheatMenu 图标库：从原版 MT2.zip 解包出来的 Terraria 游戏图标（8397 个 PNG / 9.5 MB），
+# 属游戏美术资源（版权），只在本机存在；需要时按 README 的说明解包到本地即可。
+src/csharp/samples/CheatMenu/assets/
+
+# DSH 卸载器在本机留下的日志，与仓库无关
+dsh-uninstall.log
+dsh-uninstall.log.err
+dsh-uninstall.log.out
