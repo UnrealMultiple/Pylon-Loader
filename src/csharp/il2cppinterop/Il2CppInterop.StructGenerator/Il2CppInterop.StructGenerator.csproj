@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="ClangSharp" Version="10.0.0-beta" />
+    <PackageReference Include="ClangSharp" Version="23.1.5" />
     <PackageReference Include="CppAst" Version="0.8.0" />
     <PackageReference Include="libclang" Version="11.0.0" />
     <PackageReference Include="libclang.runtime.win-x64" Version="11.0.0" />
